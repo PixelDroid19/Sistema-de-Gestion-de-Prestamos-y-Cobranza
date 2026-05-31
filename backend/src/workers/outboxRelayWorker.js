@@ -1,6 +1,45 @@
 const { createOutboxEventRepository } = require('@/modules/credits/infrastructure/outboxEventRepository');
 const { createHttpEventPublisher, createNoopEventPublisher } = require('@/modules/credits/application/eventPublisher');
 
+const parseIntegerEnv = (key, defaultValue, { allowZero = false } = {}) => {
+  const raw = process.env[key];
+  if (raw === undefined || raw === '') {
+    return defaultValue;
+  }
+
+  const normalized = String(raw).trim();
+  const pattern = allowZero ? /^(0|[1-9]\d*)$/ : /^[1-9]\d*$/;
+  if (!pattern.test(normalized)) {
+    throw new Error(`${key} must be a ${allowZero ? 'non-negative' : 'positive'} integer.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${key} must be a ${allowZero ? 'non-negative' : 'positive'} integer.`);
+  }
+
+  return parsed;
+};
+
+const parsePositiveNumberEnv = (key, defaultValue) => {
+  const raw = process.env[key];
+  if (raw === undefined || raw === '') {
+    return defaultValue;
+  }
+
+  const normalized = String(raw).trim();
+  if (!/^(?:[1-9]\d*(?:\.\d+)?|0?\.\d+)$/.test(normalized)) {
+    throw new Error(`${key} must be a positive number.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${key} must be a positive number.`);
+  }
+
+  return parsed;
+};
+
 const resolveRetryTimestamp = (value) => {
   if (!value) {
     return null;
@@ -56,11 +95,11 @@ const createOutboxRelayWorker = ({
   clearIntervalFn = clearInterval,
   pollIntervalMs = 5000,
   batchSize = 100,
-  maxDeliveryAttempts = Number(process.env.OUTBOX_MAX_DELIVERY_ATTEMPTS || 5),
-  baseRetryDelayMs = Number(process.env.OUTBOX_RETRY_BASE_DELAY_MS || 1000),
-  retryMultiplier = Number(process.env.OUTBOX_RETRY_MULTIPLIER || 2),
-  retryJitterMs = Number(process.env.OUTBOX_RETRY_JITTER_MS || 250),
-  maxRetryDelayMs = Number(process.env.OUTBOX_RETRY_MAX_DELAY_MS || 60000),
+  maxDeliveryAttempts = parseIntegerEnv('OUTBOX_MAX_DELIVERY_ATTEMPTS', 5),
+  baseRetryDelayMs = parseIntegerEnv('OUTBOX_RETRY_BASE_DELAY_MS', 1000),
+  retryMultiplier = parsePositiveNumberEnv('OUTBOX_RETRY_MULTIPLIER', 2),
+  retryJitterMs = parseIntegerEnv('OUTBOX_RETRY_JITTER_MS', 250, { allowZero: true }),
+  maxRetryDelayMs = parseIntegerEnv('OUTBOX_RETRY_MAX_DELAY_MS', 60000),
 } = {}) => {
   const eventPublisher = resolveEventPublisher({ logger, eventPublisher: providedEventPublisher });
   let intervalHandle = null;

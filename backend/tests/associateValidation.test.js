@@ -23,11 +23,11 @@ test('associateValidation.create rejects exponent notation for interest payment 
   assert.deepEqual(error.errors, [
     {
       field: 'interestPaymentDay',
-      message: 'interestPaymentDay must be an integer between 1 and 28',
+      message: 'El día de pago de intereses debe ser un entero entre 1 y 28',
     },
     {
       field: 'interestPaymentMonth',
-      message: 'interestPaymentMonth must be an integer between 1 and 12',
+      message: 'El mes de pago de intereses debe ser un entero entre 1 y 12',
     },
   ]);
 });

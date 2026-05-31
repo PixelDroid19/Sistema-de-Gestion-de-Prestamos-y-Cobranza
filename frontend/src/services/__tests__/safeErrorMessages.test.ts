@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { getSafeErrorMessage, getSafeErrorText } from '../safeErrorMessages';
 
 describe('safeErrorMessages', () => {
+  beforeEach(() => {
+    localStorage.removeItem('app.locale');
+  });
+
   it('does not expose sensitive backend internals in user-facing messages', () => {
     const backendError = {
       statusCode: 409,
@@ -73,5 +77,25 @@ describe('safeErrorMessages', () => {
     expect(text).toContain('No se pudieron cargar los reportes');
     expect(text).not.toContain('stack trace');
     expect(text).not.toContain('reports_query');
+  });
+
+  it('uses the active locale for safe messages', () => {
+    localStorage.setItem('app.locale', 'en');
+
+    const loginSafe = getSafeErrorMessage({ statusCode: 401, message: 'wrong password' }, {
+      domain: 'auth',
+      action: 'login',
+    });
+    const reportText = getSafeErrorText(new Error('stack trace reports_query failed'), {
+      domain: 'reports',
+      action: 'reports.load',
+    });
+
+    expect(loginSafe).toEqual({
+      title: 'Incorrect email or password',
+      description: 'Check your credentials and try again.',
+    });
+    expect(reportText).toContain('Could not load reports');
+    expect(reportText).not.toContain('stack trace');
   });
 });

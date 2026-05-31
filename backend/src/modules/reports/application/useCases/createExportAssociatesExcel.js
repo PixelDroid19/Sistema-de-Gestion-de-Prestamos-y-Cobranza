@@ -299,7 +299,7 @@ const buildAssociateSheets = (rows) => {
  * @returns {(input: { actor: { id?: number|string, role: string }, filters?: { associateId?: number|string } }) => Promise<{ success: boolean, data: { rows: Array<object>, sheets: Array<object> } }>}
  */
 const createExportAssociatesExcel = ({ associateRepository, reportRepository }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only authorized backoffice users can export associates data');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar información de socios.');
   const associateIdFilter = normalizeAssociateFilterId(filters.associateId);
   const statusFilter = normalizeAssociateStatusFilter(filters.status);
   const dateRange = buildDateRangeFilter(filters);

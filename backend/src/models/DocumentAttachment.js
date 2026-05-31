@@ -26,11 +26,11 @@ const DocumentAttachment = sequelize.define('DocumentAttachment', {
       const ownerCount = [hasLoan, hasPayment, hasCustomer].filter(Boolean).length;
 
       if (ownerCount === 0) {
-        throw new Error('Document attachment must belong to a loan, payment, or customer');
+        throw new Error('El adjunto debe pertenecer a un crédito, pago o cliente');
       }
 
       if (ownerCount > 1) {
-        throw new Error('Document attachment cannot belong to multiple owners at once');
+        throw new Error('El adjunto no puede pertenecer a más de un registro a la vez');
       }
     },
   },

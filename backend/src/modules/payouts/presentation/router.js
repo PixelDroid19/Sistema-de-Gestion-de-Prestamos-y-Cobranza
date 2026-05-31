@@ -2,7 +2,7 @@ const express = require('express');
 const { asyncHandler, AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 /**
  * Composes payout and voucher routes from authorization, upload middleware,
@@ -42,7 +42,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
    */
   const parseRequiredRouteId = (value, fieldName) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError(`${fieldName} must be a valid positive integer`);
+      throw new ValidationError(buildInvalidIntegerIdMessage(fieldName));
     }
 
     return Number(String(value).trim());
@@ -82,7 +82,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // Create partial payment (authorized backoffice users only).
   router.post('/partial', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
-    assertBackofficeActor(req.user, 'Only authorized backoffice users can create partial payments');
+    assertBackofficeActor(req.user, 'Solo usuarios administrativos autorizados pueden crear pagos parciales.');
     const result = await useCases.createPartialPayment({ actor: req.user, ...req.body, idempotencyKey: requireBackofficeIdempotencyKey(req) });
     res.status(201).json({
       success: true,
@@ -97,7 +97,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // Create capital reduction payment (authorized backoffice users only).
   router.post('/capital', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
-    assertBackofficeActor(req.user, 'Only authorized backoffice users can create capital reduction payments');
+    assertBackofficeActor(req.user, 'Solo usuarios administrativos autorizados pueden registrar abonos a capital.');
     const result = await useCases.createCapitalPayment({
       actor: req.user,
       ...req.body,
@@ -234,7 +234,6 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     });
   }));
 
-  // TASK-009: PDF voucher download endpoint
   router.get('/:paymentId/voucher/pdf', requirePermission('PAYMENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const paymentId = parseRequiredRouteId(req.params.paymentId, 'paymentId');
     const voucher = await useCases.getPaymentVoucher({

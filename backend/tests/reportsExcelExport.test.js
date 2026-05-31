@@ -304,7 +304,7 @@ test('export associates use case rejects inverted date ranges before reading ass
   await assert.rejects(() => useCase({
     actor: { role: 'admin' },
     filters: { fromDate: '2026-04-30', toDate: '2026-04-01' },
-  }), /fromDate must be before or equal to toDate/i);
+  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
   assert.equal(repositoryCalled, false);
 });
 
@@ -707,7 +707,7 @@ test('export credits use case rejects inverted date ranges before reading loans'
   await assert.rejects(() => useCase({
     actor: { role: 'admin' },
     filters: { startDate: '2026-02-28', endDate: '2026-02-01' },
-  }), /startDate must be before or equal to endDate/i);
+  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
   assert.equal(repositoryCalled, false);
 });
 
@@ -716,11 +716,11 @@ const roleAwareAuth = (config = []) => (req, res, next) => {
   const roles = Array.isArray(config) ? config : [];
   const permissions = Array.isArray(config?.permissions) ? config.permissions : [];
   if (roles.length > 0 && !roles.includes(role)) {
-    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
     return;
   }
   if (permissions.includes('REPORTS_VIEW_ALL') && !['admin', 'employee'].includes(role)) {
-    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
     return;
   }
 
@@ -852,6 +852,28 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
           success: true,
           data: {
             rows: [{ paymentId: 7, loanId: 4, customerId: 10, customerName: 'Ana', amount: '100.00' }],
+            sheets: [{
+              name: 'Pagos',
+              title: 'REPORTE DE PAGOS',
+              columns: [
+                { header: 'Pago', key: 'paymentId' },
+                { header: 'Crédito', key: 'loanId' },
+                { header: 'Referencia cliente', key: 'customerId' },
+                { header: 'Cliente', key: 'customerName' },
+                { header: 'Fecha de Pago', key: 'paymentDate' },
+                { header: 'Monto', key: 'amount', numFmt: '"$"#,##0.00' },
+                { header: 'Interés Aplicado', key: 'interestApplied', numFmt: '"$"#,##0.00' },
+              ],
+              rows: [{
+                paymentId: 7,
+                loanId: 4,
+                customerId: 10,
+                customerName: 'Ana',
+                paymentDate: new Date('2026-02-14T00:00:00.000Z'),
+                amount: '100.00',
+                interestApplied: '25.00',
+              }],
+            }],
           },
         };
       },
@@ -892,6 +914,53 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
   assert.match(amountCell.numFmt, /\$/);
 });
 
+test('export payouts use case builds workbook sheets with operational headers and typed dates', async () => {
+  const useCase = createExportPayoutsExcel({
+    paymentRepository: {
+      async listPayoutsReport() {
+        return {
+          items: [{
+            id: 7,
+            loanId: 4,
+            paymentDate: '2026-02-14T00:00:00.000Z',
+            createdAt: '2026-02-14T15:30:00.000Z',
+            amount: 100,
+            principalApplied: 75,
+            interestApplied: 25,
+            penaltyApplied: 0,
+            remainingBalanceAfterPayment: 900,
+            paymentType: 'installment',
+            paymentMethod: 'cash',
+            status: 'completed',
+            paymentMetadata: { reference: 'REC-7', voucherNumber: 'VCH-7' },
+            Loan: {
+              customerId: 10,
+              Customer: { id: 10, name: 'Ana' },
+            },
+          }],
+        };
+      },
+    },
+  });
+
+  const result = await useCase({
+    actor: { role: 'admin' },
+    filters: { customerId: '10', startDate: '2026-02-01', endDate: '2026-02-28' },
+  });
+
+  assert.equal(result.success, true);
+  assert.ok(Array.isArray(result.data.sheets));
+  assert.equal(result.data.sheets[0].name, 'Pagos');
+  assert.deepEqual(
+    result.data.sheets[0].columns.map((column) => column.header).slice(0, 6),
+    ['Pago', 'Crédito', 'Referencia cliente', 'Cliente', 'Fecha de Pago', 'Monto'],
+  );
+  assert.equal(result.data.sheets[0].rows[0].paymentType, 'Cuota');
+  assert.equal(result.data.sheets[0].rows[0].paymentMethod, 'Efectivo');
+  assert.ok(result.data.sheets[0].rows[0].paymentDate instanceof Date);
+  assert.ok(result.data.sheets[0].rows[0].createdAt instanceof Date);
+});
+
 test('export payouts use case rejects inverted date ranges before reading payments', async () => {
   let repositoryCalled = false;
   const useCase = createExportPayoutsExcel({
@@ -906,7 +975,7 @@ test('export payouts use case rejects inverted date ranges before reading paymen
   await assert.rejects(() => useCase({
     actor: { role: 'admin' },
     filters: { startDate: '2026-02-28', endDate: '2026-02-01' },
-  }), /fromDate must be before or equal to toDate/i);
+  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
   assert.equal(repositoryCalled, false);
 });
 
@@ -1032,8 +1101,38 @@ test('export operating expenses report rejects inverted date ranges before query
     actor: { role: 'admin' },
     format: 'xlsx',
     filters: { fromDate: '2026-05-31', toDate: '2026-05-01' },
-  }), /fromDate must be before or equal to toDate/i);
+  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
   assert.equal(repositoryCalled, false);
+});
+
+test('export operating expenses report rejects invalid status and format with operational messages', async () => {
+  const { createExportOperatingExpensesReport } = require('@/modules/reports/application/useCases');
+
+  const useCase = createExportOperatingExpensesReport({
+    reportRepository: {
+      async listOperatingExpensesForReport() {
+        throw new Error('repository should not be called for invalid export filters');
+      },
+    },
+  });
+
+  await assert.rejects(() => useCase({
+    actor: { role: 'admin' },
+    format: 'csv',
+    filters: {},
+  }), (error) => {
+    assert.equal(error.message, 'El formato del reporte debe ser Excel o PDF.');
+    return true;
+  });
+
+  await assert.rejects(() => useCase({
+    actor: { role: 'admin' },
+    format: 'xlsx',
+    filters: { status: 'pending' },
+  }), (error) => {
+    assert.equal(error.message, 'El estado del gasto operativo debe ser completado o anulado.');
+    return true;
+  });
 });
 
 test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files for admin', async () => {
@@ -1325,7 +1424,27 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
         assert.equal(input.actor.role, 'admin');
         return {
           success: true,
-          data: { rows: mockRows },
+          data: {
+            rows: mockRows,
+            sheets: [{
+              name: 'Detalle de Socios',
+              title: 'DETALLE COMPLETO DE SOCIOS',
+              columns: [
+                { header: 'ID Socio', key: 'associateId' },
+                { header: 'Socio', key: 'associateName' },
+                { header: 'Tipo de Interés', key: 'interestType' },
+                { header: 'Deuda con Socio', key: 'interestDebt' },
+                { header: 'Participación %', key: 'participationPercentage' },
+              ],
+              rows: [{
+                associateId: 1,
+                associateName: 'Socio 1',
+                interestType: 'Mensual',
+                interestDebt: '1000.00',
+                participationPercentage: '25.0000',
+              }],
+            }],
+          },
         };
       },
       async exportRecoveryReport() {
@@ -1494,7 +1613,18 @@ test('GET /reports/associates/excel allows employee role with report permission'
       async getDashboardSummary() { return { success: true, data: { summary: {} } }; },
       async exportAssociatesExcel(input) {
         assert.equal(input.actor.role, 'employee');
-        return { success: true, data: { rows: [] } };
+        return {
+          success: true,
+          data: {
+            rows: [],
+            sheets: [{
+              name: 'Detalle de Socios',
+              title: 'DETALLE COMPLETO DE SOCIOS',
+              columns: [{ header: 'ID Socio', key: 'associateId' }],
+              rows: [],
+            }],
+          },
+        };
       },
       async exportRecoveryReport() {
         return { fileName: 'recovery-report.csv', contentType: 'text/csv', buffer: Buffer.from('test') };

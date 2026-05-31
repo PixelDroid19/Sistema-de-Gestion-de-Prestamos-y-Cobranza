@@ -54,6 +54,49 @@ test('validateEnvironment rejects too-short JWT secrets in production', () => {
   }), /at least 32 characters/i);
 });
 
+test('validateEnvironment rejects malformed database ports', () => {
+  const baseEnv = {
+    DB_NAME: 'lendflow',
+    DB_USER: 'postgres',
+    DB_PASSWORD: 'secret',
+    DB_HOST: 'localhost',
+    JWT_SECRET: 'jwt-secret',
+  };
+
+  assert.throws(
+    () => validateEnvironment({ ...baseEnv, DB_PORT: '5432ms' }),
+    /DB_PORT must be a valid TCP port/,
+  );
+  assert.throws(
+    () => validateEnvironment({ ...baseEnv, DB_PORT: '0' }),
+    /DB_PORT must be a valid TCP port/,
+  );
+  assert.throws(
+    () => validateEnvironment({ ...baseEnv, DB_PORT: '65536' }),
+    /DB_PORT must be a valid TCP port/,
+  );
+});
+
+test('startServer rejects malformed HTTP ports before bootstrapping', async () => {
+  let bootstrapCalled = false;
+
+  await assert.rejects(() => startServer({
+    port: '5000ms',
+    bootstrap: async () => {
+      bootstrapCalled = true;
+      return { sharedRuntime: {}, modules: [] };
+    },
+    createApp: () => ({
+      listen() {
+        throw new Error('listen should not be called with malformed port');
+      },
+    }),
+    createWorker: () => ({ start() {}, stop() {} }),
+  }), /PORT must be a valid TCP port/);
+
+  assert.equal(bootstrapCalled, false);
+});
+
 test('bootstrap authenticates infrastructure, syncs schema, and returns module registry', async () => {
   const calls = [];
   const modules = [{ name: 'auth', basePath: '/api/auth', router: {} }];

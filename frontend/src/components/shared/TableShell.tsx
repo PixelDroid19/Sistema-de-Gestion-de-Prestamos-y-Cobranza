@@ -1,4 +1,5 @@
 import React from 'react';
+import { tTerm } from '../../i18n/terminology';
 
 type PaginationState = {
   page: number;
@@ -40,6 +41,8 @@ export default function TableShell(props: TableShellProps) {
     contentClassName = '',
     ...rest
   } = props;
+  const paginationFrom = pagination ? ((pagination.page - 1) * pagination.pageSize) + 1 : 0;
+  const paginationTo = pagination ? Math.min(pagination.page * pagination.pageSize, pagination.totalItems) : 0;
 
   return (
     <div className={`app-table ${className}`} {...rest}>
@@ -51,11 +54,16 @@ export default function TableShell(props: TableShellProps) {
         <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3.5 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <span className="text-text-primary/80">
-              Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems} {recordsLabel}
+              {tTerm('common.pagination.summary', {
+                from: paginationFrom,
+                to: paginationTo,
+                total: pagination.totalItems,
+                records: recordsLabel,
+              })}
             </span>
             {pagination.onPageSizeChange && (
               <label className="flex items-center gap-2">
-                <span className="text-text-primary/70">Filas por página</span>
+                <span className="text-text-primary/70">{tTerm('common.pagination.rowsPerPage')}</span>
                 <select
                   value={pagination.pageSize}
                   onChange={(event) => pagination.onPageSizeChange?.(Number(event.target.value))}
@@ -75,7 +83,7 @@ export default function TableShell(props: TableShellProps) {
               onClick={pagination.onPrev}
               className="min-h-9 rounded-lg border border-border-strong bg-bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Anterior
+              {tTerm('common.pagination.previous')}
             </button>
             <button
               type="button"
@@ -83,7 +91,7 @@ export default function TableShell(props: TableShellProps) {
               onClick={pagination.onNext}
               className="min-h-9 rounded-lg border border-border-strong bg-bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Siguiente
+              {tTerm('common.pagination.next')}
             </button>
           </div>
         </div>

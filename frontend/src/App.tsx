@@ -12,6 +12,7 @@ import { GuestRoute, ProtectedRoute } from './components/ProtectedRoute';
 import { useSessionStore } from './store/sessionStore';
 import { getDefaultRouteForUser } from './constants/appAccess';
 import { PERMISSION } from './constants/permissionNames';
+import { tTerm } from './i18n/terminology';
 
 const Dashboard = React.lazy(() => import('./components/Dashboard'));
 const Customers = React.lazy(() => import('./components/Customers'));
@@ -39,7 +40,7 @@ function RouteLoadingFallback() {
     <div className="flex min-h-[240px] items-center justify-center">
       <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary shadow-sm">
         <div className="size-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
-        Cargando módulo…
+        {tTerm('route.loading.module')}
       </div>
     </div>
   );
@@ -131,7 +132,7 @@ export default function App() {
           fill: "#f5f5f5",
           roundness: 16,
           styles: {
-            title: "text-gray-900!",
+            title: "text-gray-900! normal-case!",
             description: "text-gray-600!",
           },
         }}

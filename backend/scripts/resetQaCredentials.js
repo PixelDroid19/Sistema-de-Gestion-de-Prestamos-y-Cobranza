@@ -1,5 +1,5 @@
 require('module-alias/register');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const { sequelize, User } = require('@/models');
 const { passwordHasher } = require('@/modules/auth/infrastructure/repositories');
@@ -111,11 +111,21 @@ const main = async () => {
   console.log(JSON.stringify({ success: true, results }, null, 2));
 };
 
-main()
-  .catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await sequelize.close();
-  });
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error(error.message);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await sequelize.close();
+    });
+}
+
+module.exports = {
+  CONFIRMATION_VALUE,
+  assertConfirmed,
+  getQaAccounts,
+  getRetiredPortalAccounts,
+  main,
+};

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { CircleHelp } from 'lucide-react';
+import { tTerm } from '../../i18n/terminology';
 import { startViewGuide, type GuideContext, type GuideViewKey, hasGuideDefinition } from '../../lib/guidedTours';
 import { useSessionStore } from '../../store/sessionStore';
 
@@ -191,7 +192,7 @@ export function QuickGuideButton({ guideKey, guideContext, className = '' }: Qui
       className={`inline-flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg active:scale-[0.98] ${className}`}
     >
       <CircleHelp size={16} />
-      Guía rápida
+      {tTerm('common.quickGuide')}
     </button>
   );
 }

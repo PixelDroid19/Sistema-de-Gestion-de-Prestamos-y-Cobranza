@@ -1,4 +1,3 @@
-import React from 'react';
 import { Eye, Network, Server } from 'lucide-react';
 import { AuditLog, PaginationMeta } from '../services/auditService';
 import {
@@ -9,6 +8,7 @@ import {
   getAuditModuleLabel,
   getAuditServiceLabel,
 } from '../lib/auditPresentation';
+import { tTerm } from '../i18n/terminology';
 import { ActionButton, DataTableSurface } from './shared/Surfaces';
 
 interface AuditTableProps {
@@ -46,8 +46,8 @@ export default function AuditTable({
         <div className="table-empty-state">
           <div>
             <Server className="mx-auto mb-3 size-8 text-text-secondary" />
-            <p className="font-semibold text-text-primary">Sin eventos para revisar</p>
-            <p className="mt-1 text-sm text-text-secondary">Ajusta filtros por IP, servicio o fecha para ampliar la búsqueda.</p>
+            <p className="font-semibold text-text-primary">{tTerm('audit.table.empty.title')}</p>
+            <p className="mt-1 text-sm text-text-secondary">{tTerm('audit.table.empty.description')}</p>
           </div>
         </div>
       </DataTableSurface>
@@ -60,14 +60,14 @@ export default function AuditTable({
         <table className="min-w-[1120px]">
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Servicio consumido</th>
-              <th>Usuario</th>
-              <th>Acción</th>
-              <th>Área</th>
-              <th>Entidad</th>
-              <th>IP origen</th>
-              <th className="text-right">Detalle</th>
+              <th>{tTerm('audit.table.header.date')}</th>
+              <th>{tTerm('audit.table.header.service')}</th>
+              <th>{tTerm('audit.table.header.user')}</th>
+              <th>{tTerm('audit.table.header.action')}</th>
+              <th>{tTerm('audit.table.header.module')}</th>
+              <th>{tTerm('audit.table.header.entity')}</th>
+              <th>{tTerm('audit.table.header.ip')}</th>
+              <th className="text-right">{tTerm('audit.table.header.detail')}</th>
             </tr>
           </thead>
           <tbody>
@@ -85,13 +85,15 @@ export default function AuditTable({
                         <p className="truncate font-mono text-xs font-semibold text-text-primary" title={serviceLabel}>
                           {serviceLabel}
                         </p>
-                        <p className="text-xs text-text-secondary">Endpoint o módulo que recibió la acción</p>
+                        <p className="text-xs text-text-secondary">{tTerm('audit.table.service.helper')}</p>
                       </div>
                     </div>
                   </td>
                   <td>
-                    <p className="font-medium text-text-primary">{log.userName || 'Sistema'}</p>
-                    <p className="text-xs text-text-secondary">{log.userId ? `Usuario #${log.userId}` : 'Sin usuario autenticado'}</p>
+                    <p className="font-medium text-text-primary">{log.userName || tTerm('audit.table.user.system')}</p>
+                    <p className="text-xs text-text-secondary">
+                      {log.userId ? tTerm('audit.table.user.authenticated') : tTerm('audit.table.user.noAuthenticated')}
+                    </p>
                   </td>
                   <td className="whitespace-nowrap">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getAuditActionTone(log.action)}`}>
@@ -111,12 +113,12 @@ export default function AuditTable({
                         onClick={() => onFilterIp(log.ip || '')}
                         variant="ghost"
                         className="min-h-7 px-2 py-1 font-mono text-xs"
-                        title="Filtrar todo lo registrado por esta IP"
+                        title={tTerm('audit.table.ip.filterTitle')}
                       >
                         {log.ip}
                       </ActionButton>
                     ) : (
-                      <span className="text-xs text-text-secondary">Sin IP</span>
+                      <span className="text-xs text-text-secondary">{tTerm('audit.table.ip.empty')}</span>
                     )}
                   </td>
                   <td className="text-right">
@@ -126,7 +128,7 @@ export default function AuditTable({
                       className="min-h-8 px-3 py-1.5 text-xs"
                       icon={<Eye size={14} />}
                     >
-                      Ver
+                      {tTerm('audit.table.action.view')}
                     </ActionButton>
                   </td>
                 </tr>
@@ -139,7 +141,11 @@ export default function AuditTable({
       {pagination && pagination.totalPages > 1 && (
         <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
           <span>
-            Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems} eventos
+            {tTerm('audit.table.pagination.summary', {
+              from: ((pagination.page - 1) * pagination.pageSize) + 1,
+              to: Math.min(pagination.page * pagination.pageSize, pagination.totalItems),
+              total: pagination.totalItems,
+            })}
           </span>
           <div className="flex gap-2">
             <ActionButton
@@ -148,7 +154,7 @@ export default function AuditTable({
               variant="ghost"
               className="min-h-8 px-3 py-1.5 text-xs"
             >
-              Anterior
+              {tTerm('audit.table.pagination.previous')}
             </ActionButton>
             <ActionButton
               onClick={() => onPageChange(pagination.page + 1)}
@@ -156,7 +162,7 @@ export default function AuditTable({
               variant="ghost"
               className="min-h-8 px-3 py-1.5 text-xs"
             >
-              Siguiente
+              {tTerm('audit.table.pagination.next')}
             </ActionButton>
           </div>
         </div>

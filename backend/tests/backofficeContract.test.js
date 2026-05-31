@@ -14,6 +14,8 @@ const runtimeFiles = [
   'src/modules/customers/application/useCases.js',
 ].map((relativePath) => path.join(repoRoot, relativePath));
 
+const supportScript = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+
 test('administrative runtime code keeps customer and socio records out of login-role branches', () => {
   const forbiddenPatterns = [
     /actor(?:Role)?\s*===\s*['"]customer['"]/,
@@ -64,6 +66,75 @@ test('auth module composition does not wire customer or socio profile repositori
   assert.doesNotMatch(authRepositorySource, /Customer\.create|Associate\.create/);
   assert.doesNotMatch(authRepositorySource, /syncPrimaryKeySequenceWithCustomerProfiles/);
   assert.doesNotMatch(authRepositorySource, /FROM "Customers"/);
+});
+
+test('support payoff smoke exercises payoff flows as an administrative actor', () => {
+  const source = supportScript('scripts/payoffSmokeTest.js');
+  const userSeedBlock = /User\.bulkCreate\(\[([\s\S]*?)\]\);/.exec(source)?.[1] || '';
+
+  assert.match(source, /require\(['"]module-alias\/register['"]\)/);
+  assert.doesNotMatch(userSeedBlock, /role:\s*['"]customer['"]/);
+  assert.doesNotMatch(userSeedBlock, /role:\s*['"]socio['"]/);
+  assert.doesNotMatch(source, /buildToken\(\{\s*id:\s*\d+,\s*role:\s*['"]customer['"]/);
+  assert.doesNotMatch(source, /buildToken\(\{\s*id:\s*\d+,\s*role:\s*['"]socio['"]/);
+  assert.match(source, /SAFE_PAYOFF_SMOKE_ENVIRONMENTS/);
+  assert.match(source, /assertSafePayoffSmokeEnvironment\(\);/);
+  assert.match(source, /require\.main === module/);
+});
+
+test('associate verification seed script uses current administrative contracts', () => {
+  const source = supportScript('scripts/seedAssociatePortalData.js');
+
+  assert.match(source, /require\(['"]module-alias\/register['"]\)/);
+  assert.match(source, /\/api\/associates\/\$\{associate\.id\}\/financial-details/);
+  assert.doesNotMatch(source, /\/api\/associates\/\$\{associate\.id\}\/portal/);
+  assert.doesNotMatch(source, /createRegisterUser|customerProfileRepository|associateProfileRepository/);
+  assert.match(source, /rateSource:\s*['"]policy['"]/);
+  assert.match(source, /lateFeeSource:\s*['"]policy['"]/);
+  assert.doesNotMatch(source, /interestRate:\s*12/);
+  assert.doesNotMatch(source, /lateFeeMode:\s*['"]NONE['"]/);
+});
+
+test('destructive support scripts require explicit operator confirmation', () => {
+  const clearRateSource = supportScript('scripts/clear-rate.js');
+  const repairScheduleSource = supportScript('scripts/repairCapitalPaymentSchedules.js');
+  const loanProductMigrationSource = supportScript('src/scripts/migrateLoansToProducts.js');
+  const resetLocalDbSource = supportScript('scripts/resetLocalDb.js');
+  const resetQaCredentialsSource = supportScript('scripts/resetQaCredentials.js');
+  const resetProductionQaDatasetSource = supportScript('scripts/resetProductionQaDataset.js');
+
+  assert.match(clearRateSource, /require\(['"]dotenv['"]\)\.config\(\{ quiet: true \}\)/);
+  assert.match(clearRateSource, /CLEAR_AUTH_RATE_LIMIT_CONFIRM/);
+  assert.match(clearRateSource, /CLEAR_AUTH_RATE_LIMIT/);
+  assert.match(clearRateSource, /assertConfirmed\(\);/);
+  assert.match(clearRateSource, /DELETE FROM rate_limit_entries/);
+  assert.match(clearRateSource, /require\.main === module/);
+
+  assert.match(repairScheduleSource, /require\(['"]dotenv['"]\)\.config\(\{ quiet: true \}\)/);
+  assert.match(repairScheduleSource, /REPAIR_CAPITAL_PAYMENT_SCHEDULES_CONFIRM/);
+  assert.match(repairScheduleSource, /REPAIR_CAPITAL_PAYMENT_SCHEDULES/);
+  assert.match(repairScheduleSource, /assertApplyConfirmed\(\{ apply \}\);/);
+  assert.match(repairScheduleSource, /--apply/);
+  assert.match(repairScheduleSource, /parsePositiveInteger/);
+  assert.match(repairScheduleSource, /require\.main === module/);
+  assert.doesNotMatch(repairScheduleSource, /const shouldApply = args\.has/);
+
+  assert.match(loanProductMigrationSource, /require\(['"]module-alias\/register['"]\)/);
+  assert.match(loanProductMigrationSource, /require\(['"]dotenv['"]\)\.config\(\{ quiet: true \}\)/);
+  assert.match(loanProductMigrationSource, /MIGRATE_LOANS_TO_PRODUCTS_CONFIRM/);
+  assert.match(loanProductMigrationSource, /MIGRATE_LOANS_TO_PRODUCTS/);
+  assert.match(loanProductMigrationSource, /assertConfirmed\(\);/);
+  assert.match(loanProductMigrationSource, /require\.main === module/);
+
+  assert.match(resetLocalDbSource, /RESET_LOCAL_DB_ALLOW_NONLOCAL/);
+  assert.match(resetLocalDbSource, /RESET_LOCAL_DB_CONFIRM/);
+  assert.match(resetLocalDbSource, /assertLocalDatabaseTarget\(\);/);
+  assert.match(resetLocalDbSource, /require\.main === module/);
+
+  assert.match(resetQaCredentialsSource, /RESET_QA_CREDENTIALS_CONFIRM/);
+  assert.match(resetQaCredentialsSource, /require\.main === module/);
+  assert.match(resetProductionQaDatasetSource, /RESET_PRODUCTION_QA_DATASET_CONFIRM/);
+  assert.match(resetProductionQaDatasetSource, /require\.main === module/);
 });
 
 test('permission catalog descriptions are Spanish operator-facing text', () => {

@@ -181,11 +181,65 @@ test('createUpdatePaymentMetadata keeps payment method and nested metadata align
   assert.deepEqual(result, updatedPayload);
 });
 
+test('createUpdatePaymentMetadata rejects invalid operator inputs with Spanish messages', async () => {
+  const buildUseCase = (payment) => createUpdatePaymentMetadata({
+    paymentRepository: {
+      async findById() {
+        return payment;
+      },
+      async update() {
+        throw new Error('paymentRepository.update should not be called');
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: payment.loanId };
+      },
+    },
+  });
+
+  const editablePayment = {
+    id: 51,
+    loanId: 8,
+    status: 'completed',
+    paymentDate: new Date('2026-03-01T00:00:00.000Z'),
+    paymentMethod: 'cash',
+    paymentMetadata: {},
+  };
+
+  await assert.rejects(
+    () => buildUseCase(editablePayment)({
+      actor: { id: 3, role: 'admin' },
+      paymentId: 51,
+      payload: { paymentDate: 'not-a-date' },
+    }),
+    (error) => error instanceof ValidationError && error.message === 'La fecha del pago debe ser válida.',
+  );
+
+  await assert.rejects(
+    () => buildUseCase(editablePayment)({
+      actor: { id: 3, role: 'admin' },
+      paymentId: 51,
+      payload: { paymentMethod: 'tarjeta credito' },
+    }),
+    (error) => error instanceof ValidationError && error.message === 'Selecciona un método de pago configurado.',
+  );
+
+  await assert.rejects(
+    () => buildUseCase({ ...editablePayment, status: 'annulled' })({
+      actor: { id: 3, role: 'admin' },
+      paymentId: 51,
+      payload: { observation: 'Ajuste' },
+    }),
+    (error) => error instanceof ValidationError && error.message === 'No se puede editar un pago anulado.',
+  );
+});
+
 test('createCreatePayment stops hidden loan payments before persistence', async () => {
   const createPayment = createCreatePayment({
     loanAccessPolicy: {
       async findAuthorizedLoan() {
-        throw new AuthorizationError('You do not have access to this loan');
+        throw new AuthorizationError('No tienes acceso a este crédito.');
       },
     },
     paymentApplicationService: {
@@ -444,7 +498,7 @@ test('createListPaymentsByLoan rejects history lookup for hidden loans', async (
   const listPaymentsByLoan = createListPaymentsByLoan({
     loanAccessPolicy: {
       async findAuthorizedLoan() {
-        throw new AuthorizationError('You do not have access to this loan');
+        throw new AuthorizationError('No tienes acceso a este crédito.');
       },
     },
     paymentRepository: {
@@ -511,7 +565,7 @@ test('createCreatePartialPayment rejects customer self-service partial payments'
 
   await assert.rejects(
     () => createPartialPayment({ actor: { id: 7, role: 'customer' }, loanId: 5, amount: 80 }),
-    /Only authorized backoffice users can create partial payments/,
+    /Solo usuarios administrativos autorizados pueden crear pagos parciales\./,
   );
 });
 
@@ -536,7 +590,7 @@ test('createCreatePartialPayment rejects invalid operator payment dates', async 
       amount: 80,
       paymentDate: 'not-a-date',
     }),
-    ValidationError,
+    (error) => error instanceof ValidationError && error.message === 'La fecha del pago debe ser válida.',
   );
 });
 
@@ -759,6 +813,18 @@ test('payment document use cases enforce loan access for backoffice documents', 
       toRelativePath() { return 'payment-proof.pdf'; },
       async deleteByAbsolutePath() {},
     },
+    fsModule: {
+      async open() {
+        return {
+          async read(buffer, offset, length) {
+            const signature = Buffer.from('%PDF-1.7');
+            signature.copy(buffer, offset, 0, Math.min(length, signature.length));
+            return { bytesRead: Math.min(length, signature.length), buffer };
+          },
+          async close() {},
+        };
+      },
+    },
   })({
     actor: { id: 1, role: 'admin' },
     paymentId: 51,
@@ -776,4 +842,57 @@ test('payment document use cases enforce loan access for backoffice documents', 
     },
   })({ actor: { id: 1, role: 'admin' }, paymentId: 51, documentId: 1 });
   assert.equal(downloadResult.document.id, 1);
+});
+
+test('createUploadPaymentDocument rejects content that does not match the declared file type', async () => {
+  let deletedPath = null;
+  const uploadPaymentDocument = createUploadPaymentDocument({
+    paymentRepository: {
+      async findById() {
+        return { id: 51, loanId: 9 };
+      },
+      async createDocument() {
+        throw new Error('paymentRepository.createDocument should not be called when signature is invalid');
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 9 };
+      },
+    },
+    attachmentStorage: {
+      toRelativePath() {
+        return 'payment-proof.pdf';
+      },
+      async deleteByAbsolutePath(filePath) {
+        deletedPath = filePath;
+      },
+    },
+    fsModule: {
+      async open() {
+        return {
+          async read(buffer, offset, length) {
+            const signature = Buffer.from('NOTPDF!!');
+            signature.copy(buffer, offset, 0, Math.min(length, signature.length));
+            return { bytesRead: Math.min(length, signature.length), buffer };
+          },
+          async close() {},
+        };
+      },
+    },
+  });
+
+  await assert.rejects(() => uploadPaymentDocument({
+    actor: { id: 1, role: 'admin' },
+    paymentId: 51,
+    file: {
+      path: '/tmp/payment-proof.pdf',
+      filename: 'payment-proof.pdf',
+      originalname: 'Payment Proof.pdf',
+      mimetype: 'application/pdf',
+      size: 2048,
+    },
+  }), /no coincide con el tipo declarado/i);
+
+  assert.equal(deletedPath, '/tmp/payment-proof.pdf');
 });

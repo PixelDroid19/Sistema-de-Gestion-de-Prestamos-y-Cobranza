@@ -1,25 +1,33 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const http = require('node:http');
 const https = require('node:https');
+const { parseTcpPort } = require('../src/bootstrap/ports');
 
-const defaultBaseUrl = `http://127.0.0.1:${process.env.PORT || 5000}`;
-const baseUrl = String(process.env.SMOKE_API_BASE_URL || defaultBaseUrl).replace(/\/+$/, '');
+const DEFAULT_PORT = 5000;
 
-const requireEnv = (name) => {
-  const value = String(process.env[name] || '').trim();
+const resolveDefaultBaseUrl = (env = process.env) => {
+  const port = parseTcpPort('PORT', env.PORT || DEFAULT_PORT, { allowZero: true });
+  return `http://127.0.0.1:${port}`;
+};
+
+const requireEnv = (env, name) => {
+  const value = String(env[name] || '').trim();
   if (!value) {
     throw new Error(`${name} is required`);
   }
   return value;
 };
 
-const adminEmail = requireEnv('SMOKE_ADMIN_EMAIL');
-const adminPassword = requireEnv('SMOKE_ADMIN_PASSWORD');
-const customerEmail = requireEnv('SMOKE_CUSTOMER_EMAIL');
-const socioEmail = requireEnv('SMOKE_SOCIO_EMAIL');
+const resolveSmokeConfig = (env = process.env) => ({
+  baseUrl: String(env.SMOKE_API_BASE_URL || resolveDefaultBaseUrl(env)).replace(/\/+$/, ''),
+  adminEmail: requireEnv(env, 'SMOKE_ADMIN_EMAIL'),
+  adminPassword: requireEnv(env, 'SMOKE_ADMIN_PASSWORD'),
+  customerEmail: requireEnv(env, 'SMOKE_CUSTOMER_EMAIL'),
+  socioEmail: requireEnv(env, 'SMOKE_SOCIO_EMAIL'),
+});
 
-const request = ({ method = 'GET', path, token, body, headers = {} }) => new Promise((resolve, reject) => {
+const createRequest = (baseUrl) => ({ method = 'GET', path, token, body, headers = {} }) => new Promise((resolve, reject) => {
   const url = new URL(path, baseUrl);
   const payload = body === undefined ? null : JSON.stringify(body);
   const client = url.protocol === 'https:' ? https : http;
@@ -87,7 +95,7 @@ const listFromBody = (body, key) => {
   return [];
 };
 
-const loginAdmin = async () => {
+const loginAdmin = async ({ request, adminEmail, adminPassword }) => {
   const response = await request({
     method: 'POST',
     path: '/api/auth/login',
@@ -98,25 +106,26 @@ const loginAdmin = async () => {
   return token;
 };
 
-const createLoan = async ({ token, customerId, associateId, amount, termMonths, index }) => {
+const buildCreateLoanPayload = ({ customerId, amount, termMonths }) => ({
+  customerId,
+  amount,
+  termMonths,
+  startDate: '2026-06-01',
+  rateSource: 'policy',
+  lateFeeSource: 'policy',
+});
+
+const createLoan = async ({ request, token, customerId, amount, termMonths, index }) => {
   const response = await request({
     method: 'POST',
     path: '/api/loans',
     token,
     headers: { 'Idempotency-Key': `qa-reset-credit-${Date.now()}-${process.pid}-${index}` },
-    body: {
+    body: buildCreateLoanPayload({
       customerId,
-      associateId,
       amount,
-      interestRate: 36,
       termMonths,
-      startDate: '2026-06-01',
-      lateFeeMode: 'SIMPLE',
-      annualLateFeeRate: 12,
-      calculationMethod: 'FRENCH',
-      rateSource: 'manual',
-      lateFeeSource: 'manual',
-    },
+    }),
   });
 
   const loan = response?.data?.loan;
@@ -136,8 +145,14 @@ const createLoan = async ({ token, customerId, associateId, amount, termMonths, 
   };
 };
 
-const main = async () => {
-  const token = await loginAdmin();
+const main = async ({ env = process.env } = {}) => {
+  const config = resolveSmokeConfig(env);
+  const request = createRequest(config.baseUrl);
+  const token = await loginAdmin({
+    request,
+    adminEmail: config.adminEmail,
+    adminPassword: config.adminPassword,
+  });
 
   const [customersBody, associatesBody, loansBeforeBody] = await Promise.all([
     request({ path: '/api/customers?page=1&pageSize=10', token }),
@@ -148,26 +163,26 @@ const main = async () => {
   const customers = listFromBody(customersBody, 'customers');
   const associates = listFromBody(associatesBody, 'associates');
   const loansBefore = listFromBody(loansBeforeBody, 'loans');
-  const customer = customers.find((entry) => entry.email === customerEmail);
-  const associate = associates.find((entry) => entry.email === socioEmail);
+  const customer = customers.find((entry) => entry.email === config.customerEmail);
+  const associate = associates.find((entry) => entry.email === config.socioEmail);
 
-  assert(customer?.id, `Seeded customer ${customerEmail} was not found`, customersBody);
-  assert(associate?.id, `Seeded associate ${socioEmail} was not found`, associatesBody);
+  assert(customer?.id, `Seeded customer ${config.customerEmail} was not found`, customersBody);
+  assert(associate?.id, `Seeded associate ${config.socioEmail} was not found`, associatesBody);
   assert(loansBefore.length === 0, `Expected clean loans table after reset, found ${loansBefore.length}`, loansBeforeBody);
 
   const created = [];
   created.push(await createLoan({
+    request,
     token,
     customerId: customer.id,
-    associateId: associate.id,
     amount: 1200000,
     termMonths: 12,
     index: 1,
   }));
   created.push(await createLoan({
+    request,
     token,
     customerId: customer.id,
-    associateId: associate.id,
     amount: 750000,
     termMonths: 6,
     index: 2,
@@ -191,7 +206,7 @@ const main = async () => {
   }
 
   console.log(JSON.stringify({
-    baseUrl,
+    baseUrl: config.baseUrl,
     cleanBeforeCreation: true,
     seeded: {
       customerId: customer.id,
@@ -203,10 +218,19 @@ const main = async () => {
   }, null, 2));
 };
 
-main().catch((error) => {
-  console.error(error.message);
-  if (error.details !== undefined) {
-    console.error(JSON.stringify(error.details, null, 2));
-  }
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    if (error.details !== undefined) {
+      console.error(JSON.stringify(error.details, null, 2));
+    }
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  buildCreateLoanPayload,
+  createRequest,
+  main,
+  resolveSmokeConfig,
+};

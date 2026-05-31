@@ -1,4 +1,3 @@
-import React from 'react';
 import { Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
@@ -45,9 +44,10 @@ export default function InstallmentsModal({
       title={tTerm('associateDetails.installments.title')}
       subtitle={tTerm('associateDetails.installments.description')}
       maxWidthClassName="max-w-2xl"
+      onClose={onClose}
       footer={(
         <ActionButton onClick={onClose} fullWidth>
-          Cerrar
+          {tTerm('common.cta.close')}
         </ActionButton>
       )}
     >
@@ -63,7 +63,7 @@ export default function InstallmentsModal({
 
           {isLoading ? (
             <DataTableSurface>
-              <EmptyState compact title="Cargando cuotas..." />
+              <EmptyState compact title={tTerm('associateDetails.installments.loading')} />
             </DataTableSurface>
           ) : installmentsData.installments.length > 0 ? (
             <DataTableSurface>

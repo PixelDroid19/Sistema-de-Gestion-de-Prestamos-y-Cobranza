@@ -1,23 +1,35 @@
 const { NotFoundError, AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { PERMISSION_MODULES } = require('@/models/Permission');
 const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
+const { validateIntegerId } = require('@/modules/shared/validators');
 
-const normalizeId = (value, fieldName) => {
-  if (value === undefined || value === null || value === '') {
-    throw new ValidationError(`${fieldName} is required`);
-  }
+const INVALID_PERMISSION_FILTER_MESSAGE = 'Filtro de permisos inválido.';
+const OPERATOR_SESSION_REQUIRED_MESSAGE = 'No se pudo identificar la sesión del operador.';
+const PERMISSION_REQUIRED_MESSAGE = 'El permiso es obligatorio.';
+const PERMISSION_LIST_REQUIRED_MESSAGE = 'Debes seleccionar al menos un permiso.';
+const PERMISSION_LIST_ENTRY_MESSAGE = 'Cada permiso debe indicarse con un nombre válido.';
 
-  const numeric = Number(value);
-  if (!Number.isInteger(numeric) || numeric <= 0) {
-    throw new ValidationError(`${fieldName} must be a positive integer`);
-  }
-
-  return numeric;
+const INTEGER_FIELD_LABELS = {
+  permissionId: 'El permiso',
+  targetUserId: 'El usuario',
 };
 
-const normalizePermissionName = (value, fieldName = 'permission') => {
+const normalizeId = (value, fieldName) => {
+  const label = INTEGER_FIELD_LABELS[fieldName] ?? 'El identificador';
+  if (value === undefined || value === null || value === '') {
+    throw new ValidationError(`${label} es obligatorio.`);
+  }
+
+  if (!validateIntegerId(value)) {
+    throw new ValidationError(`${label} debe ser un entero positivo.`);
+  }
+
+  return Number(String(value).trim());
+};
+
+const normalizePermissionName = (value) => {
   if (typeof value !== 'string' || !value.trim()) {
-    throw new ValidationError(`${fieldName} is required`);
+    throw new ValidationError(PERMISSION_REQUIRED_MESSAGE);
   }
   return value.trim().toUpperCase();
 };
@@ -83,17 +95,17 @@ const resolvePermission = async ({ permissionRepository, permissionId, permissio
 
 const ensureAdmin = (actor) => {
   if (!actor || !actor.id) {
-    throw new ValidationError('actor is required');
+    throw new ValidationError(OPERATOR_SESSION_REQUIRED_MESSAGE);
   }
 
   if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admin can perform this action');
+    throw new AuthorizationError('Solo un administrador puede modificar permisos.');
   }
 };
 
 const ensureAssignableUser = (user) => {
   if (user?.role !== 'employee') {
-    throw new AuthorizationError('Permissions can only be assigned to employee accounts');
+    throw new AuthorizationError('Los permisos solo pueden asignarse a cuentas de empleados.');
   }
 };
 
@@ -110,12 +122,12 @@ const createListPermissions = ({ permissionRepository }) => async () => {
 
 const createGetPermissionsByModule = ({ permissionRepository }) => async ({ module }) => {
   if (!module) {
-    throw new ValidationError('module is required');
+    throw new ValidationError('El módulo de permisos es obligatorio.');
   }
 
   const normalizedModule = String(module).toUpperCase();
   if (!PERMISSION_MODULES.includes(normalizedModule)) {
-    throw new ValidationError(`Invalid module. Valid modules: ${PERMISSION_MODULES.join(', ')}`);
+    throw new ValidationError(INVALID_PERMISSION_FILTER_MESSAGE);
   }
 
   const permissions = (await permissionRepository.findByModule(normalizedModule)).map(sanitizePermission).filter(Boolean);
@@ -128,7 +140,7 @@ const createGetPermissionsByModule = ({ permissionRepository }) => async ({ modu
 
 const createGetUserPermissions = ({ userPermissionRepository, rolePermissionRepository, userRepository }) => async ({ actor, targetUserId }) => {
   if (!actor || !actor.id) {
-    throw new ValidationError('actor is required');
+    throw new ValidationError(OPERATOR_SESSION_REQUIRED_MESSAGE);
   }
 
   const normalizedTargetUserId = normalizeId(targetUserId, 'targetUserId');
@@ -136,7 +148,7 @@ const createGetUserPermissions = ({ userPermissionRepository, rolePermissionRepo
   const isSelf = actor.id === normalizedTargetUserId;
 
   if (!isAdmin && !isSelf) {
-    throw new AuthorizationError('Only admin or the user themselves can view permissions');
+    throw new AuthorizationError('Solo un administrador o el propio usuario puede consultar estos permisos.');
   }
 
   const user = await userRepository.findById(normalizedTargetUserId);
@@ -182,7 +194,7 @@ const createGetUserPermissions = ({ userPermissionRepository, rolePermissionRepo
 
 const createGetMyPermissions = ({ userPermissionRepository, rolePermissionRepository, userRepository }) => async ({ actor }) => {
   if (!actor || !actor.id) {
-    throw new ValidationError('actor is required');
+    throw new ValidationError(OPERATOR_SESSION_REQUIRED_MESSAGE);
   }
 
   const result = await createGetUserPermissions({ userPermissionRepository, rolePermissionRepository, userRepository })({
@@ -278,7 +290,7 @@ const createGrantBatchPermissions = ({ permissionRepository, userPermissionRepos
   }
 
   if (requests.length === 0) {
-    throw new ValidationError('permissionIds or permissions must be a non-empty array');
+    throw new ValidationError(PERMISSION_LIST_REQUIRED_MESSAGE);
   }
 
   const granted = [];
@@ -353,10 +365,10 @@ const createRevokePermission = ({ permissionRepository, userPermissionRepository
 
 const createCheckPermission = ({ permissionRepository, userPermissionRepository, rolePermissionRepository, userRepository }) => async ({ actor, permissionName, permission }) => {
   if (!actor || !actor.id) {
-    throw new ValidationError('actor is required');
+    throw new ValidationError(OPERATOR_SESSION_REQUIRED_MESSAGE);
   }
 
-  const normalizedPermissionName = normalizePermissionName(permissionName ?? permission, 'permissionName');
+  const normalizedPermissionName = normalizePermissionName(permissionName ?? permission);
 
   const resolvedPermissions = await createGetUserPermissions({
     userPermissionRepository,
@@ -394,7 +406,7 @@ const createCheckPermission = ({ permissionRepository, userPermissionRepository,
 
 const createCheckMultiplePermissions = ({ permissionRepository, userPermissionRepository, rolePermissionRepository, userRepository }) => async ({ actor, permissionNames, permissions }) => {
   if (!actor || !actor.id) {
-    throw new ValidationError('actor is required');
+    throw new ValidationError(OPERATOR_SESSION_REQUIRED_MESSAGE);
   }
 
   const requested = Array.isArray(permissionNames) && permissionNames.length > 0
@@ -402,17 +414,17 @@ const createCheckMultiplePermissions = ({ permissionRepository, userPermissionRe
     : permissions;
 
   if (!Array.isArray(requested) || requested.length === 0) {
-    throw new ValidationError('permissionNames or permissions must be a non-empty array');
+    throw new ValidationError(PERMISSION_LIST_REQUIRED_MESSAGE);
   }
 
   const normalizedNames = requested.map((entry) => {
     if (typeof entry === 'string') {
-      return normalizePermissionName(entry, 'permissionNames');
+      return normalizePermissionName(entry);
     }
     if (entry && typeof entry === 'object') {
-      return normalizePermissionName(entry.permissionName ?? entry.permission, 'permissionNames');
+      return normalizePermissionName(entry.permissionName ?? entry.permission);
     }
-    throw new ValidationError('permissionNames entries must be strings or objects with permissionName/permission');
+    throw new ValidationError(PERMISSION_LIST_ENTRY_MESSAGE);
   });
 
   const uniqueNames = Array.from(new Set(normalizedNames));

@@ -6,7 +6,7 @@ const { ensureAdmin, formatMoney } = require('@/modules/reports/application/repo
  * GET /api/reports/credit-earnings
  */
 const createGetCreditEarnings = ({ reportRepository }) => async ({ actor }) => {
-  ensureAdmin(actor, 'Only admins can access financial reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes financieros.');
 
   const loans = await reportRepository.listOutstandingLoans();
 

@@ -32,6 +32,23 @@ describe('ContributionModal behavior', () => {
     expect(screen.getByText('Rentabilidad pactada: 2,5% mensual')).toBeInTheDocument();
   });
 
+  it('closes with Escape through the shared modal shell', () => {
+    const onClose = vi.fn();
+
+    render(
+      <ContributionModal
+        contributions={[]}
+        isLoading={false}
+        onAddContribution={vi.fn()}
+        onClose={onClose}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Historial de aportes' }), { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects malformed contribution amounts instead of truncating them', () => {
     const onAddContribution = vi.fn().mockResolvedValue(undefined);
 

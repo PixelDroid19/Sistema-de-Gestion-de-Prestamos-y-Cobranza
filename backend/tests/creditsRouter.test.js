@@ -391,39 +391,39 @@ test('createCreditsRouter rejects malformed route identifiers before executing c
   activeServer = await listen(app);
 
   const cases = [
-    { method: 'GET', path: '/customer/7abc', field: /customerId/i },
-    { method: 'PATCH', path: '/1e2/status', field: /loanId/i, body: { status: 'approved' } },
-    { method: 'PATCH', path: '/1.5/recovery-status', field: /loanId/i, body: { recoveryStatus: 'in_progress' } },
-    { method: 'GET', path: '/abc/attachments', field: /loanId/i },
-    { method: 'POST', path: '/abc/attachments', field: /loanId/i, body: {} },
-    { method: 'GET', path: '/abc/alerts', field: /loanId/i },
-    { method: 'POST', path: '/abc/follow-ups', field: /loanId/i, body: { note: 'Seguimiento' } },
-    { method: 'PATCH', path: '/55/alerts/abc/status', field: /alertId/i, body: { status: 'resolved' } },
-    { method: 'GET', path: '/abc/calendar', field: /loanId/i },
-    { method: 'GET', path: '/55/installments/1e2/quote', field: /installmentNumber/i },
-    { method: 'GET', path: '/abc/payoff-quote?asOfDate=2026-03-15', field: /loanId/i },
+    { method: 'GET', path: '/customer/7abc', field: /número del cliente/i },
+    { method: 'PATCH', path: '/1e2/status', field: /número del crédito/i, body: { status: 'approved' } },
+    { method: 'PATCH', path: '/1.5/recovery-status', field: /número del crédito/i, body: { recoveryStatus: 'in_progress' } },
+    { method: 'GET', path: '/abc/attachments', field: /número del crédito/i },
+    { method: 'POST', path: '/abc/attachments', field: /número del crédito/i, body: {} },
+    { method: 'GET', path: '/abc/alerts', field: /número del crédito/i },
+    { method: 'POST', path: '/abc/follow-ups', field: /número del crédito/i, body: { note: 'Seguimiento' } },
+    { method: 'PATCH', path: '/55/alerts/abc/status', field: /número de la alerta/i, body: { status: 'resolved' } },
+    { method: 'GET', path: '/abc/calendar', field: /número del crédito/i },
+    { method: 'GET', path: '/55/installments/1e2/quote', field: /número de la cuota/i },
+    { method: 'GET', path: '/abc/payoff-quote?asOfDate=2026-03-15', field: /número del crédito/i },
     {
       method: 'POST',
       path: '/abc/payoff-executions',
-      field: /loanId/i,
+      field: /número del crédito/i,
       headers: { 'idempotency-key': 'payoff-invalid-route' },
       body: { asOfDate: '2026-03-15', quotedTotal: 10 },
     },
-    { method: 'GET', path: '/abc/promises', field: /loanId/i },
-    { method: 'POST', path: '/abc/promises', field: /loanId/i, body: { promisedDate: '2026-03-25', amount: 10 } },
-    { method: 'PATCH', path: '/55/promises/abc/status', field: /promiseId/i, body: { status: 'kept' } },
-    { method: 'GET', path: '/55/promises/abc/download', field: /promiseId/i },
-    { method: 'DELETE', path: '/abc', field: /loanId/i },
-    { method: 'GET', path: '/abc', field: /loanId/i },
-    { method: 'PATCH', path: '/55/payments/abc', field: /paymentId/i, body: { paymentMethod: 'cash' } },
+    { method: 'GET', path: '/abc/promises', field: /número del crédito/i },
+    { method: 'POST', path: '/abc/promises', field: /número del crédito/i, body: { promisedDate: '2026-03-25', amount: 10 } },
+    { method: 'PATCH', path: '/55/promises/abc/status', field: /número del compromiso/i, body: { status: 'kept' } },
+    { method: 'GET', path: '/55/promises/abc/download', field: /número del compromiso/i },
+    { method: 'DELETE', path: '/abc', field: /número del crédito/i },
+    { method: 'GET', path: '/abc', field: /número del crédito/i },
+    { method: 'PATCH', path: '/55/payments/abc', field: /número del pago/i, body: { paymentMethod: 'cash' } },
     {
       method: 'POST',
       path: '/55/installments/abc/annul',
-      field: /installmentNumber/i,
+      field: /número de la cuota/i,
       headers: { 'idempotency-key': 'annul-invalid-route' },
       body: { reason: 'Corrección' },
     },
-    { method: 'PATCH', path: '/abc/late-fee-rate', field: /loanId/i, body: { lateFeeRate: 4.5 } },
+    { method: 'PATCH', path: '/abc/late-fee-rate', field: /número del crédito/i, body: { lateFeeRate: 4.5 } },
   ];
 
   for (const routeCase of cases) {
@@ -738,7 +738,7 @@ test('createCreditsRouter rejects customer payment processing at the administrat
   });
 
   assert.equal(response.statusCode, 401);
-  assert.equal(response.body.error.message, 'This account cannot access the administrative platform');
+  assert.equal(response.body.error.message, 'Esta cuenta no puede acceder a la plataforma administrativa.');
 });
 
 test('createCreditsRouter keeps static routes above /:id to avoid shadowing', async () => {
@@ -842,8 +842,44 @@ test('createCreditsRouter rejects malformed search amount filters before listing
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /minAmount/i);
+  assert.equal(response.body.error.message, 'El monto mínimo debe ser un valor monetario válido.');
   assert.deepEqual(calls, []);
+});
+
+test('createCreditsRouter rejects invalid due-payment dates with Spanish messages', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 2, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async getDuePayments() {
+        throw new Error('getDuePayments should not be called for invalid dates');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const missingResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/due-payments',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+  const invalidResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/due-payments?date=not-a-date',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(missingResponse.statusCode, 400);
+  assert.equal(missingResponse.body.error.message, 'La fecha de consulta es obligatoria.');
+  assert.equal(invalidResponse.statusCode, 400);
+  assert.equal(invalidResponse.body.error.message, 'La fecha de consulta debe ser válida.');
 });
 
 test('createCreditsRouter protects admin-only portfolio analytics routes', async () => {
@@ -956,6 +992,48 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
   assert.deepEqual(calls, [['createCreditCalculation', payload]]);
 });
 
+test('createCreditsRouter POST /calculations rejects incomplete calculation contracts with an operator message', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 2, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: {
+      ...createUseCases({
+        async createCreditCalculation() {
+          return {
+            calculationVersionId: 15,
+            calculationProfileVersionId: null,
+            method: 'FRENCH',
+            summary: {},
+            schedule: [],
+          };
+        },
+      }),
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/calculations',
+    headers: { authorization: 'Bearer valid-token' },
+    body: {
+      amount: 1500,
+      interestRate: 12,
+      termMonths: 12,
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error.message, 'El cálculo de crédito no devolvió una versión de perfil activa.');
+});
+
 test('createCreditsRouter does not expose legacy /simulations endpoint', async () => {
   const calls = [];
   const app = createRuntimeApp({
@@ -1015,7 +1093,7 @@ test('createCreditsRouter GET / rejects customer tokens at the administrative au
   });
 
   assert.equal(response.statusCode, 401);
-  assert.equal(response.body.error.message, 'This account cannot access the administrative platform');
+  assert.equal(response.body.error.message, 'Esta cuenta no puede acceder a la plataforma administrativa.');
 });
 
 test('createCreditsRouter GET / returns all loans to admins at runtime', async () => {
@@ -1412,7 +1490,7 @@ test('createCreditsRouter returns 404 when the backing attachment file is missin
 
   assert.equal(response.status, 404);
   assert.equal(body.success, false);
-  assert.equal(body.error.message, 'Attachment file not found');
+  assert.equal(body.error.message, 'El archivo adjunto no existe.');
   assert.equal(body.error.statusCode, 404);
 
   // Development diagnostics are only present when NODE_ENV=development
@@ -1595,7 +1673,7 @@ test('createCreditsRouter rejects malformed calendar overview loan IDs before qu
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /loanIds/i);
+  assert.match(response.body.error.message, /lista de créditos.*números válidos/i);
   assert.deepEqual(calls, []);
 });
 
@@ -1608,7 +1686,7 @@ test('createCreditsRouter rejects inverted calendar overview date range', async 
     useCases: createUseCases({
       async getPaymentCalendarOverview(input) {
         calls.push(input);
-        throw new ValidationError('startDate must be before or equal to endDate');
+        throw new ValidationError('La fecha inicial debe ser anterior o igual a la fecha final');
       },
     }),
   });
@@ -1627,7 +1705,7 @@ test('createCreditsRouter rejects inverted calendar overview date range', async 
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /startDate must be before or equal to endDate/i);
+  assert.match(response.body.error.message, /fecha inicial debe ser anterior o igual a la fecha final/i);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].filters.startDate, '2026-06-30');
   assert.equal(calls[0].filters.endDate, '2026-06-01');

@@ -1,6 +1,11 @@
 import { tTerm } from '../i18n/terminology';
 
-const normalizePaymentType = (value: unknown): string => String(value || '').trim().toLowerCase();
+const normalizePaymentType = (value: unknown): string => String(value || '')
+  .trim()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[\s-]+/g, '_');
 
 export const getPaymentTypeLabel = (value: unknown): string => {
   const normalized = normalizePaymentType(value);
@@ -23,6 +28,11 @@ export const getPaymentMethodLabel = (value: unknown): string => {
     card: tTerm('payment.method.card'),
     check: tTerm('payment.method.check'),
     transfer: tTerm('payment.method.transfer'),
+    transferencia: tTerm('payment.method.transfer'),
+    transferencia_bancaria: tTerm('payment.method.transfer'),
+    efectivo: tTerm('payment.method.cash'),
+    tarjeta: tTerm('payment.method.card'),
+    cheque: tTerm('payment.method.check'),
     other: tTerm('payment.method.other'),
   };
 

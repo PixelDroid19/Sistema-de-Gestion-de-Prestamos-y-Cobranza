@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/sessionStore';
@@ -9,6 +10,15 @@ import { useAuth } from '../services/authService';
 import { useMyPermissions } from '../services/permissionsService';
 import { PERMISSION } from '../constants/permissionNames';
 import { ClickableSurface, IconActionButton } from './shared/Surfaces';
+
+const DESKTOP_SIDEBAR_QUERY = '(min-width: 768px)';
+
+const getIsDesktopSidebarViewport = () => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true;
+  }
+  return window.matchMedia(DESKTOP_SIDEBAR_QUERY).matches;
+};
 
 export default function Sidebar({ 
   currentView, 
@@ -26,6 +36,7 @@ export default function Sidebar({
   setIsMobileOpen: (v: boolean) => void
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
   const isCreditsView = currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator';
   const isAssociatesView = currentView.startsWith('associate');
@@ -35,6 +46,7 @@ export default function Sidebar({
     socios: isAssociatesView,
   });
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDesktopSidebarViewport, setIsDesktopSidebarViewport] = useState(getIsDesktopSidebarViewport);
   const { accessToken, refreshToken, user, logout: clearSession } = useSessionStore();
   const { logout: requestLogout } = useAuth();
   const resolvedRole = user?.role;
@@ -58,7 +70,24 @@ export default function Sidebar({
   const canViewAudit = canAccess(PERMISSION.AUDIT_VIEW_ALL);
   const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
   
-  // Ocultar submenús al colapsar el sidebar en escritorio
+  // Close nested menus when the desktop sidebar is collapsed.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(DESKTOP_SIDEBAR_QUERY);
+    const syncDesktopSidebarViewport = () => {
+      setIsDesktopSidebarViewport(mediaQuery.matches);
+    };
+
+    syncDesktopSidebarViewport();
+    mediaQuery.addEventListener?.('change', syncDesktopSidebarViewport);
+    return () => {
+      mediaQuery.removeEventListener?.('change', syncDesktopSidebarViewport);
+    };
+  }, []);
+
   useEffect(() => {
     if (isCollapsed) {
        setOpenMenus({ clientes: false, creditos: false, socios: false });
@@ -103,6 +132,7 @@ export default function Sidebar({
     setIsLoggingOut(true);
     const sessionSnapshot = { accessToken, refreshToken, user };
     const remoteLogout = requestLogout(sessionSnapshot).catch(() => undefined);
+    queryClient.clear();
     clearSession();
     setIsMobileOpen(false);
     navigate('/login', { replace: true });
@@ -116,6 +146,10 @@ export default function Sidebar({
       setIsLoggingOut(false);
     }
   };
+  const isSidebarAccessible = isDesktopSidebarViewport || isMobileOpen;
+  const mobileDrawerStyle = isDesktopSidebarViewport
+    ? undefined
+    : { transform: isMobileOpen ? 'translateX(0)' : 'translateX(-100%)' };
 
   return (
     <>
@@ -136,7 +170,11 @@ export default function Sidebar({
         transition-all duration-300 ease-in-out shadow-2xl md:shadow-none
         ${isCollapsed ? 'w-20' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
+      `}
+        style={mobileDrawerStyle}
+        aria-hidden={isSidebarAccessible ? undefined : true}
+        inert={isSidebarAccessible ? undefined : true}
+      >
         {/* Header / Logo */}
         <div className={`flex shrink-0 items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           <ClickableSurface
@@ -151,7 +189,7 @@ export default function Sidebar({
             {!isCollapsed && <span className="font-bold text-lg tracking-tight text-text-primary whitespace-nowrap">{APP_BRAND.name}</span>}
           </ClickableSurface>
           
-          {/* Botón cerrar (Solo Móvil) */}
+          {/* Mobile close button */}
           <IconActionButton
             className="md:hidden"
             label={tTerm('sidebar.closeMenu')}
@@ -160,7 +198,7 @@ export default function Sidebar({
           />
         </div>
         
-        {/* Navegación Principal */}
+        {/* Primary navigation */}
         <nav className="flex min-h-0 flex-1 flex-col gap-1.5 w-full overflow-y-auto px-3">
           {canViewDashboard && (
             <NavItem 
@@ -172,7 +210,7 @@ export default function Sidebar({
             />
           )}
 
-          {/* Menú Clientes */}
+          {/* Customers menu */}
           {(canViewCustomers || canCreateCustomers) && (
           <div className="mt-1">
               <SectionNavButton
@@ -207,7 +245,7 @@ export default function Sidebar({
           </div>
           )}
 
-          {/* Menú Créditos */}
+          {/* Credits menu */}
           {(canViewCredits || canCreateCredits || canViewReports) && (
           <div className="mt-1">
               <SectionNavButton
@@ -259,7 +297,7 @@ export default function Sidebar({
           </div>
           )}
 
-          {/* Menú Socios */}
+          {/* Associates menu */}
           {canViewAssociates && (
           <div className="mt-1">
               <SectionNavButton
@@ -342,7 +380,7 @@ export default function Sidebar({
             className="text-text-secondary hover:text-text-primary hover:bg-hover-bg"
           />
           
-          {/* Botón Colapsar (Solo Escritorio) */}
+          {/* Desktop collapse button */}
           <IconActionButton
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="mt-4 hidden w-full md:flex"
@@ -374,6 +412,7 @@ function SectionNavButton({
     <ClickableSurface
       variant="list"
       onClick={onClick}
+      aria-expanded={isOpen}
       data-active={isCollapsed && active ? 'true' : 'false'}
       className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
         isCollapsed ? 'justify-center' : 'justify-between gap-3'
@@ -404,7 +443,7 @@ function SectionNavButton({
   );
 }
 
-// Subcomponente de Ítem de Navegación Principal
+// Primary navigation item.
 const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string, tooltip?: string, isCollapsed?: boolean, className?: string }>(({ icon, active, onClick, title, tooltip, isCollapsed, className }, ref) => {
   return (
     <ClickableSurface
@@ -426,7 +465,7 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
       </div>
       {!isCollapsed && <span className="text-sm whitespace-nowrap">{title}</span>}
       
-      {/* Indicador lateral sutil */}
+      {/* Subtle side indicator */}
       {active && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
       )}
@@ -435,7 +474,7 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
 });
 NavItem.displayName = 'NavItem';
 
-// Subcomponente de Ítem Anidado
+// Nested navigation item.
 function SubNavItem({ active, onClick, title, tooltip }: { active?: boolean; onClick?: () => void; title: string; tooltip?: string }) {
   return (
     <ClickableSurface

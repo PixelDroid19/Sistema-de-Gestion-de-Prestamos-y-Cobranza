@@ -26,9 +26,27 @@ test('loanValidation.simulate rejects unsupported late-fee modes', async () => {
   assert.deepEqual(error.errors, [
     {
       field: 'lateFeeMode',
-      message: 'Late fee mode must not be one of: SIMPLE_DAILY, COMPOUND_DAILY, FIXED_FEE',
+      message: 'Selecciona una política de mora válida.',
     },
   ]);
+});
+
+test('loanValidation.updateStatus rejects invalid states without exposing raw status values', async () => {
+  const error = await captureMiddlewareError(loanValidation.updateStatus, {
+    body: {
+      status: 'archived_internal',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Estado del crédito inválido');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'status',
+      message: 'Selecciona un estado de crédito válido.',
+    },
+  ]);
+  assert.doesNotMatch(error.errors[0].message, /pending|approved|archived_internal/i);
 });
 
 test('loanValidation.create accepts a canonical loan payload', async () => {
@@ -315,6 +333,26 @@ test('buildPayoffQuote keeps accrued daily interest at zero on a due date bounda
   assert.equal(quote.accruedDays, 0);
   assert.equal(quote.breakdown.accruedInterest, 0);
   assert.equal(quote.total, 615);
+});
+
+test('buildPayoffQuote rejects zero-balance loans with an operator-facing message', () => {
+  assert.throws(() => buildPayoffQuote({
+    loan: {
+      status: 'active',
+      startDate: '2026-01-01T00:00:00.000Z',
+      interestRate: 12,
+    },
+    schedule: [],
+    snapshot: {
+      outstandingPrincipal: 0,
+      outstandingBalance: 5,
+    },
+    asOfDate: '2026-01-15',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'El crédito no tiene saldo pendiente para pago total.');
+    return true;
+  });
 });
 
 test('buildPayoffQuote rejects overdue earned buckets because overdue unpaid installments block payoff', () => {

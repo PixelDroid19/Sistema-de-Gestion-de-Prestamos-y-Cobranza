@@ -5,6 +5,7 @@ import { useTranslation } from '../i18n';
 import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
 import { toast } from '../lib/toast';
+import { reportClientError } from '../lib/clientDiagnostics';
 import { ActionButton, FormField, PageHeader, PageShell, SectionSurface, TextInput, ViewTabs } from './shared/Surfaces';
 
 export default function Profile() {
@@ -46,7 +47,7 @@ export default function Profile() {
       });
       toast.success({ description: t('profile.toast.updated') });
     } catch (error) {
-      console.error('[profile] updateProfile failed', error);
+      reportClientError('profile.update', error);
       toast.apiErrorSafe(error, { domain: 'auth', action: 'profile.update' });
     }
   };
@@ -69,7 +70,7 @@ export default function Profile() {
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       toast.success({ description: t('profile.toast.passwordUpdated') });
     } catch (error) {
-      console.error('[profile] changePassword failed', error);
+      reportClientError('profile.passwordChange', error);
       toast.apiErrorSafe(error, { domain: 'auth', action: 'password.change' });
     }
   };
@@ -91,6 +92,7 @@ export default function Profile() {
 
       <ViewTabs
         data-tour="profile-tabs"
+        ariaLabel={t('profile.tabs.aria')}
         activeTab={activeTab}
         onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
         tabs={[

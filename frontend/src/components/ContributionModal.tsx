@@ -80,6 +80,7 @@ export default function ContributionModal({
       title={tTerm('contributionModal.title')}
       subtitle={tTerm('contributionModal.subtitle')}
       maxWidthClassName="max-w-lg"
+      onClose={onClose}
       footer={(
         <ActionButton onClick={onClose} fullWidth>
           {tTerm('contributionModal.action.close')}

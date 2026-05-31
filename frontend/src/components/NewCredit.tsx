@@ -31,6 +31,17 @@ import { OperationalInput, OperationalSelect } from './shared/FormControls';
 import { getLocalDateInputValue } from '../lib/dateInput';
 
 const formatMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0);
+const getSafeCreditCreationFieldError = (field: unknown): { field: string; message: string } | null => {
+  const normalizedField = String(field || '').trim().replace(/[_-]/g, '').toLowerCase();
+  if (['customer', 'customerid', 'borrower', 'borrowerid'].includes(normalizedField)) {
+    return {
+      field: 'customerId',
+      message: tTerm('newCredit.error.customerRequired'),
+    };
+  }
+
+  return null;
+};
 const getRangeBoundary = (value: unknown, fallback: number) => {
   if (value === null || value === undefined || value === '') return fallback;
   return Number(value);
@@ -101,7 +112,7 @@ const getDisplayName = (entity: any) => {
     .join(' ')
     .trim();
 
-  return composedName || entity?.email || `#${entity?.id}`;
+  return composedName || entity?.email || tTerm('credits.label.customerFallback');
 };
 
 export default function NewCredit({ onBack }: { onBack: () => void }) {
@@ -137,7 +148,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     input,
     result,
     error: calculationError,
-    fieldErrors: calculationFieldErrors,
     isSimulating,
     isResultStale,
     setInput,
@@ -221,8 +231,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   );
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && isLateFeePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
-  const isBorrowerReady = Boolean(borrower.customerId);
-  const isRegistrationReady = isBorrowerReady && hasValidatedResult;
   const summaryCards = useMemo(() => (result && !isResultStale ? [
     { id: 'new-credit-installment', label: tTerm('simulator.schedule.header.payment'), value: formatMoney(result.summary.installmentAmount), helper: tTerm('newCredit.summary.card.installmentHelper'), accent: 'teal' as const, icon: <Wallet size={18} /> },
     { id: 'new-credit-total', label: tTerm('simulator.summary.totalPayment.short'), value: formatMoney(result.summary.totalPayable), helper: tTerm('simulator.summary.card.helper.capitalInterest'), accent: 'blue' as const, icon: <Calculator size={18} /> },
@@ -405,7 +413,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       if (validationErrors.length > 0) {
         const fieldErrs: Record<string, string> = {};
         validationErrors.forEach((err: any) => {
-          fieldErrs[err.field] = err.message;
+          const safeFieldError = getSafeCreditCreationFieldError(err.field);
+          if (safeFieldError) {
+            fieldErrs[safeFieldError.field] = safeFieldError.message;
+          }
         });
         setBorrowerErrors(fieldErrs);
         toast.validationErrors(validationErrors);

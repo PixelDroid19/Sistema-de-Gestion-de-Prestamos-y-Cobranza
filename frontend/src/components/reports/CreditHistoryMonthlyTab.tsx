@@ -1,14 +1,16 @@
+import type { ReactNode } from 'react';
 import { CreditCard, DollarSign, HandCoins, ReceiptText, TrendingUp, Wallet } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import {
-  DataTableSurface,
   FormField,
-  InsightStrip,
   SelectInput,
   TextInput,
-  ToolbarSurface,
 } from '../shared/Surfaces';
+import { ReportCollapsibleFilters } from './ReportCollapsibleFilters';
+import { ReportDataTableSection } from './ReportDataTableSection';
+import { ReportMetricsSection } from './ReportMetricsSection';
+import { ReportTabPanel } from './ReportTabPanel';
 
 type CreditHistoryMonthlyFilters = {
   startDate: string;
@@ -26,6 +28,7 @@ type CreditHistoryMonthlyTabProps = {
     months?: Array<Record<string, unknown>>;
   };
   isLoading?: boolean;
+  exportActions?: ReactNode;
 };
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
@@ -50,9 +53,11 @@ export default function CreditHistoryMonthlyTab({
   onFiltersChange,
   data,
   isLoading = false,
+  exportActions,
 }: CreditHistoryMonthlyTabProps) {
   const summary = data?.summary || {};
   const months = data?.months || [];
+  const advancedFilterCount = [filters.customerId, filters.loanId].filter((value) => value.trim().length > 0).length;
   const updateFilter = (key: keyof CreditHistoryMonthlyFilters, value: string) => {
     if ((key === 'customerId' || key === 'loanId') && !/^\d*$/.test(value.trim())) {
       return;
@@ -68,65 +73,74 @@ export default function CreditHistoryMonthlyTab({
   };
 
   return (
-    <div className="space-y-4">
-      <ToolbarSurface className="items-stretch lg:items-end">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-medium text-text-primary">{tTerm('reports.creditHistory.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('reports.creditHistory.subtitle')}
-          </p>
-        </div>
-        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <FormField label={tTerm('reports.creditHistory.fromDate')}>
-            <TextInput
-              type="date"
-              value={filters.startDate}
-              onChange={(event) => updateFilter('startDate', event.target.value)}
-            />
-          </FormField>
-          <FormField label={tTerm('reports.creditHistory.toDate')}>
-            <TextInput
-              type="date"
-              value={filters.endDate}
-              onChange={(event) => updateFilter('endDate', event.target.value)}
-            />
-          </FormField>
-          <FormField label={tTerm('reports.creditHistory.status')}>
-            <SelectInput
-              value={filters.status}
-              onChange={(event) => updateFilter('status', event.target.value)}
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </SelectInput>
-          </FormField>
-          <FormField label={tTerm('reports.creditHistory.customerId')}>
-            <TextInput
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={filters.customerId}
-              onChange={(event) => updateFilter('customerId', event.target.value)}
-              placeholder={tTerm('reports.creditHistory.customerId.placeholder')}
-            />
-          </FormField>
-          <FormField label={tTerm('reports.creditHistory.loanId')}>
-            <TextInput
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={filters.loanId}
-              onChange={(event) => updateFilter('loanId', event.target.value)}
-              placeholder={tTerm('reports.creditHistory.loanId.placeholder')}
-            />
-          </FormField>
-        </div>
-      </ToolbarSurface>
+    <div className="report-tab-layout">
+      <ReportTabPanel
+        title={tTerm('reports.creditHistory.title')}
+        subtitle={tTerm('reports.creditHistory.subtitle')}
+        filterColumns={3}
+        headerActions={exportActions}
+        filters={(
+          <>
+            <FormField label={tTerm('reports.creditHistory.fromDate')}>
+              <TextInput
+                type="date"
+                value={filters.startDate}
+                onChange={(event) => updateFilter('startDate', event.target.value)}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.creditHistory.toDate')}>
+              <TextInput
+                type="date"
+                value={filters.endDate}
+                onChange={(event) => updateFilter('endDate', event.target.value)}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.creditHistory.status')}>
+              <SelectInput
+                value={filters.status}
+                onChange={(event) => updateFilter('status', event.target.value)}
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </SelectInput>
+            </FormField>
+          </>
+        )}
+        secondaryFilters={(
+          <ReportCollapsibleFilters
+            activeCount={advancedFilterCount}
+            defaultOpen={advancedFilterCount > 0}
+            filterColumns={2}
+          >
+            <FormField label={tTerm('reports.creditHistory.customerId')}>
+              <TextInput
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={filters.customerId}
+                onChange={(event) => updateFilter('customerId', event.target.value)}
+                placeholder={tTerm('reports.creditHistory.customerId.placeholder')}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.creditHistory.loanId')}>
+              <TextInput
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={filters.loanId}
+                onChange={(event) => updateFilter('loanId', event.target.value)}
+                placeholder={tTerm('reports.creditHistory.loanId.placeholder')}
+              />
+            </FormField>
+          </ReportCollapsibleFilters>
+        )}
+      />
 
-      <InsightStrip
-        aria-label={tTerm('reports.creditHistory.summary.aria')}
-        items={[
+      <ReportMetricsSection
+        primaryAriaLabel={tTerm('reports.creditHistory.summary.aria')}
+        secondaryAriaLabel={tTerm('reports.creditHistory.summary.aria')}
+        primaryItems={[
           {
             id: 'credit-history-created',
             label: tTerm('reports.creditHistory.summary.created.label'),
@@ -152,6 +166,16 @@ export default function CreditHistoryMonthlyTab({
             accent: 'emerald',
           },
           {
+            id: 'credit-history-gains',
+            label: tTerm('reports.creditHistory.summary.gains.label'),
+            value: formatMoney(summary.gains),
+            helper: tTerm('reports.creditHistory.summary.gains.helper'),
+            icon: <TrendingUp size={18} />,
+            accent: 'amber',
+          },
+        ]}
+        secondaryItems={[
+          {
             id: 'credit-history-associate-interest',
             label: tTerm('reports.creditHistory.summary.associateInterestPaid.label'),
             value: formatMoney(summary.totalAssociateInterestPaid),
@@ -167,24 +191,13 @@ export default function CreditHistoryMonthlyTab({
             icon: <ReceiptText size={18} />,
             accent: 'amber',
           },
-          {
-            id: 'credit-history-gains',
-            label: tTerm('reports.creditHistory.summary.gains.label'),
-            value: formatMoney(summary.gains),
-            helper: tTerm('reports.creditHistory.summary.gains.helper'),
-            icon: <TrendingUp size={18} />,
-            accent: 'amber',
-          },
         ]}
       />
 
-      <DataTableSurface>
-        <div className="px-4 py-4 sm:px-5">
-          <h3 className="font-medium">{tTerm('reports.creditHistory.table.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('reports.creditHistory.table.subtitle')}
-          </p>
-        </div>
+      <ReportDataTableSection
+        title={tTerm('reports.creditHistory.table.title')}
+        subtitle={tTerm('reports.creditHistory.table.subtitle')}
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
@@ -229,7 +242,7 @@ export default function CreditHistoryMonthlyTab({
             </tbody>
           </table>
         </div>
-      </DataTableSurface>
+      </ReportDataTableSection>
     </div>
   );
 }

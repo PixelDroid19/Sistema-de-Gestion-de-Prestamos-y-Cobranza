@@ -1,7 +1,7 @@
 const express = require('express');
 const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 /**
  * Composes admin-only user account routes from authorization middleware and
@@ -20,7 +20,7 @@ const createUsersRouter = ({ authMiddleware, useCases }) => {
    */
   const parseRequiredUserId = (value) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError('userId must be a valid positive integer');
+      throw new ValidationError(buildInvalidIntegerIdMessage('userId'));
     }
 
     return String(value).trim();

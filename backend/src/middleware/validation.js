@@ -1,7 +1,7 @@
 const { ValidationError } = require('@/utils/errorHandler');
 const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/domain/calculation');
 const { parsePaginationQuery } = require('@/modules/shared/pagination');
-const { ADMINISTRATIVE_LOGIN_ROLES, isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
+const { isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
 const { parsePositiveCurrencyAmount, validateCurrencyPrecision } = require('@/modules/shared/money');
 const {
   validateEmail,
@@ -24,6 +24,8 @@ const buildValidationError = (errors, message = 'Corrige los errores indicados')
   return error;
 };
 
+const EMAIL_VALIDATION_MESSAGE = 'Ingresa un correo válido (por ejemplo, usuario@empresa.com)';
+
 /**
  * Adapt a schema validator into Express middleware that raises backend validation errors.
  * @param {{ validate: Function }} schema
@@ -39,7 +41,7 @@ const validate = (schema) => {
           message: detail.message,
           value: detail.context?.value
         }));
-        throw new ValidationError('La validación falló', validationErrors);
+        throw buildValidationError(validationErrors, 'La validación falló');
       }
       next();
     } catch (err) {
@@ -76,7 +78,7 @@ const pushEmailValidation = ({ errors, email, required }) => {
   }
 
   if (email !== undefined && email !== null && email !== '' && !validateEmail(email)) {
-    errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
+    errors.push({ field: 'email', message: EMAIL_VALIDATION_MESSAGE });
   }
 };
 
@@ -113,28 +115,28 @@ const pushParticipationValidation = ({ req, errors, participationPercentage }) =
 
 const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital, interestStartDate, interestStartsAt }) => {
   if (interestType !== undefined && !['monthly', 'annual'].includes(String(interestType).trim().toLowerCase())) {
-    errors.push({ field: 'interestType', message: 'interestType must be monthly or annual' });
+    errors.push({ field: 'interestType', message: 'El tipo de interés debe ser mensual o anual' });
   }
 
   if (!validateAssociateInterestRate(interestRate)) {
-    errors.push({ field: 'interestRate', message: 'interestRate must be between 0 and 100 with up to 4 decimal places' });
+    errors.push({ field: 'interestRate', message: 'La tasa de interés debe estar entre 0 y 100 con máximo 4 decimales' });
   }
 
   if (!validateIntegerRange(interestPaymentDay, 1, 28)) {
-    errors.push({ field: 'interestPaymentDay', message: 'interestPaymentDay must be an integer between 1 and 28' });
+    errors.push({ field: 'interestPaymentDay', message: 'El día de pago de intereses debe ser un entero entre 1 y 28' });
   }
 
   if (!validateIntegerRange(interestPaymentMonth, 1, 12)) {
-    errors.push({ field: 'interestPaymentMonth', message: 'interestPaymentMonth must be an integer between 1 and 12' });
+    errors.push({ field: 'interestPaymentMonth', message: 'El mes de pago de intereses debe ser un entero entre 1 y 12' });
   }
 
   if (initialCapital !== undefined && (!validateAmount(Number(initialCapital)) || !validateCurrencyPrecision(initialCapital))) {
-    errors.push({ field: 'initialCapital', message: 'initialCapital must be a positive number with up to 2 decimal places' });
+    errors.push({ field: 'initialCapital', message: 'El capital inicial debe ser un número positivo con máximo 2 decimales' });
   }
 
   const effectiveStartDate = interestStartsAt ?? interestStartDate;
   if (!validateOptionalDateInput(effectiveStartDate)) {
-    errors.push({ field: 'interestStartDate', message: 'interestStartDate must be a valid date' });
+    errors.push({ field: 'interestStartDate', message: 'La fecha de inicio de intereses debe ser válida' });
   }
 };
 
@@ -159,7 +161,7 @@ const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode'
   if (UNSUPPORTED_LATE_FEE_MODES.has(normalizedMode)) {
     errors.push({
       field,
-      message: `Late fee mode must not be one of: ${Array.from(UNSUPPORTED_LATE_FEE_MODES).join(', ')}`,
+      message: 'Selecciona una política de mora válida.',
     });
   }
 };
@@ -176,7 +178,7 @@ const authValidation = {
     if (!email) {
       errors.push({ field: 'email', message: 'El correo es obligatorio' });
     } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
+      errors.push({ field: 'email', message: EMAIL_VALIDATION_MESSAGE });
     }
 
     if (!password) {
@@ -214,7 +216,7 @@ const authValidation = {
     if (!email) {
       errors.push({ field: 'email', message: 'El correo es obligatorio' });
     } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
+      errors.push({ field: 'email', message: EMAIL_VALIDATION_MESSAGE });
     }
 
     if (!password) {
@@ -227,7 +229,7 @@ const authValidation = {
     }
 
     if (!normalizedRole || !isAdministrativeLoginRole(normalizedRole)) {
-      errors.push({ field: 'role', message: `El rol debe ser uno de: ${ADMINISTRATIVE_LOGIN_ROLES.join(', ')}` });
+      errors.push({ field: 'role', message: 'Selecciona un rol administrativo válido.' });
     }
 
     if (errors.length > 0) {
@@ -248,7 +250,7 @@ const authValidation = {
     if (!normalizedEmail && !normalizedUsername) {
       errors.push({ field: 'email', message: 'El correo o usuario es obligatorio' });
     } else if (normalizedEmail && !validateEmail(normalizedEmail)) {
-      errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
+      errors.push({ field: 'email', message: EMAIL_VALIDATION_MESSAGE });
     }
 
     if (!password) {
@@ -347,7 +349,7 @@ const loanValidation = {
     
     if (!validStatuses.includes(status)) {
       const error = new ValidationError('Estado del crédito inválido');
-      error.errors = [{ field: 'status', message: `El estado debe ser uno de: ${validStatuses.join(', ')}` }];
+      error.errors = [{ field: 'status', message: 'Selecciona un estado de crédito válido.' }];
       return next(error);
     }
 
@@ -573,7 +575,7 @@ const associateValidation = {
     }
 
     if (!validateOptionalDateInput(distributionDate)) {
-      errors.push({ field: 'distributionDate', message: 'distributionDate must be a valid date when provided' });
+      errors.push({ field: 'distributionDate', message: 'La fecha de distribución debe ser válida cuando se indique' });
     }
 
     if (basis !== undefined && (typeof basis !== 'object' || basis === null || Array.isArray(basis))) {
@@ -600,6 +602,10 @@ const PUSH_PROVIDER_CHANNELS = {
 
 const PUSH_PROVIDER_KEYS = new Set(Object.keys(PUSH_PROVIDER_CHANNELS));
 const PUSH_CHANNELS = new Set(['web', 'mobile']);
+const PUSH_CHANNEL_LABELS = {
+  web: 'web',
+  mobile: 'móvil',
+};
 
 const notificationValidation = {
   /** @type {import('express').RequestHandler} */
@@ -618,7 +624,7 @@ const notificationValidation = {
     }
 
     if (!PUSH_CHANNELS.has(channel)) {
-      errors.push({ field: 'channel', message: 'El canal debe ser uno de: web, mobile' });
+      errors.push({ field: 'channel', message: 'El canal debe ser web o móvil' });
     }
 
     if (PUSH_PROVIDER_KEYS.has(providerKey) && PUSH_CHANNELS.has(channel)) {
@@ -626,27 +632,27 @@ const notificationValidation = {
       if (expectedChannel !== channel) {
         errors.push({
           field: 'channel',
-          message: `Las suscripciones ${providerKey} deben usar el canal ${expectedChannel}`,
+          message: `Las suscripciones ${providerKey} deben usar el canal ${PUSH_CHANNEL_LABELS[expectedChannel]}`,
         });
       }
     }
 
     if (!endpoint && !deviceToken) {
-      errors.push({ field: 'endpoint', message: 'Debes indicar endpoint o token del dispositivo' });
+      errors.push({ field: 'endpoint', message: 'Debes indicar el identificador de la suscripción o el token del dispositivo' });
     }
 
     if (channel === 'web') {
       if (!endpoint) {
-        errors.push({ field: 'endpoint', message: 'Las suscripciones web requieren un endpoint' });
+        errors.push({ field: 'endpoint', message: 'Las suscripciones web requieren el identificador web de la suscripción' });
       }
 
       if (!subscription || typeof subscription !== 'object' || Array.isArray(subscription)) {
-        errors.push({ field: 'subscription', message: 'Las suscripciones web requieren un objeto de suscripción' });
+        errors.push({ field: 'subscription', message: 'Las suscripciones web requieren los datos de suscripción' });
       }
     }
 
     if (channel === 'mobile' && !deviceToken && !endpoint) {
-      errors.push({ field: 'deviceToken', message: 'Las suscripciones móviles requieren token del dispositivo o endpoint' });
+      errors.push({ field: 'deviceToken', message: 'Las suscripciones móviles requieren el token del dispositivo o el identificador de la suscripción' });
     }
 
     if (errors.length > 0) {
@@ -665,15 +671,15 @@ const notificationValidation = {
     }
 
     if (!endpoint && !deviceToken) {
-      errors.push({ field: 'endpoint', message: 'Debes indicar endpoint o token del dispositivo' });
+      errors.push({ field: 'endpoint', message: 'Debes indicar el identificador de la suscripción o el token del dispositivo' });
     }
 
     if (providerKey === 'webpush' && !endpoint) {
-      errors.push({ field: 'endpoint', message: 'webpush subscriptions require an endpoint identifier' });
+      errors.push({ field: 'endpoint', message: 'Las suscripciones web requieren el identificador web de la suscripción' });
     }
 
     if ((providerKey === 'fcm' || providerKey === 'apns') && !deviceToken) {
-      errors.push({ field: 'deviceToken', message: `${providerKey} subscriptions require a deviceToken identifier` });
+      errors.push({ field: 'deviceToken', message: 'Las suscripciones móviles requieren el token del dispositivo' });
     }
 
     if (errors.length > 0) {

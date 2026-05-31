@@ -12,7 +12,7 @@ Validar acciones auxiliares por rol sin pantallas fantasma.
 4. Limpiar notificaciones.
 5. Abrir Perfil.
 6. Validar edición de datos persistibles por rol.
-7. Abrir portal del socio.
+7. Abrir detalle administrativo del socio.
 8. Revisar resumen, cuotas y calendario.
 
 ## Checklist QA
@@ -20,7 +20,7 @@ Validar acciones auxiliares por rol sin pantallas fantasma.
 - Cada notificación con `loanId` abre el detalle correcto.
 - El contador de no leídas baja correctamente.
 - Perfil admin no ofrece teléfono no persistible.
-- Portal socio no muestra estados crudos ni acciones operativas indebidas.
+- El detalle del socio no muestra estados crudos ni acciones operativas indebidas.
 
 ## Storyboard
 
@@ -28,4 +28,4 @@ Validar acciones auxiliares por rol sin pantallas fantasma.
 2. Navegación al crédito desde la notificación.
 3. Estado vacío tras limpiar.
 4. Perfil por rol.
-5. Portal del socio con resumen y cuotas.
+5. Detalle administrativo del socio con resumen y cuotas.

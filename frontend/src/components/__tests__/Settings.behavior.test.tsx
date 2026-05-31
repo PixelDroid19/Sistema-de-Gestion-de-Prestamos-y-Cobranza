@@ -71,6 +71,25 @@ const baseConfigState: {
   ],
 };
 const mockConfigState = structuredClone(baseConfigState);
+const baseUsers = [
+  {
+    id: 7,
+    name: 'Empleado Activo',
+    email: 'empleado.activo@test.local',
+    role: 'employee',
+    isActive: true,
+    createdAt: '2026-04-10T00:00:00.000Z',
+  },
+  {
+    id: 8,
+    name: 'Empleado Inactivo',
+    email: 'empleado.inactivo@test.local',
+    role: 'employee',
+    isActive: false,
+    createdAt: '2026-04-11T00:00:00.000Z',
+  },
+];
+let mockUsers = structuredClone(baseUsers);
 
 vi.mock('../../services/configService', () => ({
   useConfig: () => ({
@@ -94,24 +113,7 @@ vi.mock('../../services/userService', () => ({
   useUsers: () => ({
     data: {
       data: {
-        users: [
-          {
-            id: 7,
-            name: 'Empleado Activo',
-            email: 'empleado.activo@test.local',
-            role: 'employee',
-            isActive: true,
-            createdAt: '2026-04-10T00:00:00.000Z',
-          },
-          {
-            id: 8,
-            name: 'Empleado Inactivo',
-            email: 'empleado.inactivo@test.local',
-            role: 'employee',
-            isActive: false,
-            createdAt: '2026-04-11T00:00:00.000Z',
-          },
-        ],
+        users: mockUsers,
       },
     },
     registerWithPermissions: { mutateAsync: mockRegisterWithPermissions, isPending: false },
@@ -155,17 +157,18 @@ describe('Settings operational configuration', () => {
     mockConfigState.paymentMethods = structuredClone(baseConfigState.paymentMethods);
     mockConfigState.ratePolicies = structuredClone(baseConfigState.ratePolicies);
     mockConfigState.lateFeePolicies = structuredClone(baseConfigState.lateFeePolicies);
+    mockUsers = structuredClone(baseUsers);
   });
 
   it('shows only production configuration tabs and hides non-operational placeholders', () => {
     render(<Settings />);
 
     expect(screen.getByRole('heading', { name: 'Configuración operativa' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Métodos de pago/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Tasas de crédito/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Empleados y permisos/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Ajustes Generales/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Métodos de pago/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Tasas de crédito/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Políticas de mora\s*1$/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Empleados y permisos/i })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Ajustes Generales/i })).not.toBeInTheDocument();
   });
 
   it('lets admins create employees and manage employee access status from settings', async () => {
@@ -214,9 +217,32 @@ describe('Settings operational configuration', () => {
     });
   });
 
+  it('uses the localized unnamed employee fallback in status confirmations', async () => {
+    mockUsers = [{
+      id: 7,
+      name: '',
+      email: '',
+      role: 'employee',
+      isActive: true,
+      createdAt: '2026-04-10T00:00:00.000Z',
+    }];
+
+    render(<Settings />);
+
+    expect(screen.getByText('Empleado sin nombre')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }));
+
+    await waitFor(() => {
+      expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('Empleado sin nombre'),
+      }));
+    });
+  });
+
   it('creates payment methods through the real config mutation', async () => {
     render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Métodos de pago/i }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Crear método' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del método' }), { target: { value: 'Daviplata QA' } });
@@ -236,7 +262,7 @@ describe('Settings operational configuration', () => {
 
   it('blocks duplicated payment methods before sending the mutation', async () => {
     render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Métodos de pago/i }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Crear método' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del método' }), {
@@ -254,10 +280,35 @@ describe('Settings operational configuration', () => {
     expect(mockCreatePaymentMethod).not.toHaveBeenCalled();
   });
 
+  it('uses a generic payment method name when configuration lacks a display label', async () => {
+    mockConfigState.paymentMethods = [{
+      id: 99,
+      key: 'internal_gateway',
+      type: 'other',
+      isActive: true,
+      requiresReference: false,
+    }];
+
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('tab', { name: /Métodos de pago/i }));
+
+    expect(screen.getByText('Método sin nombre')).toBeInTheDocument();
+    expect(screen.queryByText('internal_gateway')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('Método sin nombre'),
+      }));
+    });
+    expect(String(mockConfirmDanger.mock.calls[0][0].message)).not.toContain('internal_gateway');
+  });
+
   it('blocks overlapping active rate policies', async () => {
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
       target: { value: 'Crédito solapado' },
@@ -299,7 +350,7 @@ describe('Settings operational configuration', () => {
 
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
       target: { value: 'Crédito estándar' },
@@ -331,7 +382,7 @@ describe('Settings operational configuration', () => {
     mockConfigState.ratePolicies = [];
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
       target: { value: 'Crédito tasa ambigua' },
@@ -356,7 +407,7 @@ describe('Settings operational configuration', () => {
     mockConfigState.ratePolicies = [];
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
 
     const rateInput = getTextboxByAriaLabel('Tasa efectiva anual');
@@ -367,10 +418,22 @@ describe('Settings operational configuration', () => {
     expect(rateInput).toHaveDisplayValue('55');
   });
 
+  it('closes the rate policy modal with Escape', () => {
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
+    const dialog = screen.getByRole('dialog', { name: 'Nuevo rango de tasa' });
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Nuevo rango de tasa' })).not.toBeInTheDocument();
+  });
+
   it('rejects a catch-all credit rate range that would overlap existing ranges before saving', async () => {
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
       target: { value: 'Crédito global' },
@@ -397,7 +460,7 @@ describe('Settings operational configuration', () => {
   it('keeps late-fee priority hidden while preserving backend default validation', async () => {
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Políticas de mora\s*1$/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de la política de mora' }), {
       target: { value: 'Mora QA alterna' },
@@ -422,7 +485,7 @@ describe('Settings operational configuration', () => {
     mockConfigState.lateFeePolicies = [];
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*0$/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Políticas de mora\s*0$/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de la política de mora' }), {
       target: { value: 'Mora tasa ambigua' },
@@ -445,7 +508,7 @@ describe('Settings operational configuration', () => {
     mockConfigState.lateFeePolicies = [];
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*0$/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Políticas de mora\s*0$/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
 
     const lateFeeRateInput = getTextboxByAriaLabel('Tasa de mora efectiva anual');
@@ -459,7 +522,7 @@ describe('Settings operational configuration', () => {
   it('uses the same table surface pattern for policy tabs', () => {
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
 
     expect(screen.getByRole('heading', { name: 'Tasas automáticas por monto' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crear rango de tasa' })).toBeInTheDocument();
@@ -486,7 +549,7 @@ describe('Settings operational configuration', () => {
   it('does not expose priority in late-fee policies', () => {
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Políticas de mora\s*1$/i }));
 
     expect(screen.queryByRole('columnheader', { name: /Prioridad/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
@@ -508,7 +571,7 @@ describe('Settings operational configuration', () => {
     ];
 
     render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
 
     expect(screen.getByText('Hay tasas activas que se cruzan.')).toBeInTheDocument();
     expect(screen.getByText(/Crédito básico y Tasa sin tope cubren montos en común/)).toBeInTheDocument();
@@ -523,7 +586,7 @@ describe('Settings operational configuration', () => {
     ];
 
     render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
 
     expect(screen.getByText('Hay montos sin tasa configurada.')).toBeInTheDocument();
     expect(screen.getByText(/Falta cubrir:.*1\.000\.001.*5\.000\.000/)).toBeInTheDocument();
@@ -543,7 +606,7 @@ describe('Settings operational configuration', () => {
     ];
 
     render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
 
     expect(screen.getAllByText('Crea una regla activa para este tramo.')).toHaveLength(2);
     expect(screen.getByText(/Usa Crédito operativo/)).toBeInTheDocument();
@@ -576,7 +639,7 @@ describe('Settings operational configuration', () => {
     ];
 
     render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
 
     expect(screen.queryByText(/reemplazada por rangos/i)).not.toBeInTheDocument();
     expect(screen.getByText('Crédito básico')).toBeInTheDocument();
@@ -586,7 +649,7 @@ describe('Settings operational configuration', () => {
   it('edits an existing rate policy without treating the same policy as duplicated', async () => {
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
 
     expect(screen.getByRole('heading', { name: 'Editar rango de tasa' })).toBeInTheDocument();
@@ -610,7 +673,7 @@ describe('Settings operational configuration', () => {
 
   it('executes destructive payment-method actions through confirmation', async () => {
     render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Métodos de pago/i }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
 

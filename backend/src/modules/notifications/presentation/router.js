@@ -1,6 +1,6 @@
 const express = require('express');
 const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 /**
  * Composes authenticated notification routes from auth middleware, validation
@@ -17,7 +17,7 @@ const createNotificationsRouter = ({ authMiddleware, notificationValidation, use
    */
   const parseNotificationId = (value) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError('notificationId must be a valid positive integer');
+      throw new ValidationError(buildInvalidIntegerIdMessage('notificationId'));
     }
 
     return Number(String(value).trim());

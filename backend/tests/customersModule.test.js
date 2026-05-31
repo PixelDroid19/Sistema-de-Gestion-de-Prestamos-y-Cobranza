@@ -6,6 +6,7 @@ const {
   createListCustomers,
   createGetCustomerById,
   createCreateCustomer,
+  createFindCustomerByDocument,
   createListCustomerDocuments,
   createUploadCustomerDocument,
   createDownloadCustomerDocument,
@@ -95,7 +96,32 @@ test('createListCustomers rejects unsupported list filters with a validation err
     filters: { status: 'pending' },
   }), (error) => {
     assert.equal(error.name, 'ValidationError');
-    assert.equal(error.message, 'Customer status filter must be active, inactive, or blacklisted');
+    assert.equal(error.message, 'Filtro de estado de cliente inválido.');
+    return true;
+  });
+
+  await assert.rejects(() => listCustomers({
+    pagination: { page: 1, pageSize: 10 },
+    filters: { registeredWithin: 'quarter' },
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'El filtro de fecha de registro debe ser hoy, semana, mes o año.');
+    return true;
+  });
+});
+
+test('createFindCustomerByDocument requires a document number with an operator message', async () => {
+  const findCustomerByDocument = createFindCustomerByDocument({
+    customerRepository: {
+      async findByDocumentNumber() {
+        throw new Error('findByDocumentNumber should not be called without a document number');
+      },
+    },
+  });
+
+  await assert.rejects(() => findCustomerByDocument({ documentNumber: ' ' }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'El número de documento es obligatorio.');
     return true;
   });
 });
@@ -306,7 +332,7 @@ test('createListCustomerDocuments rejects customer records before document looku
     customerId: 7,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can access customer documents');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a documentos de clientes.');
     return true;
   });
 });
@@ -329,6 +355,18 @@ test('createUploadCustomerDocument persists customer-owned attachment metadata',
       },
       async deleteByAbsolutePath() {},
     },
+    fsModule: {
+      async open() {
+        return {
+          async read(buffer, offset, length) {
+            const signature = Buffer.from('%PDF-1.7');
+            signature.copy(buffer, offset, 0, Math.min(length, signature.length));
+            return { bytesRead: Math.min(length, signature.length), buffer };
+          },
+          async close() {},
+        };
+      },
+    },
   });
 
   const document = await uploadCustomerDocument({
@@ -347,6 +385,54 @@ test('createUploadCustomerDocument persists customer-owned attachment metadata',
   assert.equal(document.id, 9);
   assert.equal(createdPayload.customerId, 7);
   assert.equal(createdPayload.customerVisible, true);
+});
+
+test('createUploadCustomerDocument rejects content that does not match the declared file type', async () => {
+  let deletedPath = null;
+  const uploadCustomerDocument = createUploadCustomerDocument({
+    customerRepository: {
+      async findById() {
+        return { id: 7 };
+      },
+      async createDocument() {
+        throw new Error('customerRepository.createDocument should not be called when signature is invalid');
+      },
+    },
+    attachmentStorage: {
+      toRelativePath() {
+        return 'customer-doc.pdf';
+      },
+      async deleteByAbsolutePath(filePath) {
+        deletedPath = filePath;
+      },
+    },
+    fsModule: {
+      async open() {
+        return {
+          async read(buffer, offset, length) {
+            const signature = Buffer.from('NOTPDF!!');
+            signature.copy(buffer, offset, 0, Math.min(length, signature.length));
+            return { bytesRead: Math.min(length, signature.length), buffer };
+          },
+          async close() {},
+        };
+      },
+    },
+  });
+
+  await assert.rejects(() => uploadCustomerDocument({
+    actor: { id: 2, role: 'admin' },
+    customerId: 7,
+    file: {
+      path: '/tmp/customer-doc.pdf',
+      filename: 'customer-doc.pdf',
+      originalname: 'Customer Doc.pdf',
+      mimetype: 'application/pdf',
+      size: 2048,
+    },
+  }), /no coincide con el tipo declarado/i);
+
+  assert.equal(deletedPath, '/tmp/customer-doc.pdf');
 });
 
 test('createDownloadCustomerDocument rejects customer records before document lookup', async () => {
@@ -373,7 +459,7 @@ test('createDownloadCustomerDocument rejects customer records before document lo
     documentId: 10,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can access customer documents');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a documentos de clientes.');
     return true;
   });
 });
@@ -469,6 +555,7 @@ test('createRestoreCustomer throws ValidationError for customer that is not dele
 
   await assert.rejects(() => restoreCustomer({ actor: { id: 1, role: 'admin' }, customerId: 5 }), (error) => {
     assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'El cliente no está eliminado.');
     return true;
   });
 });

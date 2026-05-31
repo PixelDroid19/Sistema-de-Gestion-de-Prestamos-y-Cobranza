@@ -18,7 +18,7 @@ const roleAwareAuth = (options = []) => (req, res, next) => {
     ? options
     : (options?.permissions ? ['admin', 'employee'] : []);
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
-    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
     return;
   }
   req.user = { id: 1, role };
@@ -182,7 +182,7 @@ test('financial analytics routes reject malformed year filters before executing 
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /year/i);
+  assert.equal(response.body.error.message, 'El año del reporte debe tener cuatro dígitos.');
   assert.equal(calls.length, 0);
 });
 

@@ -6,7 +6,7 @@ const { ensureAdmin, formatMoney } = require('@/modules/reports/application/repo
  * GET /api/reports/interest-earnings
  */
 const createGetInterestEarnings = ({ paymentRepository }) => async ({ actor, year }) => {
-  ensureAdmin(actor, 'Only admins can access financial reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes financieros.');
 
   const targetYear = year || new Date().getFullYear();
   const monthlyInterest = await paymentRepository.getMonthlyInterest(targetYear);

@@ -20,10 +20,22 @@ const {
   buildStoredFileFields,
   ensureDocumentExists,
   resolveDocumentDownload,
+  validateAttachmentFileSignature,
 } = require('@/modules/shared/documentOperations');
 
 const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
 const PAYMENT_METHOD_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const PAYMENT_LIST_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden consultar pagos.';
+const PAYMENT_CREATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden registrar pagos.';
+const PARTIAL_PAYMENT_CREATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden crear pagos parciales.';
+const CAPITAL_PAYMENT_CREATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden registrar abonos a capital.';
+const INSTALLMENT_ANNUL_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden anular cuotas.';
+const PAYMENT_METADATA_UPDATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden actualizar datos de pago.';
+const PAYMENT_DOCUMENT_ACCESS_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden acceder a documentos de pago.';
+const PAYMENT_DOCUMENT_UPLOAD_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden cargar documentos de pago.';
+const PAYMENT_METHOD_CONFIGURED_MESSAGE = 'Selecciona un método de pago configurado.';
+const PAYMENT_DATE_VALID_MESSAGE = 'La fecha del pago debe ser válida.';
+const ANNULLED_PAYMENT_EDIT_MESSAGE = 'No se puede editar un pago anulado.';
 
 /**
  * Normalize free-text payment filters into a comparable lowercase token.
@@ -86,7 +98,7 @@ const resolvePaymentMethodInput = (payload = {}) => {
 
   const normalizedValue = directValue.toLowerCase();
   if (!PAYMENT_METHOD_KEY_PATTERN.test(normalizedValue)) {
-    throw new ValidationError('Payment method must be a configured key using letters, numbers, hyphen or underscore');
+    throw new ValidationError(PAYMENT_METHOD_CONFIGURED_MESSAGE);
   }
 
   return normalizedValue;
@@ -115,7 +127,7 @@ const resolvePaymentDateInput = (paymentDate, clock) => {
 
   const resolvedDate = new Date(paymentDate);
   if (Number.isNaN(resolvedDate.getTime())) {
-    throw new ValidationError('Payment date must be a valid date');
+    throw new ValidationError(PAYMENT_DATE_VALID_MESSAGE);
   }
 
   return resolvedDate;
@@ -152,7 +164,7 @@ const buildLoanHistoryContext = ({ actor, loan, loanViewService }) => {
 
 const ensurePaymentDocumentAccess = async ({ actor, paymentRepository, paymentId }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
-    throw new AuthorizationError('You do not have access to payment documents');
+    throw new AuthorizationError(PAYMENT_DOCUMENT_ACCESS_DENIED_MESSAGE);
   }
 
   const payment = await paymentRepository.findById(paymentId);
@@ -168,7 +180,7 @@ const ensurePaymentDocumentAccess = async ({ actor, paymentRepository, paymentId
  */
 const createListPayments = ({ paymentRepository }) => async ({ actor, pagination, filters = {} }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can access all payments');
+    throw new AuthorizationError(PAYMENT_LIST_DENIED_MESSAGE);
   }
 
   if (pagination && typeof paymentRepository.listPage === 'function') {
@@ -191,7 +203,7 @@ const createListPayments = ({ paymentRepository }) => async ({ actor, pagination
  */
 const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can create payments');
+    throw new AuthorizationError(PAYMENT_CREATE_DENIED_MESSAGE);
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -212,7 +224,7 @@ const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, cloc
  */
 const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can create partial payments');
+    throw new AuthorizationError(PARTIAL_PAYMENT_CREATE_DENIED_MESSAGE);
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -279,7 +291,7 @@ const createCreateCapitalPayment = ({
   clock = () => new Date(),
 }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, strategy, newTermMonths, idempotencyKey, req }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can create capital reduction payments');
+    throw new AuthorizationError(CAPITAL_PAYMENT_CREATE_DENIED_MESSAGE);
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -351,7 +363,7 @@ const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanV
  */
 const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, reason, installmentNumber, idempotencyKey }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can annul installments');
+    throw new AuthorizationError(INSTALLMENT_ANNUL_DENIED_MESSAGE);
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -374,7 +386,7 @@ const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, c
  */
 const createUpdatePaymentMetadata = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, paymentId, payload = {} }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can update payment metadata');
+    throw new AuthorizationError(PAYMENT_METADATA_UPDATE_DENIED_MESSAGE);
   }
 
   const payment = await paymentRepository.findById(paymentId);
@@ -385,11 +397,11 @@ const createUpdatePaymentMetadata = ({ paymentRepository, loanAccessPolicy }) =>
 
   const paymentDate = payload.paymentDate ? new Date(payload.paymentDate) : null;
   if (payload.paymentDate && Number.isNaN(paymentDate?.getTime())) {
-    throw new ValidationError('Payment date must be a valid date');
+    throw new ValidationError(PAYMENT_DATE_VALID_MESSAGE);
   }
 
   if (payment.status === 'annulled') {
-    throw new ValidationError('Annulled payments cannot be edited');
+    throw new ValidationError(ANNULLED_PAYMENT_EDIT_MESSAGE);
   }
 
   const currentMetadata = payment.paymentMetadata && typeof payment.paymentMetadata === 'object'
@@ -450,18 +462,25 @@ const createListPaymentDocuments = ({ paymentRepository, loanAccessPolicy }) => 
   return documents;
 };
 
-const createUploadPaymentDocument = ({ paymentRepository, loanAccessPolicy, attachmentStorage }) => async ({ actor, paymentId, file, metadata = {} }) => {
-  ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
+const createUploadPaymentDocument = ({
+  paymentRepository,
+  loanAccessPolicy,
+  attachmentStorage,
+  fsModule = require('node:fs/promises'),
+}) => async ({ actor, paymentId, file, metadata = {} }) => {
+  ensureUploadedFile(file, () => new ValidationError('Debes adjuntar un archivo'));
 
   if (!['admin', 'employee'].includes(actor?.role)) {
     await attachmentStorage.deleteByAbsolutePath(file.path);
-    throw new AuthorizationError('Only authorized backoffice users can upload payment documents');
+    throw new AuthorizationError(PAYMENT_DOCUMENT_UPLOAD_DENIED_MESSAGE);
   }
 
   return withUploadCleanup({
     file,
     attachmentStorage,
     task: async () => {
+      await validateAttachmentFileSignature(file, fsModule);
+
       const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
       await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId: payment.loanId });
 
@@ -494,16 +513,13 @@ const createDownloadPaymentDocument = ({ paymentRepository, loanAccessPolicy, at
  * Create the use case that generates a payment voucher PDF.
  */
 const createGetPaymentVoucher = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, paymentId }) => {
-  // TASK-007: Fetch payment/credit/customer data
   const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
   if (!payment) {
     throw new NotFoundError('Payment');
   }
 
-  // TASK-008: Add authorization check using ensurePaymentDocumentAccess pattern
   await loanAccessPolicy.findAuthorizedLoan({ actor, loanId: payment.loanId });
 
-  // Fetch loan with customer data
   const loan = await Loan.findByPk(payment.loanId, {
     include: [{ model: Customer, as: 'Customer' }],
   });
@@ -514,7 +530,6 @@ const createGetPaymentVoucher = ({ paymentRepository, loanAccessPolicy }) => asy
 
   const customer = loan.Customer || loan.customer;
 
-  // Generate PDF
   const pdfBuffer = await VoucherService.generateVoucherPdf(payment, loan, customer);
 
   return {

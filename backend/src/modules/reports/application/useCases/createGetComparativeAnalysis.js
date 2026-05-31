@@ -7,7 +7,7 @@ const { ensureAdmin, formatMoney } = require('@/modules/reports/application/repo
  * GET /api/reports/comparative-analysis?year={year}
  */
 const createGetComparativeAnalysis = ({ reportRepository }) => async ({ actor, year }) => {
-  ensureAdmin(actor, 'Only admins can access financial reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes financieros.');
 
   const targetYear = year || new Date().getFullYear();
   const currentMetrics = await reportRepository.getPerformanceMetrics(targetYear);

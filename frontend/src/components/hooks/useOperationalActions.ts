@@ -5,6 +5,7 @@ import { resolveOperationalGuard } from '../../services/operationalGuards';
 import { getSafeOperationalGuardMessage, getSafeOperationalMessage } from '../../services/operationalErrorMessages';
 import { tTerm } from '../../i18n/terminology';
 import { confirmDanger } from '../../lib/confirmModal';
+import { reportClientError } from '../../lib/clientDiagnostics';
 
 type ActionContext = {
   role?: string;
@@ -60,7 +61,7 @@ export const useOperationalActions = (_queryClient: QueryClient) => {
         const guardMessage = getSafeOperationalGuardMessage(options.action);
         toast.error(guardMessage);
       } else {
-        toast.error({ title: guard.reason || 'Acción no disponible para este estado.' });
+        toast.error({ title: guard.reason || tTerm('operational.error.title.actionUnavailable') });
       }
       return false;
     }
@@ -87,15 +88,14 @@ export const useOperationalActions = (_queryClient: QueryClient) => {
 
       return true;
     } catch (error: any) {
+      reportClientError(`operational.${options.action}`, error);
       if (shouldUseSafeMessaging(options.action)) {
         const safeMessage = getSafeOperationalMessage(options.action, error);
         toast.error(safeMessage);
-        console.error(`[operational] ${options.action} failed`, error);
       } else {
-        console.error(`[operational] ${options.action} failed`, error);
         toast.error({
-          title: 'No se pudo completar la acción',
-          description: 'Intenta nuevamente en unos minutos.',
+          title: tTerm('operational.error.title.genericAction'),
+          description: tTerm('operational.error.description.retryLater'),
         });
       }
       return false;

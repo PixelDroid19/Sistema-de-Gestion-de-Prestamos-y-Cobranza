@@ -7,6 +7,30 @@ const {
   buildPdfBuffer,
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
+const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
+const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
+
+const PAYOUT_WORKBOOK_COLUMNS = [
+  { header: 'Pago', key: 'paymentId', width: 12 },
+  { header: 'Crédito', key: 'loanId', width: 12 },
+  { header: 'Referencia cliente', key: 'customerId', width: 18 },
+  { header: 'Cliente', key: 'customerName', width: 28 },
+  dateColumn('Fecha de Pago', 'paymentDate', 18),
+  moneyColumn('Monto', 'amount'),
+  moneyColumn('Capital Aplicado', 'principalApplied', 20),
+  moneyColumn('Interés Aplicado', 'interestApplied', 20),
+  moneyColumn('Mora Aplicada', 'penaltyApplied', 18),
+  moneyColumn('Saldo Después del Pago', 'remainingBalanceAfterPayment', 22),
+  { header: 'Tipo Pago', key: 'paymentType', width: 16 },
+  { header: 'Método', key: 'paymentMethod', width: 18 },
+  { header: 'Estado', key: 'status', width: 14 },
+  { header: 'Referencia', key: 'reference', width: 22 },
+  { header: 'Observación', key: 'observation', width: 30 },
+  { header: 'Comprobante', key: 'voucherNumber', width: 18 },
+  dateColumn('Fecha Registro', 'createdAt', 18),
+];
 
 const formatIsoDate = (value) => {
   if (!value) {
@@ -44,6 +68,14 @@ const parseMoneyValue = (value) => {
 };
 
 const sumRowsByMoneyKey = (rows, key) => rows.reduce((sum, row) => sum + parseMoneyValue(row[key]), 0);
+const toWorkbookDate = (value) => {
+  if (!value || value === 'N/A') {
+    return '';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date;
+};
 
 const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
   const normalizedFilters = normalizePayoutExportFilters(filters);
@@ -96,7 +128,7 @@ const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
  * @returns {Function} use case function.
  */
 const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can export payment data');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar datos de pagos.');
 
   const rows = await buildPayoutExportRows({ paymentRepository, filters });
 
@@ -104,12 +136,24 @@ const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filt
     success: true,
     data: {
       rows,
+      sheets: [{
+        name: 'Pagos',
+        title: 'REPORTE DE PAGOS',
+        tabColor: STYLE_COLORS.green,
+        headerFill: STYLE_COLORS.green,
+        columns: PAYOUT_WORKBOOK_COLUMNS,
+        rows: rows.map((row) => ({
+          ...row,
+          paymentDate: toWorkbookDate(row.paymentDate),
+          createdAt: toWorkbookDate(row.createdAt),
+        })),
+      }],
     },
   };
 };
 
 const createExportPayoutsPdf = ({ paymentRepository }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can export payment data');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar datos de pagos.');
 
   const rows = await buildPayoutExportRows({ paymentRepository, filters });
   const lines = [

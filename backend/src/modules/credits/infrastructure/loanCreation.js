@@ -7,6 +7,8 @@ const {
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
 const DEFAULT_CALCULATION_SCOPE_KEY = 'credit-calculation';
+const CALCULATION_PROFILE_REQUIRED_MESSAGE = 'El cálculo de crédito no devolvió una versión de perfil activa. Aprueba un perfil de cálculo antes de crear créditos.';
+const CALCULATION_METHOD_REQUIRED_MESSAGE = 'El cálculo de crédito no devolvió un método de cálculo.';
 
 /**
  * Execute the credit calculation through the profile-backed domain service.
@@ -127,7 +129,7 @@ const createLoanFromCanonicalDataFactory = ({
   const startDate = resolveLoanStartDate(calculationInput.startDate);
   const calculationProfileVersionId = calculationExecution.calculationProfileVersionId;
   if (!calculationProfileVersionId) {
-    throw new ValidationError('Credit calculation did not return an active calculation profile version. Production credit creation requires an approved calculation profile.');
+    throw new ValidationError(CALCULATION_PROFILE_REQUIRED_MESSAGE);
   }
 
   const snapshot = {
@@ -140,7 +142,7 @@ const createLoanFromCanonicalDataFactory = ({
   const policySnapshot = snapshot.policySnapshot || null;
   const calculationMethod = snapshot.calculationMethod;
   if (!calculationMethod) {
-    throw new ValidationError('Credit calculation did not return a calculation method');
+    throw new ValidationError(CALCULATION_METHOD_REQUIRED_MESSAGE);
   }
 
   return loanModel.create({

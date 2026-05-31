@@ -7,7 +7,7 @@ type InvalidateInput = {
   loansParams?: { page?: number; pageSize?: number; search?: string; status?: string };
 };
 
-const invalidateCommonLoanSurface = async (queryClient: QueryClient, loanId?: number, loansParams?: InvalidateInput['loansParams']) => {
+const invalidateCommonLoanSurface = async (queryClient: QueryClient, loanId?: number) => {
   const invalidations = [
     queryClient.invalidateQueries({ queryKey: queryKeys.loans.listRoot }),
     queryClient.invalidateQueries({ queryKey: queryKeys.loans.statistics }),
@@ -28,7 +28,7 @@ const invalidateCommonLoanSurface = async (queryClient: QueryClient, loanId?: nu
 };
 
 export const invalidateAfterDelete = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
-  await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
+  await invalidateCommonLoanSurface(queryClient, input.loanId);
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot }),
     queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
@@ -37,7 +37,7 @@ export const invalidateAfterDelete = async (queryClient: QueryClient, input: Inv
 };
 
 export const invalidateAfterPayment = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
-  await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
+  await invalidateCommonLoanSurface(queryClient, input.loanId);
   const invalidations = [
     queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot }),
     queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
@@ -55,7 +55,7 @@ export const invalidateAfterPayment = async (queryClient: QueryClient, input: In
 };
 
 export const invalidateAfterPromiseOrFollowUp = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
-  await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
+  await invalidateCommonLoanSurface(queryClient, input.loanId);
   const invalidations = [
     queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot }),
     queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
@@ -70,7 +70,7 @@ export const invalidateAfterPromiseOrFollowUp = async (queryClient: QueryClient,
 };
 
 export const invalidateAfterReport = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
-  await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
+  await invalidateCommonLoanSurface(queryClient, input.loanId);
   const invalidations = [
     queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
     queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot }),

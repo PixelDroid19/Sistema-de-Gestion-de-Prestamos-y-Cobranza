@@ -9,6 +9,7 @@ import {
 import { useUsers } from '../services/userService';
 import { toast } from '../lib/toast';
 import { useTranslation } from '../i18n';
+import { getPermissionDisplayName, getPermissionModuleLabel } from './shared/permissionDisplay';
 import {
   ActionButton,
   ClickableSurface,
@@ -41,38 +42,77 @@ type PermissionRecord = {
   description?: string;
 };
 
-const MODULE_DISPLAY_LABELS: Record<string, string> = {
-  auditoria: 'Auditoría',
-  'auditoría': 'Auditoría',
-  clientes: 'Clientes',
-  creditos: 'Créditos',
-  dashboard: 'Dashboard',
-  pagos: 'Pagos',
-  permisos: 'Permisos',
-  reportes: 'Reportes',
-  socios: 'Socios',
-  usuarios: 'Usuarios',
-};
-
-const getModuleLabel = (module: string) => {
-  const normalized = module.trim().toLowerCase();
-  return MODULE_DISPLAY_LABELS[normalized] || module;
-};
-
 type Tab = 'profile' | 'password' | 'permissions';
+
+const employeeModalFocusableSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+const getFocusableEmployeeModalElements = (panel: HTMLElement) => (
+  Array.from(panel.querySelectorAll<HTMLElement>(employeeModalFocusableSelector))
+    .filter((element) => element.tabIndex >= 0 && element.getAttribute('aria-hidden') !== 'true')
+);
 
 export default function EmployeeEditModal({ employee, onClose }: EmployeeEditModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const titleId = React.useId();
+  const subtitleId = React.useId();
+  const panelRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Escape to close
   useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+    const panel = panelRef.current;
+    if (!panel || panel.contains(document.activeElement)) {
+      return;
+    }
+
+    panel.focus({ preventScroll: true });
+  }, []);
+
+  const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      onClose();
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const panel = panelRef.current;
+    if (!panel) {
+      return;
+    }
+
+    const focusableElements = getFocusableEmployeeModalElements(panel);
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      panel.focus({ preventScroll: true });
+      return;
+    }
+
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements[focusableElements.length - 1];
+    const activeElement = document.activeElement;
+
+    if (event.shiftKey) {
+      if (activeElement === firstFocusable || activeElement === panel || !panel.contains(activeElement)) {
+        event.preventDefault();
+        lastFocusable.focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    if (activeElement === lastFocusable || activeElement === panel || !panel.contains(activeElement)) {
+      event.preventDefault();
+      firstFocusable.focus({ preventScroll: true });
+    }
+  };
 
   const tabs = useMemo(() => [
     { id: 'profile' as Tab, label: t('settings.employees.modal.tabs.profile') },
@@ -83,18 +123,24 @@ export default function EmployeeEditModal({ employee, onClose }: EmployeeEditMod
   return (
     <div
       className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('settings.employees.modal.title')}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-2xl">
+      <div
+        ref={panelRef}
+        className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={subtitleId}
+        tabIndex={-1}
+        onKeyDown={handleDialogKeyDown}
+      >
         <header className="flex items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-text-primary">{t('settings.employees.modal.title')}</h2>
-            <p className="mt-0.5 truncate text-xs text-text-secondary">
+            <h2 id={titleId} className="truncate text-lg font-semibold text-text-primary">{t('settings.employees.modal.title')}</h2>
+            <p id={subtitleId} className="mt-0.5 truncate text-xs text-text-secondary">
               {employee.name || employee.email || t('settings.employees.table.nameMissing')}
               <span className="mx-1">·</span>
               {t('settings.employees.modal.subtitle')}
@@ -355,7 +401,7 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
       <p className="text-sm text-text-secondary">{t('settings.employees.modal.permissions.intro')}</p>
 
       <InsightStrip
-        aria-label="Resumen"
+        aria-label={t('settings.employees.modal.permissions.summaryAria')}
         items={[
           { id: 'effective', label: t('settings.employees.modal.permissions.effectiveLabel'), value: userPermissions.length, helper: t('settings.employees.modal.permissions.effectiveHelper'), icon: <Shield size={16} />, accent: 'blue' },
           { id: 'direct', label: t('settings.employees.modal.permissions.directLabel'), value: directSet.size, helper: t('settings.employees.modal.permissions.directHelper'), icon: <Check size={16} />, accent: 'emerald' },
@@ -367,7 +413,7 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
         <SelectInput value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
           <option value="all">{t('settings.employees.modal.permissions.moduleAll')}</option>
           {groupedPermissions.map((group) => (
-            <option key={group.module} value={group.module}>{getModuleLabel(group.module)}</option>
+            <option key={group.module} value={group.module}>{getPermissionModuleLabel(group.module)}</option>
           ))}
         </SelectInput>
       </FormField>
@@ -387,7 +433,7 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
               >
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Shield size={16} />
-                  <span>{getModuleLabel(group.module)}</span>
+                  <span>{getPermissionModuleLabel(group.module)}</span>
                   <span className="rounded-full bg-bg-surface px-2 py-0.5 text-[11px] text-text-secondary">
                     {t('settings.employees.modal.permissions.summary', { direct: directCount, total, inherited: inheritedCount })}
                   </span>
@@ -422,10 +468,8 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
                     return (
                       <div key={permission.permission} className="flex items-center justify-between gap-4 px-4 py-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{permission.permission}</p>
-                          <p className="truncate text-xs text-text-secondary">
-                            {permission.description || t('settings.employees.modal.permissions.noDescription')}
-                          </p>
+                          <p className="truncate text-sm font-medium">{getPermissionDisplayName(permission, t)}</p>
+                          <p className="truncate text-xs text-text-secondary">{getPermissionModuleLabel(permission.module)}</p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           {isRole && !isDirect && (

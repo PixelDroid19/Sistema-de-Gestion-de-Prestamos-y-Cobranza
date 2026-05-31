@@ -53,6 +53,11 @@ export type CreditHistoryMonthlyFilters = {
   loanId?: number;
 };
 
+export type CustomerProfitabilityFilters = {
+  fromDate?: string;
+  toDate?: string;
+};
+
 export type OperatingExpenseListParams = {
   page?: number;
   pageSize?: number;
@@ -126,7 +131,8 @@ export const queryKeys = {
     outstanding: ['reports.outstanding'] as const,
     recovered: ['reports.recovered'] as const,
     recovery: ['reports.recovery'] as const,
-    profitabilityCustomers: ['reports.profitability.customers'] as const,
+    profitabilityCustomers: (filters?: CustomerProfitabilityFilters) =>
+      ['reports.profitability.customers', filters ?? {}] as const,
     profitabilityLoans: ['reports.profitability.loans'] as const,
     customerHistory: (customerId: number) => ['reports.customerHistory', customerId] as const,
     customerCreditProfile: (customerId: number) => ['reports.customerCreditProfile', customerId] as const,

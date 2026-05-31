@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tTerm } from '../i18n/terminology';
 import type { AuditStreamEvent } from '../types/audit';
 
 const MAX_BUFFER = 200;
@@ -62,7 +63,7 @@ export function useAuditStream({
         es.close();
         esRef.current = null;
         setConnected(false);
-        setError('Connection lost — reconnecting…');
+        setError(tTerm('audit.stream.error.reconnecting'));
         reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
       };
     };

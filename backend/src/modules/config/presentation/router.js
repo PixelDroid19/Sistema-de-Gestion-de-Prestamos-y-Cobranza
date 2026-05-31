@@ -2,7 +2,7 @@ const express = require('express');
 const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { logger } = require('@/utils/logger');
 const { domainEventBus } = require('@/modules/shared/events');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 const runOptionalSideEffect = async (label, sideEffect) => {
   try {
@@ -78,7 +78,7 @@ const createConfigRouter = ({ authMiddleware, useCases, auditService, notificati
    */
   const parseRequiredRouteId = (value, fieldName) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError(`${fieldName} must be a valid positive integer`);
+      throw new ValidationError(buildInvalidIntegerIdMessage(fieldName));
     }
 
     return Number(String(value).trim());

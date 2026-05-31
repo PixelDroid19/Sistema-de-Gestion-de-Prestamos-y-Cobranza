@@ -9,7 +9,7 @@ const {
   createReactivateUser,
   createUnlockUser,
 } = require('@/modules/users/application/useCases');
-const { ConflictError, NotFoundError } = require('@/utils/errorHandler');
+const { ConflictError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 
 test('createListUsers sanitizes administrative user listings', async () => {
   const listUsers = createListUsers({
@@ -82,7 +82,31 @@ test('createUpdateUser rejects duplicate email changes', async () => {
     },
   });
 
-  await assert.rejects(() => updateUser(5, { email: 'taken@example.com' }), ConflictError);
+  await assert.rejects(() => updateUser(5, { email: 'taken@example.com' }), (error) => {
+    assert.ok(error instanceof ConflictError);
+    assert.equal(error.message, 'Ya existe un usuario con ese correo electrónico.');
+    return true;
+  });
+});
+
+test('createUpdateUser rejects invalid roles without exposing the role catalog', async () => {
+  const updateUser = createUpdateUser({
+    userRepository: {
+      async findById() {
+        return { id: 5, name: 'User', email: 'user@example.com', role: 'employee', isActive: true };
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => updateUser(5, { role: 'customer' }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Selecciona un rol administrativo válido.');
+    assert.doesNotMatch(error.message, /employee|customer|socio/i);
+    return true;
+  });
 });
 
 test('createDeactivateUser and createReactivateUser persist user activation toggles', async () => {

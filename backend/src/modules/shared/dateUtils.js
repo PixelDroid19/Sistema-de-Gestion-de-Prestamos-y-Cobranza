@@ -5,10 +5,38 @@ const MAX_OPERATIONAL_YEAR = 2199;
 const DATE_ONLY_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
 const ISO_OPERATIONAL_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:[T\s][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]{1,3})?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?$/;
 
+const DATE_FIELD_LABELS = {
+  asOfDate: 'La fecha de consulta',
+  contributionDate: 'La fecha del aporte',
+  distributionDate: 'La fecha de distribución',
+  dueDate: 'La fecha de vencimiento',
+  endDate: 'La fecha final',
+  expenseDate: 'La fecha del gasto',
+  fromDate: 'La fecha inicial',
+  interestStartDate: 'La fecha de inicio de intereses',
+  'Loan start date': 'La fecha inicial',
+  paymentDate: 'La fecha de pago',
+  'Promise date': 'La fecha prometida',
+  'Promise expiration date': 'La fecha de consulta',
+  promisedDate: 'La fecha prometida',
+  reinvestmentDate: 'La fecha de reinversión',
+  'Schedule due date': 'La fecha de vencimiento',
+  startDate: 'La fecha inicial',
+  toDate: 'La fecha final',
+};
+
+const buildDateFieldLabel = (field = 'date') => DATE_FIELD_LABELS[field] || 'La fecha';
+const buildDateFormatMessage = (field) => `${buildDateFieldLabel(field)} debe tener formato AAAA-MM-DD`;
+const buildOperationalDateMessage = (field) => `${buildDateFieldLabel(field)} debe ser una fecha operativa válida`;
+const buildRequiredDateMessage = (field) => `${buildDateFieldLabel(field)} es obligatoria`;
+const buildDateRangeMessage = (fromField = 'fromDate', toField = 'toDate') => (
+  `${buildDateFieldLabel(fromField)} debe ser anterior o igual a ${buildDateFieldLabel(toField).toLowerCase()}`
+);
+
 const assertOperationalYear = (date, field) => {
   const year = date.getUTCFullYear();
   if (year < MIN_OPERATIONAL_YEAR || year > MAX_OPERATIONAL_YEAR) {
-    throw new ValidationError(`${field} must be between years ${MIN_OPERATIONAL_YEAR} and ${MAX_OPERATIONAL_YEAR}`);
+    throw new ValidationError(`${buildDateFieldLabel(field)} debe estar entre los años ${MIN_OPERATIONAL_YEAR} y ${MAX_OPERATIONAL_YEAR}`);
   }
 };
 
@@ -29,7 +57,7 @@ const buildUtcDateOnly = ({ year, month, day }, field) => {
     || date.getUTCMonth() !== month - 1
     || date.getUTCDate() !== day
   ) {
-    throw new ValidationError(`${field} must be a valid YYYY-MM-DD date`);
+    throw new ValidationError(buildDateFormatMessage(field));
   }
 
   assertOperationalYear(date, field);
@@ -38,12 +66,12 @@ const buildUtcDateOnly = ({ year, month, day }, field) => {
 
 const normalizeDateOnly = (value, field = 'date') => {
   if (value === undefined || value === null || value === '') {
-    throw new ValidationError(`${field} is required`);
+    throw new ValidationError(buildRequiredDateMessage(field));
   }
 
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
-      throw new ValidationError(`${field} must be a valid date`);
+      throw new ValidationError(buildOperationalDateMessage(field));
     }
     const date = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
     assertOperationalYear(date, field);
@@ -54,7 +82,7 @@ const normalizeDateOnly = (value, field = 'date') => {
   const parts = parseDateOnlyParts(normalizedValue)
     || (ISO_OPERATIONAL_PATTERN.test(normalizedValue) ? parseDateOnlyParts(normalizedValue.slice(0, 10)) : null);
   if (!parts) {
-    throw new ValidationError(`${field} must be a valid YYYY-MM-DD date`);
+    throw new ValidationError(buildDateFormatMessage(field));
   }
 
   return buildUtcDateOnly(parts, field);
@@ -70,12 +98,12 @@ const normalizeOptionalDateOnlyString = (value, field = 'date') => {
 
 const normalizeOperationalDate = (value, field = 'date') => {
   if (value === undefined || value === null || value === '') {
-    throw new ValidationError(`${field} is required`);
+    throw new ValidationError(buildRequiredDateMessage(field));
   }
 
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
-      throw new ValidationError(`${field} must be a valid date`);
+      throw new ValidationError(buildOperationalDateMessage(field));
     }
     assertOperationalYear(value, field);
     return new Date(value.getTime());
@@ -83,7 +111,7 @@ const normalizeOperationalDate = (value, field = 'date') => {
 
   const normalizedValue = String(value).trim();
   if (!ISO_OPERATIONAL_PATTERN.test(normalizedValue)) {
-    throw new ValidationError(`${field} must be a valid ISO date`);
+    throw new ValidationError(buildOperationalDateMessage(field));
   }
 
   const dateOnlyParts = parseDateOnlyParts(normalizedValue);
@@ -92,7 +120,7 @@ const normalizeOperationalDate = (value, field = 'date') => {
     : new Date(normalizedValue);
 
   if (Number.isNaN(parsed.getTime())) {
-    throw new ValidationError(`${field} must be a valid ISO date`);
+    throw new ValidationError(buildOperationalDateMessage(field));
   }
 
   assertOperationalYear(parsed, field);
@@ -143,8 +171,10 @@ const toOperationalDateOrNull = (value) => {
 module.exports = {
   MAX_OPERATIONAL_YEAR,
   MIN_OPERATIONAL_YEAR,
+  buildDateFormatMessage,
   isValidDateOnly,
   isValidOptionalOperationalDate,
+  buildDateRangeMessage,
   normalizeDateOnly,
   normalizeOperationalDate,
   normalizeOptionalDateOnlyString,

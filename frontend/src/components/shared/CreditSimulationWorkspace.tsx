@@ -67,14 +67,6 @@ const lateFeeModeLabelKeys: Record<NonNullable<CreditCalculationInput['lateFeeMo
   TIERED: 'simulator.lateFee.mode.tiered',
 };
 
-const lateFeeModeHelperKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.helper.none' | 'simulator.lateFee.helper.simple' | 'simulator.lateFee.helper.compound' | 'simulator.lateFee.helper.flat' | 'simulator.lateFee.helper.tiered'> = {
-  NONE: 'simulator.lateFee.helper.none',
-  SIMPLE: 'simulator.lateFee.helper.simple',
-  COMPOUND: 'simulator.lateFee.helper.compound',
-  FLAT: 'simulator.lateFee.helper.flat',
-  TIERED: 'simulator.lateFee.helper.tiered',
-};
-
 const lateFeeModeDescriptionKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.description.none' | 'simulator.lateFee.description.simple' | 'simulator.lateFee.description.compound' | 'simulator.lateFee.description.flat' | 'simulator.lateFee.description.tiered'> = {
   NONE: 'simulator.lateFee.description.none',
   SIMPLE: 'simulator.lateFee.description.simple',

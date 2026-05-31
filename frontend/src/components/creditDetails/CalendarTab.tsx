@@ -142,7 +142,7 @@ export function CalendarTab({
           </colgroup>
           <thead>
             <tr>
-              <th className="text-center">N°</th>
+              <th className="text-center">{tTerm('creditDetails.calendar.table.number')}</th>
               <th>{tTerm('schedule.table.header.dueDate')}</th>
               <th className="text-right">{tTerm('creditDetails.label.installment')}</th>
               <th className="text-right">{tTerm('creditDetails.label.interest')}</th>

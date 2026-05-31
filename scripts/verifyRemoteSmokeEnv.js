@@ -15,6 +15,20 @@ const assert = (condition, message) => {
 
 const readEnv = (key) => String(process.env[key] || '').trim();
 
+const parsePositiveInteger = (value, label) => {
+  const normalized = String(value || '').trim();
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  return parsed;
+};
+
 const parseUrl = (key) => {
   const value = readEnv(key);
   assert(value, `${key} is required for remote smoke verification.`);
@@ -46,8 +60,7 @@ const main = () => {
 
   const timeoutRaw = readEnv('SMOKE_TIMEOUT_MS');
   if (timeoutRaw) {
-    const timeoutMs = Number.parseInt(timeoutRaw, 10);
-    assert(Number.isInteger(timeoutMs) && timeoutMs > 0, 'SMOKE_TIMEOUT_MS must be a positive integer when provided.');
+    parsePositiveInteger(timeoutRaw, 'SMOKE_TIMEOUT_MS');
   }
 
   console.log(JSON.stringify({
@@ -58,9 +71,18 @@ const main = () => {
   }, null, 2));
 };
 
-try {
-  main();
-} catch (error) {
-  console.error(error.message);
-  process.exitCode = 1;
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = {
+  isLocalHost,
+  main,
+  parsePositiveInteger,
+  parseUrl,
+};

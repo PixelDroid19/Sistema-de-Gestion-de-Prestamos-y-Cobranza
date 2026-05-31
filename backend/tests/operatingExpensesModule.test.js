@@ -33,7 +33,7 @@ const roleAwareAuth = (config = {}) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
   const requiredPermissions = Array.isArray(config?.permissions) ? config.permissions : [];
   if (!['admin', 'employee'].includes(role)) {
-    res.status(401).json({ success: false, error: { message: 'This account cannot access the administrative platform', statusCode: 401 } });
+    res.status(401).json({ success: false, error: { message: 'Esta cuenta no puede acceder a la plataforma administrativa.', statusCode: 401 } });
     return;
   }
 
@@ -147,11 +147,15 @@ test('operating expense use cases reject invalid money, dates, missing records a
   await assert.rejects(() => createUseCase({
     actor: { id: 1, role: 'admin' },
     payload: { amount: '1e5', expenseDate: '2026-05-20', category: 'Servicios', description: 'Pago' },
-  }), /amount must be a valid positive currency amount/i);
+  }), /El monto del gasto debe ser un valor monetario positivo\./);
+  await assert.rejects(() => createUseCase({
+    actor: { id: 1, role: 'admin' },
+    payload: { amount: '1000', expenseDate: '2026-05-20', category: '', description: 'Pago' },
+  }), /La categoría del gasto es obligatoria\./);
   await assert.rejects(() => createUseCase({
     actor: { id: 1, role: 'admin' },
     payload: { amount: '1000', expenseDate: '20-05-2026', category: 'Servicios', description: 'Pago' },
-  }), /expenseDate must be a valid ISO date/i);
+  }), /fecha del gasto.*operativa válida/i);
 
   const missingAnnulUseCase = createAnnulOperatingExpense({
     operatingExpenseRepository: {
@@ -177,7 +181,26 @@ test('operating expense use cases reject invalid money, dates, missing records a
     actor: { id: 1, role: 'admin' },
     expenseId: 3,
     payload: { reason: 'Ya anulado' },
-  }), /already annulled/i);
+  }), /El gasto operativo ya está anulado\./);
+
+  const missingReasonAnnulUseCase = createAnnulOperatingExpense({
+    operatingExpenseRepository: {
+      async findById() {
+        return {
+          id: 4,
+          status: 'completed',
+          async update() {
+            throw new Error('update should not be called without an annulment reason');
+          },
+        };
+      },
+    },
+  });
+  await assert.rejects(() => missingReasonAnnulUseCase({
+    actor: { id: 1, role: 'admin' },
+    expenseId: 4,
+    payload: { reason: '' },
+  }), /El motivo de anulación es obligatorio\./);
 });
 
 test('operating expense list rejects inverted date ranges before querying repository', async () => {
@@ -197,7 +220,31 @@ test('operating expense list rejects inverted date ranges before querying reposi
   assert.throws(() => listUseCase({
     filters: { fromDate: '2026-05-31', toDate: '2026-05-01' },
     pagination: { page: 1, pageSize: 20, limit: 20, offset: 0 },
-  }), /fromDate must be before or equal to toDate/i);
+  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
+  assert.equal(repositoryCalled, false);
+});
+
+test('operating expense list rejects invalid status filters with an operator message', async () => {
+  const { createListOperatingExpenses } = loadUseCases();
+  assert.equal(typeof createListOperatingExpenses, 'function');
+
+  let repositoryCalled = false;
+  const listUseCase = createListOperatingExpenses({
+    operatingExpenseRepository: {
+      async listPage() {
+        repositoryCalled = true;
+        return { items: [] };
+      },
+    },
+  });
+
+  assert.throws(() => listUseCase({
+    filters: { status: 'archived_internal' },
+    pagination: { page: 1, pageSize: 20, limit: 20, offset: 0 },
+  }), (error) => {
+    assert.equal(error.message, 'El estado del gasto operativo debe ser completado o anulado.');
+    return true;
+  });
   assert.equal(repositoryCalled, false);
 });
 

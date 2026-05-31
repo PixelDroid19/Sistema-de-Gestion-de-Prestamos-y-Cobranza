@@ -6,6 +6,7 @@ const { getCanonicalLoanView } = require('@/modules/credits/application/loanFina
 const {
   createLoanFromCanonicalDataFactory,
 } = require('@/modules/credits/infrastructure/loanCreation');
+const { ValidationError } = require('@/utils/errorHandler');
 
 afterEach(() => {
   mock.restoreAll();
@@ -403,7 +404,7 @@ test('createLoanFromCanonicalDataFactory rejects new credits when no calculation
     calculationService: {
       async calculate() {
         const { ValidationError } = require('@/utils/errorHandler');
-        throw new ValidationError('No active calculation profile version found for scope credit-calculation');
+        throw new ValidationError('No hay un perfil de cálculo activo para créditos. Activa un perfil antes de calcular o crear créditos.');
       },
     },
   });
@@ -418,9 +419,79 @@ test('createLoanFromCanonicalDataFactory rejects new credits when no calculation
       termMonths: 1,
     }),
     (error) => {
-      assert.match(error.message, /no active calculation profile version/i);
+      assert.equal(error.message, 'No hay un perfil de cálculo activo para créditos. Activa un perfil antes de calcular o crear créditos.');
       return true;
     },
+  );
+});
+
+test('createLoanFromCanonicalDataFactory rejects incomplete calculation executions with operator-facing messages', async () => {
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
+
+  const buildCreateLoan = (calculationResult) => createLoanFromCanonicalDataFactory({
+    calculationService: {
+      async calculate() {
+        return calculationResult;
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => buildCreateLoan({
+      calculationProfileVersionId: null,
+      result: {
+        method: 'FRENCH',
+        lateFeeMode: 'NONE',
+        schedule: [{ installmentNumber: 1, scheduledPayment: 90 }],
+        summary: {
+          installmentAmount: 90,
+          totalPayable: 90,
+          totalPaid: 0,
+          outstandingPrincipal: 80,
+          outstandingInterest: 10,
+          outstandingBalance: 90,
+          outstandingInstallments: 1,
+        },
+      },
+    })({
+      customerId: 1,
+      amount: 90,
+      interestRate: 12,
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+      termMonths: 1,
+    }),
+    (error) => error instanceof ValidationError
+      && error.message === 'El cálculo de crédito no devolvió una versión de perfil activa. Aprueba un perfil de cálculo antes de crear créditos.',
+  );
+
+  await assert.rejects(
+    () => buildCreateLoan({
+      calculationProfileVersionId: 501,
+      result: {
+        lateFeeMode: 'NONE',
+        schedule: [{ installmentNumber: 1, scheduledPayment: 90 }],
+        summary: {
+          installmentAmount: 90,
+          totalPayable: 90,
+          totalPaid: 0,
+          outstandingPrincipal: 80,
+          outstandingInterest: 10,
+          outstandingBalance: 90,
+          outstandingInstallments: 1,
+        },
+      },
+    })({
+      customerId: 1,
+      amount: 90,
+      interestRate: 12,
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+      termMonths: 1,
+    }),
+    (error) => error instanceof ValidationError
+      && error.message === 'El cálculo de crédito no devolvió un método de cálculo.',
   );
 });
 

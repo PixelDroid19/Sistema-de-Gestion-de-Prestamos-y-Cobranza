@@ -17,8 +17,6 @@ const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 const TESTS = path.join(ROOT, 'tests');
 
-const dryRun = process.argv.includes('--dry-run');
-
 function getAllJsFiles(dir) {
   const results = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -59,7 +57,7 @@ const REQUIRE_RE = /require\(\s*['"]([^'"]+)['"]\s*\)/g;
 let totalFiles = 0;
 let totalChanges = 0;
 
-function processFile(filePath) {
+function processFile(filePath, { dryRun = false } = {}) {
   const content = fs.readFileSync(filePath, 'utf8');
   let changed = false;
   const newContent = content.replace(REQUIRE_RE, (match, reqPath) => {
@@ -86,10 +84,30 @@ function processFile(filePath) {
   }
 }
 
-// Process all files in src/ and tests/
-const allFiles = [...getAllJsFiles(SRC), ...getAllJsFiles(TESTS)];
-for (const f of allFiles) {
-  processFile(f);
+function migrateToAlias({ dryRun = false } = {}) {
+  totalFiles = 0;
+  totalChanges = 0;
+
+  // Process all files in src/ and tests/
+  const allFiles = [...getAllJsFiles(SRC), ...getAllJsFiles(TESTS)];
+  for (const f of allFiles) {
+    processFile(f, { dryRun });
+  }
+
+  console.log(`\n${dryRun ? '[DRY RUN] ' : ''}Done: ${totalChanges} requires in ${totalFiles} files.`);
+  return { dryRun, totalChanges, totalFiles };
 }
 
-console.log(`\n${dryRun ? '[DRY RUN] ' : ''}Done: ${totalChanges} requires in ${totalFiles} files.`);
+if (require.main === module) {
+  migrateToAlias({ dryRun: process.argv.includes('--dry-run') });
+}
+
+module.exports = {
+  ROOT,
+  SRC,
+  TESTS,
+  convertRequire,
+  getAllJsFiles,
+  migrateToAlias,
+  processFile,
+};

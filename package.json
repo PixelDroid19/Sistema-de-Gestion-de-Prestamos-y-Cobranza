@@ -15,6 +15,7 @@
     "db:reset-local": "cd backend && DB_HOST=${DB_HOST:-localhost} DB_PORT=${DB_PORT:-5433} DB_NAME=${DB_NAME:-loan_recovery_system} DB_USER=${DB_USER:-postgres} DB_PASSWORD=${DB_PASSWORD:-postgres} DB_SCHEMA_RESET_ALLOWED=true npm run db:reset-local",
     "seed:local-users": "cd backend && DB_HOST=${DB_HOST:-localhost} DB_PORT=${DB_PORT:-5433} DB_NAME=${DB_NAME:-loan_recovery_system} DB_USER=${DB_USER:-postgres} DB_PASSWORD=${DB_PASSWORD:-postgres} RESET_QA_CREDENTIALS_CONFIRM=RESET_RAILWAY_QA_CREDENTIALS QA_PASSWORD=Admin123! node scripts/resetQaCredentials.js",
     "smoke:local": "cd backend && SMOKE_API_BASE_URL=http://127.0.0.1:5000 npm run smoke:local",
+    "smoke:browser:local": "node scripts/localBrowserSmoke.js",
     "smoke:remote": "cd backend && SMOKE_ALLOW_REMOTE=true npm run smoke:local",
     "smoke:remote:check": "node scripts/verifyRemoteSmokeEnv.js",
     "verify:production": "node scripts/verifyProductionReadiness.js",

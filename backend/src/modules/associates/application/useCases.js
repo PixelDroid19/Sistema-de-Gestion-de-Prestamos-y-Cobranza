@@ -10,6 +10,7 @@ const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { parsePositiveCurrencyAmount, roundCurrency, formatCurrency } = require('@/modules/shared/money');
 const { validateIntegerRange } = require('@/modules/shared/validators');
 const {
+  buildDateRangeMessage,
   normalizeOperationalDate,
   normalizeOptionalDateOnlyString,
   normalizeOptionalOperationalDate,
@@ -25,8 +26,24 @@ const DEFAULT_INTEREST_PAYMENT_DAY = 1;
 const DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH = 1;
 const ASSOCIATE_PAYMENT_ALERT_WINDOW_DAYS = 7;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const ASSOCIATE_CURRENCY_FIELD_LABELS = {
+  initialCapital: 'El capital inicial',
+};
+const ASSOCIATE_DATE_FIELD_LABELS = {
+  interestStartDate: 'La fecha de inicio de intereses',
+  contributionDate: 'La fecha del aporte',
+  distributionDate: 'La fecha de distribución',
+  reinvestmentDate: 'La fecha de reinversión',
+  paymentDate: 'La fecha de pago',
+};
+const ASSOCIATE_FINANCIAL_DETAILS_REQUIRED_MESSAGE = 'Selecciona un socio para consultar su información financiera.';
+const PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_CONFLICT_MESSAGE = 'Esta distribución proporcional ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.';
+const PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_PENDING_MESSAGE = 'Esta distribución proporcional ya se está procesando. Espera el resultado antes de intentar nuevamente.';
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+
+const getAssociateCurrencyFieldLabel = (fieldName) => ASSOCIATE_CURRENCY_FIELD_LABELS[fieldName] || 'El monto';
+const getAssociateDateFieldLabel = (fieldName) => ASSOCIATE_DATE_FIELD_LABELS[fieldName] || 'La fecha';
 
 const parsePercentageToUnits = (value) => {
   if (value === undefined || value === null || value === '') {
@@ -35,12 +52,12 @@ const parsePercentageToUnits = (value) => {
 
   const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
   if (!/^\d+(\.\d{1,4})?$/.test(normalizedValue)) {
-    throw new ValidationError('participationPercentage must be between 0 and 100 with up to 4 decimal places');
+    throw new ValidationError('El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales');
   }
 
   const numericValue = Number(normalizedValue);
   if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
-    throw new ValidationError('participationPercentage must be between 0 and 100 with up to 4 decimal places');
+    throw new ValidationError('El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales');
   }
 
   return Math.round(numericValue * PERCENTAGE_SCALE);
@@ -56,14 +73,15 @@ const parseCurrencyAmount = (value, fieldName) => {
     return null;
   }
 
+  const fieldLabel = getAssociateCurrencyFieldLabel(fieldName);
   const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
   if (!/^\d+(\.\d{1,2})?$/.test(normalizedValue)) {
-    throw new ValidationError(`${fieldName} must be greater than 0 and use up to 2 decimal places`);
+    throw new ValidationError(`${fieldLabel} debe ser mayor a 0 y usar máximo 2 decimales`);
   }
 
   const numericValue = Number(normalizedValue);
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    throw new ValidationError(`${fieldName} must be greater than 0`);
+    throw new ValidationError(`${fieldLabel} debe ser mayor a 0`);
   }
 
   return roundCurrency(numericValue);
@@ -76,7 +94,7 @@ const normalizeInterestType = (value) => {
 
   const normalizedValue = String(value).trim().toLowerCase();
   if (!ALLOWED_INTEREST_TYPES.has(normalizedValue)) {
-    throw new ValidationError('interestType must be monthly or annual');
+    throw new ValidationError('El tipo de interés debe ser mensual o anual');
   }
 
   return normalizedValue;
@@ -89,12 +107,12 @@ const normalizeInterestRate = (value) => {
 
   const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
   if (!/^\d+(\.\d{1,4})?$/.test(normalizedValue)) {
-    throw new ValidationError('interestRate must be between 0 and 100 with up to 4 decimal places');
+    throw new ValidationError('La tasa de interés debe estar entre 0 y 100 con máximo 4 decimales');
   }
 
   const numericValue = Number(normalizedValue);
   if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
-    throw new ValidationError('interestRate must be between 0 and 100 with up to 4 decimal places');
+    throw new ValidationError('La tasa de interés debe estar entre 0 y 100 con máximo 4 decimales');
   }
 
   return numericValue.toFixed(4);
@@ -106,7 +124,7 @@ const normalizePaymentDay = (value) => {
   }
 
   if (!validateIntegerRange(value, 1, 28)) {
-    throw new ValidationError('interestPaymentDay must be an integer between 1 and 28');
+    throw new ValidationError('El día de pago de intereses debe ser un entero entre 1 y 28');
   }
 
   return Number(typeof value === 'string' ? value.trim() : value);
@@ -118,18 +136,36 @@ const normalizePaymentMonth = (value) => {
   }
 
   if (!validateIntegerRange(value, 1, 12)) {
-    throw new ValidationError('interestPaymentMonth must be an integer between 1 and 12');
+    throw new ValidationError('El mes de pago de intereses debe ser un entero entre 1 y 12');
   }
 
   return Number(typeof value === 'string' ? value.trim() : value);
 };
 
-const normalizeOptionalDateOnly = (value, fieldName) => normalizeOptionalDateOnlyString(value, fieldName);
+const normalizeOptionalDateOnly = (value, fieldName) => {
+  try {
+    return normalizeOptionalDateOnlyString(value, fieldName);
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw new ValidationError(`${getAssociateDateFieldLabel(fieldName)} debe tener formato AAAA-MM-DD`);
+    }
+    throw error;
+  }
+};
 
 const normalizeOptionalOperationDate = (value, fieldName) => (
-  value === undefined || value === null || value === ''
-    ? new Date()
-    : normalizeOperationalDate(value, fieldName)
+  (() => {
+    try {
+      return value === undefined || value === null || value === ''
+        ? new Date()
+        : normalizeOperationalDate(value, fieldName);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new ValidationError(`${getAssociateDateFieldLabel(fieldName)} debe ser una fecha operativa válida`);
+      }
+      throw error;
+    }
+  })()
 );
 
 const mapValidDatedRows = (rows, getDate, mapRow) => rows
@@ -186,7 +222,7 @@ const normalizeAssociateListFilters = (filters = {}) => {
   const rawStatus = String(filters.status || '').trim().toLowerCase();
   if (rawStatus) {
     if (!ALLOWED_ASSOCIATE_STATUSES.has(rawStatus)) {
-      throw new ValidationError('Associate status filter must be active or inactive');
+      throw new ValidationError('Filtro de estado de socio inválido.');
     }
     normalized.status = rawStatus;
   }
@@ -506,19 +542,19 @@ const normalizeDistributionRecord = (distribution) => {
 
 const parseCurrencyToCents = (value) => {
   if (value === undefined || value === null || value === '') {
-    throw new ValidationError('Distribution amount must be greater than 0');
+    throw new ValidationError('El monto de la distribución debe ser mayor a 0');
   }
 
   const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
   if (!/^\d+(\.\d{1,2})?$/.test(normalizedValue)) {
-    throw new ValidationError('Distribution amount must be greater than 0 and use up to 2 decimal places');
+    throw new ValidationError('El monto de la distribución debe ser mayor a 0 y usar máximo 2 decimales');
   }
 
   const [wholePart, decimalPart = ''] = normalizedValue.split('.');
   const cents = (Number(wholePart) * 100) + Number(decimalPart.padEnd(2, '0'));
 
   if (!Number.isFinite(cents) || cents <= 0) {
-    throw new ValidationError('Distribution amount must be greater than 0');
+    throw new ValidationError('El monto de la distribución debe ser mayor a 0');
   }
 
   return cents;
@@ -634,7 +670,7 @@ const allocateProportionalDistribution = ({ associates, amountCents }) => {
  */
 const validateEligibleParticipationPool = (associates) => {
   if (!associates.length) {
-    throw new ValidationError('At least one active associate is required for proportional distributions');
+    throw new ValidationError('Debe existir al menos un socio activo para distribuir utilidades.');
   }
 
   const errors = [];
@@ -645,7 +681,7 @@ const validateEligibleParticipationPool = (associates) => {
     if (participationUnits === null) {
       errors.push({
         field: 'participationPercentage',
-        message: `Active associate ${associate.id} must define participationPercentage before proportional distributions`,
+        message: 'Completa el porcentaje de participación de todos los socios activos.',
       });
       return { ...normalizeAssociateRecord(associate), participationUnits: null };
     }
@@ -653,7 +689,7 @@ const validateEligibleParticipationPool = (associates) => {
     if (participationUnits <= 0) {
       errors.push({
         field: 'participationPercentage',
-        message: `Active associate ${associate.id} must have participationPercentage greater than 0 for proportional distributions`,
+        message: 'Los porcentajes de participación de socios activos deben ser mayores que cero.',
       });
     }
 
@@ -666,28 +702,28 @@ const validateEligibleParticipationPool = (associates) => {
   });
 
   if (errors.length > 0) {
-    const error = new ValidationError('Eligible associate participation is incomplete');
+    const error = new ValidationError('Completa la participación de los socios activos antes de distribuir utilidades.');
     error.errors = errors;
     throw error;
   }
 
   if (totalUnits !== HUNDRED_PERCENT_UNITS) {
-    throw new ValidationError('Active associate participation percentages must total exactly 100.0000');
+    throw new ValidationError('La participación activa de socios debe sumar exactamente 100%.');
   }
 
   return normalizedAssociates;
 };
 
 const buildAssociateConflictError = ({ existingAssociate, email, phone }) => {
-  const error = new ValidationError('Associate already exists with the provided contact details');
+  const error = new ValidationError('Ya existe un socio con esos datos de contacto.');
   error.errors = [];
 
   if (email && existingAssociate.email === email) {
-    error.errors.push({ field: 'email', message: 'Associate email already exists' });
+    error.errors.push({ field: 'email', message: 'Ya existe un socio con ese correo.' });
   }
 
   if (phone && existingAssociate.phone === phone) {
-    error.errors.push({ field: 'phone', message: 'Associate phone already exists' });
+    error.errors.push({ field: 'phone', message: 'Ya existe un socio con ese teléfono.' });
   }
 
   return error;
@@ -860,12 +896,12 @@ const createDeleteAssociate = ({ associateRepository, auditService }) => {
  */
 const ensureAssociateFinancialDetailsAccess = async ({ actor, associateRepository, associateId = null }) => {
   if (actor.role !== 'admin' && actor.role !== 'employee') {
-    throw new AuthorizationError('Only authorized backoffice users can access associate financial details');
+    throw new AuthorizationError('Solo usuarios administrativos autorizados pueden consultar información financiera de socios.');
   }
 
   if (actor.role === 'admin' || actor.role === 'employee') {
     if (!associateId) {
-      throw new ValidationError('Associate ID is required');
+      throw new ValidationError(ASSOCIATE_FINANCIAL_DETAILS_REQUIRED_MESSAGE);
     }
 
     const associate = await associateRepository.findById(associateId);
@@ -948,7 +984,7 @@ const createListAssociateFinancialDetails = ({ associateRepository }) => async (
 const createCreateAssociateContribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can create associate contributions');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar aportes de socios.');
     }
 
     const associate = await associateRepository.findById(associateId);
@@ -958,7 +994,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
-      throw new ValidationError('Contribution amount must be greater than 0');
+      throw new ValidationError('El monto del aporte debe ser mayor a 0');
     }
 
     const contribution = await associateRepository.createContribution({
@@ -988,7 +1024,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
 const createCreateProfitDistribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can create profit distributions');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar distribuciones de utilidades.');
     }
 
     const associate = await associateRepository.findById(associateId);
@@ -998,7 +1034,7 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
-      throw new ValidationError('Distribution amount must be greater than 0');
+      throw new ValidationError('El monto de la distribución debe ser mayor a 0');
     }
 
     return associateRepository.createProfitDistribution({
@@ -1021,7 +1057,7 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
 const createCreateAssociateReinvestment = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can create associate reinvestments');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar reinversiones de socios.');
     }
 
     const associate = await associateRepository.findById(associateId);
@@ -1031,7 +1067,7 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
-      throw new ValidationError('Reinvestment amount must be greater than 0');
+      throw new ValidationError('El monto de la reinversión debe ser mayor a 0');
     }
 
     const operationDate = normalizeOptionalOperationDate(payload.reinvestmentDate, 'reinvestmentDate');
@@ -1091,7 +1127,7 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
 const createCreateProportionalProfitDistribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, idempotencyKey, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can create proportional profit distributions');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar distribuciones proporcionales.');
     }
 
     const amountCents = parseCurrencyToCents(payload.amount);
@@ -1173,14 +1209,14 @@ const createCreateProportionalProfitDistribution = ({ associateRepository, audit
       }
 
       if (existingRecord.requestHash !== requestHash) {
-        throw buildIdempotencyConflictError('Idempotency key has already been used with a different proportional distribution payload');
+        throw buildIdempotencyConflictError(PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_CONFLICT_MESSAGE);
       }
 
       if (existingRecord.status === 'completed') {
         return serializeIdempotentDistributionResult(existingRecord.responsePayload, 'replayed');
       }
 
-      throw buildIdempotencyConflictError('A proportional distribution with this idempotency key is already being processed');
+      throw buildIdempotencyConflictError(PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_PENDING_MESSAGE);
     };
 
     const existingResult = await resolveExistingIdempotency();
@@ -1298,7 +1334,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
     }
 
     if (installment.status === 'paid') {
-      throw new ValidationError('Installment already paid');
+      throw new ValidationError('La cuota del socio ya fue pagada');
     }
 
     const paymentDate = normalizeOptionalOperationDate(payload?.paymentDate, 'paymentDate');
@@ -1364,7 +1400,7 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
   const normalizedEndDate = normalizeOptionalOperationalDate(endDate, 'endDate');
 
   if (normalizedStartDate && normalizedEndDate && normalizedStartDate.getTime() > normalizedEndDate.getTime()) {
-    throw new ValidationError('startDate must be before or equal to endDate');
+    throw new ValidationError(buildDateRangeMessage('startDate', 'endDate'));
   }
 
   const events = await associateRepository.findCalendarEvents(associateId, normalizedStartDate, normalizedEndDate);

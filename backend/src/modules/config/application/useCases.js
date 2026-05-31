@@ -18,6 +18,37 @@ const POLICY_PRIORITY_ORDER = {
   low: 2,
 };
 
+const CONFIG_CONFLICT_MESSAGES = {
+  paymentMethodKeyExists: 'Ya existe un método de pago con ese identificador operativo.',
+  paymentMethodLabelExists: 'Ya existe un método de pago con ese nombre.',
+  ratePolicyKeyExists: 'Ya existe una política de tasa con ese identificador operativo.',
+  ratePolicyLabelExists: 'Ya existe una política de tasa con ese nombre.',
+  ratePolicyOverlap: 'Las políticas de tasa activas no pueden solaparse.',
+  ratePolicyUsedByLoans: 'No se puede eliminar la política de tasa porque ya está asociada a créditos existentes.',
+  lateFeePolicyKeyExists: 'Ya existe una política de mora con ese identificador operativo.',
+  lateFeePolicyLabelExists: 'Ya existe una política de mora con ese nombre.',
+  lateFeePolicyPriorityConflict: 'Las políticas de mora activas no pueden compartir la misma prioridad.',
+  lateFeePolicyUsedByLoans: 'No se puede eliminar la política de mora porque ya está asociada a créditos existentes.',
+};
+
+const DUPLICATE_LABEL_MESSAGES = {
+  'Payment method': CONFIG_CONFLICT_MESSAGES.paymentMethodLabelExists,
+  'Rate policy': CONFIG_CONFLICT_MESSAGES.ratePolicyLabelExists,
+  'Late fee policy': CONFIG_CONFLICT_MESSAGES.lateFeePolicyLabelExists,
+};
+
+const CONFIG_FIELD_LABELS = {
+  amount: 'El monto',
+  annualEffectiveRate: 'La tasa efectiva anual',
+  key: 'El identificador operativo',
+  label: 'El nombre',
+  maxAmount: 'El monto máximo',
+  minAmount: 'El monto mínimo',
+  settingKey: 'El identificador de la configuración',
+};
+
+const getConfigFieldLabel = (field) => CONFIG_FIELD_LABELS[field] || 'El dato';
+
 const ADMIN_CATALOGS = {
   roles: ['admin', 'employee'],
   customerStatuses: ['active', 'inactive'],
@@ -36,7 +67,7 @@ const normalizeKey = (value) => String(value || '')
 
 const requireText = (value, field) => {
   if (!String(value || '').trim()) {
-    throw new ValidationError(`${field} is required`);
+    throw new ValidationError(`${getConfigFieldLabel(field)} es obligatorio.`);
   }
 
   return String(value).trim();
@@ -70,12 +101,12 @@ const toOptionalNumber = (value, field) => {
   }
 
   if (!validateCurrencyPrecision(value)) {
-    throw new ValidationError(`${field} must be numeric`);
+    throw new ValidationError(`${getConfigFieldLabel(field)} debe ser un número válido.`);
   }
 
   const numericValue = Number(typeof value === 'string' ? value.trim() : value);
   if (!Number.isFinite(numericValue) || numericValue < 0) {
-    throw new ValidationError(`${field} must be numeric`);
+    throw new ValidationError(`${getConfigFieldLabel(field)} debe ser un número válido.`);
   }
 
   return numericValue;
@@ -83,7 +114,7 @@ const toOptionalNumber = (value, field) => {
 
 const assertPercent = (value, field) => {
   if (!validateInterestRate(value)) {
-    throw new ValidationError(`${field} must be between 0 and 100`);
+    throw new ValidationError(`${getConfigFieldLabel(field)} debe estar entre 0 y 100.`);
   }
 
   return Number(typeof value === 'string' ? value.trim() : value);
@@ -93,7 +124,7 @@ const normalizePolicyPriority = (value) => {
   if (value === undefined || value === null || value === '') return 'medium';
   const normalizedValue = String(value).trim().toLowerCase();
   if (!POLICY_PRIORITIES.has(normalizedValue)) {
-    throw new ValidationError('priority must be one of: low, medium, high');
+    throw new ValidationError('Selecciona una prioridad válida.');
   }
   return normalizedValue;
 };
@@ -113,7 +144,7 @@ const normalizeStoredPolicyPriority = (value) => {
 const normalizePaymentMethodType = (value) => {
   const normalizedValue = String(value || 'other').trim().toLowerCase().replace(/\s+/g, '_');
   if (!PAYMENT_METHOD_TYPES.has(normalizedValue)) {
-    throw new ValidationError(`payment method type must be one of: ${Array.from(PAYMENT_METHOD_TYPES).join(', ')}`);
+    throw new ValidationError('Selecciona un tipo de método de pago válido.');
   }
   return normalizedValue;
 };
@@ -122,13 +153,13 @@ const inferReferenceRequirement = (type) => type === 'bank_transfer' || type ===
 
 const assertAmountRange = ({ minAmount, maxAmount }) => {
   if (minAmount !== null && minAmount < 0) {
-    throw new ValidationError('minAmount must be greater than or equal to 0');
+    throw new ValidationError('El monto mínimo no puede ser negativo.');
   }
   if (maxAmount !== null && maxAmount < 0) {
-    throw new ValidationError('maxAmount must be greater than or equal to 0');
+    throw new ValidationError('El monto máximo no puede ser negativo.');
   }
   if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
-    throw new ValidationError('minAmount cannot be greater than maxAmount');
+    throw new ValidationError('El monto mínimo no puede ser mayor que el monto máximo.');
   }
 };
 
@@ -153,7 +184,7 @@ const assertUniqueLabel = async ({ configRepository, category, label, currentId 
   ));
 
   if (duplicate) {
-    throw new ConflictError(`${entityName} label already exists`);
+    throw new ConflictError(DUPLICATE_LABEL_MESSAGES[entityName] || 'Ya existe una configuración con ese nombre.');
   }
 };
 
@@ -272,7 +303,7 @@ const normalizeRatePolicyPayload = (payload = {}, existing = null) => {
   const label = payload.label !== undefined ? requireText(payload.label, 'label') : existing?.label;
   const key = payload.key !== undefined ? normalizeKey(payload.key) : existing?.key || normalizeKey(label);
   if (!label) {
-    throw new ValidationError('label is required');
+    throw new ValidationError(`${getConfigFieldLabel('label')} es obligatorio.`);
   }
   const minAmount = payload.minAmount !== undefined ? toOptionalNumber(payload.minAmount, 'minAmount') : existing?.value?.minAmount ?? null;
   const maxAmount = payload.maxAmount !== undefined ? toOptionalNumber(payload.maxAmount, 'maxAmount') : existing?.value?.maxAmount ?? null;
@@ -301,11 +332,11 @@ const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
   const label = payload.label !== undefined ? requireText(payload.label, 'label') : existing?.label;
   const key = payload.key !== undefined ? normalizeKey(payload.key) : existing?.key || normalizeKey(label);
   if (!label) {
-    throw new ValidationError('label is required');
+    throw new ValidationError(`${getConfigFieldLabel('label')} es obligatorio.`);
   }
   const mode = String(payload.lateFeeMode ?? existing?.value?.lateFeeMode ?? 'SIMPLE').trim().toUpperCase();
   if (!OPERATIONAL_LATE_FEE_MODES.has(mode)) {
-    throw new ValidationError('lateFeeMode is invalid');
+    throw new ValidationError('Selecciona un método de mora válido.');
   }
 
   return {
@@ -330,7 +361,7 @@ const assertNoAmbiguousRatePolicy = async ({ configRepository, normalized, curre
   const duplicate = (await getRatePolicyOverlaps({ configRepository, normalized, currentId }))[0];
 
   if (duplicate) {
-    throw new ConflictError('Active rate policies cannot overlap');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyOverlap);
   }
 };
 
@@ -347,7 +378,7 @@ const assertNoAmbiguousLateFeePolicy = async ({ configRepository, normalized, cu
     ));
 
   if (duplicate) {
-    throw new ConflictError('Active late fee policies cannot share the same priority');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyPriorityConflict);
   }
 };
 
@@ -366,7 +397,7 @@ const pickUniqueLateFeePolicy = (policies) => {
   const samePriorityPolicies = orderedPolicies.filter((policy) => normalizePolicyPriority(policy.priority) === selectedPriority);
 
   if (samePriorityPolicies.length > 1) {
-    throw new ConflictError('Active late fee policies cannot share the same priority');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyPriorityConflict);
   }
 
   return selected;
@@ -411,12 +442,12 @@ const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key,
   const normalizedType = normalizePaymentMethodType(type);
 
   if (!normalizedKey) {
-    throw new ValidationError('key is required');
+    throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
   }
 
   const existing = await configRepository.findByCategoryAndKey(PAYMENT_METHOD_CATEGORY, normalizedKey);
   if (existing) {
-    throw new ConflictError('Payment method key already exists');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.paymentMethodKeyExists);
   }
   await assertUniqueLabel({
     configRepository,
@@ -457,12 +488,12 @@ const createUpdatePaymentMethod = ({ configRepository }) => async (paymentMethod
     ? normalizePaymentMethodType(payload.type)
     : String(existing.value?.metadata?.type || 'other');
   if (!nextKey) {
-    throw new ValidationError('key is required');
+    throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
   }
 
   const duplicate = await configRepository.findByCategoryAndKey(PAYMENT_METHOD_CATEGORY, nextKey);
   if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
-    throw new ConflictError('Payment method key already exists');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.paymentMethodKeyExists);
   }
   await assertUniqueLabel({
     configRepository,
@@ -518,13 +549,13 @@ const createListRatePolicies = ({ configRepository }) => async () => {
 
 const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) => {
   const normalized = normalizeRatePolicyPayload(payload);
-  if (!normalized.key) throw new ValidationError('key is required');
+  if (!normalized.key) throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
 
   const replaceableSeededEntries = await getReplaceableSeededRateEntries({ configRepository, normalized });
   const replaceableSeededIds = new Set(replaceableSeededEntries.map((entry) => Number(entry.id)));
   const existing = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
   if (existing && !replaceableSeededIds.has(Number(existing.id))) {
-    throw new ConflictError('Rate policy key already exists');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyKeyExists);
   }
   await assertUniqueLabel({
     configRepository,
@@ -558,7 +589,7 @@ const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payloa
   const normalized = normalizeRatePolicyPayload(payload, existing);
   const duplicate = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
   if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
-    throw new ConflictError('Rate policy key already exists');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyKeyExists);
   }
   await assertUniqueLabel({
     configRepository,
@@ -580,7 +611,7 @@ const createDeleteRatePolicy = ({ configRepository }) => async (policyId) => {
     ? await configRepository.countLoansUsingRatePolicy(existing.id)
     : 0;
   if (usedLoans > 0) {
-    throw new ConflictError('Rate policy is used by existing loans and cannot be deleted');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyUsedByLoans);
   }
   await configRepository.destroy(existing.id);
   return { id: Number(policyId) };
@@ -606,10 +637,10 @@ const createListLateFeePolicies = ({ configRepository }) => async () => {
 
 const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {}) => {
   const normalized = normalizeLateFeePolicyPayload(payload);
-  if (!normalized.key) throw new ValidationError('key is required');
+  if (!normalized.key) throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
 
   const existing = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key);
-  if (existing) throw new ConflictError('Late fee policy key already exists');
+  if (existing) throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyKeyExists);
   await assertUniqueLabel({
     configRepository,
     category: LATE_FEE_POLICY_CATEGORY,
@@ -633,7 +664,7 @@ const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, pay
   const normalized = normalizeLateFeePolicyPayload(payload, existing);
   const duplicate = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key);
   if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
-    throw new ConflictError('Late fee policy key already exists');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyKeyExists);
   }
   await assertUniqueLabel({
     configRepository,
@@ -655,7 +686,7 @@ const createDeleteLateFeePolicy = ({ configRepository }) => async (policyId) => 
     ? await configRepository.countLoansUsingLateFeePolicy(existing.id)
     : 0;
   if (usedLoans > 0) {
-    throw new ConflictError('Late fee policy is used by existing loans and cannot be deleted');
+    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyUsedByLoans);
   }
   await configRepository.destroy(existing.id);
   return { id: Number(policyId) };
@@ -669,7 +700,7 @@ const createResolveLateFeePolicy = ({ configRepository }) => async () => {
 const createUpsertSetting = ({ configRepository }) => async (settingKey, { label, value, description } = {}) => {
   const normalizedKey = normalizeKey(settingKey);
   if (!normalizedKey) {
-    throw new ValidationError('setting key is required');
+    throw new ValidationError(`${getConfigFieldLabel('settingKey')} es obligatorio.`);
   }
 
   const existing = await configRepository.findByCategoryAndKey(BUSINESS_SETTING_CATEGORY, normalizedKey);

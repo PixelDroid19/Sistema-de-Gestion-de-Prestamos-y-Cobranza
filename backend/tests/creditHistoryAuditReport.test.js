@@ -205,6 +205,24 @@ test('credit history audit use case passes normalized month, date and status fil
   assert.equal(response.data.summary.totalPaymentsReceived, '3000000.00');
 });
 
+test('credit history audit use case rejects malformed month filters with operational messages', async () => {
+  const useCase = createGetCreditHistoryAuditReport({
+    reportRepository: {
+      async listCreditHistoryDataset() {
+        throw new Error('repository should not be called for malformed month filters');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => useCase({ actor: { role: 'admin' }, filters: { month: '2026-13' } }),
+    (error) => {
+      assert.equal(error.message, 'El mes del reporte debe usar el formato AAAA-MM.');
+      return true;
+    },
+  );
+});
+
 test('credit history audit use case passes normalized customer and credit filters to canonical repository', async () => {
   const useCase = createGetCreditHistoryAuditReport({
     reportRepository: {

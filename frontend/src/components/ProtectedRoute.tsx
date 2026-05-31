@@ -7,6 +7,7 @@ import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useSessionStore } from '../store/sessionStore';
 import { extractStatusCode } from '../services/safeErrorMessages';
 import { ActionButton, SectionSurface } from './shared/Surfaces';
+import { tTerm } from '../i18n/terminology';
 
 type AdministrativeRole = 'admin' | 'employee';
 
@@ -20,7 +21,7 @@ interface GuestRouteProps {
   children: React.ReactNode;
 }
 
-const SessionLoadingState = ({ label = 'Restaurando sesión…' }: { label?: string }) => (
+const SessionLoadingState = ({ label = tTerm('auth.session.restoring') }: { label?: string }) => (
   <div className="flex h-screen w-full items-center justify-center bg-bg-base">
     <SectionSurface className="flex flex-col items-center gap-4 px-6 py-8">
       <Loader2 className="size-10 animate-spin text-brand-primary" />
@@ -43,9 +44,9 @@ const SessionRestoreErrorState = ({
           <AlertCircle className="size-5" />
         </div>
         <div className="space-y-1">
-          <h1 className="text-lg font-semibold text-text-primary">No se pudo restaurar la sesión</h1>
+          <h1 className="text-lg font-semibold text-text-primary">{tTerm('auth.session.restoreError.title')}</h1>
           <p className="text-sm leading-6 text-text-secondary">
-            La conexión se interrumpió o la sesión ya no es válida. Reintenta la restauración o vuelve al acceso.
+            {tTerm('auth.session.restoreError.description')}
           </p>
         </div>
       </div>
@@ -57,7 +58,7 @@ const SessionRestoreErrorState = ({
           icon={<RotateCcw className="size-4" />}
           fullWidth
         >
-          Reintentar
+          {tTerm('auth.session.restoreError.retry')}
         </ActionButton>
         <ActionButton
           type="button"
@@ -65,7 +66,7 @@ const SessionRestoreErrorState = ({
           variant="primary"
           fullWidth
         >
-          Volver al acceso
+          {tTerm('auth.session.restoreError.exit')}
         </ActionButton>
       </div>
     </SectionSurface>
@@ -184,7 +185,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 
   if (user.role === 'employee' && requiredPermissions.length > 0) {
     if (permissionQuery.isLoading) {
-      return <SessionLoadingState label="Validando permisos…" />;
+      return <SessionLoadingState label={tTerm('auth.session.validatingPermissions')} />;
     }
 
     const grantedPermissions = new Set(extractPermissionNames(permissionQuery.data));
@@ -211,7 +212,7 @@ export const GuestRoute: React.FC<GuestRouteProps> = ({ children }) => {
   } = useResolvedSession();
 
   if (!hasHydrated || (refreshToken && !accessToken && isRestoring)) {
-    return <SessionLoadingState label="Revisando tu acceso…" />;
+    return <SessionLoadingState label={tTerm('auth.session.checkingAccess')} />;
   }
 
   if (accessToken && user) {

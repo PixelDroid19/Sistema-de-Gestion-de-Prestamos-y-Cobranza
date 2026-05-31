@@ -9,6 +9,7 @@ import {
   normalizeTextInput,
   normalizeWholeMoneyInput,
 } from '../../lib/moneyInput';
+import { tTerm } from '../../i18n/terminology';
 import { HelpTooltip, QuickGuideButton } from './HelpSupport';
 
 type PageShellProps = React.HTMLAttributes<HTMLDivElement> & {
@@ -173,6 +174,20 @@ type ModalShellProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> & {
   maxWidthClassName?: string;
   onClose?: () => void;
 };
+
+const modalFocusableSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+const getFocusableModalElements = (panel: HTMLElement) => (
+  Array.from(panel.querySelectorAll<HTMLElement>(modalFocusableSelector))
+    .filter((element) => element.tabIndex >= 0 && element.getAttribute('aria-hidden') !== 'true')
+);
 
 const accentClassNames: Record<NonNullable<MetricCardProps['accent']>, string> = {
   teal: 'metric-card--teal',
@@ -383,7 +398,7 @@ export function ActionButton({
   variant = 'secondary',
   fullWidth = false,
   isLoading = false,
-  loadingLabel = 'Procesando...',
+  loadingLabel = tTerm('common.cta.processing'),
   disabledReason,
   className = '',
   disabled,
@@ -853,20 +868,74 @@ export function ViewTabs({
   className = '',
   ...rest
 }: ViewTabsProps) {
+  const tabButtonRefs = React.useRef(new Map<string, HTMLButtonElement>());
+
+  const registerTabButton = (tabId: string) => (node: HTMLButtonElement | null) => {
+    if (node) {
+      tabButtonRefs.current.set(tabId, node);
+      return;
+    }
+    tabButtonRefs.current.delete(tabId);
+  };
+
+  const moveToTab = (tabId: string) => {
+    onChange(tabId);
+    tabButtonRefs.current.get(tabId)?.focus({ preventScroll: true });
+  };
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+    const lastIndex = tabs.length - 1;
+    let nextIndex: number | null = null;
+
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1;
+    }
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1;
+    }
+
+    if (event.key === 'Home') {
+      nextIndex = 0;
+    }
+
+    if (event.key === 'End') {
+      nextIndex = lastIndex;
+    }
+
+    if (nextIndex === null) {
+      return;
+    }
+
+    event.preventDefault();
+    moveToTab(tabs[nextIndex].id);
+  };
+
   return (
-    <nav className={`view-tabs ${className}`} aria-label={ariaLabel} {...rest}>
-      {tabs.map((tab) => {
+    <div className={`view-tabs ${className}`} role="tablist" aria-label={ariaLabel} {...rest}>
+      {tabs.map((tab, index) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
+        const tabAriaLabel = (
+          (typeof tab.label === 'string' || typeof tab.label === 'number')
+          && (typeof tab.count === 'string' || typeof tab.count === 'number')
+        )
+          ? `${tab.label} ${tab.count}`
+          : undefined;
 
         return (
           <button
             key={tab.id}
+            ref={registerTabButton(tab.id)}
             type="button"
             onClick={() => onChange(tab.id)}
+            onKeyDown={(event) => handleTabKeyDown(event, index)}
             className={`view-tab ${isActive ? 'view-tab--active' : ''}`}
             title={tab.title}
-            aria-current={isActive ? 'page' : undefined}
+            role="tab"
+            aria-selected={isActive}
+            aria-label={tabAriaLabel}
+            tabIndex={isActive ? 0 : -1}
           >
             {Icon ? <Icon size={16} aria-hidden="true" /> : null}
             <span>{tab.label}</span>
@@ -878,7 +947,7 @@ export function ViewTabs({
           </button>
         );
       })}
-    </nav>
+    </div>
   );
 }
 
@@ -891,12 +960,97 @@ export function ModalShell({
   className = '',
   ...rest
 }: ModalShellProps) {
+  const titleId = React.useId();
+  const subtitleId = React.useId();
+  const panelRef = React.useRef<HTMLDivElement | null>(null);
+  const {
+    role = 'dialog',
+    'aria-modal': ariaModal = true,
+    'aria-labelledby': ariaLabelledBy = titleId,
+    'aria-describedby': ariaDescribedBy = subtitle ? subtitleId : undefined,
+    tabIndex = -1,
+    onKeyDown,
+    onClose,
+    ...panelProps
+  } = rest;
+
+  React.useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || panel.contains(document.activeElement)) {
+      return;
+    }
+
+    panel.focus({ preventScroll: true });
+  }, []);
+
+  const handleModalKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented) {
+      return;
+    }
+
+    if (event.key === 'Escape' && onClose) {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const panel = panelRef.current;
+    if (!panel) {
+      return;
+    }
+
+    const focusableElements = getFocusableModalElements(panel);
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      panel.focus({ preventScroll: true });
+      return;
+    }
+
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements[focusableElements.length - 1];
+    const activeElement = document.activeElement;
+
+    if (event.shiftKey) {
+      if (activeElement === firstFocusable || activeElement === panel || !panel.contains(activeElement)) {
+        event.preventDefault();
+        lastFocusable.focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    if (activeElement === lastFocusable || activeElement === panel || !panel.contains(activeElement)) {
+      event.preventDefault();
+      firstFocusable.focus({ preventScroll: true });
+    }
+  };
+
+  const handleOverlayClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) {
+      onClose?.();
+    }
+  };
+
   return (
-    <div className="modal-overlay">
-      <div className={`modal-panel ${maxWidthClassName} ${className}`} {...rest}>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
+      <div
+        ref={panelRef}
+        className={`modal-panel ${maxWidthClassName} ${className}`}
+        role={role}
+        aria-modal={ariaModal}
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        tabIndex={tabIndex}
+        onKeyDown={handleModalKeyDown}
+        {...panelProps}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">{title}</h3>
-          {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+          <h3 id={titleId} className="modal-title">{title}</h3>
+          {subtitle && <p id={subtitleId} className="modal-subtitle">{subtitle}</p>}
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}

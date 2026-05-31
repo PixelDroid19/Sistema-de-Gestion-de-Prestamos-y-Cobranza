@@ -3,6 +3,7 @@ import { CheckCircle2, CircleOff, Plus, Save, Trash2 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
+import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
   DataTableSurface,
@@ -61,7 +62,7 @@ export default function PaymentMethodsTab({
       resetPaymentMethodDraft();
       toast.success({ description: tTerm('settings.paymentMethods.toast.created') });
     } catch (error) {
-      console.error('[settings] createPaymentMethod failed', error);
+      reportClientError('settings.paymentMethod.create', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
     }
   };
@@ -78,7 +79,7 @@ export default function PaymentMethodsTab({
       await deletePaymentMethod.mutateAsync(method.id);
       toast.success({ description: tTerm('settings.paymentMethods.toast.deleted') });
     } catch (error) {
-      console.error('[settings] delete failed', error);
+      reportClientError('settings.paymentMethod.delete', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
     }
   };
@@ -176,7 +177,7 @@ export default function PaymentMethodsTab({
                             await updatePaymentMethod.mutateAsync({ id: method.id, isActive: method.isActive === false, type: method.type });
                             toast.success({ description: method.isActive === false ? tTerm('settings.paymentMethods.toast.activated') : tTerm('settings.paymentMethods.toast.deactivated') });
                           } catch (error) {
-                            console.error('[settings] updatePaymentMethod failed', error);
+                            reportClientError('settings.paymentMethod.update', error);
                             toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
                           }
                         }}

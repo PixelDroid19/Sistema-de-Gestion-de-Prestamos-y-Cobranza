@@ -1,15 +1,11 @@
-require('dotenv').config();
+require('module-alias/register');
+require('dotenv').config({ quiet: true });
 
-const { sequelize, Customer, Loan, ProfitDistribution } = require('../src/models');
+const { sequelize, Customer, Loan, ProfitDistribution, User } = require('../src/models');
 const { createJwtTokenService } = require('../src/modules/shared/auth/tokenService');
 const { createLoanAccessPolicy } = require('../src/modules/shared/loanAccessPolicy');
 const {
-  createRegisterUser,
-} = require('../src/modules/auth/application/useCases');
-const {
   userRepository,
-  customerProfileRepository,
-  associateProfileRepository,
   passwordHasher,
 } = require('../src/modules/auth/infrastructure/repositories');
 const {
@@ -33,8 +29,18 @@ const {
 const {
   customerRepository,
 } = require('../src/modules/customers/infrastructure/repositories');
+const { parseTcpPort } = require('../src/bootstrap/ports');
 
-const API_BASE_URL = process.env.SEED_API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+const DEFAULT_PORT = 5000;
+const resolveApiBaseUrl = (env = process.env) => {
+  if (env.SEED_API_BASE_URL) {
+    return String(env.SEED_API_BASE_URL).replace(/\/+$/, '');
+  }
+
+  const port = parseTcpPort('PORT', env.PORT || DEFAULT_PORT, { allowZero: false });
+  return `http://localhost:${port}`;
+};
+
 const SEED_ADMIN_EMAIL = 'seed.admin.socios.local@example.com';
 const SEED_CUSTOMER_EMAIL = 'seed.customer.socios.local@example.com';
 const SEED_PASSWORD = 'Seed123!';
@@ -56,7 +62,7 @@ const ensureOk = async (response) => {
   throw new Error(`HTTP ${response.status}: ${body}`);
 };
 
-const ensureSeedUser = async ({ registerUser, email, name, role, phone = undefined }) => {
+const ensureSeedAdmin = async ({ email, name }) => {
   const existingUser = await userRepository.findByEmail(email);
   const hashedPassword = await passwordHasher.hash(SEED_PASSWORD);
 
@@ -64,37 +70,22 @@ const ensureSeedUser = async ({ registerUser, email, name, role, phone = undefin
     await userRepository.update(existingUser.id, {
       name,
       email,
-      role,
+      role: 'admin',
       password: hashedPassword,
     });
-
-    if (role === 'customer') {
-      const customer = await Customer.findByPk(existingUser.id);
-      if (customer) {
-        await customer.update({
-          name,
-          email,
-          phone: phone || customer.phone || '',
-        });
-      }
-    }
 
     return userRepository.findById(existingUser.id);
   }
 
-  const result = await registerUser({
-    actor: role === 'admin' ? { id: 0, role: 'admin' } : null,
-    registrationSource: role === 'admin' ? 'admin' : 'public',
-    payload: {
-      name,
-      email,
-      password: SEED_PASSWORD,
-      role,
-      ...(phone ? { phone } : {}),
-    },
+  return User.create({
+    name,
+    email,
+    password: hashedPassword,
+    role: 'admin',
+    isActive: true,
+    failedLoginAttempts: 0,
+    lockedUntil: null,
   });
-
-  return userRepository.findById(result.user.id);
 };
 
 const selectAssociate = async () => {
@@ -117,13 +108,6 @@ const main = async () => {
   await sequelize.authenticate();
 
   const tokenService = createJwtTokenService();
-  const registerUser = createRegisterUser({
-    userRepository,
-    customerProfileRepository,
-    associateProfileRepository,
-    passwordHasher,
-    tokenService,
-  });
   const createLoan = createCreateLoan({ loanCreationService });
   const createCustomer = createCreateCustomer({ customerRepository });
   const updateLoanStatus = createUpdateLoanStatus({
@@ -133,14 +117,13 @@ const main = async () => {
   const createAssociateContribution = createCreateAssociateContribution({ associateRepository });
   const createProfitDistribution = createCreateProfitDistribution({ associateRepository });
 
-  const adminUser = await ensureSeedUser({
-    registerUser,
+  const adminUser = await ensureSeedAdmin({
     email: SEED_ADMIN_EMAIL,
     name: 'Seed Admin Socios',
-    role: 'admin',
   });
   const adminActor = { id: adminUser.id, role: 'admin' };
   const adminToken = tokenService.sign(adminActor);
+  const apiBaseUrl = resolveApiBaseUrl();
 
   let seededCustomer = await Customer.findOne({ where: { email: SEED_CUSTOMER_EMAIL } });
   if (!seededCustomer) {
@@ -173,7 +156,7 @@ const main = async () => {
   let seededLoan = await Loan.findOne({
     where: {
       customerId: seededCustomer.id,
-      associateId: associate.id,
+      amount: 7200,
     },
     order: [['createdAt', 'DESC']],
   });
@@ -183,11 +166,11 @@ const main = async () => {
       actor: adminActor,
       payload: {
         customerId: seededCustomer.id,
-        associateId: associate.id,
         amount: 7200,
-        interestRate: 12,
         termMonths: 6,
-        lateFeeMode: 'NONE',
+        startDate: '2026-03-22',
+        rateSource: 'policy',
+        lateFeeSource: 'policy',
       },
     });
   }
@@ -209,7 +192,6 @@ const main = async () => {
       actor: adminActor,
       associateId: associate.id,
       payload: {
-        loanId: seededLoan.id,
         amount: 325.5,
         distributionDate: '2026-03-23',
         notes: SEED_DISTRIBUTION_NOTE,
@@ -217,13 +199,13 @@ const main = async () => {
     });
   }
 
-  const [portalResponse, profitabilityResponse, calendarResponse] = await Promise.all([
-    fetch(`${API_BASE_URL}/api/associates/${associate.id}/portal`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
-    fetch(`${API_BASE_URL}/api/reports/associates/profitability/${associate.id}`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
-    fetch(`${API_BASE_URL}/api/loans/${seededLoan.id}/calendar`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
+  const [financialDetailsResponse, profitabilityResponse, calendarResponse] = await Promise.all([
+    fetch(`${apiBaseUrl}/api/associates/${associate.id}/financial-details`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
+    fetch(`${apiBaseUrl}/api/reports/associates/profitability/${associate.id}`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
+    fetch(`${apiBaseUrl}/api/loans/${seededLoan.id}/calendar`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
   ]);
 
-  const portal = portalResponse?.data?.portal || {};
+  const financialDetails = financialDetailsResponse?.data?.details || financialDetailsResponse?.data?.financialDetails || {};
   const report = profitabilityResponse?.data?.report || {};
   const reportData = report.data || {};
   const calendar = calendarResponse?.data?.calendar || {};
@@ -264,18 +246,16 @@ const main = async () => {
       notes: seededDistribution.notes,
     } : null,
     liveRecheck: {
-      portalLoanCount: Array.isArray(portal.loans) ? portal.loans.length : 0,
-      portalContributionCount: Array.isArray(portal.contributions) ? portal.contributions.length : 0,
-      portalDistributionCount: Array.isArray(portal.distributions) ? portal.distributions.length : 0,
-      profitabilityLoanCount: Array.isArray(reportData.loans) ? reportData.loans.length : 0,
+      financialDetailsContributionCount: Array.isArray(financialDetails.contributions) ? financialDetails.contributions.length : 0,
+      financialDetailsDistributionCount: Array.isArray(financialDetails.distributions) ? financialDetails.distributions.length : 0,
+      financialDetailsPaymentHistoryCount: Array.isArray(financialDetails.paymentHistory) ? financialDetails.paymentHistory.length : 0,
       profitabilityContributionCount: Array.isArray(reportData.contributions) ? reportData.contributions.length : 0,
       profitabilityDistributionCount: Array.isArray(reportData.distributions) ? reportData.distributions.length : 0,
       calendarEntryCount: Array.isArray(calendar.entries) ? calendar.entries.length : 0,
-      portalLoanCustomerName: portal.loans?.[0]?.Customer?.name || null,
       summary: {
-        totalContributed: report.summary?.totalContributed ?? portal.summary?.totalContributed ?? null,
-        totalDistributed: report.summary?.totalDistributed ?? portal.summary?.totalDistributed ?? null,
-        activeLoanCount: portal.summary?.activeLoanCount ?? null,
+        totalContributed: report.summary?.totalContributed ?? financialDetails.summary?.totalContributed ?? null,
+        totalDistributed: report.summary?.totalDistributed ?? financialDetails.summary?.totalDistributed ?? null,
+        debtStatus: financialDetails.summary?.debtStatus ?? null,
       },
     },
   };
@@ -283,11 +263,17 @@ const main = async () => {
   console.log(JSON.stringify(result, null, 2));
 };
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await sequelize.close();
-  });
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await sequelize.close();
+    });
+}
+
+module.exports = {
+  resolveApiBaseUrl,
+};

@@ -8,6 +8,27 @@ const mockCreateCapitalPayment = vi.fn().mockResolvedValue(undefined);
 const mockUpdatePaymentMetadata = vi.fn().mockResolvedValue(undefined);
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
 const mockNavigate = vi.fn();
+const defaultPaymentMethodsFixture = [
+  { key: 'transfer', type: 'transfer', label: 'Transferencia', name: 'Transferencia', isActive: true },
+  { key: 'cash', type: 'cash', label: 'Efectivo', name: 'Efectivo', isActive: true },
+  { key: 'wallet_mobile', type: 'other', label: 'Billetera móvil', name: 'Billetera móvil', isActive: true },
+];
+const defaultPaymentsFixture = [
+  {
+    id: 55,
+    loanId: 999,
+    amount: 150000,
+    paymentDate: '2026-03-01T00:00:00.000Z',
+    paymentMethod: 'transfer',
+    status: 'completed',
+    reconciled: false,
+    paymentMetadata: {
+      reference: 'REF-OLD',
+    },
+  },
+];
+let paymentMethodsFixture: any[] = [...defaultPaymentMethodsFixture];
+let paymentsFixture = [...defaultPaymentsFixture];
 
 let currentUser = {
   id: 1,
@@ -35,11 +56,7 @@ vi.mock('../../store/paginationStore', () => ({
 
 vi.mock('../../services/configService', () => ({
   useConfig: () => ({
-    paymentMethods: [
-      { key: 'transfer', type: 'transfer', label: 'Transferencia', name: 'Transferencia', isActive: true },
-      { key: 'cash', type: 'cash', label: 'Efectivo', name: 'Efectivo', isActive: true },
-      { key: 'wallet_mobile', type: 'other', label: 'Billetera móvil', name: 'Billetera móvil', isActive: true },
-    ],
+    paymentMethods: paymentMethodsFixture,
   }),
 }));
 
@@ -47,20 +64,7 @@ vi.mock('../../services/paymentService', () => ({
   usePayments: () => ({
     data: {
       data: {
-        payments: [
-          {
-            id: 55,
-            loanId: 999,
-            amount: 150000,
-            paymentDate: '2026-03-01T00:00:00.000Z',
-            paymentMethod: 'transfer',
-            status: 'completed',
-            reconciled: false,
-            paymentMetadata: {
-              reference: 'REF-OLD',
-            },
-          },
-        ],
+        payments: paymentsFixture,
         pagination: { totalItems: 1, totalPages: 1 },
       },
     },
@@ -100,6 +104,8 @@ describe('Payouts behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfirmDanger.mockResolvedValue(true);
+    paymentMethodsFixture = [...defaultPaymentMethodsFixture];
+    paymentsFixture = [...defaultPaymentsFixture];
     currentUser = {
       id: 1,
       name: 'Admin',
@@ -136,6 +142,39 @@ describe('Payouts behavioral parity scenarios', () => {
       );
     });
     expect(mockCreatePayment).not.toHaveBeenCalled();
+  });
+
+  it('closes the payout registration modal with Escape', () => {
+    renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    const dialog = screen.getByRole('dialog', { name: 'Registrar pago' });
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Registrar pago' })).not.toBeInTheDocument();
+  });
+
+  it('uses generic labels when configured payment methods lack display names', () => {
+    paymentMethodsFixture = [
+      { key: 'internal_gateway', type: 'other', isActive: true },
+    ];
+    paymentsFixture = [
+      {
+        ...defaultPaymentsFixture[0],
+        paymentMethod: 'internal_gateway',
+      },
+    ];
+
+    renderPayouts();
+
+    expect(screen.getByText('Método sin nombre')).toBeInTheDocument();
+    expect(screen.queryByText(/internal_gateway/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+
+    expect(screen.getByRole('option', { name: 'Método sin nombre' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /internal_gateway/i })).not.toBeInTheDocument();
   });
 
   it('keeps payout registration unavailable for customer records', () => {
@@ -337,19 +376,34 @@ describe('Payouts behavioral parity scenarios', () => {
     });
   });
 
+  it('closes the payment method edit modal with Escape', () => {
+    renderPayouts();
+
+    fireEvent.click(screen.getByTitle('Editar método de pago real'));
+    const dialog = screen.getByRole('dialog', { name: 'Editar método de pago' });
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Editar método de pago' })).not.toBeInTheDocument();
+  });
+
   it('allows multi-selection visibility for payout rows', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByLabelText('Seleccionar pago 55'));
+    fireEvent.click(screen.getByLabelText('Seleccionar pago registrado'));
 
     expect(screen.getByText('1 pago(s) seleccionado(s)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descargar comprobantes' })).toBeInTheDocument();
   });
 
-  it('navigates to the credit details when the operator clicks the visible loan id', async () => {
+  it('navigates to the credit details without exposing the raw loan id as row text', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByText('999'));
+    expect(screen.queryByRole('columnheader', { name: /recibo id/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('55')).not.toBeInTheDocument();
+    expect(screen.queryByText('999')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crédito vinculado' }));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/999');

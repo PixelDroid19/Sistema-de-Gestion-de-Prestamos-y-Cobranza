@@ -4,6 +4,7 @@ import { usePayments, downloadVoucher } from '../services/paymentService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
 import { useSessionStore } from '../store/sessionStore';
+import { useResolvedPermissionNames } from '../services/permissionsService';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { resolveOperationalGuard } from '../services/operationalGuards';
@@ -70,9 +71,9 @@ export default function Payouts() {
       .filter((method: any) => method?.isActive !== false)
       .map((method: any) => ({
         value: String(method?.key ?? method?.type ?? '').trim().toLowerCase(),
-        label: String(method?.label ?? method?.name ?? method?.key ?? method?.type ?? '').trim(),
+        label: String(method?.label ?? method?.name ?? '').trim() || tTerm('settings.paymentMethods.methodUnnamed'),
       }))
-      .filter((method) => method.value && method.label);
+      .filter((method) => method.value);
 
     return activeConfiguredMethods.length > 0
       ? activeConfiguredMethods
@@ -81,7 +82,7 @@ export default function Payouts() {
   const defaultPaymentMethod = paymentMethodOptions[0]?.value || 'transfer';
 
   const role = user?.role;
-  const permissions = user?.permissions;
+  const permissions = useResolvedPermissionNames(user);
 
   const payoutTypeOptions = useMemo(() => {
     const options = [
@@ -188,7 +189,7 @@ export default function Payouts() {
     }
 
     const matchingMethod = paymentMethodOptions.find((method) => method.value === rawMethod);
-    return matchingMethod?.label || rawMethod;
+    return matchingMethod?.label || tTerm('settings.paymentMethods.methodUnnamed');
   };
 
   const getPaymentStatusPresentation = (payment: any) => {
@@ -487,7 +488,7 @@ export default function Payouts() {
           } : undefined}
           className="data-table-surface"
         >
-          <table className="min-w-[820px] w-full text-sm text-left">
+          <table className="min-w-[760px] w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
                 <th className="pb-3 font-medium w-10">
@@ -497,7 +498,6 @@ export default function Payouts() {
                     onChange={(event) => handleToggleSelectAll(event.target.checked)}
                   />
                 </th>
-                <th className="pb-3 font-medium">{tTerm('payouts.table.receiptId')}</th>
                 <th className="pb-3 font-medium">{tTerm('payouts.table.loanId')}</th>
                 <th className="pb-3 font-medium">{tTerm('payouts.table.date')}</th>
                 <th className="pb-3 font-medium">{tTerm('payouts.table.amount')}</th>
@@ -521,13 +521,12 @@ export default function Payouts() {
                 <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
                   <td className="py-4">
                     <CheckboxInput
-                      aria-label={tTerm('payouts.table.selectOne', { id: payment.id })}
+                      aria-label={tTerm('payouts.table.selectOne')}
                       checked={selectedPaymentIds.includes(Number(payment.id))}
                       onChange={(event) => handleToggleSelection(Number(payment.id), event.target.checked)}
                     />
                   </td>
-                  <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
-                  <td className="py-4 font-mono">
+                  <td className="py-4">
                     {viewGuard.visible ? (
                       <button
                         type="button"
@@ -536,10 +535,10 @@ export default function Payouts() {
                         disabled={!viewGuard.executable}
                         title={viewCreditTitle}
                       >
-                        {payment.loanId}
+                        {tTerm('payouts.table.linkedLoan')}
                       </button>
                     ) : (
-                      <span className="text-text-secondary">{payment.loanId}</span>
+                      <span className="text-text-secondary">{tTerm('payouts.table.linkedLoan')}</span>
                     )}
                   </td>
                   <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>
@@ -620,7 +619,7 @@ export default function Payouts() {
       </div>
 
       {showPaymentModal && (
-        <ModalShell title={tTerm('payouts.cta.recordPayment')}>
+        <ModalShell title={tTerm('payouts.cta.recordPayment')} onClose={() => setShowPaymentModal(false)}>
             <form onSubmit={handleSubmit} className="space-y-4">
               <FormField
                 label={tTerm('payouts.form.paymentType')}
@@ -738,7 +737,14 @@ export default function Payouts() {
       )}
 
       {showEditMethodModal && editingPayment && (
-        <ModalShell title={tTerm('payouts.edit.title')} subtitle={tTerm('payouts.edit.subtitle', { id: editingPayment.id })}>
+        <ModalShell
+          title={tTerm('payouts.edit.title')}
+          subtitle={tTerm('payouts.edit.subtitle')}
+          onClose={() => {
+            setShowEditMethodModal(false);
+            setEditingPayment(null);
+          }}
+        >
             {Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled) && (
               <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                 {tTerm('payouts.edit.locked')}

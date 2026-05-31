@@ -259,7 +259,7 @@ describe('CreditSimulator behavior', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('does not keep showing a stale configured rate when the current amount no longer has a valid policy result', () => {
+  it('does not keep showing a stale configured rate or raw backend text when the amount has no valid policy result', () => {
     calculationState = {
       ...calculationState,
       input: {
@@ -277,6 +277,7 @@ describe('CreditSimulator behavior', () => {
     );
 
     expect(screen.queryByDisplayValue('61')).not.toBeInTheDocument();
-    expect(screen.getByText(/No active rate policy is available for this credit amount/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No active rate policy is available for this credit amount/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/No hay una política de tasa activa para este monto/i)).toBeInTheDocument();
   });
 });

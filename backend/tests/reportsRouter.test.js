@@ -18,7 +18,7 @@ const roleAwareAuth = (options = []) => (req, res, next) => {
     ? options
     : (options?.permissions ? ['admin', 'employee'] : []);
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
-    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
     return;
   }
 
@@ -260,7 +260,7 @@ test('createReportsRouter rejects malformed payment schedule loan identifiers', 
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /loanId/i);
+  assert.match(response.body.error.message, /número del crédito/i);
   assert.equal(calls.length, 0);
 });
 
@@ -321,7 +321,7 @@ test('createReportsRouter rejects malformed customer report identifiers before e
 
   for (const response of responses) {
     assert.equal(response.statusCode, 400);
-    assert.match(response.body.error.message, /customerId/i);
+    assert.match(response.body.error.message, /número del cliente/i);
   }
   assert.deepEqual(calls, []);
 });
@@ -390,15 +390,15 @@ test('createReportsRouter rejects malformed credit and associate report identifi
   ]);
 
   assert.equal(responses[0].statusCode, 400);
-  assert.match(responses[0].body.error.message, /loanId/i);
+  assert.match(responses[0].body.error.message, /número del crédito/i);
   assert.equal(responses[1].statusCode, 400);
-  assert.match(responses[1].body.error.message, /loanId/i);
+  assert.match(responses[1].body.error.message, /número del crédito/i);
   assert.equal(responses[2].statusCode, 400);
-  assert.match(responses[2].body.error.message, /associateId/i);
+  assert.match(responses[2].body.error.message, /número del socio/i);
   assert.equal(responses[3].statusCode, 400);
-  assert.match(responses[3].body.error.message, /associateId/i);
+  assert.match(responses[3].body.error.message, /número del socio/i);
   assert.equal(responses[4].statusCode, 400);
-  assert.match(responses[4].body.error.message, /associateId/i);
+  assert.match(responses[4].body.error.message, /número del socio/i);
   assert.deepEqual(calls, []);
 });
 
@@ -465,8 +465,8 @@ test('createReportsRouter rejects invalid pagination parameters', async () => {
   assert.equal(response.statusCode, 400);
   assert.equal(response.body.success, false);
   assert.deepEqual(response.body.error.errors, [
-    { field: 'page', message: 'page must be a positive integer' },
-    { field: 'pageSize', message: 'pageSize must be less than or equal to 100' },
+    { field: 'page', message: 'La página debe ser un entero positivo' },
+    { field: 'pageSize', message: 'El tamaño de página debe ser menor o igual a 100' },
   ]);
 });
 
@@ -756,7 +756,11 @@ test('createReportsRouter exposes comparative/earnings routes and removes legacy
         return {
           success: true,
           data: {
-            rows: [{ creditId: 44, customer: 'Ana', outstanding: '300.00' }],
+            sheets: [{
+              name: 'Detalle de Créditos',
+              columns: [{ header: 'Crédito', key: 'creditId' }],
+              rows: [{ creditId: 44 }],
+            }],
           },
         };
       },
@@ -765,7 +769,11 @@ test('createReportsRouter exposes comparative/earnings routes and removes legacy
         return {
           success: true,
           data: {
-            rows: [{ paymentId: 9, loanId: 44, amount: '100.00' }],
+            sheets: [{
+              name: 'Pagos',
+              columns: [{ header: 'Pago', key: 'paymentId' }],
+              rows: [{ paymentId: 9 }],
+            }],
           },
         };
       },

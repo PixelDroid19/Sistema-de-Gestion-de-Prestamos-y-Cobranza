@@ -31,9 +31,30 @@ export const PAYABLE_STATUSES = new Set(['pending', 'overdue', 'partial']);
 // Denial reason formatters
 // ---------------------------------------------------------------------------
 
+const TECHNICAL_DENIAL_MESSAGE_PATTERN = /(?:calculationProfileVersionId|calculationVersionId|policySnapshot|payableInterestAmount|state[_\s-]?machine|sequelize|sql|constraint|stack|trace|exception|[A-Za-z]+(?:Resolver|Builder)|\b[A-Za-z]+Id\b)/i;
+const OPERATOR_DENIAL_MESSAGE_PATTERN = /^(?:Debe|El|La|Este|Esta|Hay|Primero|No se puede|No hay|Ya no)\b/i;
+
+const formatSafeDenialMessage = (
+  message: string | undefined,
+  fallbackKey: 'creditDetails.payoff.denial.generic' | 'creditDetails.capital.denial.generic',
+) => {
+  const normalizedMessage = message?.trim() || '';
+  if (
+    normalizedMessage
+    && OPERATOR_DENIAL_MESSAGE_PATTERN.test(normalizedMessage)
+    && !TECHNICAL_DENIAL_MESSAGE_PATTERN.test(normalizedMessage)
+  ) {
+    return normalizedMessage;
+  }
+
+  return tTerm(fallbackKey);
+};
+
 export function formatPayoffDenialReason(reason: PayoffDenialReason | null): string {
   if (!reason) return '';
-  if (typeof reason === 'string') return reason;
+  if (typeof reason === 'string') {
+    return formatSafeDenialMessage(reason, 'creditDetails.payoff.denial.generic');
+  }
   if (reason.code) {
     switch (reason.code) {
       case 'LOAN_ALREADY_PAID':
@@ -48,15 +69,17 @@ export function formatPayoffDenialReason(reason: PayoffDenialReason | null): str
       case 'FINANCIAL_BLOCK':
         return tTerm('creditDetails.payoff.denial.financialBlock');
       default:
-        break;
+        return tTerm('creditDetails.payoff.denial.generic');
     }
   }
-  return reason.message || '';
+  return formatSafeDenialMessage(reason.message, 'creditDetails.payoff.denial.generic');
 }
 
 export function formatCapitalPaymentDenialReason(reason: PayoffDenialReason | null): string {
   if (!reason) return '';
-  if (typeof reason === 'string') return reason;
+  if (typeof reason === 'string') {
+    return formatSafeDenialMessage(reason, 'creditDetails.capital.denial.generic');
+  }
   if (reason.code) {
     switch (reason.code) {
       case 'FIRST_INSTALLMENT_PAYMENT_REQUIRED':
@@ -74,10 +97,10 @@ export function formatCapitalPaymentDenialReason(reason: PayoffDenialReason | nu
       case 'DUE_INTEREST_PENDING':
         return tTerm('creditDetails.capital.denial.dueInterestPending');
       default:
-        break;
+        return tTerm('creditDetails.capital.denial.generic');
     }
   }
-  return reason.message || '';
+  return formatSafeDenialMessage(reason.message, 'creditDetails.capital.denial.generic');
 }
 
 // ---------------------------------------------------------------------------
@@ -159,11 +182,11 @@ export function getStatusInfo(status: string): StatusPresentation {
 
 export function formatPromiseStatus(status: unknown): string {
   switch (String(status || '').toLowerCase()) {
-    case 'kept': return 'Cumplida';
-    case 'broken': return 'Incumplida';
-    case 'cancelled': return 'Cancelada';
-    case 'pending': return 'Pendiente';
-    default: return String(status || 'Sin estado');
+    case 'kept': return tTerm('creditDetails.status.kept');
+    case 'broken': return tTerm('creditDetails.status.broken');
+    case 'cancelled': return tTerm('creditDetails.status.cancelled');
+    case 'pending': return tTerm('creditDetails.status.pending');
+    default: return status ? tTerm('common.status.unknown') : tTerm('creditDetails.loanStatus.missing');
   }
 }
 

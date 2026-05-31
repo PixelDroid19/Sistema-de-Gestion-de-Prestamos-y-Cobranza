@@ -8,6 +8,7 @@ const {
   buildStoredFileFields,
   ensureDocumentExists,
   resolveDocumentDownload,
+  validateAttachmentFileSignature,
 } = require('@/modules/shared/documentOperations');
 
 const enrichCustomersWithLoanSummaries = async ({ customerRepository, result }) => {
@@ -44,7 +45,10 @@ const isCustomerPrimaryKeyConflict = (error) => {
 
 const ALLOWED_CUSTOMER_STATUSES = new Set(['active', 'inactive', 'blacklisted']);
 const ALLOWED_CUSTOMER_REGISTERED_WINDOWS = new Set(['today', 'week', 'month', 'year']);
-const CUSTOMER_DOCUMENT_ACCESS_MESSAGE = 'Only authorized backoffice users can access customer documents';
+const CUSTOMER_DOCUMENT_ACCESS_MESSAGE = 'Solo usuarios administrativos autorizados pueden acceder a documentos de clientes.';
+const CUSTOMER_REGISTERED_WITHIN_MESSAGE = 'El filtro de fecha de registro debe ser hoy, semana, mes o año.';
+const CUSTOMER_DOCUMENT_NUMBER_REQUIRED_MESSAGE = 'El número de documento es obligatorio.';
+const CUSTOMER_NOT_DELETED_MESSAGE = 'El cliente no está eliminado.';
 
 const normalizeCustomerListFilters = (filters = {}) => {
   const normalized = {};
@@ -57,7 +61,7 @@ const normalizeCustomerListFilters = (filters = {}) => {
   const rawStatus = String(filters.status || '').trim().toLowerCase();
   if (rawStatus) {
     if (!ALLOWED_CUSTOMER_STATUSES.has(rawStatus)) {
-      throw new ValidationError('Customer status filter must be active, inactive, or blacklisted');
+      throw new ValidationError('Filtro de estado de cliente inválido.');
     }
     normalized.status = rawStatus;
   }
@@ -65,7 +69,7 @@ const normalizeCustomerListFilters = (filters = {}) => {
   const rawRegisteredWithin = String(filters.registeredWithin || '').trim().toLowerCase();
   if (rawRegisteredWithin) {
     if (!ALLOWED_CUSTOMER_REGISTERED_WINDOWS.has(rawRegisteredWithin)) {
-      throw new ValidationError('Customer date filter must be today, week, month, or year');
+      throw new ValidationError(CUSTOMER_REGISTERED_WITHIN_MESSAGE);
     }
     normalized.registeredWithin = rawRegisteredWithin;
   }
@@ -132,7 +136,7 @@ const createCreateCustomer = ({ customerRepository, auditService }) => {
 const createFindCustomerByDocument = ({ customerRepository }) => async ({ documentNumber }) => {
   const normalizedDocumentNumber = String(documentNumber || '').trim();
   if (!normalizedDocumentNumber) {
-    throw new ValidationError('Document number is required');
+    throw new ValidationError(CUSTOMER_DOCUMENT_NUMBER_REQUIRED_MESSAGE);
   }
 
   const customer = await customerRepository.findByDocumentNumber(normalizedDocumentNumber);
@@ -204,19 +208,26 @@ const createListCustomerDocuments = ({ customerRepository }) => async ({ actor, 
   return customerRepository.listDocuments(customerId);
 };
 
-const createUploadCustomerDocument = ({ customerRepository, attachmentStorage, auditService }) => {
+const createUploadCustomerDocument = ({
+  customerRepository,
+  attachmentStorage,
+  auditService,
+  fsModule = require('node:fs/promises'),
+}) => {
   const useCase = async ({ actor, customerId, file, metadata = {} }) => {
-    ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
+    ensureUploadedFile(file, () => new ValidationError('Debes adjuntar un archivo'));
 
     if (!['admin', 'employee'].includes(actor.role)) {
       await attachmentStorage.deleteByAbsolutePath(file.path);
-      throw new AuthorizationError('Only authorized backoffice users can upload customer documents');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden cargar documentos de clientes.');
     }
 
     return withUploadCleanup({
       file,
       attachmentStorage,
       task: async () => {
+        await validateAttachmentFileSignature(file, fsModule);
+
         const customer = await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
 
         return customerRepository.createDocument({
@@ -252,7 +263,7 @@ const createDownloadCustomerDocument = ({ customerRepository, attachmentStorage 
 const createDeleteCustomerDocument = ({ customerRepository, attachmentStorage, auditService }) => {
   const useCase = async ({ actor, customerId, documentId }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can delete customer documents');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden eliminar documentos de clientes.');
     }
 
     await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
@@ -283,7 +294,7 @@ const createRestoreCustomer = ({ customerRepository, auditService }) => {
   const useCase = async ({ actor, customerId }) => {
     // Only admins can restore customers
     if (!actor || !['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can restore customers');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden restaurar clientes.');
     }
 
     // Find the customer including deleted records
@@ -294,7 +305,7 @@ const createRestoreCustomer = ({ customerRepository, auditService }) => {
 
     // Check if the customer was actually deleted
     if (!customer.deletedAt) {
-      throw new ValidationError('Customer is not deleted');
+      throw new ValidationError(CUSTOMER_NOT_DELETED_MESSAGE);
     }
 
     // Restore the customer

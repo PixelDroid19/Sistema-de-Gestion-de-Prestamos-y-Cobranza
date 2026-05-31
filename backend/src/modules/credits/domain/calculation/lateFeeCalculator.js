@@ -3,6 +3,7 @@ const { roundCurrency } = require('./precision');
 
 const SUPPORTED_LATE_FEE_MODES = new Set(['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED']);
 const UNSUPPORTED_LATE_FEE_MODES = new Set(['SIMPLE_DAILY', 'COMPOUND_DAILY', 'FIXED_FEE']);
+const INVALID_LATE_FEE_MODE_MESSAGE = 'Selecciona un método de mora válido.';
 
 const normalizeLateFeeMode = (mode) => (typeof mode === 'string' && mode.trim()
   ? mode.trim().toUpperCase()
@@ -12,7 +13,7 @@ const assertSupportedLateFeeMode = (mode) => {
   const normalizedMode = normalizeLateFeeMode(mode);
 
   if (UNSUPPORTED_LATE_FEE_MODES.has(normalizedMode) || !SUPPORTED_LATE_FEE_MODES.has(normalizedMode)) {
-    throw new ValidationError(`Modo de mora invalido: ${normalizedMode}. Usa NONE, SIMPLE, COMPOUND, FLAT o TIERED.`);
+    throw new ValidationError(INVALID_LATE_FEE_MODE_MESSAGE);
   }
 
   return normalizedMode;
@@ -59,6 +60,7 @@ const calculateLateFee = ({
 };
 
 module.exports = {
+  INVALID_LATE_FEE_MODE_MESSAGE,
   SUPPORTED_LATE_FEE_MODES,
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,

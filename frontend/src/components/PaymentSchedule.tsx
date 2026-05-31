@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileSpreadsheet, Loader2, Wallet } from 'lucide-react';
 import { usePaymentSchedule, exportCreditExcel } from '../services/reportService';
 import { toast } from '../lib/toast';
 import { formatCurrency, formatDate } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
+import { formatScheduleStatusLabel } from '../lib/scheduleStatusLabels';
+import { getLoanStatusLabel } from './credits/creditsHelpers';
 import { ActionButton, DataTableSurface, EmptyState, InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
 import { QuickGuideButton } from './shared/HelpSupport';
 
@@ -16,7 +18,7 @@ export default function PaymentSchedule() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const loanId = id ? Number(id) : null;
-  const { data, loan, summary, schedule, isLoading, isError, error } = usePaymentSchedule(loanId);
+  const { loan, summary, schedule, isLoading, isError, error } = usePaymentSchedule(loanId);
   const [isExporting, setIsExporting] = useState(false);
 
   const getStatusBadge = (status: string) => {
@@ -24,11 +26,12 @@ export default function PaymentSchedule() {
       paid: { label: tTerm('schedule.status.paid'), className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
       pending: { label: tTerm('schedule.status.pending'), className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
       overdue: { label: tTerm('schedule.status.overdue'), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
+      defaulted: { label: formatScheduleStatusLabel('defaulted'), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
       annulled: { label: tTerm('schedule.status.annulled'), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
     };
 
     const config = statusMap[status.toLowerCase()] || {
-      label: status,
+      label: formatScheduleStatusLabel(status),
       className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400',
     };
 
@@ -135,7 +138,7 @@ export default function PaymentSchedule() {
             { id: 'payment-schedule-amount', label: tTerm('schedule.summary.loanAmount'), value: formatCurrency(loan.amount), helper: tTerm('schedule.summary.loanAmountHelper'), icon: <DollarSign size={18} />, accent: 'blue' },
             { id: 'payment-schedule-rate', label: tTerm('schedule.summary.interestRate'), value: `${loan.interestRate}%`, helper: tTerm('schedule.summary.interestRateHelper'), icon: <TrendingUp size={18} />, accent: 'amber' },
             { id: 'payment-schedule-term', label: tTerm('schedule.summary.term'), value: tTerm('schedule.summary.termValue', { months: loan.termMonths }), helper: tTerm('schedule.summary.termHelper'), icon: <Calendar size={18} />, accent: 'emerald' },
-            { id: 'payment-schedule-status', label: tTerm('schedule.summary.status'), value: <span className="capitalize">{loan.status}</span>, helper: tTerm('schedule.summary.statusHelper'), icon: <BarChart3 size={18} />, accent: 'slate' },
+            { id: 'payment-schedule-status', label: tTerm('schedule.summary.status'), value: getLoanStatusLabel(loan.status), helper: tTerm('schedule.summary.statusHelper'), icon: <BarChart3 size={18} />, accent: 'slate' },
           ]}
         />
       )}

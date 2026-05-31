@@ -7,7 +7,7 @@ const { ensureAdmin, formatMoney, mapMonthlySeries } = require('@/modules/report
  * GET /api/reports/executive-dashboard
  */
 const createGetExecutiveDashboard = ({ reportRepository, paymentRepository }) => async ({ actor }) => {
-  ensureAdmin(actor, 'Only admins can access financial reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes financieros.');
 
   const currentYear = new Date().getFullYear();
   const currentMetrics = await reportRepository.getPerformanceMetrics(currentYear);

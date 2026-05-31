@@ -4,7 +4,14 @@ const { createPaymentRouter } = require('./paymentRouter');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
 const { validateCurrencyPrecision } = require('@/modules/shared/money');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
+
+const SEARCH_AMOUNT_LABELS = {
+  minAmount: 'monto mínimo',
+  maxAmount: 'monto máximo',
+};
+const CALCULATION_PROFILE_RESPONSE_REQUIRED_MESSAGE = 'El cálculo de crédito no devolvió una versión de perfil activa.';
+const getSearchAmountLabel = (fieldName) => SEARCH_AMOUNT_LABELS[fieldName] || 'monto';
 
 /**
  * Composes the credit HTTP surface from authorization, upload middleware,
@@ -39,12 +46,12 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     }
 
     if (!validateCurrencyPrecision(value)) {
-      throw new ValidationError(`${fieldName} must be a valid currency amount`);
+      throw new ValidationError(`El ${getSearchAmountLabel(fieldName)} debe ser un valor monetario válido.`);
     }
 
     const amount = Number(typeof value === 'string' ? value.trim() : value);
     if (!Number.isFinite(amount) || amount < 0) {
-      throw new ValidationError(`${fieldName} must be greater than or equal to 0`);
+      throw new ValidationError(`El ${getSearchAmountLabel(fieldName)} debe ser mayor o igual a 0.`);
     }
 
     return amount;
@@ -66,7 +73,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
 
     for (const loanId of entries) {
       if (!validateIntegerId(loanId)) {
-        throw new ValidationError('loanIds must contain only positive integer IDs');
+        throw new ValidationError(buildInvalidIntegerIdMessage('loanIds'));
       }
     }
 
@@ -81,7 +88,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
    */
   const parseRequiredRouteId = (value, fieldName) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError(`${fieldName} must be a valid positive integer`);
+      throw new ValidationError(buildInvalidIntegerIdMessage(fieldName));
     }
 
     return Number(String(value).trim());
@@ -107,7 +114,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   const sendCreditCalculation = async (req, res) => {
     const calculation = await useCases.createCreditCalculation(req.body);
     if (!calculation.calculationVersionId || !calculation.calculationProfileVersionId) {
-      throw new ValidationError('Credit calculation response is missing the active calculation profile version');
+      throw new ValidationError(CALCULATION_PROFILE_RESPONSE_REQUIRED_MESSAGE);
     }
 
     res.json({
@@ -162,11 +169,11 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   router.get('/due-payments', requirePermission('CREDITS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const { date } = req.query;
     if (!date) {
-      return res.status(400).json({ success: false, error: { message: 'date parameter is required' } });
+      return res.status(400).json({ success: false, error: { message: 'La fecha de consulta es obligatoria.' } });
     }
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ success: false, error: { message: 'Invalid date format' } });
+      return res.status(400).json({ success: false, error: { message: 'La fecha de consulta debe ser válida.' } });
     }
     const duePayments = await useCases.getDuePayments({ date: parsedDate });
     res.json({ success: true, count: duePayments.length, data: { duePayments } });

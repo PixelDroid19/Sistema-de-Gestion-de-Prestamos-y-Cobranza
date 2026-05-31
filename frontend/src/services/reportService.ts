@@ -1,10 +1,17 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { downloadBlob } from './blobDownload';
 import type { PaymentScheduleResponse, PayoutsReportFilters, PayoutsReportResponse } from '../types/reportSimulation';
 import { tTerm } from '../i18n/terminology';
-import type { CreditHistoryMonthlyFilters, DailyCashFlowFilters, MonthlyCashFlowFilters, OperatingExpenseListParams } from './queryKeys';
+import type {
+  CreditHistoryMonthlyFilters,
+  CustomerProfitabilityFilters,
+  DailyCashFlowFilters,
+  MonthlyCashFlowFilters,
+  OperatingExpenseListParams,
+} from './queryKeys';
 
 type ReportContextualType = 'credits' | 'payouts' | 'profitability' | 'associates';
 type ReportContextualFormat = 'xlsx' | 'pdf';
@@ -153,14 +160,6 @@ export const useReports = () => {
     },
   });
 
-  const getCustomerProfitability = useQuery({
-    queryKey: queryKeys.reports.profitabilityCustomers,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/profitability/customers');
-      return data;
-    },
-  });
-
   const getLoanProfitability = useQuery({
     queryKey: queryKeys.reports.profitabilityLoans,
     queryFn: async () => {
@@ -177,7 +176,6 @@ export const useReports = () => {
     outstandingData: getOutstandingReport.data,
     recoveredData: getRecoveredReport.data,
     recoveryData: getRecoveryReport.data,
-    customerProfitabilityData: getCustomerProfitability.data,
     loanProfitabilityData: getLoanProfitability.data,
     monthlyPerformance: normalizeMonthlyPerformance(
       getDashboardMetrics.data?.data?.monthlyPerformance
@@ -213,32 +211,56 @@ export const useReports = () => {
         remainingCapital: toNumber(loan.remainingCapital ?? loan.outstandingAmount),
       };
     }),
-    profitabilityItems: (() => {
-      const items = toArray<any>(
-        getCustomerProfitability.data?.data?.items
-        ?? getCustomerProfitability.data?.data?.customers,
-      );
-      return items.map((item) => ({
-        ...item,
-        totalLoans: item.totalLoans ?? item.loanCount ?? 0,
-        lateFeesCollected: toNumber(item.lateFeesCollected ?? item.penaltyCollected),
-      }));
-    })(),
     isLoading:
       getDashboardMetrics.isLoading ||
       getOutstandingReport.isLoading ||
-      getRecoveryReport.isLoading ||
-      getCustomerProfitability.isLoading,
+      getRecoveryReport.isLoading,
     isError:
       getDashboardMetrics.isError ||
       getOutstandingReport.isError ||
-      getRecoveryReport.isError ||
-      getCustomerProfitability.isError,
+      getRecoveryReport.isError,
     error:
       getDashboardMetrics.error ||
       getOutstandingReport.error ||
-      getRecoveryReport.error ||
-      getCustomerProfitability.error,
+      getRecoveryReport.error,
+  };
+};
+
+const normalizeCustomerProfitabilityItems = (value: unknown) => {
+  const payload = (value as { data?: { items?: unknown; customers?: unknown } })?.data ?? value;
+  const items = toArray<any>(
+    (payload as { items?: unknown })?.items
+    ?? (payload as { customers?: unknown })?.customers,
+  );
+
+  return items.map((item) => ({
+    ...item,
+    totalLoans: item.totalLoans ?? item.loanCount ?? 0,
+    lateFeesCollected: toNumber(item.lateFeesCollected ?? item.penaltyCollected),
+  }));
+};
+
+export const useCustomerProfitability = (filters: CustomerProfitabilityFilters = {}) => {
+  const queryFilters = useMemo(() => ({
+    ...(filters.fromDate ? { fromDate: filters.fromDate } : {}),
+    ...(filters.toDate ? { toDate: filters.toDate } : {}),
+  }), [filters.fromDate, filters.toDate]);
+
+  const query = useQuery({
+    queryKey: queryKeys.reports.profitabilityCustomers(queryFilters),
+    queryFn: async () => {
+      const { data } = await apiClient.get('/reports/profitability/customers', {
+        params: queryFilters,
+      });
+      return data;
+    },
+  });
+
+  return {
+    items: normalizeCustomerProfitabilityItems(query.data),
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
   };
 };
 
@@ -626,7 +648,7 @@ export const usePaymentSchedule = (loanId: number | null) => {
   const getSchedule = useQuery({
     queryKey: queryKeys.reports.paymentSchedule(loanId),
     queryFn: async () => {
-      if (!loanId) throw new Error('Loan ID is required');
+      if (!loanId) throw new Error(tTerm('reports.export.invalidLoan'));
       const { data } = await apiClient.get(`/reports/payment-schedule/${loanId}`);
       return data as PaymentScheduleResponse;
     },

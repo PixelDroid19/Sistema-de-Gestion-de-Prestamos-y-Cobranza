@@ -116,6 +116,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
       {props.showStatusModal && (
         <ModalShell
           title={tTerm('creditDetails.modal.status.title')}
+          onClose={props.onCloseStatusModal}
           footer={<>
             <ActionButton onClick={props.onCloseStatusModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton onClick={props.onUpdateStatus} disabled={!props.newStatus} variant="primary" fullWidth>{tTerm('creditDetails.modal.status.save')}</ActionButton>
@@ -136,6 +137,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
       {props.isRecordPaymentModalOpen && (
         <ModalShell
           title={tTerm('creditDetails.modal.payment.title')}
+          onClose={props.onClosePaymentModal}
           footer={<>
             <ActionButton onClick={props.onClosePaymentModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton
@@ -184,7 +186,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
                     )}
                   </div>
                 ) : props.installmentQuoteError ? (
-                  <p className="text-xs text-red-700 dark:text-red-300">No se pudo calcular la cotización. Revisa la cuota y la fecha.</p>
+                  <p className="text-xs text-red-700 dark:text-red-300">{tTerm('creditDetails.paymentQuote.error')}</p>
                 ) : (
                   <p className="text-xs text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.ruleApplied')}</p>
                 )}
@@ -222,6 +224,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
       {props.isPromiseModalOpen && (
         <ModalShell
           title={tTerm('creditDetails.modal.promise.title')}
+          onClose={props.onClosePromiseModal}
           footer={<>
             <ActionButton onClick={props.onClosePromiseModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton onClick={props.onCreatePromise} variant="primary" fullWidth>{tTerm('creditDetails.modal.promise.save')}</ActionButton>
@@ -252,6 +255,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
       {props.isFollowUpModalOpen && (
         <ModalShell
           title={tTerm('creditDetails.modal.followUp.title')}
+          onClose={props.onCloseFollowUpModal}
           footer={<>
             <ActionButton onClick={props.onCloseFollowUpModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton onClick={props.onCreateFollowUp} variant="primary" fullWidth>{tTerm('creditDetails.modal.followUp.save')}</ActionButton>
@@ -270,6 +274,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
         <ModalShell
           title={<span className="text-red-600 dark:text-red-400">{tTerm('creditDetails.modal.annul.title', { number: props.annulInstallmentNumber ?? '' })}</span>}
           subtitle={tTerm('creditDetails.modal.annul.subtitle')}
+          onClose={props.onCloseAnnulModal}
           footer={<>
             <ActionButton onClick={props.onCloseAnnulModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton onClick={props.onAnnulInstallment} variant="danger" fullWidth>{tTerm('creditDetails.modal.annul.confirm')}</ActionButton>
@@ -287,6 +292,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
           title={tTerm('creditDetails.modal.capital.title')}
           subtitle={tTerm('creditDetails.modal.capital.subtitle')}
           maxWidthClassName="max-w-2xl"
+          onClose={props.onCloseCapitalModal}
           footer={<>
             <ActionButton onClick={props.onCloseCapitalModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton
@@ -403,6 +409,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
       {props.showEditPaymentMethodModal && (
         <ModalShell
           title={tTerm('creditDetails.modal.editMethod.title')}
+          onClose={props.onCloseEditPaymentMethodModal}
           footer={<>
             <ActionButton onClick={props.onCloseEditPaymentMethodModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton onClick={props.onUpdatePaymentMethod} disabled={props.editingPaymentReconciled} variant="primary" fullWidth>{tTerm('creditDetails.modal.editMethod.save')}</ActionButton>
@@ -427,6 +434,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
       {props.showLateFeeModal && (
         <ModalShell
           title={tTerm('creditDetails.modal.lateFee.title')}
+          onClose={props.onCloseLateFeeModal}
           footer={<>
             <ActionButton onClick={props.onCloseLateFeeModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton onClick={props.onUpdateLateFeeRate} variant="primary" fullWidth>{tTerm('creditDetails.modal.lateFee.save')}</ActionButton>

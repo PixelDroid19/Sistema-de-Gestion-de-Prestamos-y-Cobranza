@@ -20,7 +20,7 @@ test('createRecoveryStatusGuard rejects non-defaulted loans', () => {
     nextRecoveryStatus: 'contacted',
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Recovery status can only be updated for defaulted loans');
+    assert.equal(error.message, 'Solo se puede actualizar la recuperación de créditos en incumplimiento.');
     return true;
   });
 });
@@ -33,7 +33,16 @@ test('createRecoveryStatusGuard rejects closed and already recovered loans', () 
     nextRecoveryStatus: 'failed',
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Cannot modify recovery status for a closed loan');
+    assert.equal(error.message, 'No se puede modificar la recuperación de un crédito cerrado.');
+    return true;
+  });
+
+  assert.throws(() => closedGuard.assertCanTransition({
+    loan: { status: 'defaulted', recoveryStatus: 'recovered' },
+    nextRecoveryStatus: 'failed',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'No se puede modificar la recuperación de un crédito ya recuperado.');
     return true;
   });
 });
@@ -46,7 +55,7 @@ test('createRecoveryStatusGuard rejects recovered transitions while balance rema
     nextRecoveryStatus: 'recovered',
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Cannot mark a loan as recovered while an outstanding balance remains');
+    assert.equal(error.message, 'No se puede marcar el crédito como recuperado mientras tenga saldo pendiente.');
     return true;
   });
 });

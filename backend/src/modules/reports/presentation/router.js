@@ -2,32 +2,12 @@ const express = require('express');
 const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload } = require('@/modules/shared/http');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer, STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
-
-const PAYOUT_COLUMNS = [
-  { header: 'Pago', key: 'paymentId', width: 12 },
-  { header: 'Crédito', key: 'loanId', width: 12 },
-  { header: 'Referencia cliente', key: 'customerId', width: 18 },
-  { header: 'Cliente', key: 'customerName', width: 28 },
-  dateColumn('Fecha de Pago', 'paymentDate', 18),
-  moneyColumn('Monto', 'amount'),
-  moneyColumn('Capital Aplicado', 'principalApplied', 20),
-  moneyColumn('Interés Aplicado', 'interestApplied', 20),
-  moneyColumn('Mora Aplicada', 'penaltyApplied', 18),
-  moneyColumn('Saldo Después del Pago', 'remainingBalanceAfterPayment', 22),
-  { header: 'Tipo Pago', key: 'paymentType', width: 16 },
-  { header: 'Método', key: 'paymentMethod', width: 18 },
-  { header: 'Estado', key: 'status', width: 14 },
-  { header: 'Referencia', key: 'reference', width: 22 },
-  { header: 'Observación', key: 'observation', width: 30 },
-  { header: 'Comprobante', key: 'voucherNumber', width: 18 },
-  dateColumn('Fecha Registro', 'createdAt', 18),
-];
 
 const DASHBOARD_EVOLUTION_COLUMNS = [
   { header: 'Periodo', key: 'period', width: 16 },
@@ -79,29 +59,6 @@ const DASHBOARD_NOTIFICATION_COLUMNS = [
   { header: 'Estado Lectura', key: 'readStatus', width: 16 },
   dateColumn('Fecha', 'date', 18),
   { header: 'Descripción', key: 'description', width: 38 },
-];
-
-const ASSOCIATES_COLUMNS = [
-  { header: 'ID Socio', key: 'associateId', width: 12 },
-  { header: 'Socio', key: 'associateName', width: 28 },
-  { header: 'Tipo de Interés', key: 'interestType', width: 18 },
-  { header: 'Tasa Pactada %', key: 'interestRate', width: 18 },
-  moneyColumn('Deuda con Socio', 'interestDebt', 20),
-  moneyColumn('Interés Pagado', 'totalInterestPaid', 20),
-  dateColumn('Próximo Pago', 'nextInterestPaymentDate', 18),
-  { header: 'Sección', key: 'section', width: 16 },
-  { header: 'ID Movimiento', key: 'entryId', width: 16 },
-  { header: 'Referencia', key: 'reference', width: 24 },
-  moneyColumn('Monto', 'amount'),
-  dateColumn('Fecha', 'date', 18),
-  { header: 'Estado', key: 'status', width: 14 },
-  { header: 'Participación %', key: 'participationPercentage', width: 18 },
-  { header: 'Rentabilidad del Aporte', key: 'contributionInterestType', width: 24 },
-  { header: 'Tasa Histórica del Aporte %', key: 'contributionInterestRate', width: 28 },
-  { header: 'Tipo Distribución', key: 'distributionType', width: 20 },
-  moneyColumn('Total Declarado', 'declaredProportionalTotal', 20),
-  moneyColumn('Monto Asignado', 'allocatedAmount', 20),
-  { header: 'Notas', key: 'notes', width: 34 },
 ];
 
 const formatExcelDate = (value) => {
@@ -168,6 +125,15 @@ const normalizeDashboardNotificationRow = (notification = {}) => ({
   description: notification.message || notification.description || '',
 });
 
+const requireWorkbookSheets = (exportData, exportName) => {
+  const sheets = exportData?.data?.sheets;
+  if (!Array.isArray(sheets) || sheets.length === 0) {
+    throw new Error(`${exportName} debe devolver hojas de workbook en data.sheets.`);
+  }
+
+  return sheets;
+};
+
 /**
  * Composes reporting, analytics and export routes from authorization middleware
  * and reporting use cases.
@@ -190,12 +156,12 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
     const normalizedValue = String(value).trim();
     if (!/^\d{4}$/.test(normalizedValue)) {
-      throw new ValidationError('year must be a four-digit calendar year');
+      throw new ValidationError('El año del reporte debe tener cuatro dígitos.');
     }
 
     const year = Number(normalizedValue);
     if (!Number.isSafeInteger(year) || year < 1900 || year > 9999) {
-      throw new ValidationError('year must be a valid calendar year');
+      throw new ValidationError('El año del reporte debe ser un año calendario válido.');
     }
 
     return year;
@@ -208,7 +174,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
    */
   const parseRequiredRouteId = (value, fieldName) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError(`${fieldName} must be a valid positive integer`);
+      throw new ValidationError(buildInvalidIntegerIdMessage(fieldName));
     }
 
     return Number(String(value).trim());
@@ -608,9 +574,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   // Credits Excel Export and Summary
   router.get('/credits/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const exportData = await useCases.exportCreditsExcel({ actor: req.user, filters: buildCreditExportFilters(req.query) });
-    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
-      ? exportData.data.sheets
-      : [{ name: 'Credits', rows: exportData.data.rows }];
+    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de créditos');
     const buffer = await buildWorkbookBuffer(workbookSheets);
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -630,9 +594,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     }
 
     const exportData = await useCases.exportCreditsExcel({ actor: req.user, filters });
-    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
-      ? exportData.data.sheets
-      : [{ name: 'Credits', rows: exportData.data.rows }];
+    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de créditos');
     const buffer = await buildWorkbookBuffer(workbookSheets);
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -643,16 +605,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/payouts/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const exportData = await useCases.exportPayoutsExcel({ actor: req.user, filters: buildPayoutExportFilters(req.query) });
-    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
-      ? exportData.data.sheets
-      : [{
-        name: 'Pagos',
-        title: 'REPORTE DE PAGOS',
-        tabColor: STYLE_COLORS.green,
-        headerFill: STYLE_COLORS.green,
-        columns: PAYOUT_COLUMNS,
-        rows: exportData.data.rows,
-      }];
+    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de pagos');
     const buffer = await buildWorkbookBuffer(workbookSheets);
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -672,16 +625,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     }
 
     const exportData = await useCases.exportPayoutsExcel({ actor: req.user, filters });
-    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
-      ? exportData.data.sheets
-      : [{
-        name: 'Pagos',
-        title: 'REPORTE DE PAGOS',
-        tabColor: STYLE_COLORS.green,
-        headerFill: STYLE_COLORS.green,
-        columns: PAYOUT_COLUMNS,
-        rows: exportData.data.rows,
-      }];
+    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de pagos');
     const buffer = await buildWorkbookBuffer(workbookSheets);
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -697,16 +641,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   router.get('/associates/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const filters = buildAssociateExportFilters(req.query);
     const exportData = await useCases.exportAssociatesExcel({ actor: req.user, filters });
-    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
-      ? exportData.data.sheets
-      : [{
-        name: 'Detalle de Socios',
-        title: 'DETALLE OPERATIVO DE SOCIOS',
-        tabColor: STYLE_COLORS.red,
-        headerFill: STYLE_COLORS.headerBlue,
-        columns: ASSOCIATES_COLUMNS,
-        rows: exportData.data.rows,
-      }];
+    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de socios');
     const buffer = await buildWorkbookBuffer(workbookSheets);
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -726,16 +661,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     }
 
     const exportData = await useCases.exportAssociatesExcel({ actor: req.user, filters });
-    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
-      ? exportData.data.sheets
-      : [{
-        name: 'Detalle de Socios',
-        title: 'DETALLE OPERATIVO DE SOCIOS',
-        tabColor: STYLE_COLORS.red,
-        headerFill: STYLE_COLORS.headerBlue,
-        columns: ASSOCIATES_COLUMNS,
-        rows: exportData.data.rows,
-      }];
+    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de socios');
     const buffer = await buildWorkbookBuffer(workbookSheets);
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

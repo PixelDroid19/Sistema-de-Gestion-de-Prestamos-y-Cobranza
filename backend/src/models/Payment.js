@@ -16,7 +16,7 @@ const Payment = sequelize.define('Payment', {
         }
 
         if (Number(value) < 0.01) {
-          throw new Error('Validation min on amount failed');
+          throw new Error('El monto del pago debe ser mayor a cero salvo que el pago esté anulado');
         }
       },
     },

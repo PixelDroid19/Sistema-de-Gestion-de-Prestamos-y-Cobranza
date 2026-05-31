@@ -35,18 +35,17 @@ export function PayoutsTab({
       <table className="w-full text-sm">
         <thead className="bg-bg-base border-b border-border-subtle">
           <tr>
-            <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.paymentId')}</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Tipo</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.type')}</th>
             <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.installment')}</th>
-            <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Monto</th>
-            <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Capital</th>
+            <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.amount')}</th>
+            <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.capital')}</th>
             <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.label.interest')}</th>
             <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.label.lateFee')}</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Método</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.method')}</th>
             <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.createdBy')}</th>
             <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.paymentDate')}</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Estado</th>
-            <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Acciones</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.status')}</th>
+            <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -56,7 +55,6 @@ export function PayoutsTab({
 
             return (
               <tr key={stableCreditKey('payment-row', entry.id, entry.date, entry.amount, entry.installmentNumber)} className="border-b border-border-subtle hover:bg-hover-bg">
-                <td className="py-3 px-4 text-text-secondary">{entry.paymentId ? `#${entry.paymentId}` : entry.id ? `#${entry.id}` : '—'}</td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     entry.type === 'payoff' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' :
@@ -64,7 +62,7 @@ export function PayoutsTab({
                     entry.paymentType === 'partial' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' :
                     'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                   }`}>
-                    {entry.type === 'payoff' ? 'Pago total' : getPaymentTypeLabel(entry.paymentType)}
+                    {entry.type === 'payoff' ? tTerm('creditDetails.payouts.type.payoff') : getPaymentTypeLabel(entry.paymentType)}
                   </span>
                 </td>
                 <td className="py-3 px-4 text-text-secondary">{entry.installmentNumber || '—'}</td>
@@ -88,7 +86,7 @@ export function PayoutsTab({
                   <ActionButton
                     onClick={() => onDownloadVoucher(paymentId)}
                     disabled={!hasVoucher}
-                    disabledReason={hasVoucher ? undefined : 'Este pago no tiene comprobante disponible.'}
+                    disabledReason={hasVoucher ? undefined : tTerm('creditDetails.payouts.voucherUnavailable')}
                     className="!min-h-0 !px-3 !py-1.5"
                     icon={<FileText size={16} />}
                   >

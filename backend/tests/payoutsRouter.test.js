@@ -29,7 +29,7 @@ const enforceAuth = (options = []) => (req, res, next) => {
   if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     res.status(403).json({
       success: false,
-      error: { message: 'Forbidden', statusCode: 403 },
+      error: { message: 'No tienes acceso a esta acción.', statusCode: 403 },
     });
     return;
   }
@@ -380,7 +380,7 @@ test('createPayoutsRouter rejects malformed route identifiers before executing p
 
   for (const response of responses) {
     assert.equal(response.statusCode, 400);
-    assert.match(response.body.error.message, /(loanId|paymentId|documentId)/);
+    assert.match(response.body.error.message, /(número del crédito|número del pago|número del documento)/i);
   }
   assert.deepEqual(calls, []);
 });
@@ -572,7 +572,7 @@ test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compati
 
 test('createPayoutsRouter blocks customer access to free partial payments', async () => {
   const router = createPayoutsRouter({
-    authMiddleware: enforceAuth,
+    authMiddleware: allowAuth,
     attachmentUpload: noopAttachmentUpload,
     paymentValidation,
     useCases: {
@@ -598,8 +598,17 @@ test('createPayoutsRouter blocks customer access to free partial payments', asyn
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
     body: { loanId: 15, amount: 40 },
   });
+  const capitalResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/capital',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer', 'idempotency-key': 'capital-customer' },
+    body: { loanId: 15, amount: 40 },
+  });
 
   assert.equal(response.statusCode, 403);
+  assert.equal(response.body.error.message, 'Solo usuarios administrativos autorizados pueden crear pagos parciales.');
+  assert.equal(capitalResponse.statusCode, 403);
+  assert.equal(capitalResponse.body.error.message, 'Solo usuarios administrativos autorizados pueden registrar abonos a capital.');
 });
 
 test('createPayoutsRouter returns structured denial reasons for capital payment denials', async () => {

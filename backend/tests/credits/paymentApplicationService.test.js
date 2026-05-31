@@ -97,7 +97,7 @@ test('processPayment throws ValidationError for invalid paymentDate', async () =
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.match(error.message, /paymentDate/i);
+      assert.match(error.message, /fecha de pago.*operativa válida/i);
       return true;
     }
   );
@@ -223,7 +223,7 @@ test('processPayment rejects replay when an existing idempotency record is not b
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.match(error.message, /different payment request/i);
+      assert.equal(error.message, 'Esta operación de pago ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.');
       return true;
     }
   );
@@ -433,7 +433,7 @@ test('applyCapitalPayment rejects unsafe payment method keys', async () => {
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.match(error.message, /Payment method/i);
+      assert.equal(error.message, 'Selecciona un método de pago configurado.');
       return true;
     },
   );

@@ -2,7 +2,7 @@ const express = require('express');
 const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
 const { sendPathDownload } = require('@/modules/shared/http');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 /**
  * Composes customer CRUD and document routes from validation, authorization,
@@ -21,7 +21,7 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
    */
   const parseRequiredRouteId = (value, fieldName) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError(`${fieldName} must be a valid positive integer`);
+      throw new ValidationError(buildInvalidIntegerIdMessage(fieldName));
     }
 
     return Number(String(value).trim());

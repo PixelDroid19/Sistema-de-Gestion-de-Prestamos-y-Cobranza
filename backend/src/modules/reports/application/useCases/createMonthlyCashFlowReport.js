@@ -530,7 +530,7 @@ const resolveCashFlowDateRange = (filters = {}) => {
 };
 
 const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can access monthly cash flow reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al flujo de caja mensual.');
   const resolvedYear = resolveYear(year);
   const dateRange = resolveCashFlowDateRange(filters);
   const dataset = await reportRepository.listCashFlowDataset({
@@ -554,7 +554,7 @@ const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year,
 };
 
 const createGetDailyCashFlow = ({ reportRepository }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can access daily cash flow reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al flujo de caja diario.');
   const dateRange = resolveDailyCashFlowDateRange(filters);
   const year = dateRange.fromDate.getUTCFullYear();
   const dataset = await reportRepository.listCashFlowDataset({

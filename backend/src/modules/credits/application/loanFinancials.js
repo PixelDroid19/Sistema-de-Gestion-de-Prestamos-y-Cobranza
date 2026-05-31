@@ -1,9 +1,10 @@
 const { ValidationError } = require('@/utils/errorHandler');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('./creditFormulaHelpers');
 const { assertPayoffAllowed } = require('./paymentEligibility');
-const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
+const { buildDateFormatMessage, normalizeDateOnly } = require('@/modules/shared/dateUtils');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const LOAN_NOT_PAYABLE_PAYOFF_MESSAGE = 'El crédito no tiene saldo pendiente para pago total.';
 
 const formatUtcDateOnly = (value) => {
   const date = normalizeUtcDateOnly(value);
@@ -17,7 +18,7 @@ const normalizeUtcDateOnly = (value, field = 'date') => {
     if (error instanceof ValidationError) {
       throw error;
     }
-    throw new ValidationError(`${field} must be a valid YYYY-MM-DD date`);
+    throw new ValidationError(buildDateFormatMessage(field));
   }
 };
 
@@ -100,7 +101,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
   );
 
   if (total <= 0.01) {
-    throw new ValidationError('Loan is not payable');
+    throw new ValidationError(LOAN_NOT_PAYABLE_PAYOFF_MESSAGE);
   }
 
   return {

@@ -1,5 +1,5 @@
-import type React from 'react';
 import { Activity, Clock, DollarSign, Percent } from 'lucide-react';
+import { tTerm } from '../../i18n/terminology';
 import { InsightStrip } from '../shared/Surfaces';
 
 type CreditSummaryMetricsProps = {
@@ -30,39 +30,41 @@ export function CreditSummaryMetrics({
 
   return (
     <InsightStrip
-      aria-label="Resumen operativo del crédito"
+      aria-label={tTerm('creditDetails.summary.aria')}
       className="credit-detail-summary-strip"
       data-tour="credit-detail-metrics"
       items={[
         {
           id: 'outstanding-principal',
-          label: 'Capital vivo',
+          label: tTerm('creditDetails.summary.outstandingPrincipal'),
           value: <span title={formatCurrency(paymentSnapshot?.outstandingPrincipal)}>{formatMetricCurrency(paymentSnapshot?.outstandingPrincipal)}</span>,
-          helper: 'Principal pendiente',
+          helper: tTerm('creditDetails.summary.outstandingPrincipalHelper'),
           icon: <Activity size={18} />,
           accent: 'blue',
         },
         {
           id: 'total-collected',
-          label: 'Total cobrado',
+          label: tTerm('creditDetails.summary.totalCollected'),
           value: <span title={formatCurrency(totalPaid)}>{formatMetricCurrency(totalPaid)}</span>,
-          helper: 'Capital e intereses',
+          helper: tTerm('creditDetails.summary.totalCollectedHelper'),
           icon: <DollarSign size={18} />,
           accent: 'emerald',
         },
         {
           id: 'late-fee-pending',
-          label: 'Mora pendiente',
+          label: tTerm('creditDetails.summary.pendingLateFee'),
           value: <span title={formatCurrency(pendingLateFee)}>{formatMetricCurrency(pendingLateFee)}</span>,
-          helper: loan?.annualLateFeeRate ? `${loan.annualLateFeeRate}% EA configurado` : 'Sin tasa aplicada',
+          helper: loan?.annualLateFeeRate
+            ? tTerm('creditDetails.summary.pendingLateFeeConfigured', { rate: loan.annualLateFeeRate })
+            : tTerm('creditDetails.summary.pendingLateFeeNone'),
           icon: <Percent size={18} />,
           accent: pendingLateFee > 0 ? 'amber' : 'slate',
         },
         {
           id: 'installments-open',
-          label: 'Cuotas a pagar',
+          label: tTerm('creditDetails.summary.openInstallments'),
           value: `${outstandingInstallments} / ${termMonths}`,
-          helper: 'Pendientes / pactadas',
+          helper: tTerm('creditDetails.summary.openInstallmentsHelper'),
           icon: <Clock size={18} />,
           accent: 'slate',
         },

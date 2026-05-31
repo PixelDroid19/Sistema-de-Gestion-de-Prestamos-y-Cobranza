@@ -1,6 +1,7 @@
 import { CLOSED_OR_BLOCKED_LOAN_STATUSES, NON_EXECUTABLE_INSTALLMENT_STATUSES } from '../constants/operationalStates';
-import { LOAN_STATUS_LABELS, type BackendSupportedLoanStatus } from '../constants/loanStates';
+import type { BackendSupportedLoanStatus } from '../constants/loanStates';
 import { PERMISSION } from '../constants/permissionNames';
+import { tTerm, type TermKey } from '../i18n/terminology';
 
 export type OperationalRole = 'admin' | 'employee' | 'socio' | 'customer' | string;
 
@@ -44,32 +45,43 @@ type GuardResult = {
 const CLOSED_LOAN_STATUSES = new Set<string>(CLOSED_OR_BLOCKED_LOAN_STATUSES);
 const NON_EXECUTABLE_STATUSES = new Set<string>(NON_EXECUTABLE_INSTALLMENT_STATUSES);
 const PAYABLE_LOAN_STATUSES = new Set<string>(['pending', 'approved', 'active', 'defaulted', 'overdue']);
-const INSTALLMENT_STATUS_LABELS: Record<string, string> = {
-  paid: 'Pagada',
-  annulled: 'Anulada',
+const LOAN_STATUS_LABEL_KEYS: Record<BackendSupportedLoanStatus, TermKey> = {
+  pending: 'operational.guard.status.loan.pending',
+  approved: 'operational.guard.status.loan.approved',
+  rejected: 'operational.guard.status.loan.rejected',
+  active: 'operational.guard.status.loan.active',
+  overdue: 'operational.guard.status.loan.overdue',
+  paid: 'operational.guard.status.loan.paid',
+  closed: 'operational.guard.status.loan.closed',
+  defaulted: 'operational.guard.status.loan.defaulted',
+  cancelled: 'operational.guard.status.loan.cancelled',
+};
+const INSTALLMENT_STATUS_LABEL_KEYS: Record<string, TermKey> = {
+  paid: 'operational.guard.status.installment.paid',
+  annulled: 'operational.guard.status.installment.annulled',
 };
 
 const formatLoanStatus = (loanStatus?: string): string => {
   const normalizedStatus = String(loanStatus || '').toLowerCase();
-  return LOAN_STATUS_LABELS[normalizedStatus as BackendSupportedLoanStatus] || 'no operativo';
+  return tTerm(LOAN_STATUS_LABEL_KEYS[normalizedStatus as BackendSupportedLoanStatus] ?? 'operational.guard.status.loan.fallback');
 };
 
 const formatInstallmentStatus = (installmentStatus?: string): string => {
   const normalizedStatus = String(installmentStatus || '').toLowerCase();
-  return INSTALLMENT_STATUS_LABELS[normalizedStatus] || 'no operativa';
+  return tTerm(INSTALLMENT_STATUS_LABEL_KEYS[normalizedStatus] ?? 'operational.guard.status.installment.fallback');
 };
 
 const sentenceCaseStatus = (label: string): string => label
   ? label.charAt(0).toLowerCase() + label.slice(1)
   : label;
 
-const unavailableLoanStatusReason = (loanStatus?: string): string => (
-  `Crédito ${sentenceCaseStatus(formatLoanStatus(loanStatus))}: acción no disponible.`
-);
+const unavailableLoanStatusReason = (loanStatus?: string): string => tTerm('operational.guard.reason.loanStatusUnavailable', {
+  status: sentenceCaseStatus(formatLoanStatus(loanStatus)),
+});
 
-const unavailableInstallmentStatusReason = (installmentStatus?: string): string => (
-  `Cuota ${sentenceCaseStatus(formatInstallmentStatus(installmentStatus))}: acción no disponible.`
-);
+const unavailableInstallmentStatusReason = (installmentStatus?: string): string => tTerm('operational.guard.reason.installmentStatusUnavailable', {
+  status: sentenceCaseStatus(formatInstallmentStatus(installmentStatus)),
+});
 
 const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]>> = {
   'credit.delete': [PERMISSION.CREDITS_DELETE, 'credits.delete', 'credit.delete'],
@@ -78,8 +90,8 @@ const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]
   'credit.status.update': [PERMISSION.CREDITS_UPDATE, 'credits.updateStatus', 'credits.update', 'credit.status.update'],
   'installment.pay': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'installment.pay'],
   'installment.editPaymentMethod': [PERMISSION.PAYMENTS_UPDATE, 'payments.update', 'installment.editPaymentMethod'],
-  'installment.promise': ['promises.create', 'installment.promise'],
-  'installment.followUp': ['followups.create', 'installment.followUp'],
+  'installment.promise': [PERMISSION.CREDITS_UPDATE, 'promises.create', 'installment.promise'],
+  'installment.followUp': [PERMISSION.CREDITS_UPDATE, 'followups.create', 'installment.followUp'],
   'installment.annul': [PERMISSION.PAYMENTS_REVERSE, 'payments.annul', 'installment.annul'],
   'capital.payment': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'capital.payment'],
   'lateFee.update': [PERMISSION.CREDITS_UPDATE, 'loans.update', 'lateFee.update'],
@@ -123,15 +135,15 @@ const hasRequiredPermission = (
 
 const canDeleteCredit = (role?: OperationalRole, loanStatus?: string): GuardResult => {
   if (!isAdminRole(role)) {
-    return { visible: false, executable: false, reason: 'Solo administradores pueden cancelar créditos.' };
+    return { visible: false, executable: false, reason: tTerm('operational.guard.reason.creditCancelAdminOnly') };
   }
 
   if (loanStatus === 'closed' || loanStatus === 'completed') {
-    return { visible: true, executable: false, reason: 'No se puede cancelar un crédito cerrado o completado.' };
+    return { visible: true, executable: false, reason: tTerm('operational.guard.reason.creditCancelClosed') };
   }
 
   if (loanStatus !== 'rejected') {
-    return { visible: true, executable: false, reason: 'Solo se pueden cancelar créditos rechazados.' };
+    return { visible: true, executable: false, reason: tTerm('operational.guard.reason.creditCancelRejectedOnly') };
   }
 
   return { visible: true, executable: true };
@@ -141,10 +153,10 @@ const canOperateInstallment = (
   role: OperationalRole | undefined,
   loanStatus: string | undefined,
   installmentStatus: string | undefined,
-  actionLabel: string,
+  actionLabelKey: TermKey,
 ): GuardResult => {
   if (!isBackofficeRole(role)) {
-    return { visible: false, executable: false, reason: `Solo el equipo autorizado puede gestionar ${actionLabel}.` };
+    return { visible: false, executable: false, reason: tTerm('operational.guard.reason.authorizedManage', { action: tTerm(actionLabelKey) }) };
   }
 
   if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
@@ -162,13 +174,13 @@ const canProcessLoanPayments = (
   role: OperationalRole | undefined,
   loanStatus: string | undefined,
   installmentStatus: string | undefined,
-  actionLabel: string,
+  actionLabelKey: TermKey,
 ): GuardResult => {
   if (!isBackofficeRole(role)) {
-    return { visible: false, executable: false, reason: 'Acción no disponible para este tipo de usuario.' };
+    return { visible: false, executable: false, reason: tTerm('operational.guard.reason.unavailableForUserType') };
   }
 
-  const installmentGuard = canOperateInstallment(role, loanStatus, installmentStatus, actionLabel);
+  const installmentGuard = canOperateInstallment(role, loanStatus, installmentStatus, actionLabelKey);
 
   if (!installmentGuard.visible || !installmentGuard.executable) {
     return installmentGuard;
@@ -196,14 +208,14 @@ const canRegisterPayout = (
   payoutType: GuardInput['payoutType'],
 ): GuardResult => {
   if (!isBackofficeRole(role)) {
-    return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede registrar pagos.' };
+    return { visible: false, executable: false, reason: tTerm('operational.guard.reason.authorizedRegisterPayments') };
   }
 
   if (payoutType === 'regular') {
     return {
       visible: false,
       executable: false,
-      reason: 'El pago regular no está disponible en el módulo administrativo.',
+      reason: tTerm('operational.guard.reason.regularPaymentUnavailable'),
     };
   }
 
@@ -227,7 +239,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     return {
       visible: false,
       executable: false,
-      reason: 'No cuenta con permisos para ejecutar esta acción.',
+      reason: tTerm('operational.guard.reason.missingPermission'),
     };
   }
 
@@ -237,43 +249,43 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'credit.report.download':
     case 'credit.payouts.navigate':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Acción disponible solo para usuarios administrativos.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.adminUsersOnly') };
       }
       return { visible: true, executable: true };
     case 'credit.delete':
       return canDeleteCredit(role, loanStatus);
     case 'installment.pay':
-      return canProcessLoanPayments(role, loanStatus, installmentStatus, 'pagos de cuota');
+      return canProcessLoanPayments(role, loanStatus, installmentStatus, 'operational.guard.action.installmentPayments');
     case 'installment.editPaymentMethod':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede editar métodos de pago.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.authorizedEditPaymentMethods') };
       }
       if (paymentReconciled) {
         return {
           visible: true,
           executable: false,
-          reason: 'No se puede editar el método de pago porque el pago ya está conciliado.',
+          reason: tTerm('operational.guard.reason.paymentMethodReconciled'),
         };
       }
-      return canOperateInstallment(role, loanStatus, installmentStatus, 'edición de método de pago');
+      return canOperateInstallment(role, loanStatus, installmentStatus, 'operational.guard.action.paymentMethodEdit');
     case 'installment.promise':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Los compromisos de pago son gestión interna del equipo de cobranza.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.promisesInternal') };
       }
-      return canOperateInstallment(role, loanStatus, installmentStatus, 'promesas de pago');
+      return canOperateInstallment(role, loanStatus, installmentStatus, 'operational.guard.action.paymentPromises');
     case 'installment.followUp':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Los seguimientos son gestión interna del equipo de cobranza.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.followUpsInternal') };
       }
-      return canOperateInstallment(role, loanStatus, installmentStatus, 'seguimientos');
+      return canOperateInstallment(role, loanStatus, installmentStatus, 'operational.guard.action.followUps');
     case 'installment.annul':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede anular cuotas.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.authorizedAnnulInstallments') };
       }
-      return canProcessLoanPayments(role, loanStatus, installmentStatus, 'anulación de cuotas');
+      return canProcessLoanPayments(role, loanStatus, installmentStatus, 'operational.guard.action.installmentAnnulment');
     case 'capital.payment':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'El abono a capital solo está disponible para el equipo autorizado.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.capitalPaymentAuthorizedOnly') };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
@@ -284,7 +296,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       return { visible: true, executable: true };
     case 'lateFee.update':
       if (!isAdminRole(role)) {
-        return { visible: false, executable: false, reason: 'Solo administradores pueden actualizar la tasa de mora.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.lateFeeAdminOnly') };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
@@ -295,12 +307,12 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'payout.voucher.download':
     case 'payout.credit.view':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Acción disponible solo para usuarios administrativos.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.adminUsersOnly') };
       }
       return { visible: true, executable: true };
     case 'credit.status.update':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede actualizar el estado del crédito.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.authorizedCreditStatusUpdate') };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
@@ -308,29 +320,29 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       return { visible: true, executable: true };
     case 'payout.metadata.edit':
       if (!isBackofficeRole(role)) {
-        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede editar pagos.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.authorizedEditPayments') };
       }
       if (paymentReconciled) {
         return {
           visible: true,
           executable: false,
-          reason: 'No se puede editar el método de pago porque el pago está conciliado.',
+          reason: tTerm('operational.guard.reason.paymentMethodReconciled'),
         };
       }
       if (paymentStatus === 'annulled') {
-        return { visible: true, executable: false, reason: 'No se puede editar un pago anulado.' };
+        return { visible: true, executable: false, reason: tTerm('operational.guard.reason.annulledPaymentEditUnavailable') };
       }
       return { visible: true, executable: true };
     case 'payout.delete':
       if (!isAdminRole(role)) {
-        return { visible: false, executable: false, reason: 'Solo administradores pueden eliminar pagos.' };
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.payoutDeleteAdminOnly') };
       }
       return {
         visible: true,
         executable: false,
-        reason: 'La eliminación directa de pagos no está disponible. Use anulación de cuota desde el detalle del crédito.',
+        reason: tTerm('operational.guard.reason.payoutDirectDeleteUnavailable'),
       };
     default:
-      return { visible: false, executable: false, reason: 'Acción no reconocida.' };
+      return { visible: false, executable: false, reason: tTerm('operational.guard.reason.unknownAction') };
   }
 };

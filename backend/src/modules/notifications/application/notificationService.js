@@ -1,4 +1,5 @@
 const { Notification, User } = require('@/models');
+const { NotFoundError } = require('@/utils/errorHandler');
 const { createPushProviderRegistry } = require('../infrastructure/push/providerRegistry');
 const { createResendEmailProvider } = require('../infrastructure/email/providers/resendEmailProvider');
 
@@ -180,7 +181,7 @@ class SequelizeNotificationService extends NotificationService {
   async markAsRead(notificationId) {
     const notification = await this.notificationModel.findByPk(notificationId);
     if (!notification) {
-      throw new Error('Notification not found');
+      throw new NotFoundError('Notification');
     }
 
     await notification.update({ isRead: true });

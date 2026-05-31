@@ -1,27 +1,27 @@
 const METHOD_EXPLANATIONS = {
   FRENCH: {
-    title: 'Sistema frances',
+    title: 'Sistema francés',
     formula: 'cuota = capital * tasaMensual * (1 + tasaMensual)^plazo / ((1 + tasaMensual)^plazo - 1)',
-    description: 'Genera una cuota fija. Cada pago cubre primero interes del saldo vigente y el resto reduce capital.',
+    description: 'Genera una cuota fija. Cada pago cubre primero interés del saldo vigente y el resto reduce capital.',
   },
   SIMPLE: {
-    title: 'Interes simple',
-    formula: 'interesTotal = capital * tasaAnual * (plazoMeses / 12); cuota = (capital + interesTotal) / plazo',
-    description: 'Calcula interes sobre el capital inicial y lo reparte de forma uniforme entre las cuotas.',
+    title: 'Interés simple',
+    formula: 'interésTotal = capital * tasaAnual * (plazoMeses / 12); cuota = (capital + interésTotal) / plazo',
+    description: 'Calcula interés sobre el capital inicial y lo reparte de forma uniforme entre las cuotas.',
   },
   COMPOUND: {
-    title: 'Interes compuesto',
-    formula: 'interesTotal = capital * ((1 + tasaMensual)^plazo - 1); cuota = (capital + interesTotal) / plazo',
-    description: 'Calcula el costo acumulado por capitalizacion mensual y lo distribuye entre cuotas.',
+    title: 'Interés compuesto',
+    formula: 'interésTotal = capital * ((1 + tasaMensual)^plazo - 1); cuota = (capital + interésTotal) / plazo',
+    description: 'Calcula el costo acumulado por capitalización mensual y lo distribuye entre cuotas.',
   },
 };
 
 const LATE_FEE_EXPLANATIONS = {
   NONE: 'No se cobra mora.',
-  SIMPLE: 'Mora simple: monto vencido * tasa anual de mora / 365 * dias vencidos.',
-  COMPOUND: 'Mora compuesta: monto vencido * ((1 + tasa diaria)^dias - 1).',
-  FLAT: 'Mora fija: valor fijo diario * dias vencidos.',
-  TIERED: 'Mora por tramos: dias 1-30 a tasa base, 31-60 a 1.5x y 61+ a 2x.',
+  SIMPLE: 'Mora simple: monto vencido * tasa anual de mora / 365 * días vencidos.',
+  COMPOUND: 'Mora compuesta: monto vencido * ((1 + tasa diaria)^días - 1).',
+  FLAT: 'Mora fija: valor fijo diario * días vencidos.',
+  TIERED: 'Mora por tramos: días 1-30 a tasa base, 31-60 a 1.5x y 61+ a 2x.',
 };
 
 const buildCalculationExplanation = ({ method, input, profile, policySnapshot, summary, lateFeeMode }) => {

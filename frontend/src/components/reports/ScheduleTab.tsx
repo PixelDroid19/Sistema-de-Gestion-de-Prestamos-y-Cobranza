@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertCircle, CalendarClock, DollarSign, TrendingUp, Wallet } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
@@ -16,8 +15,8 @@ import {
   InsightStrip,
   SectionSurface,
   SelectInput,
-  ToolbarSurface,
 } from '../shared/Surfaces';
+import { ReportTabPanel } from './ReportTabPanel';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -83,17 +82,15 @@ export default function ScheduleTab({
   onRefetch,
 }: ScheduleTabProps) {
   return (
-    <div className="flex flex-col gap-6">
-      <ToolbarSurface className="items-stretch lg:items-end">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-medium">{tTerm('reports.schedule.selectTitle')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">{tTerm('reports.schedule.selectSubtitle')}</p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <div className="report-tab-layout">
+      <ReportTabPanel
+        title={tTerm('reports.schedule.selectTitle')}
+        subtitle={tTerm('reports.schedule.selectSubtitle')}
+        filterColumns={2}
+        filters={(
           <FormField
             label={tTerm('reports.schedule.selectLabel')}
             helper={tTerm('reports.schedule.selectHelper')}
-            className="sm:w-96"
           >
             <SelectInput
               value={selectedLoanId ?? ''}
@@ -113,6 +110,8 @@ export default function ScheduleTab({
               ))}
             </SelectInput>
           </FormField>
+        )}
+        headerActions={(
           <ActionButton
             variant="primary"
             onClick={onRefetch}
@@ -120,8 +119,8 @@ export default function ScheduleTab({
           >
             {isScheduleLoading ? tTerm('reports.schedule.cta.loading') : tTerm('reports.schedule.cta.refresh')}
           </ActionButton>
-        </div>
-      </ToolbarSurface>
+        )}
+      />
 
       {scheduleLoan && scheduleSummary && (
         <>

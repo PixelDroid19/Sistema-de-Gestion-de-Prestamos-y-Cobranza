@@ -7,6 +7,8 @@ const { ValidationError } = require('@/utils/errorHandler');
 const MANUAL_SOURCE = 'manual';
 const POLICY_SOURCE = 'policy';
 const NONE_SOURCE = 'none';
+const RATE_POLICY_REQUIRED_MESSAGE = 'No hay una política de tasa activa para el monto del crédito.';
+const LATE_FEE_POLICY_REQUIRED_MESSAGE = 'No hay una política de mora activa.';
 
 const isBlank = (value) => value === undefined || value === null || value === '';
 
@@ -99,11 +101,11 @@ const createCreditPolicyResolver = ({ configRepository } = {}) => {
       ]);
 
       if (isPolicySource(input.rateSource) && !ratePolicy) {
-        throw new ValidationError('No active rate policy is available for this credit amount');
+        throw new ValidationError(RATE_POLICY_REQUIRED_MESSAGE);
       }
 
       if (isPolicySource(input.lateFeeSource) && !lateFeePolicy) {
-        throw new ValidationError('No active late fee policy is available');
+        throw new ValidationError(LATE_FEE_POLICY_REQUIRED_MESSAGE);
       }
 
       const applyRatePolicy = shouldApplyPolicy({

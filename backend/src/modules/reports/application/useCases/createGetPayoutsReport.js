@@ -12,7 +12,7 @@ const {
  * @returns {object} use case
  */
 const createGetPayoutsReport = ({ reportRepository, paymentRepository }) => async ({ actor, pagination, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can access the payouts report');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al reporte de pagos.');
 
   const { fromDate, toDate, status, paymentType } = filters;
   const dateRange = parseDateRange({ fromDate, toDate });

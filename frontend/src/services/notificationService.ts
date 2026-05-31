@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import type { AppUserLike } from '../constants/appAccess';
+import { tTerm } from '../i18n/terminology';
 import { useInvalidatingMutation } from './crudHooks';
 import { queryKeys } from './queryKeys';
 
@@ -24,16 +25,74 @@ const isAdministrativeRole = (role?: string): boolean => {
   return role === 'admin' || role === 'employee';
 };
 
-const getNotificationTitle = (notification: any) => {
-  if (notification?.title) return notification.title;
+const TECHNICAL_NOTIFICATION_PATTERN = /(?:\b(?:actorId|userId|loanId|customerId|associateId|paymentId|policyId|calculationProfileVersionId|calculationVersionId|policySnapshot|payload|sequelize|constraint|stack|exception|trace)\b|[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}|[{[\]}])/i;
+const TECHNICAL_TITLE_PATTERN = /(?:^|[\s:/-])[A-Z][A-Z0-9_]{2,}(?:$|[\s:/-])/;
+const RAW_ENTITY_REFERENCE_PATTERN = /\b(?:cr[eé]dito|cliente|socio|pago)\s*#\d+\b/i;
 
-  const labels: Record<string, string> = {
-    loan_assignment: 'Asignación de crédito',
-    loan_reminder: 'Recordatorio de cuota',
-    promise_status: 'Estado de compromiso',
-  };
+const isTechnicalNotificationText = (value: string, { title = false } = {}) => {
+  if (TECHNICAL_NOTIFICATION_PATTERN.test(value)) {
+    return true;
+  }
 
-  return labels[String(notification?.type || '')] || 'Notificación';
+  if (RAW_ENTITY_REFERENCE_PATTERN.test(value)) {
+    return true;
+  }
+
+  return title && TECHNICAL_TITLE_PATTERN.test(value);
+};
+
+const notificationTitleFallbackKeys = {
+  loan_assignment: 'notifications.item.title.loanAssignment',
+  loan_reminder: 'notifications.item.title.loanReminder',
+  payment_registered: 'notifications.item.title.paymentRegistered',
+  promise_created: 'notifications.item.title.promiseCreated',
+  promise_status: 'notifications.item.title.promiseStatus',
+} as const;
+
+export const getNotificationTitle = (notification: any) => {
+  const rawTitle = typeof notification?.title === 'string' ? notification.title.trim() : '';
+  const type = String(notification?.type || '');
+  const fallbackKey = notificationTitleFallbackKeys[type as keyof typeof notificationTitleFallbackKeys];
+  const fallback = fallbackKey
+    ? tTerm(fallbackKey)
+    : tTerm('notifications.item.title.generic');
+
+  if (!rawTitle) {
+    return fallback;
+  }
+
+  if (isTechnicalNotificationText(rawTitle, { title: true })) {
+    return fallback;
+  }
+
+  return rawTitle;
+};
+
+const notificationMessageFallbackKeys = {
+  loan_assignment: 'notifications.item.message.loanAssignment',
+  loan_reminder: 'notifications.item.message.loanReminder',
+  payment_registered: 'notifications.item.message.paymentRegistered',
+  promise_created: 'notifications.item.message.promiseCreated',
+  promise_status: 'notifications.item.message.promiseStatus',
+} as const;
+
+export const getNotificationMessage = (notification: any) => {
+  const rawMessage = typeof notification?.message === 'string' ? notification.message.trim() : '';
+  const type = String(notification?.type || '');
+  const fallbackKey = notificationMessageFallbackKeys[type as keyof typeof notificationMessageFallbackKeys];
+  const fallback = fallbackKey
+    ? tTerm(fallbackKey)
+    : tTerm('notifications.item.message.generic');
+
+  if (!rawMessage) {
+    return fallback;
+  }
+
+  if (isTechnicalNotificationText(rawMessage)) {
+    return fallback;
+  }
+
+  return rawMessage;
 };
 
 export const resolveNotificationDestination = (notification: any): string | null => {
@@ -90,6 +149,7 @@ export const resolveNotificationDestinationForUser = (
 const normalizeNotification = (notification: any) => ({
   ...notification,
   title: getNotificationTitle(notification),
+  message: getNotificationMessage(notification),
   read: Boolean(notification?.read ?? notification?.isRead),
   isRead: Boolean(notification?.isRead ?? notification?.read),
   destination: resolveNotificationDestination(notification),

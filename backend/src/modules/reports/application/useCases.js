@@ -26,6 +26,8 @@ const {
 } = require('./reportInternals');
 const { formatOperationalStatus, formatPaymentType } = require('./reportLabels');
 
+const ASSOCIATE_PROFITABILITY_ACCESS_REQUIRED_MESSAGE = 'El acceso a la rentabilidad del socio no está configurado para este usuario.';
+
 const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
   ensureAdmin(actor);
   const recoveredLoans = pagination
@@ -664,7 +666,7 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
 };
 
 const createGetAssociateProfitabilityReport = ({ associateRepository }) => async ({ actor, associateId = null }) => {
-  ensureAdmin(actor, 'Only authorized backoffice users can access profitability reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
 
   const resolveAssociate = async () => {
     return associateRepository.findById(associateId);
@@ -672,7 +674,7 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
 
   const associate = await resolveAssociate();
   if (!associate) {
-    throw new AuthorizationError('Associate access is not configured for this user');
+    throw new AuthorizationError(ASSOCIATE_PROFITABILITY_ACCESS_REQUIRED_MESSAGE);
   }
 
   const [contributions, distributions] = await Promise.all([

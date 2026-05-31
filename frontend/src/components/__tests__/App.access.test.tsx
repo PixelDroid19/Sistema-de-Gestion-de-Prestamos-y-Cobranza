@@ -4,6 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import App from '../../App';
 
+const { mockToaster } = vi.hoisted(() => ({
+  mockToaster: vi.fn(),
+}));
+
 const sessionState = {
   accessToken: 'access-token',
   refreshToken: null as string | null,
@@ -24,7 +28,10 @@ vi.mock('../../store/sessionStore', () => ({
 }));
 
 vi.mock('../../lib/toast', () => ({
-  Toaster: () => null,
+  Toaster: (props: unknown) => {
+    mockToaster(props);
+    return null;
+  },
 }));
 
 vi.mock('../Sidebar', () => ({ default: () => <aside>Menú administrativo</aside> }));
@@ -63,5 +70,17 @@ describe('App administrative access', () => {
     expect(await screen.findByText('Acceso')).toBeInTheDocument();
     expect(screen.queryByText('Perfil administrativo')).not.toBeInTheDocument();
     expect(screen.queryByText('Menú administrativo')).not.toBeInTheDocument();
+  });
+
+  it('preserves translated sentence casing in toast titles', () => {
+    renderApp('/login');
+
+    expect(mockToaster).toHaveBeenCalledWith(expect.objectContaining({
+      options: expect.objectContaining({
+        styles: expect.objectContaining({
+          title: expect.stringContaining('normal-case!'),
+        }),
+      }),
+    }));
   });
 });

@@ -58,13 +58,15 @@ export function AlertsTab({
                       <dd className="mt-1 text-text-primary">{presentation.balanceLabel}</dd>
                     </div>
                     <div>
-                      <dt className="font-semibold uppercase tracking-[0.12em]">Vence</dt>
+                      <dt className="font-semibold uppercase tracking-[0.12em]">{tTerm('creditDetails.alerts.label.dueDate')}</dt>
                       <dd className="mt-1 text-text-primary">{formatDate(alert.dueDate)}</dd>
                     </div>
                   </dl>
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
-                    <span>Creada: {formatDate(alert.createdAt, true)}</span>
-                    {alert.resolvedAt && <span>Resuelta: {formatDate(alert.resolvedAt, true)}</span>}
+                    <span>{tTerm('creditDetails.alerts.createdAt', { date: formatDate(alert.createdAt, true) })}</span>
+                    {alert.resolvedAt && (
+                      <span>{tTerm('creditDetails.alerts.resolvedAt', { date: formatDate(alert.resolvedAt, true) })}</span>
+                    )}
                   </div>
                   {presentation.notes && (
                     <p className="mt-3 rounded-lg bg-bg-base p-3 text-sm leading-6 text-text-secondary whitespace-pre-wrap">{presentation.notes}</p>

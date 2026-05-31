@@ -18,3 +18,9 @@ export const parseReportYearInput = (value: unknown): number | null => {
 
   return year;
 };
+
+/** Calendar-year bounds for report list/export filters (YYYY-MM-DD). */
+export const buildReportYearDateRange = (year: number) => ({
+  fromDate: `${year}-01-01`,
+  toDate: `${year}-12-31`,
+});

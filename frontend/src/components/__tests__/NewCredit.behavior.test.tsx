@@ -10,6 +10,7 @@ const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockUseActiveCreditSimulation = vi.fn();
 const mockUseConfig = vi.fn();
+let mockValidationErrors: Array<{ field: string; message: string }> = [];
 let currentUser = { id: 1, role: 'admin', permissions: ['*'] } as {
   id: number;
   role: 'admin' | 'employee';
@@ -19,6 +20,9 @@ const mockConfigState = {
   ratePolicies: [] as any[],
   lateFeePolicies: [] as any[],
 };
+let mockCustomers: any[] = [
+  { id: 10, name: 'Cliente QA' },
+];
 
 const routeState = {
   calculationInput: {
@@ -50,9 +54,7 @@ vi.mock('../../services/customerService', () => ({
   useCustomers: () => ({
     data: {
       data: {
-        customers: [
-          { id: 10, name: 'Cliente QA' },
-        ],
+        customers: mockCustomers,
       },
     },
   }),
@@ -93,7 +95,7 @@ vi.mock('../../lib/toast', () => ({
 }));
 
 vi.mock('../../services/apiErrors', () => ({
-  extractValidationErrors: () => [],
+  extractValidationErrors: () => mockValidationErrors,
 }));
 
 describe('NewCredit behavior', () => {
@@ -123,6 +125,10 @@ describe('NewCredit behavior', () => {
       },
     ];
     currentUser = { id: 1, role: 'admin', permissions: ['*'] };
+    mockCustomers = [
+      { id: 10, name: 'Cliente QA' },
+    ];
+    mockValidationErrors = [];
     mockUseConfig.mockClear();
     mockUseConfig.mockImplementation(() => ({
       ratePolicies: mockConfigState.ratePolicies,
@@ -235,6 +241,17 @@ describe('NewCredit behavior', () => {
       autoRun: false,
     });
     expect(screen.getByText('Fecha de desembolso')).toBeInTheDocument();
+  });
+
+  it('uses a neutral customer label when the customer record has no display name', () => {
+    mockCustomers = [
+      { id: 10 },
+    ];
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    expect(screen.getByRole('option', { name: 'Cliente · CUS-0010' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /#10/ })).not.toBeInTheDocument();
   });
 
   it('uses an operational fallback for unknown preview installment statuses', () => {
@@ -468,5 +485,23 @@ describe('NewCredit behavior', () => {
         rateSource: 'policy',
       }));
     });
+  });
+
+  it('does not expose raw backend validation messages when credit creation is rejected', async () => {
+    mockValidationErrors = [
+      {
+        field: 'customerId',
+        message: 'customerId must be a numeric borrower id',
+      },
+    ];
+    mockCreateLoan.mockRejectedValueOnce(new Error('validation failed'));
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
+
+    expect(await screen.findByText('Selecciona el cliente que recibirá el crédito.')).toBeInTheDocument();
+    expect(screen.queryByText(/customerId must be/i)).not.toBeInTheDocument();
   });
 });

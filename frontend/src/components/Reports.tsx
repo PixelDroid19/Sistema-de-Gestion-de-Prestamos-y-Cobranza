@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import {
   useReports,
@@ -10,6 +10,7 @@ import {
   useMonthlyCashFlow,
   useDailyCashFlow,
   useCreditHistoryMonthly,
+  useCustomerProfitability,
   exportMonthlyCashFlowExcel,
   exportMonthlyCashFlowPdf,
   useOperatingExpenses,
@@ -25,7 +26,9 @@ import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
 import { getLocalDateInputValue } from '../lib/dateInput';
+import { buildReportYearDateRange } from '../lib/reportYearInput';
 import { useSessionStore } from '../store/sessionStore';
+import { useResolvedPermissionNames } from '../services/permissionsService';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../services/queryKeys';
@@ -35,13 +38,8 @@ import { requestInput } from '../lib/confirmModal';
 import { toast } from '../lib/toast';
 import {
   ActionButton,
-  DataTableSurface,
-  FormField,
   PageHeader,
   PageShell,
-  SelectInput,
-  TextInput,
-  ToolbarSurface,
   ViewTabs,
 } from './shared/Surfaces';
 import DashboardTab from './reports/DashboardTab';
@@ -51,8 +49,21 @@ import ProfitabilityTab from './reports/ProfitabilityTab';
 import PayoutsTab from './reports/PayoutsTab';
 import ScheduleTab from './reports/ScheduleTab';
 import OperatingExpensesTab from './reports/OperatingExpensesTab';
+import ReportsContextualExportModal from './reports/ReportsContextualExportModal';
+import ReportTabExportButton from './reports/ReportTabExportButton';
+import ReportsTabContent from './reports/ReportsTabContent';
+import { ReportTabPanel } from './reports/ReportTabPanel';
+import { ReportDataTableSection } from './reports/ReportDataTableSection';
+import {
+  buildCreditHistoryExportSummary,
+  buildPayoutExportSummary,
+} from './reports/reportExportSummary';
+import {
+  buildContextualExportParams,
+  hasInvalidExportRange,
+  parseOptionalPositiveId,
+} from './reports/reportsExportHelpers';
 import { getLoanStatusLabel } from './credits/creditsHelpers';
-import { getPaymentTypeLabel } from '../constants/paymentTypes';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -81,9 +92,10 @@ export default function Reports() {
   const queryClient = useQueryClient();
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const { user } = useSessionStore();
+  const resolvedPermissions = useResolvedPermissionNames(user);
   const permissionSet = useMemo(
-    () => new Set((user?.permissions || []).map((permission) => permission.toUpperCase())),
-    [user?.permissions],
+    () => new Set(resolvedPermissions.map((permission) => permission.toUpperCase())),
+    [resolvedPermissions],
   );
   const canAccessPermission = (permission: string) => (
     user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission)
@@ -97,14 +109,13 @@ export default function Reports() {
     monthlyPerformance,
     statusBreakdown,
     overdueLoans,
-    profitabilityItems,
-    isLoading,
+    isLoading: isReportsLoading,
     isError,
     error,
   } = useReports();
 
   // Payouts report state
-  const [payoutFilters, setPayoutFilters] = useState<{ fromDate?: string; toDate?: string; paymentType?: string }>({});
+  const [payoutFilters, setPayoutFilters] = useState<{ fromDate?: string; toDate?: string; paymentType?: string; status?: string }>({});
   const [payoutPage, setPayoutPage] = useState(1);
   const [payoutPageSize, setPayoutPageSize] = useState(20);
   const { payouts, summary: payoutSummary, pagination: payoutPagination, isLoading: isPayoutsLoading } = usePayoutsReport(payoutFilters, payoutPage, payoutPageSize);
@@ -134,6 +145,19 @@ export default function Reports() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'cashflow' | 'creditHistory' | 'outstanding' | 'profitability' | 'payouts' | 'schedule' | 'expenses'>('dashboard');
   const [isExporting, setIsExporting] = useState(false);
   const [analyticsYear, setAnalyticsYear] = useState<number>(new Date().getFullYear());
+  const profitabilityDateRange = useMemo(
+    () => buildReportYearDateRange(analyticsYear),
+    [analyticsYear],
+  );
+  const [profitabilityExportRange, setProfitabilityExportRange] = useState(profitabilityDateRange);
+  const {
+    items: profitabilityItems,
+    isLoading: isProfitabilityLoading,
+  } = useCustomerProfitability(profitabilityDateRange);
+
+  useEffect(() => {
+    setProfitabilityExportRange(profitabilityDateRange);
+  }, [profitabilityDateRange]);
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
   const [cashFlowRange, setCashFlowRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [dailyCashFlowDate, setDailyCashFlowDate] = useState<string>(() => getLocalDateInputValue());
@@ -153,6 +177,7 @@ export default function Reports() {
   const [reportCustomerIdFilter, setReportCustomerIdFilter] = useState<string>('');
   const [reportLoanIdFilter, setReportLoanIdFilter] = useState<string>('');
   const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
+  const [contextualExportOpen, setContextualExportOpen] = useState(false);
 
   const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
   const cashFlowFilters = useMemo(() => ({
@@ -196,7 +221,19 @@ export default function Reports() {
   };
   const monthlyData = monthlyPerformance ?? [];
   const statusData = statusBreakdown ?? [];
-  const profitabilityData = profitabilityItems ?? [];
+  const profitabilityData = profitabilityItems;
+  const isLoading = isReportsLoading || isProfitabilityLoading;
+
+  const updateProfitabilityExportRange = (key: 'fromDate' | 'toDate', value: string) => {
+    if (key === 'fromDate' && value && profitabilityExportRange.toDate && value > profitabilityExportRange.toDate) {
+      return;
+    }
+    if (key === 'toDate' && value && profitabilityExportRange.fromDate && value < profitabilityExportRange.fromDate) {
+      return;
+    }
+
+    setProfitabilityExportRange((prev) => ({ ...prev, [key]: value }));
+  };
 
   // ─── Advanced analytics ───────────────────────────────────────────────────
 
@@ -240,7 +277,7 @@ export default function Reports() {
   // ─── Export handlers ──────────────────────────────────────────────────────
 
   const reportExportGuard = resolveOperationalGuard('credit.report.download', {
-    role: user?.role, permissions: user?.permissions,
+    role: user?.role, permissions: resolvedPermissions,
   });
 
   const updateReportRange = (key: 'fromDate' | 'toDate', value: string) => {
@@ -290,72 +327,134 @@ export default function Reports() {
     setIsExporting(true);
     await executeGuardedAction({
       action: 'credit.report.download',
-      context: { role: user?.role, permissions: user?.permissions },
+      context: { role: user?.role, permissions: resolvedPermissions },
       run: async () => { await exportDashboardSummary(); },
       successMessage: tTerm('reports.toast.export.success'),
     });
     setIsExporting(false);
   };
 
-  const handleExportContextualReport = async () => {
-    const effectiveReportType = activeTab === 'profitability' ? 'profitability' : reportType;
+  const contextualExportSuccessMessage = (type: typeof reportType) => (
+    type === 'credits'
+      ? tTerm('reports.toast.contextual.credits')
+      : type === 'profitability'
+        ? tTerm('reports.toast.contextual.profitability')
+        : type === 'associates'
+          ? tTerm('reports.toast.contextual.associates')
+          : tTerm('reports.toast.contextual.payouts')
+  );
+
+  const runContextualExport = async (
+    type: typeof reportType,
+    params: ReturnType<typeof buildContextualExportParams>,
+  ): Promise<boolean> => {
     setIsExporting(true);
-    await executeGuardedAction({
+    const success = await executeGuardedAction({
       action: 'credit.report.download',
-      context: { role: user?.role, permissions: user?.permissions },
-      run: async () => {
-        await exportContextualReport(effectiveReportType, {
-          fromDate: reportRange.fromDate || undefined,
-          toDate: reportRange.toDate || undefined,
-          status: (effectiveReportType === 'credits' || effectiveReportType === 'associates' || effectiveReportType === 'payouts') && reportStatusFilter
-            ? reportStatusFilter
-            : undefined,
-          format: effectiveReportType === 'credits' || effectiveReportType === 'associates' || effectiveReportType === 'payouts'
-            ? reportFormat
-            : undefined,
-          paymentType: effectiveReportType === 'payouts' && reportPaymentTypeFilter ? reportPaymentTypeFilter : undefined,
-          associateId: effectiveReportType === 'associates' ? reportAssociateId : undefined,
-          customerId: effectiveReportType === 'credits' || effectiveReportType === 'payouts' ? reportCustomerId : undefined,
-          loanId: effectiveReportType === 'credits' || effectiveReportType === 'payouts' ? reportLoanId : undefined,
-        });
-      },
-      successMessage: effectiveReportType === 'credits'
-        ? tTerm('reports.toast.contextual.credits')
-        : effectiveReportType === 'profitability'
-          ? tTerm('reports.toast.contextual.profitability')
-          : effectiveReportType === 'associates'
-            ? tTerm('reports.toast.contextual.associates')
-            : tTerm('reports.toast.contextual.payouts'),
+      context: { role: user?.role, permissions: resolvedPermissions },
+      run: async () => { await exportContextualReport(type, params); },
+      successMessage: contextualExportSuccessMessage(type),
     });
     setIsExporting(false);
+    return success;
+  };
+
+  const handleExportContextualReport = async (): Promise<boolean> => {
+    if (hasInvalidExportRange(reportRange.fromDate, reportRange.toDate)
+      || hasInvalidAssociateId
+      || hasInvalidReportCustomerId
+      || hasInvalidReportLoanId) {
+      return false;
+    }
+
+    return runContextualExport(
+      reportType,
+      buildContextualExportParams(reportType, {
+        fromDate: reportRange.fromDate,
+        toDate: reportRange.toDate,
+        status: reportStatusFilter,
+        format: reportFormat,
+        paymentType: reportPaymentTypeFilter,
+        associateId: reportAssociateId,
+        customerId: reportCustomerId,
+        loanId: reportLoanId,
+      }),
+    );
+  };
+
+  const creditHistoryExportBlocked = hasInvalidExportRange(
+    creditHistoryFilters.startDate,
+    creditHistoryFilters.endDate,
+  ) || !reportExportGuard.executable;
+
+  const handleExportCreditHistory = async (): Promise<boolean> => {
+    if (creditHistoryExportBlocked) {
+      return false;
+    }
+
+    return runContextualExport(
+      'credits',
+      buildContextualExportParams('credits', {
+        fromDate: creditHistoryFilters.startDate,
+        toDate: creditHistoryFilters.endDate,
+        status: creditHistoryFilters.status,
+        format: reportFormat,
+        customerId: parseOptionalPositiveId(creditHistoryFilters.customerId),
+        loanId: parseOptionalPositiveId(creditHistoryFilters.loanId),
+      }),
+    );
+  };
+
+  const payoutExportBlocked = hasInvalidExportRange(
+    payoutFilters.fromDate || '',
+    payoutFilters.toDate || '',
+  ) || !reportExportGuard.executable;
+
+  const handleExportPayouts = async (): Promise<boolean> => {
+    if (payoutExportBlocked) {
+      return false;
+    }
+
+    return runContextualExport(
+      'payouts',
+      buildContextualExportParams('payouts', {
+        fromDate: payoutFilters.fromDate,
+        toDate: payoutFilters.toDate,
+        status: payoutFilters.status,
+        format: reportFormat,
+        paymentType: payoutFilters.paymentType,
+      }),
+    );
+  };
+
+  const profitabilityExportBlocked = hasInvalidExportRange(
+    profitabilityExportRange.fromDate,
+    profitabilityExportRange.toDate,
+  ) || !reportExportGuard.executable;
+
+  const handleExportProfitability = async (): Promise<boolean> => {
+    if (profitabilityExportBlocked) {
+      return false;
+    }
+
+    return runContextualExport(
+      'profitability',
+      buildContextualExportParams('profitability', {
+        fromDate: profitabilityExportRange.fromDate,
+        toDate: profitabilityExportRange.toDate,
+      }),
+    );
   };
 
   const handleReportsTabChange = (tabId: string) => {
-    const nextTab = tabId as typeof activeTab;
-    setActiveTab(nextTab);
-    if (nextTab === 'profitability') {
-      setReportType('profitability');
-    } else if (reportType === 'profitability') {
-      setReportType('credits');
-    }
+    setActiveTab(tabId as typeof activeTab);
   };
 
-  const updateNumericTextFilter = (
-    value: string,
-    setter: Dispatch<SetStateAction<string>>,
-  ) => {
-    if (!/^\d*$/.test(value.trim())) {
-      return;
-    }
-
-    setter(value);
-  };
-
-  const handleExportCashFlow = async (format: 'excel' | 'pdf') => {
+  const handleExportCashFlow = async (format: 'excel' | 'pdf'): Promise<boolean> => {
     setIsCashFlowExporting(format);
-    await executeGuardedAction({
+    const success = await executeGuardedAction({
       action: 'credit.report.download',
-      context: { role: user?.role, permissions: user?.permissions },
+      context: { role: user?.role, permissions: resolvedPermissions },
       run: async () => {
         if (format === 'excel') { await exportMonthlyCashFlowExcel(cashFlowYear, cashFlowFilters); return; }
         await exportMonthlyCashFlowPdf(cashFlowYear, cashFlowFilters);
@@ -363,6 +462,7 @@ export default function Reports() {
       successMessage: format === 'excel' ? tTerm('reports.toast.cashflow.excel') : tTerm('reports.toast.cashflow.pdf'),
     });
     setIsCashFlowExporting(null);
+    return success;
   };
 
   const invalidateFinancialViews = async () => {
@@ -416,20 +516,18 @@ export default function Reports() {
     }
   };
 
-  const handleExportOperatingExpenses = async (format: OperatingExpenseExportFormat) => {
+  const handleExportOperatingExpenses = async (format: OperatingExpenseExportFormat): Promise<boolean> => {
     setExportingExpensesFormat(format);
-    try {
-      await exportOperatingExpensesReport(format, expenseFilters);
-      toast.success({
-        description: format === 'pdf'
-          ? tTerm('reports.expenses.toast.exportPdf')
-          : tTerm('reports.expenses.toast.exportExcel'),
-      });
-    } catch (exportError) {
-      toast.apiErrorSafe(exportError, { domain: 'reports', action: 'generic' });
-    } finally {
-      setExportingExpensesFormat(null);
-    }
+    const success = await executeGuardedAction({
+      action: 'credit.report.download',
+      context: { role: user?.role, permissions: resolvedPermissions },
+      run: async () => { await exportOperatingExpensesReport(format, expenseFilters); },
+      successMessage: format === 'pdf'
+        ? tTerm('reports.expenses.toast.exportPdf')
+        : tTerm('reports.expenses.toast.exportExcel'),
+    });
+    setExportingExpensesFormat(null);
+    return success;
   };
 
   const reportTabs = useMemo(() => [
@@ -479,213 +577,82 @@ export default function Reports() {
         subtitle={tTerm('reports.module.subtitle')}
         guideKey="reports"
         tourId="reports-header"
-        actions={reportExportGuard.visible ? (
-          <ActionButton
-            onClick={handleExportReport}
-            disabled={isExporting || !reportExportGuard.executable}
-            title={reportExportGuard.executable ? tTerm('reports.cta.exportDashboard') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-            icon={<Download size={16} />}
-          >
-            {isExporting ? tTerm('credits.cta.exporting') : tTerm('reports.cta.export')}
-          </ActionButton>
-        ) : null}
       />
-
-      {reportExportGuard.visible && (
-        <ToolbarSurface as="form" className="settings-config-form" aria-label={tTerm('reports.export.aria')}>
-          <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.9fr)_minmax(10rem,0.9fr)_max-content_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)]">
-            <FormField label={tTerm('reports.export.type')}>
-              <SelectInput
-                id="report-type"
-                value={reportType}
-                onChange={(event) => {
-                  setReportType(event.target.value as 'credits' | 'payouts' | 'profitability' | 'associates');
-                  setReportStatusFilter('');
-                  setReportPaymentTypeFilter('');
-                  setReportAssociateIdFilter('');
-                  setReportCustomerIdFilter('');
-                  setReportLoanIdFilter('');
-                }}
-              >
-                <option value="credits">{tTerm('reports.export.type.credits')}</option>
-                <option value="profitability">{tTerm('reports.export.type.profitability')}</option>
-                <option value="associates">{tTerm('reports.export.type.associates')}</option>
-                <option value="payouts">{tTerm('reports.export.type.payouts')}</option>
-              </SelectInput>
-            </FormField>
-            <FormField label={tTerm('reports.export.from')}>
-              <TextInput
-                id="report-from"
-                type="date"
-                value={reportRange.fromDate}
-                onChange={(event) => updateReportRange('fromDate', event.target.value)}
-              />
-            </FormField>
-            <FormField label={tTerm('reports.export.to')}>
-              <TextInput
-                id="report-to"
-                type="date"
-                value={reportRange.toDate}
-                onChange={(event) => updateReportRange('toDate', event.target.value)}
-              />
-            </FormField>
-            <div className="flex min-w-0 flex-col">
-              <span className="form-field-label invisible select-none" aria-hidden="true">
-                {tTerm('reports.cta.export')}
-              </span>
-              <ActionButton
-                variant="primary"
-                onClick={handleExportContextualReport}
-                disabled={isExporting || hasInvalidRange || hasInvalidAssociateId || hasInvalidReportCustomerId || hasInvalidReportLoanId || !reportExportGuard.executable}
-                title={hasInvalidRange
-                  ? tTerm('reports.export.invalidRange')
-                  : hasInvalidAssociateId
-                    ? tTerm('reports.export.invalidAssociate')
-                    : hasInvalidReportCustomerId
-                      ? tTerm('reports.export.invalidCustomer')
-                      : hasInvalidReportLoanId
-                        ? tTerm('reports.export.invalidLoan')
-                        : (reportExportGuard.executable ? tTerm('reports.cta.exportContextual') : (reportExportGuard.reason || tTerm('credits.action.unavailable')))}
-                icon={<Download size={16} />}
-                className="h-10 min-h-10 px-5"
-              >
-                {isExporting
-                  ? tTerm('credits.cta.exporting')
-                  : reportType === 'credits'
-                    ? tTerm('reports.cta.exportCredits')
-                    : reportType === 'profitability'
-                      ? tTerm('reports.cta.exportProfitability')
-                      : reportType === 'associates'
-                        ? tTerm('reports.cta.exportAssociates')
-                        : tTerm('reports.cta.exportPayouts')}
-              </ActionButton>
-            </div>
-            {(reportType === 'credits' || reportType === 'associates') && (
-              <>
-                <FormField label={tTerm('reports.export.status')}>
-                  <SelectInput
-                    id="report-status"
-                    value={reportStatusFilter}
-                    onChange={(event) => setReportStatusFilter(event.target.value)}
-                  >
-                    <option value="">{tTerm('credits.filter.all')}</option>
-                    {reportType === 'credits' ? (
-                      <>
-                        <option value="approved">{tTerm('credits.status.approved')}</option>
-                        <option value="active">{tTerm('common.status.active')}</option>
-                        <option value="overdue">{tTerm('schedule.status.overdue')}</option>
-                        <option value="defaulted">{tTerm('credits.status.defaulted')}</option>
-                        <option value="closed">{tTerm('common.status.closed')}</option>
-                        <option value="paid">{tTerm('schedule.status.paid')}</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="active">{tTerm('common.status.active')}</option>
-                        <option value="inactive">{tTerm('common.status.inactive')}</option>
-                      </>
-                    )}
-                  </SelectInput>
-                </FormField>
-              {reportType === 'associates' && (
-                <FormField label={tTerm('reports.export.associate')}>
-                  <TextInput
-                    id="report-associate"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder={tTerm('reports.export.associate.placeholder')}
-                    value={reportAssociateIdFilter}
-                    onChange={(event) => updateNumericTextFilter(event.target.value, setReportAssociateIdFilter)}
-                  />
-                </FormField>
-              )}
-              </>
-            )}
-            {(reportType === 'credits' || reportType === 'payouts') && (
-              <>
-                <FormField label={tTerm('reports.export.customer')}>
-                  <TextInput
-                    id="report-customer"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={reportCustomerIdFilter}
-                    onChange={(event) => updateNumericTextFilter(event.target.value, setReportCustomerIdFilter)}
-                  />
-                </FormField>
-                <FormField label={tTerm('reports.export.loan')}>
-                  <TextInput
-                    id="report-loan"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={reportLoanIdFilter}
-                    onChange={(event) => updateNumericTextFilter(event.target.value, setReportLoanIdFilter)}
-                  />
-                </FormField>
-              </>
-            )}
-            {(reportType === 'credits' || reportType === 'associates' || reportType === 'payouts') && (
-              <FormField label={tTerm('reports.export.format')}>
-                <SelectInput
-                  id="report-format"
-                  value={reportFormat}
-                  onChange={(event) => setReportFormat(event.target.value as 'xlsx' | 'pdf')}
-                >
-                  <option value="xlsx">Excel (xlsx)</option>
-                  <option value="pdf">PDF</option>
-                </SelectInput>
-              </FormField>
-            )}
-            {reportType === 'payouts' && (
-              <>
-                <FormField label={tTerm('reports.payouts.filter.paymentType')}>
-                  <SelectInput
-                    id="report-payment-type"
-                    value={reportPaymentTypeFilter}
-                    onChange={(event) => setReportPaymentTypeFilter(event.target.value)}
-                  >
-                    <option value="">{tTerm('credits.filter.all')}</option>
-                    <option value="installment">{getPaymentTypeLabel('installment')}</option>
-                    <option value="partial">{getPaymentTypeLabel('partial')}</option>
-                    <option value="capital">{getPaymentTypeLabel('capital')}</option>
-                    <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
-                  </SelectInput>
-                </FormField>
-                <FormField label={tTerm('reports.payouts.filter.status')}>
-                  <SelectInput
-                    id="report-payout-status"
-                    value={reportStatusFilter}
-                    onChange={(event) => setReportStatusFilter(event.target.value)}
-                  >
-                    <option value="">{tTerm('common.status.completed')}</option>
-                    <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
-                  </SelectInput>
-                </FormField>
-              </>
-            )}
-          </div>
-          {hasInvalidRange && (
-            <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidRange')}</p>
-          )}
-          {hasInvalidAssociateId && (
-            <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidAssociate')}</p>
-          )}
-          {hasInvalidReportCustomerId && (
-            <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidCustomer')}</p>
-          )}
-          {hasInvalidReportLoanId && (
-            <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidLoan')}</p>
-          )}
-        </ToolbarSurface>
-      )}
 
       <ViewTabs
         data-tour="reports-tabs"
         activeTab={activeTab}
         onChange={handleReportsTabChange}
         tabs={reportTabs}
+        className="reports-page-tabs"
+        ariaLabel={tTerm('reports.tabs.aria')}
       />
 
+      {contextualExportOpen && reportExportGuard.visible && (
+        <ReportsContextualExportModal
+          onClose={() => setContextualExportOpen(false)}
+          reportType={reportType}
+          onReportTypeChange={setReportType}
+          reportRange={reportRange}
+          onReportRangeChange={updateReportRange}
+          reportStatusFilter={reportStatusFilter}
+          onReportStatusFilterChange={setReportStatusFilter}
+          reportPaymentTypeFilter={reportPaymentTypeFilter}
+          onReportPaymentTypeFilterChange={setReportPaymentTypeFilter}
+          reportAssociateIdFilter={reportAssociateIdFilter}
+          onReportAssociateIdFilterChange={setReportAssociateIdFilter}
+          reportCustomerIdFilter={reportCustomerIdFilter}
+          onReportCustomerIdFilterChange={setReportCustomerIdFilter}
+          reportLoanIdFilter={reportLoanIdFilter}
+          onReportLoanIdFilterChange={setReportLoanIdFilter}
+          reportFormat={reportFormat}
+          onReportFormatChange={setReportFormat}
+          isExporting={isExporting}
+          hasInvalidRange={hasInvalidRange}
+          hasInvalidAssociateId={hasInvalidAssociateId}
+          hasInvalidReportCustomerId={hasInvalidReportCustomerId}
+          hasInvalidReportLoanId={hasInvalidReportLoanId}
+          exportExecutable={reportExportGuard.executable}
+          exportDisabledReason={reportExportGuard.reason}
+          onExport={async () => {
+            const success = await handleExportContextualReport();
+            if (success) {
+              setContextualExportOpen(false);
+            }
+            return success;
+          }}
+        />
+      )}
+
+      <ReportsTabContent>
       {activeTab === 'dashboard' && (
-        <DashboardTab metrics={metrics} monthlyData={monthlyData} statusData={statusData} />
+        <DashboardTab
+          metrics={metrics}
+          monthlyData={monthlyData}
+          statusData={statusData}
+          headerActions={reportExportGuard.visible ? (
+            <>
+              <ActionButton
+                variant="secondary"
+                onClick={() => { void handleExportReport(); }}
+                disabled={isExporting || !reportExportGuard.executable}
+                title={reportExportGuard.executable ? tTerm('reports.cta.exportDashboard') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+                icon={<Download size={16} />}
+              >
+                {isExporting ? tTerm('credits.cta.exporting') : tTerm('reports.cta.exportSummary')}
+              </ActionButton>
+              <ActionButton
+                variant="secondary"
+                onClick={() => setContextualExportOpen(true)}
+                disabled={!reportExportGuard.executable}
+                title={reportExportGuard.executable ? tTerm('reports.cta.openExports') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+                icon={<Download size={16} />}
+              >
+                {tTerm('reports.cta.openExports')}
+              </ActionButton>
+            </>
+          ) : null}
+        />
       )}
 
       {activeTab === 'cashflow' && (
@@ -712,14 +679,32 @@ export default function Reports() {
           onFiltersChange={setCreditHistoryFilters}
           data={creditHistoryData}
           isLoading={isCreditHistoryLoading}
+          exportActions={reportExportGuard.visible ? (
+            <ReportTabExportButton
+              modalTitle={tTerm('reports.export.tab.creditHistory.title')}
+              modalSubtitle={tTerm('reports.export.tab.creditHistory.subtitle')}
+              summary={buildCreditHistoryExportSummary(creditHistoryFilters)}
+              exportLabel={tTerm('reports.cta.exportCredits')}
+              format={reportFormat}
+              onFormatChange={setReportFormat}
+              isExporting={isExporting}
+              disabled={creditHistoryExportBlocked}
+              disabledTitle={creditHistoryExportBlocked && hasInvalidExportRange(creditHistoryFilters.startDate, creditHistoryFilters.endDate)
+                ? tTerm('reports.export.invalidRange')
+                : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+              onExport={handleExportCreditHistory}
+            />
+          ) : null}
         />
       )}
 
       {activeTab === 'outstanding' && (
-        <DataTableSurface>
-          <div className="px-4 py-4 sm:px-5">
-            <h3 className="font-medium">{tTerm('reports.outstanding.title')}</h3>
-          </div>
+        <div className="report-tab-layout">
+          <ReportTabPanel
+            title={tTerm('reports.outstanding.title')}
+            subtitle={tTerm('reports.outstanding.subtitle')}
+          />
+          <ReportDataTableSection>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead>
@@ -747,7 +732,8 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
-        </DataTableSurface>
+          </ReportDataTableSection>
+        </div>
       )}
 
       {activeTab === 'profitability' && (
@@ -757,6 +743,28 @@ export default function Reports() {
           onAnalyticsYearChange={setAnalyticsYear}
           advancedMetrics={advancedMetrics}
           advancedTrendSeries={advancedTrendSeries}
+          exportActions={reportExportGuard.visible ? (
+            <ReportTabExportButton
+              modalTitle={tTerm('reports.export.tab.profitability.title')}
+              modalSubtitle={tTerm('reports.export.tab.profitability.subtitle')}
+              exportLabel={tTerm('reports.cta.exportProfitability')}
+              format={reportFormat}
+              onFormatChange={setReportFormat}
+              showFormat={false}
+              showRangeFields
+              range={profitabilityExportRange}
+              onRangeChange={updateProfitabilityExportRange}
+              isExporting={isExporting}
+              disabled={profitabilityExportBlocked}
+              disabledTitle={profitabilityExportBlocked && hasInvalidExportRange(
+                profitabilityExportRange.fromDate,
+                profitabilityExportRange.toDate,
+              )
+                ? tTerm('reports.export.invalidRange')
+                : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+              onExport={handleExportProfitability}
+            />
+          ) : null}
         />
       )}
 
@@ -772,6 +780,22 @@ export default function Reports() {
           payoutSummary={payoutSummary}
           payoutPagination={payoutPagination}
           isPayoutsLoading={isPayoutsLoading}
+          exportActions={reportExportGuard.visible ? (
+            <ReportTabExportButton
+              modalTitle={tTerm('reports.export.tab.payouts.title')}
+              modalSubtitle={tTerm('reports.export.tab.payouts.subtitle')}
+              summary={buildPayoutExportSummary(payoutFilters)}
+              exportLabel={tTerm('reports.cta.exportPayouts')}
+              format={reportFormat}
+              onFormatChange={setReportFormat}
+              isExporting={isExporting}
+              disabled={payoutExportBlocked}
+              disabledTitle={payoutExportBlocked && hasInvalidExportRange(payoutFilters.fromDate || '', payoutFilters.toDate || '')
+                ? tTerm('reports.export.invalidRange')
+                : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+              onExport={handleExportPayouts}
+            />
+          ) : null}
         />
       )}
 
@@ -807,6 +831,7 @@ export default function Reports() {
           onRefetch={() => { void refetchSchedule(); }}
         />
       )}
+      </ReportsTabContent>
     </PageShell>
   );
 }

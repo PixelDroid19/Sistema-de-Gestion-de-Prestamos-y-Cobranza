@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Filter, RotateCcw, Search } from 'lucide-react';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '../types/audit';
 import { getAuditActionLabel, getAuditModuleLabel, normalizeAuditEntityTypeInput } from '../lib/auditPresentation';
+import { tTerm } from '../i18n/terminology';
 import { ActionButton, FormField, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 
 export interface FilterValues {
@@ -67,38 +68,39 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
   return (
     <ToolbarSurface as="form" onSubmit={handleSubmit} className="audit-filter-surface">
       <div className="grid w-full grid-cols-1 gap-3 xl:grid-cols-[minmax(280px,1.35fr)_minmax(170px,0.65fr)_minmax(190px,0.75fr)]">
-        <FormField label="Buscar evento" helper="Útil para seguir el ciclo completo de un crédito, pago o usuario.">
+        <FormField label={tTerm('audit.filters.search.label')} helper={tTerm('audit.filters.search.helper')}>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" />
             <TextInput
               id="audit-filter-entity-id"
+              aria-label={tTerm('audit.filters.search.label')}
               type="text"
               value={filters.entityId}
               onChange={(e) => handleChange('entityId', e.target.value)}
-              placeholder="ID de entidad, crédito, pago o recurso afectado"
+              placeholder={tTerm('audit.filters.search.placeholder')}
               className="pl-9"
             />
           </div>
         </FormField>
 
-        <FormField label="IP origen" helper="Filtra toda actividad registrada por una IP.">
+        <FormField label={tTerm('audit.filters.ip.label')} helper={tTerm('audit.filters.ip.helper')}>
           <TextInput
             id="audit-filter-ip"
             type="text"
             value={filters.ip}
             onChange={(e) => handleChange('ip', e.target.value)}
-            placeholder="Ej: 190.12.44"
+            placeholder={tTerm('audit.filters.ip.placeholder')}
             className="font-mono"
           />
         </FormField>
 
-        <FormField label="Servicio">
+        <FormField label={tTerm('audit.filters.service.label')}>
           <SelectInput
             id="audit-filter-module"
             value={filters.module}
             onChange={(e) => handleChange('module', e.target.value)}
           >
-            <option value="">Todos</option>
+            <option value="">{tTerm('audit.filters.service.all')}</option>
             {AUDIT_MODULES.map((mod) => (
               <option key={mod} value={mod}>
                 {getAuditModuleLabel(mod)}
@@ -109,13 +111,13 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
       </div>
 
       <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(160px,0.7fr)_minmax(140px,0.6fr)_minmax(180px,0.75fr)_minmax(300px,1.25fr)]">
-        <FormField label="Acción">
+        <FormField label={tTerm('audit.filters.action.label')}>
           <SelectInput
             id="audit-filter-action"
             value={filters.action}
             onChange={(e) => handleChange('action', e.target.value)}
           >
-            <option value="">Todas las acciones</option>
+            <option value="">{tTerm('audit.filters.action.all')}</option>
             {AUDIT_ACTIONS.map((action) => (
               <option key={action} value={action}>
                 {getAuditActionLabel(action)}
@@ -124,39 +126,39 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
           </SelectInput>
         </FormField>
 
-        <FormField label="ID usuario">
+        <FormField label={tTerm('audit.filters.user.label')}>
           <TextInput
             id="audit-filter-user-id"
             type="text"
             value={filters.userId}
             onChange={(e) => handleChange('userId', e.target.value)}
-            placeholder="Usuario"
+            placeholder={tTerm('audit.filters.user.placeholder')}
           />
         </FormField>
 
-        <FormField label="Tipo de entidad">
+        <FormField label={tTerm('audit.filters.entityType.label')}>
           <TextInput
             id="audit-filter-entity-type"
             type="text"
             value={filters.entityType}
             onChange={(e) => handleChange('entityType', e.target.value)}
-            placeholder="Crédito, usuario o pago"
+            placeholder={tTerm('audit.filters.entityType.placeholder')}
           />
         </FormField>
 
-        <FormField label="Rango de fechas">
+        <FormField label={tTerm('audit.filters.dateRange.label')}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <TextInput
               type="date"
               value={filters.dateFrom}
               onChange={(e) => handleChange('dateFrom', e.target.value)}
-              aria-label="Fecha desde"
+              aria-label={tTerm('audit.filters.dateRange.from')}
             />
             <TextInput
               type="date"
               value={filters.dateTo}
               onChange={(e) => handleChange('dateTo', e.target.value)}
-              aria-label="Fecha hasta"
+              aria-label={tTerm('audit.filters.dateRange.to')}
             />
           </div>
         </FormField>
@@ -169,14 +171,14 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
           variant="ghost"
           icon={<RotateCcw size={16} />}
         >
-          Limpiar
+          {tTerm('audit.filters.action.reset')}
         </ActionButton>
         <ActionButton
           type="submit"
           variant="primary"
           icon={<Filter size={16} />}
         >
-          Aplicar filtros
+          {tTerm('audit.filters.action.apply')}
         </ActionButton>
       </div>
     </ToolbarSurface>

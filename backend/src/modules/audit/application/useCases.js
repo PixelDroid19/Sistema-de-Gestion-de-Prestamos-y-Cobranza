@@ -5,6 +5,8 @@ const {
   normalizeAuditModule,
 } = require('@/modules/audit/domain/services/AuditService');
 
+const INVALID_AUDIT_FILTER_MESSAGE = 'Filtro de auditoría inválido.';
+
 /**
  * Create the use case for retrieving audit logs with filtering and pagination.
  * @param {{ auditService: object }} dependencies
@@ -31,19 +33,19 @@ const createGetAuditLogs = ({ auditService }) => async ({ filters = {} }) => {
   const normalizedModule = module ? normalizeAuditModule(module) : undefined;
 
   if (normalizedAction && !AUDIT_ACTIONS.includes(normalizedAction)) {
-    throw new ValidationError(`Invalid action. Valid actions: ${AUDIT_ACTIONS.join(', ')}`);
+    throw new ValidationError(INVALID_AUDIT_FILTER_MESSAGE);
   }
 
   if (normalizedModule && !AUDIT_MODULES.includes(normalizedModule)) {
-    throw new ValidationError(`Invalid module. Valid modules: ${AUDIT_MODULES.join(', ')}`);
+    throw new ValidationError(INVALID_AUDIT_FILTER_MESSAGE);
   }
 
   if (category && !AUDIT_CATEGORIES.includes(category)) {
-    throw new ValidationError(`Invalid category. Valid categories: ${AUDIT_CATEGORIES.join(', ')}`);
+    throw new ValidationError(INVALID_AUDIT_FILTER_MESSAGE);
   }
 
   if (severity && !AUDIT_SEVERITIES.includes(severity)) {
-    throw new ValidationError(`Invalid severity. Valid severities: ${AUDIT_SEVERITIES.join(', ')}`);
+    throw new ValidationError(INVALID_AUDIT_FILTER_MESSAGE);
   }
 
   const limit = Math.min(Number(pageSize) || 25, 100);

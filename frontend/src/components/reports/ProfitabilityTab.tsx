@@ -1,4 +1,4 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { AlertCircle, CalendarClock, TrendingUp } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
@@ -6,13 +6,14 @@ import { tTerm } from '../../i18n/terminology';
 import { parseReportYearInput } from '../../lib/reportYearInput';
 import MeasuredChart from '../shared/MeasuredChart';
 import {
-  DataTableSurface,
   EmptyState,
   FormField,
-  InsightStrip,
   SectionSurface,
   TextInput,
 } from '../shared/Surfaces';
+import { ReportDataTableSection } from './ReportDataTableSection';
+import { ReportMetricsSection } from './ReportMetricsSection';
+import { ReportTabPanel } from './ReportTabPanel';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -22,6 +23,7 @@ type ProfitabilityTabProps = {
   onAnalyticsYearChange: (year: number) => void;
   advancedMetrics: { collectionEfficiency: number; delinquencyTrend: number; projectedCollections: number };
   advancedTrendSeries: any[];
+  exportActions?: ReactNode;
 };
 
 export default function ProfitabilityTab({
@@ -30,6 +32,7 @@ export default function ProfitabilityTab({
   onAnalyticsYearChange,
   advancedMetrics,
   advancedTrendSeries,
+  exportActions,
 }: ProfitabilityTabProps) {
   const handleYearChange = (value: string) => {
     const parsedYear = parseReportYearInput(value);
@@ -39,18 +42,24 @@ export default function ProfitabilityTab({
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <DataTableSurface>
-        <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
-          <h3 className="font-medium">{tTerm('reports.profitability.title')}</h3>
-          <FormField label={tTerm('reports.profitability.year')} className="md:w-36">
+    <div className="report-tab-layout">
+      <ReportTabPanel
+        title={tTerm('reports.profitability.title')}
+        subtitle={tTerm('reports.profitability.subtitle')}
+        headerActions={exportActions}
+        filterColumns={2}
+        filters={(
+          <FormField label={tTerm('reports.profitability.year')}>
             <TextInput
               type="number"
               value={analyticsYear}
               onChange={(event) => handleYearChange(event.target.value)}
             />
           </FormField>
-        </div>
+        )}
+      />
+
+      <ReportDataTableSection title={tTerm('reports.profitability.table.title')}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
@@ -80,11 +89,11 @@ export default function ProfitabilityTab({
             </tbody>
           </table>
         </div>
-      </DataTableSurface>
+      </ReportDataTableSection>
 
-      <InsightStrip
-        aria-label={tTerm('reports.profitability.summary.aria')}
-        items={[
+      <ReportMetricsSection
+        primaryAriaLabel={tTerm('reports.profitability.summary.aria')}
+        primaryItems={[
           {
             id: 'profitability-efficiency',
             label: tTerm('reports.profitability.summary.collectionEfficiency.label'),
@@ -117,7 +126,14 @@ export default function ProfitabilityTab({
           <div className="h-72 min-w-0">
             <MeasuredChart className="h-full min-w-0" minHeight={288}>
               {({ width, height }) => (
-                <LineChart width={width} height={height} data={advancedTrendSeries}>
+                <LineChart
+                  accessibilityLayer={false}
+                  role="img"
+                  aria-label={tTerm('reports.profitability.trend.title')}
+                  width={width}
+                  height={height}
+                  data={advancedTrendSeries}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
                   <XAxis dataKey="period" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />

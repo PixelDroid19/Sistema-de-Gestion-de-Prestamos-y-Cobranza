@@ -5,6 +5,7 @@ import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_MET
 import { useConfig } from '../services/configService';
 import { exportCreditExcel, useCreditReports } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
+import { useResolvedPermissionNames } from '../services/permissionsService';
 import { downloadVoucher } from '../services/paymentService';
 import { toast } from '../lib/toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -37,7 +38,6 @@ import {
   stableCreditKey,
   formatOperationalStatus,
   getStatusInfo,
-  formatPromiseStatus,
   getAlertPresentation,
   computeCapitalPreview,
   PAYABLE_STATUSES,
@@ -75,6 +75,7 @@ export default function CreditDetails() {
   const loanId = Number(id);
   const [activeTab, setActiveTab] = useState<CreditDetailsTab>('calendar');
   const { user } = useSessionStore();
+  const resolvedPermissions = useResolvedPermissionNames(user);
   const isAdmin = user?.role === 'admin';
   const isBackofficeUser = user?.role === 'admin' || user?.role === 'employee';
   const canViewPayoff = isBackofficeUser;
@@ -88,16 +89,16 @@ export default function CreditDetails() {
       .filter((m: any) => m?.isActive !== false)
       .map((m: any) => ({
         value: String(m?.key ?? m?.type ?? '').trim().toLowerCase(),
-        label: String(m?.label ?? m?.name ?? m?.key ?? m?.type ?? '').trim(),
+        label: String(m?.label ?? m?.name ?? '').trim() || tTerm('settings.paymentMethods.methodUnnamed'),
       }))
-      .filter((m) => m.value && m.label);
+      .filter((m) => m.value);
     return active.length > 0 ? active : [...FALLBACK_PAYMENT_METHODS];
   }, [configuredPaymentMethods]);
   const defaultPaymentMethod = paymentMethodOptions[0]?.value || 'transfer';
   const paymentMethodLabels = useMemo(() => new Map(paymentMethodOptions.map((method) => [method.value, method.label])), [paymentMethodOptions]);
   const formatPaymentMethodLabel = (value: unknown) => {
     const normalized = String(value || '').trim().toLowerCase();
-    return normalized ? paymentMethodLabels.get(normalized) || String(value) : '—';
+    return normalized ? paymentMethodLabels.get(normalized) || tTerm('settings.paymentMethods.methodUnnamed') : '—';
   };
 
   // -------------------------------------------------------------------------
@@ -155,8 +156,8 @@ export default function CreditDetails() {
   const statusInfo = getStatusInfo(loan?.status);
   const promiseDate = (promise: any) => promise?.promisedDate || promise?.promiseDate || promise?.createdAt;
 
-  const installmentPaymentGuard = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
-  const baseCapitalPaymentGuard = resolveOperationalGuard('capital.payment', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
+  const installmentPaymentGuard = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status });
+  const baseCapitalPaymentGuard = resolveOperationalGuard('capital.payment', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status });
   const capitalUnavailableDescription = formatCapitalPaymentDenialReason(primaryCapitalDenialReason) || tTerm('creditDetails.capital.unavailable.firstInstallment');
   const capitalPaymentGuard = {
     ...baseCapitalPaymentGuard,
@@ -165,11 +166,11 @@ export default function CreditDetails() {
   };
   const creditReportDownloadGuard = resolveOperationalGuard('credit.report.download', {
     role: user?.role,
-    permissions: user?.permissions,
+    permissions: resolvedPermissions,
     loanStatus: loan?.status,
   });
-  const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
-  const creditStatusUpdateGuard = resolveOperationalGuard('credit.status.update', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
+  const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status });
+  const creditStatusUpdateGuard = resolveOperationalGuard('credit.status.update', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status });
   const showInstallmentActionColumn = isBackofficeUser || installmentPaymentGuard.visible;
   const creditDetailSubtitle = tTerm('creditDetails.subtitle.backoffice');
 
@@ -424,7 +425,7 @@ export default function CreditDetails() {
     if (!newStatus) return;
     await executeGuardedAction({
       action: 'credit.status.update',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
       run: async () => { await updateLoanStatus.mutateAsync({ id: loanId, status: newStatus }); },
       onSuccess: async () => { await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); setShowStatusModal(false); },
       successMessage: tTerm('creditDetails.toast.statusUpdated'),
@@ -441,8 +442,11 @@ export default function CreditDetails() {
     let recordedPaymentId: number | null = null;
     await executeGuardedAction({
       action: 'installment.pay',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
-      confirmationMessage: `¿Confirmar pago de cuota #${instNum} por ${formatCurrency(amount)}?`,
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: inst?.status },
+      confirmationMessage: tTerm('creditDetails.confirm.payment.message', {
+        number: instNum,
+        amount: formatCurrency(amount),
+      }),
       run: async () => {
         const result = await recordPayment.mutateAsync({ paymentAmount: amount, paymentDate, paymentMethod, installmentNumber: instNum });
         recordedPaymentId = resolvePaymentIdFromResponse(result);
@@ -469,7 +473,7 @@ export default function CreditDetails() {
     if (!annulInstallmentNumber) { toast.error({ title: tTerm('creditDetails.error.annulSelection') }); return; }
     await executeGuardedAction({
       action: 'installment.annul',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: operationalModal.payload?.installment?.status },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: operationalModal.payload?.installment?.status },
       run: async () => { await annulInstallment.mutateAsync({ installmentNumber: annulInstallmentNumber, reason: annulReason || undefined }); },
       onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowAnnulModal(false); setAnnulInstallmentNumber(null); setAnnulReason(''); },
       successMessage: tTerm('creditDetails.toast.annulSuccess'),
@@ -480,7 +484,7 @@ export default function CreditDetails() {
     if (!editingPaymentId) return;
     await executeGuardedAction({
       action: 'installment.editPaymentMethod',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: operationalModal.payload?.installment?.status, paymentReconciled: editingPaymentReconciled },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: operationalModal.payload?.installment?.status, paymentReconciled: editingPaymentReconciled },
       confirmationMessage: tTerm('creditDetails.confirm.editPaymentMethod'),
       run: async () => { await updatePaymentMethodMutation.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod }); },
       onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowEditPaymentMethodModal(false); operationalModal.closeModal(); setEditingPaymentId(null); setEditingPaymentReconciled(false); },
@@ -496,7 +500,7 @@ export default function CreditDetails() {
     if (!isValidOperationalDateOnly(promiseDateInput)) { toast.error({ title: tTerm('creditDetails.error.promiseDate') }); return; }
     await executeGuardedAction({
       action: 'installment.promise',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: inst?.status },
       run: async () => { await createPromise.mutateAsync({ amount, promisedDate: promiseDateInput, notes: promiseNotes || undefined, installmentNumber: inst.installmentNumber }); },
       onSuccess: async () => { operationalModal.closeModal(); setPromiseAmount(''); setPromiseNotes(''); await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); },
       successMessage: tTerm('creditDetails.toast.promiseSuccess'),
@@ -509,7 +513,7 @@ export default function CreditDetails() {
     if (!followUpNotes.trim()) { toast.error({ title: tTerm('creditDetails.error.followUpNote') }); return; }
     await executeGuardedAction({
       action: 'installment.followUp',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: inst?.status },
       run: async () => {
         await createFollowUp.mutateAsync({
           notes: followUpNotes,
@@ -533,7 +537,11 @@ export default function CreditDetails() {
       confirmLabel: status === 'resolved' ? tTerm('creditDetails.confirm.alert.resolve.confirm') : tTerm('creditDetails.confirm.alert.reactivate.confirm'),
     });
     if (!confirmed) return;
-    await updateAlertStatus.mutateAsync({ alertId, status, notes: status === 'resolved' ? 'Resuelta manualmente desde detalle de crédito.' : 'Reactivada manualmente desde detalle de crédito.' });
+    await updateAlertStatus.mutateAsync({
+      alertId,
+      status,
+      notes: status === 'resolved' ? tTerm('creditDetails.alert.notes.resolved') : tTerm('creditDetails.alert.notes.reactivated'),
+    });
     await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
     toast.success({ title: status === 'resolved' ? tTerm('creditDetails.toast.alertResolved') : tTerm('creditDetails.toast.alertReactivated') });
   };
@@ -571,7 +579,7 @@ export default function CreditDetails() {
     if (!capitalPaymentGuard.executable) { toast.error({ title: tTerm('creditDetails.toast.capitalUnavailable'), description: capitalPaymentGuard.reason || capitalUnavailableDescription }); return; }
     await executeGuardedAction({
       action: 'capital.payment',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
       run: async () => {
         await recordCapitalPayment.mutateAsync({
           amount,
@@ -591,7 +599,7 @@ export default function CreditDetails() {
     if (rate === null) { toast.error({ title: tTerm('creditDetails.validation.lateFeeRate') }); return; }
     await executeGuardedAction({
       action: 'lateFee.update',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
       run: async () => { await updateLateFeeRateMutation.mutateAsync(rate); },
       onSuccess: async () => { await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); setShowLateFeeModal(false); setLateFeeRate(''); },
       successMessage: tTerm('creditDetails.toast.lateFeeSuccess'),
@@ -601,7 +609,7 @@ export default function CreditDetails() {
   const handleExportCreditExcel = async () => {
     await executeGuardedAction({
       action: 'credit.report.download',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
       run: async () => { await runExportCreditExcel(loanId); },
     });
   };
@@ -684,10 +692,10 @@ export default function CreditDetails() {
     const align = options?.alignClassName ?? 'justify-end';
     const prefix = options?.titlePrefix ?? '';
     const isNext = row.installmentNumber === nextPayableInstallmentNumber;
-    const payG = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
-    const annG = resolveOperationalGuard('installment.annul', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
-    const proG = resolveOperationalGuard('installment.promise', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
-    const folG = resolveOperationalGuard('installment.followUp', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const payG = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const annG = resolveOperationalGuard('installment.annul', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const proG = resolveOperationalGuard('installment.promise', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const folG = resolveOperationalGuard('installment.followUp', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: row.status });
     const instReason = isNext ? '' : (nextPayableInstallmentNumber ? tTerm('creditDetails.installmentActions.onlyNextPending', { number: nextPayableInstallmentNumber }) : tTerm('creditDetails.installmentActions.nonePending'));
     const payReason = payG.executable ? instReason : (payG.reason || instReason);
     const annReason = annG.executable ? instReason : (annG.reason || instReason);
@@ -760,7 +768,14 @@ export default function CreditDetails() {
           alertCount={alertEntries.length}
           pendingPromiseCount={promiseEntries.filter((p: any) => p.status === 'pending').length}
           paymentHistoryCount={paymentHistoryEntries.length}
-          labels={{ calendar: tTerm('creditDetails.tab.calendar'), alerts: tTerm('creditDetails.tab.alerts'), promises: tTerm('creditDetails.tab.promises'), history: tTerm('creditDetails.tab.history') }}
+          labels={{
+            calendar: tTerm('creditDetails.tab.calendar'),
+            alerts: tTerm('creditDetails.tab.alerts'),
+            promises: tTerm('creditDetails.tab.promises'),
+            payouts: tTerm('creditDetails.tab.payoutsHistory'),
+            history: tTerm('creditDetails.tab.history'),
+            aria: tTerm('creditDetails.tabs.aria'),
+          }}
           onSelect={setActiveTab}
         />
 
@@ -820,7 +835,7 @@ export default function CreditDetails() {
               <HistoryTab
                 operationalHistoryEntries={operationalHistoryEntries} isLoadingHistory={isLoadingHistory}
                 isBackofficeUser={isBackofficeUser} loanStatus={loan?.status}
-                userRole={user?.role} userPermissions={user?.permissions}
+                userRole={user?.role} userPermissions={resolvedPermissions}
                 formatDate={formatDate}
                 onDownloadVoucher={(pid) => runDownloadVoucher(pid)}
                 onOpenEditPaymentMethod={openEditPaymentMethodModal}

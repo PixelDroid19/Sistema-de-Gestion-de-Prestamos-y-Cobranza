@@ -122,7 +122,8 @@ test('INSUFFICIENT_PERMISSION error is thrown with code when permissions denied'
 
   assert.ok(error instanceof AuthorizationError);
   assert.equal(error.code, 'INSUFFICIENT_PERMISSION');
-  assert.ok(error.message.includes('Insufficient permissions'));
+  assert.equal(error.message, 'No tienes permisos suficientes para realizar esta acción.');
+  assert.doesNotMatch(error.message, /ADMIN_ONLY|PERMISSIONS|CREDITS|CLIENTS/);
 });
 
 test('backward compatibility with array syntax authMiddleware([\'admin\'])', async () => {
@@ -146,7 +147,8 @@ test('backward compatibility with array syntax authMiddleware([\'admin\'])', asy
   const error = await captureMiddlewareError(auth(['admin']), req);
 
   assert.ok(error instanceof AuthorizationError);
-  assert.match(error.message, /Required roles: admin/);
+  assert.equal(error.message, 'No tienes acceso a esta sección.');
+  assert.doesNotMatch(error.message, /admin|employee|customer|socio|agent/i);
 });
 
 test('authMiddleware rejects customer and socio tokens before role authorization', async () => {
@@ -171,7 +173,8 @@ test('authMiddleware rejects customer and socio tokens before role authorization
     const error = await captureMiddlewareError(auth(['admin', 'employee']), req);
 
     assert.ok(error instanceof AuthenticationError);
-    assert.equal(error.message, 'This account cannot access the administrative platform');
+    assert.equal(error.message, 'Esta cuenta no puede acceder a la plataforma administrativa.');
+    assert.doesNotMatch(error.message, /customer|socio|agent|backoffice/i);
   }
 });
 

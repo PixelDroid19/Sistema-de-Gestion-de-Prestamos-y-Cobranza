@@ -1,29 +1,30 @@
 import type { CalculationMethodKey, LateFeeMode } from '../types/creditCalculation';
+import { tTerm, type TermKey } from '../i18n/terminology';
 
-const CALCULATION_METHOD_LABELS: Record<CalculationMethodKey, string> = {
-  FRENCH: 'Francés',
-  SIMPLE: 'Interés simple',
-  COMPOUND: 'Interés compuesto',
+const CALCULATION_METHOD_LABEL_KEYS: Record<CalculationMethodKey, TermKey> = {
+  FRENCH: 'creditCalculation.value.method.french',
+  SIMPLE: 'creditCalculation.value.method.simple',
+  COMPOUND: 'creditCalculation.value.method.compound',
 };
 
-const LATE_FEE_MODE_LABELS: Record<LateFeeMode, string> = {
-  NONE: 'Sin mora',
-  SIMPLE: 'Mora simple',
-  COMPOUND: 'Mora compuesta',
-  FLAT: 'Mora plana',
-  TIERED: 'Mora por tramos',
+const LATE_FEE_MODE_LABEL_KEYS: Record<LateFeeMode, TermKey> = {
+  NONE: 'creditCalculation.value.lateFee.none',
+  SIMPLE: 'creditCalculation.value.lateFee.simple',
+  COMPOUND: 'creditCalculation.value.lateFee.compound',
+  FLAT: 'creditCalculation.value.lateFee.flat',
+  TIERED: 'creditCalculation.value.lateFee.tiered',
 };
 
 export const getCalculationValueLabel = (value: string | undefined, outputVar?: string): string => {
-  if (!value) return 'No definido';
+  if (!value) return tTerm('creditCalculation.value.undefined');
 
   if (outputVar === 'method') {
-    return CALCULATION_METHOD_LABELS[value as CalculationMethodKey] || value;
+    return tTerm(CALCULATION_METHOD_LABEL_KEYS[value as CalculationMethodKey] ?? 'creditCalculation.value.method.unknown');
   }
 
   if (outputVar === 'lateFeeMode') {
-    return LATE_FEE_MODE_LABELS[value as LateFeeMode] || value;
+    return tTerm(LATE_FEE_MODE_LABEL_KEYS[value as LateFeeMode] ?? 'creditCalculation.value.lateFee.unknown');
   }
 
-  return value;
+  return tTerm('creditCalculation.value.unknown');
 };

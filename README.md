@@ -288,6 +288,73 @@ Credenciales locales:
 
 El empleado se crea sin permisos amplios por defecto. Para probar permisos reales, entra como admin y asigna permisos desde el panel.
 
+smoke API local:
+
+```bash
+SMOKE_ADMIN_EMAIL=qa.admin.20260427@test.local \
+SMOKE_ADMIN_PASSWORD='Admin123!' \
+SMOKE_EMPLOYEE_EMAIL=qa.employee.20260427@test.local \
+SMOKE_EMPLOYEE_PASSWORD='Admin123!' \
+npm run smoke:local
+```
+
+Este smoke valida health/OpenAPI, cálculo de crédito, módulos core con admin, permisos del empleado local y denegaciones 403 para APIs sensibles cuando el empleado no tiene permisos amplios.
+
+Smoke local de navegador:
+
+```bash
+npm run dev:local
+npm run seed:local-users
+npm run smoke:browser:local
+```
+
+Este smoke usa `agent-browser` para abrir `http://127.0.0.1:3000/login`, iniciar sesión con el admin local de QA y confirmar que llega al dashboard administrativo. Si necesitas revisar la secuencia sin abrir navegador:
+
+```bash
+BROWSER_SMOKE_DRY_RUN=true npm run smoke:browser:local
+```
+
+Para ampliar la cobertura local sin tocar datos remotos:
+
+```bash
+BROWSER_SMOKE_INCLUDE_NEW_CREDIT=true \
+BROWSER_SMOKE_INCLUDE_ADMIN_ROUTES=true \
+BROWSER_SMOKE_INCLUDE_REPORTS=true \
+BROWSER_SMOKE_INCLUDE_SETTINGS=true \
+BROWSER_SMOKE_INCLUDE_EMPLOYEE_GUARDS=true \
+BROWSER_SMOKE_CHECK_ERRORS=true \
+BROWSER_SMOKE_CHECK_A11Y=true \
+npm run smoke:browser:local
+```
+
+Ese modo valida originación de crédito, shells de rutas administrativas, reportes y configuración con admin, cierra sesión, entra con el empleado local sin permisos amplios, confirma que las rutas protegidas vuelven a `/profile` y falla si el navegador captura errores de página o problemas básicos de accesibilidad en el DOM auditado.
+
+Para repetir el smoke en un tamaño responsive específico:
+
+```bash
+BROWSER_SMOKE_VIEWPORT=390x844 npm run smoke:browser:local
+```
+
+Variables útiles:
+
+- `BROWSER_SMOKE_FRONTEND_URL`: origen del frontend, por defecto `http://127.0.0.1:3000`.
+- `BROWSER_SMOKE_ADMIN_EMAIL` y `BROWSER_SMOKE_ADMIN_PASSWORD`: credenciales admin de QA.
+- `BROWSER_SMOKE_EMPLOYEE_EMAIL` y `BROWSER_SMOKE_EMPLOYEE_PASSWORD`: credenciales del empleado local de QA.
+- `BROWSER_SMOKE_TIMEOUT_MS`: timeout por paso, por defecto `30000`.
+- `BROWSER_SMOKE_VIEWPORT`: viewport opcional en formato `ANCHOxALTO`, por ejemplo `390x844`, para repetir el smoke en móvil o escritorio compacto.
+- `BROWSER_SMOKE_MOBILE_MENU_BUTTON`: texto del botón que abre el menú móvil, por defecto `Abrir menú`.
+- `BROWSER_SMOKE_CHECK_ERRORS`: limpia errores de página al inicio y falla antes de cerrar si el navegador capturó excepciones.
+- `BROWSER_SMOKE_CHECK_A11Y`: presiona `Tab` y audita título, idioma, labels, nombres accesibles, ids duplicados, referencias ARIA, imágenes y foco visible en las pantallas recorridas.
+- `BROWSER_SMOKE_ARTIFACT_DIR`: carpeta para capturas de fallo, por defecto `artifacts/browser-smoke`.
+- `BROWSER_SMOKE_INCLUDE_ADMIN_ROUTES`: recorre los shells principales con admin (`/dashboard`, clientes, créditos, cálculo, reportes, socios, pagos, notificaciones, auditoría, perfil y configuración).
+- `BROWSER_SMOKE_INCLUDE_NEW_CREDIT`: abre `/credits/new` y verifica que cargue el formulario inicial de originación.
+- `BROWSER_SMOKE_INCLUDE_REPORTS`: abre reportes y verifica la pestaña de flujo de caja.
+- `BROWSER_SMOKE_INCLUDE_SETTINGS`: abre configuración, entra a métodos de pago y valida que el modal de crear método abra y cierre sin guardar.
+- `BROWSER_SMOKE_INCLUDE_EMPLOYEE_GUARDS`: verifica redirecciones de rutas protegidas para el empleado sin permisos amplios.
+- `AGENT_BROWSER_BIN`: ruta del binario si `agent-browser` no está en `PATH`.
+
+El smoke rechaza URLs no locales salvo que se defina `BROWSER_SMOKE_ALLOW_REMOTE=true`; si falla después de abrir el navegador, intenta guardar una captura en `artifacts/browser-smoke`. Para producción sigue siendo obligatorio validar primero variables, despliegues y permisos.
+
 ## Desarrollo manual
 
 ```bash

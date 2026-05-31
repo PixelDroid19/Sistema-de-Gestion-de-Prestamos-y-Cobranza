@@ -1,16 +1,17 @@
-import React from 'react';
-import { AlertCircle, DollarSign, Download, TrendingUp, Users, Wallet } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, DollarSign, TrendingUp, Users, Wallet } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue, formatNumber as formatNumberValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { parseReportYearInput } from '../../lib/reportYearInput';
 import {
-  ActionButton,
-  DataTableSurface,
   FormField,
-  InsightStrip,
   TextInput,
-  ToolbarSurface,
 } from '../shared/Surfaces';
+import ReportDownloadModal, { ReportDownloadTrigger } from './ReportDownloadModal';
+import { ReportDataTableSection } from './ReportDataTableSection';
+import { ReportMetricsSection } from './ReportMetricsSection';
+import { ReportSubsectionHeading } from './ReportSubsectionHeading';
+import { ReportTabPanel } from './ReportTabPanel';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -26,7 +27,7 @@ type CashflowTabProps = {
   dailyCashFlowData: any;
   isDailyCashFlowLoading: boolean;
   isCashFlowExporting: 'excel' | 'pdf' | null;
-  onExportCashFlow: (format: 'excel' | 'pdf') => void;
+  onExportCashFlow: (format: 'excel' | 'pdf') => boolean | Promise<boolean>;
   reportExportGuard: { visible: boolean; executable: boolean; reason?: string };
 };
 
@@ -45,6 +46,8 @@ export default function CashflowTab({
   onExportCashFlow,
   reportExportGuard,
 }: CashflowTabProps) {
+  const [downloadOpen, setDownloadOpen] = useState(false);
+
   const handleYearChange = (value: string) => {
     const parsedYear = parseReportYearInput(value);
     if (parsedYear !== null) {
@@ -66,63 +69,70 @@ export default function CashflowTab({
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <ToolbarSurface className="items-stretch lg:items-end">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-medium text-text-primary">{tTerm('reports.cashflow.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('reports.cashflow.subtitle')}
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <FormField label={tTerm('reports.cashflow.year')}>
-            <TextInput
-              type="number"
-              value={cashFlowYear}
-              min={2000}
-              max={2100}
-              onChange={(event) => handleYearChange(event.target.value)}
-              className="sm:w-32"
-            />
-          </FormField>
-          <FormField label={tTerm('reports.cashflow.fromDate')}>
-            <TextInput
-              type="date"
-              value={cashFlowRange.fromDate}
-              onChange={(event) => updateCashFlowRange('fromDate', event.target.value)}
-              className="sm:w-40"
-            />
-          </FormField>
-          <FormField label={tTerm('reports.cashflow.toDate')}>
-            <TextInput
-              type="date"
-              value={cashFlowRange.toDate}
-              onChange={(event) => updateCashFlowRange('toDate', event.target.value)}
-              className="sm:w-40"
-            />
-          </FormField>
-          <ActionButton
-            onClick={() => onExportCashFlow('excel')}
-            disabled={Boolean(isCashFlowExporting) || !reportExportGuard.executable}
-            title={reportExportGuard.executable ? tTerm('reports.cashflow.cta.exportExcel') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-            icon={<Download size={16} />}
-          >
-            {isCashFlowExporting === 'excel' ? tTerm('credits.cta.exporting') : tTerm('reports.cashflow.cta.excel')}
-          </ActionButton>
-          <ActionButton
-            onClick={() => onExportCashFlow('pdf')}
-            disabled={Boolean(isCashFlowExporting) || !reportExportGuard.executable}
-            title={reportExportGuard.executable ? tTerm('reports.cashflow.cta.exportPdf') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-            icon={<Download size={16} />}
-          >
-            {isCashFlowExporting === 'pdf' ? tTerm('credits.cta.exporting') : tTerm('reports.cashflow.cta.pdf')}
-          </ActionButton>
-        </div>
-      </ToolbarSurface>
+    <div className="report-tab-layout">
+      <ReportTabPanel
+        title={tTerm('reports.cashflow.title')}
+        subtitle={tTerm('reports.cashflow.subtitle')}
+        filterColumns={4}
+        filters={(
+          <>
+            <FormField label={tTerm('reports.cashflow.year')}>
+              <TextInput
+                type="number"
+                value={cashFlowYear}
+                min={2000}
+                max={2100}
+                onChange={(event) => handleYearChange(event.target.value)}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.cashflow.fromDate')}>
+              <TextInput
+                type="date"
+                value={cashFlowRange.fromDate}
+                onChange={(event) => updateCashFlowRange('fromDate', event.target.value)}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.cashflow.toDate')}>
+              <TextInput
+                type="date"
+                value={cashFlowRange.toDate}
+                onChange={(event) => updateCashFlowRange('toDate', event.target.value)}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.cashflow.daily.date')}>
+              <TextInput
+                type="date"
+                value={dailyCashFlowDate}
+                onChange={(event) => onDailyCashFlowDateChange(event.target.value)}
+              />
+            </FormField>
+          </>
+        )}
+        headerActions={reportExportGuard.visible ? (
+          <ReportDownloadTrigger
+            onClick={() => setDownloadOpen(true)}
+            disabled={!reportExportGuard.executable}
+          />
+        ) : null}
+      />
 
-      <InsightStrip
-        aria-label={tTerm('reports.cashflow.summary.aria')}
-        items={[
+      {downloadOpen && (
+        <ReportDownloadModal
+          onClose={() => setDownloadOpen(false)}
+          title={tTerm('reports.download.cashflow.title')}
+          subtitle={tTerm('reports.download.cashflow.subtitle')}
+          isExporting={Boolean(isCashFlowExporting)}
+          formats={['excel', 'pdf']}
+          onDownload={(format) => onExportCashFlow(format === 'pdf' ? 'pdf' : 'excel')}
+        />
+      )}
+
+      <ReportMetricsSection
+        primaryAriaLabel={tTerm('reports.cashflow.summary.aria')}
+        secondaryAriaLabel={tTerm('reports.cashflow.detail.aria')}
+        detailModalTitle={tTerm('reports.cashflow.detail.modal.title')}
+        detailModalSubtitle={tTerm('reports.cashflow.detail.modal.subtitle')}
+        primaryItems={[
           {
             id: 'cashflow-inflows',
             label: tTerm('reports.cashflow.summary.inflows.label'),
@@ -145,7 +155,7 @@ export default function CashflowTab({
             value: formatMoney(cashFlowData?.summary?.availableCash),
             helper: tTerm('reports.cashflow.summary.available.helper'),
             icon: <TrendingUp size={18} />,
-            accent: 'slate',
+            accent: Number(cashFlowData?.summary?.availableCash || 0) < 0 ? 'rose' : 'slate',
           },
           {
             id: 'cashflow-net-result',
@@ -156,11 +166,7 @@ export default function CashflowTab({
             accent: Number(cashFlowData?.summary?.netProfitIndicator || 0) < 0 ? 'rose' : 'emerald',
           },
         ]}
-      />
-
-      <InsightStrip
-        aria-label={tTerm('reports.cashflow.detail.aria')}
-        items={[
+        secondaryItems={[
           {
             id: 'cashflow-profit',
             label: tTerm('reports.cashflow.detail.profit.label'),
@@ -212,127 +218,10 @@ export default function CashflowTab({
         ]}
       />
 
-      <ToolbarSurface className="items-stretch lg:items-end">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-medium text-text-primary">{tTerm('reports.cashflow.daily.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('reports.cashflow.daily.subtitle')}
-          </p>
-        </div>
-        <FormField label={tTerm('reports.cashflow.daily.date')}>
-          <TextInput
-            type="date"
-            value={dailyCashFlowDate}
-            onChange={(event) => onDailyCashFlowDateChange(event.target.value)}
-            className="sm:w-40"
-          />
-        </FormField>
-      </ToolbarSurface>
-
-      <InsightStrip
-        aria-label={tTerm('reports.cashflow.daily.summary.aria')}
-        items={[
-          {
-            id: 'daily-cashflow-inflows',
-            label: tTerm('reports.cashflow.summary.inflows.label'),
-            value: formatMoney(dailyCashFlowData?.summary?.totalInflows),
-            helper: tTerm('reports.cashflow.summary.inflows.helper'),
-            icon: <Wallet size={18} />,
-            accent: 'emerald',
-          },
-          {
-            id: 'daily-cashflow-outflows',
-            label: tTerm('reports.cashflow.summary.outflows.label'),
-            value: formatMoney(dailyCashFlowData?.summary?.totalOutflows),
-            helper: tTerm('reports.cashflow.summary.outflows.helper'),
-            icon: <DollarSign size={18} />,
-            accent: 'blue',
-          },
-          {
-            id: 'daily-cashflow-expenses',
-            label: tTerm('reports.cashflow.detail.operatingExpenses.label'),
-            value: formatMoney(dailyCashFlowData?.summary?.totalOperatingExpenses),
-            helper: tTerm('reports.cashflow.detail.operatingExpenses.helper'),
-            icon: <Wallet size={18} />,
-            accent: 'amber',
-          },
-          {
-            id: 'daily-cashflow-associate-interest-pending',
-            label: tTerm('reports.cashflow.detail.associateInterestPending.label'),
-            value: formatMoney(dailyCashFlowData?.summary?.totalAssociateInterestPending),
-            helper: tTerm('reports.cashflow.detail.associateInterestPending.helper'),
-            icon: <Users size={18} />,
-            accent: 'amber',
-          },
-          {
-            id: 'daily-cashflow-available',
-            label: tTerm('reports.cashflow.summary.available.label'),
-            value: formatMoney(dailyCashFlowData?.summary?.availableCash),
-            helper: tTerm('reports.cashflow.daily.available.helper'),
-            icon: <TrendingUp size={18} />,
-            accent: 'slate',
-          },
-        ]}
-      />
-
-      <DataTableSurface>
-        <div className="px-4 py-4 sm:px-5">
-          <h3 className="font-medium">{tTerm('reports.cashflow.daily.table.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('reports.cashflow.daily.table.subtitle')}
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead>
-              <tr>
-                <th>{tTerm('reports.cashflow.daily.table.date')}</th>
-                <th>{tTerm('reports.cashflow.table.inflows')}</th>
-                <th>{tTerm('reports.cashflow.table.outflows')}</th>
-                <th>{tTerm('reports.cashflow.table.associateInterestPaid')}</th>
-                <th>{tTerm('reports.cashflow.table.associateInterestPending')}</th>
-                <th>{tTerm('reports.cashflow.table.operatingExpenses')}</th>
-                <th>{tTerm('reports.cashflow.table.netFlow')}</th>
-                <th>{tTerm('reports.cashflow.table.available')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isDailyCashFlowLoading ? (
-                <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.daily.table.loading')}</td>
-                </tr>
-              ) : (dailyCashFlowData?.days || []).length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.daily.table.empty')}</td>
-                </tr>
-              ) : (
-                (dailyCashFlowData?.days || []).map((day: any) => (
-                  <tr key={day.date}>
-                    <td className="font-medium">{day.date}</td>
-                    <td className="text-emerald-600">{formatMoney(day.inflows)}</td>
-                    <td className="text-blue-600">{formatMoney(day.outflows)}</td>
-                    <td className="text-blue-600">{formatMoney(day.associateInterestPaid)}</td>
-                    <td className="text-amber-600">{formatMoney(day.associateInterestPending)}</td>
-                    <td className="text-amber-600">{formatMoney(day.operatingExpenses)}</td>
-                    <td className={Number(day.netCashFlow || 0) < 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                      {formatMoney(day.netCashFlow)}
-                    </td>
-                    <td className="font-semibold">{formatMoney(day.availableCash)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </DataTableSurface>
-
-      <DataTableSurface>
-        <div className="px-4 py-4 sm:px-5">
-          <h3 className="font-medium">{tTerm('reports.cashflow.table.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('reports.cashflow.table.subtitle')}
-          </p>
-        </div>
+      <ReportDataTableSection
+        title={tTerm('reports.cashflow.table.title')}
+        subtitle={tTerm('reports.cashflow.table.subtitle')}
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
@@ -381,7 +270,111 @@ export default function CashflowTab({
             </tbody>
           </table>
         </div>
-      </DataTableSurface>
+      </ReportDataTableSection>
+
+      <ReportSubsectionHeading
+        title={tTerm('reports.cashflow.daily.title')}
+        subtitle={tTerm('reports.cashflow.daily.subtitle')}
+      />
+
+      <ReportMetricsSection
+        primaryAriaLabel={tTerm('reports.cashflow.daily.summary.aria')}
+        secondaryAriaLabel={tTerm('reports.cashflow.daily.summary.aria')}
+        detailModalTitle={tTerm('reports.cashflow.daily.detail.modal.title')}
+        detailModalSubtitle={tTerm('reports.cashflow.daily.detail.modal.subtitle')}
+        primaryItems={[
+          {
+            id: 'daily-cashflow-inflows',
+            label: tTerm('reports.cashflow.summary.inflows.label'),
+            value: formatMoney(dailyCashFlowData?.summary?.totalInflows),
+            helper: tTerm('reports.cashflow.summary.inflows.helper'),
+            icon: <Wallet size={18} />,
+            accent: 'emerald',
+          },
+          {
+            id: 'daily-cashflow-outflows',
+            label: tTerm('reports.cashflow.summary.outflows.label'),
+            value: formatMoney(dailyCashFlowData?.summary?.totalOutflows),
+            helper: tTerm('reports.cashflow.summary.outflows.helper'),
+            icon: <DollarSign size={18} />,
+            accent: 'blue',
+          },
+          {
+            id: 'daily-cashflow-expenses',
+            label: tTerm('reports.cashflow.detail.operatingExpenses.label'),
+            value: formatMoney(dailyCashFlowData?.summary?.totalOperatingExpenses),
+            helper: tTerm('reports.cashflow.detail.operatingExpenses.helper'),
+            icon: <Wallet size={18} />,
+            accent: 'amber',
+          },
+          {
+            id: 'daily-cashflow-available',
+            label: tTerm('reports.cashflow.summary.available.label'),
+            value: formatMoney(dailyCashFlowData?.summary?.availableCash),
+            helper: tTerm('reports.cashflow.daily.available.helper'),
+            icon: <TrendingUp size={18} />,
+            accent: 'slate',
+          },
+        ]}
+        secondaryItems={[
+          {
+            id: 'daily-cashflow-associate-interest-pending',
+            label: tTerm('reports.cashflow.detail.associateInterestPending.label'),
+            value: formatMoney(dailyCashFlowData?.summary?.totalAssociateInterestPending),
+            helper: tTerm('reports.cashflow.detail.associateInterestPending.helper'),
+            icon: <Users size={18} />,
+            accent: 'amber',
+          },
+        ]}
+      />
+
+      <ReportDataTableSection
+        title={tTerm('reports.cashflow.daily.table.title')}
+        subtitle={tTerm('reports.cashflow.daily.table.subtitle')}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr>
+                <th>{tTerm('reports.cashflow.daily.table.date')}</th>
+                <th>{tTerm('reports.cashflow.table.inflows')}</th>
+                <th>{tTerm('reports.cashflow.table.outflows')}</th>
+                <th>{tTerm('reports.cashflow.table.associateInterestPaid')}</th>
+                <th>{tTerm('reports.cashflow.table.associateInterestPending')}</th>
+                <th>{tTerm('reports.cashflow.table.operatingExpenses')}</th>
+                <th>{tTerm('reports.cashflow.table.netFlow')}</th>
+                <th>{tTerm('reports.cashflow.table.available')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isDailyCashFlowLoading ? (
+                <tr>
+                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.daily.table.loading')}</td>
+                </tr>
+              ) : (dailyCashFlowData?.days || []).length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.daily.table.empty')}</td>
+                </tr>
+              ) : (
+                (dailyCashFlowData?.days || []).map((day: any) => (
+                  <tr key={day.date}>
+                    <td className="font-medium">{day.date}</td>
+                    <td className="text-emerald-600">{formatMoney(day.inflows)}</td>
+                    <td className="text-blue-600">{formatMoney(day.outflows)}</td>
+                    <td className="text-blue-600">{formatMoney(day.associateInterestPaid)}</td>
+                    <td className="text-amber-600">{formatMoney(day.associateInterestPending)}</td>
+                    <td className="text-amber-600">{formatMoney(day.operatingExpenses)}</td>
+                    <td className={Number(day.netCashFlow || 0) < 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                      {formatMoney(day.netCashFlow)}
+                    </td>
+                    <td className="font-semibold">{formatMoney(day.availableCash)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </ReportDataTableSection>
     </div>
   );
 }

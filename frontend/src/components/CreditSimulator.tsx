@@ -33,6 +33,17 @@ export default function CreditSimulator() {
     autoRun: true,
   });
   const canContinueToRegistration = Boolean(result) && !isResultStale;
+  const displayError = React.useMemo(() => {
+    if (!error) {
+      return null;
+    }
+
+    if (/no active rate policy|credit amount/i.test(error)) {
+      return tTerm('creditCalculator.error.ratePolicyUnavailable');
+    }
+
+    return error;
+  }, [error]);
 
   React.useEffect(() => {
     const policySnapshot = (result?.policySnapshot || null) as Record<string, unknown> | null;
@@ -131,7 +142,7 @@ export default function CreditSimulator() {
           modeLabel={tTerm('creditCalculator.workspace.modeLabel')}
           input={input}
           result={result}
-          error={error}
+          error={displayError}
           fieldErrors={fieldErrors}
           isSimulating={isSimulating}
           isResultStale={isResultStale}

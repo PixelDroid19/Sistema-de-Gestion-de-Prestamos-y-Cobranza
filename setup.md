@@ -60,7 +60,7 @@ npm run dev
 Queda en `http://localhost:5000`. El boot hace:
 - Conecta a PostgreSQL
 - Sincroniza/esquema las tablas
-- Seeda productos financieros y grafo DAG base
+- Seeda productos financieros, perfiles de calculo y configuracion operativa base
 - Inicia worker de outbox y alertas vencidas
 
 **Frontend** (terminal 2):
@@ -72,17 +72,23 @@ npm run dev
 
 Queda en `http://localhost:3000` (puerto fijo, no configurable).
 
-### Paso 5: Crear tu primer usuario
+### Paso 5: Crear usuarios locales de QA
 
-El sistema no trae usuarios pre-creados. Registrate por la API o crea uno directamente:
+Desde `backend/`, crea o actualiza los usuarios administrativos locales usando la configuracion de `backend/.env`:
 
 ```bash
-curl -X POST http://localhost:5000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Admin","email":"admin@test.com","password":"admin123","role":"admin"}'
+cd backend
+RESET_QA_CREDENTIALS_CONFIRM=RESET_RAILWAY_QA_CREDENTIALS \
+QA_PASSWORD=Admin123! \
+node scripts/resetQaCredentials.js
 ```
 
-Roles validos: `admin`, `customer`, `socio`.
+Credenciales locales:
+
+- Admin: `qa.admin.20260427@test.local` / `Admin123!`
+- Empleado: `qa.employee.20260427@test.local` / `Admin123!`
+
+Roles de login administrativos: `admin`, `employee`. `customer` y `socio` son registros financieros, no usuarios del panel administrativo.
 
 ---
 
@@ -288,8 +294,8 @@ npm run test:watch  # vitest watch
 
 ## Notas importantes
 
-- **No hay usuarios default.** Tenes que registrarte via `/api/auth/register` o insertar directo en la BD.
+- **Usuarios locales.** Usa `backend/scripts/resetQaCredentials.js` con confirmacion explicita para crear o actualizar las cuentas administrativas de QA. Si usas el stack local de Docker Compose del README, `npm run seed:local-users` lo ejecuta con los valores por defecto de ese stack.
 - **Frontend puerto 3000 fijo.** No es 5173 como en Vite por defecto; esta hardcodeado en `vite.config.ts`.
 - **Backend en Docker requiere `DB_HOST=db`** (nombre del servicio en docker-compose), no `localhost`.
-- **DAG es la unica fuente de verdad.** El motor financiero usa grafos persistidos; no hay fallback legacy.
+- **Motor de calculo.** El motor financiero usa perfiles de calculo versionados y politicas configuradas; no hay fallback legacy.
 - **Schema sync automatico.** En `development`, el backend crea/ajusta tablas al arrancar. No uses migraciones manuales.

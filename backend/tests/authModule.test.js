@@ -259,6 +259,33 @@ test('createRegisterUser rejects privileged public signup even when validation i
   assert.equal(createdUser, false);
 });
 
+test('createRegisterUser rejects weak passwords with an operational validation message', async () => {
+  const registerUser = createRegisterUser({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+    },
+    passwordHasher: {},
+    tokenService: {},
+  });
+
+  await assert.rejects(() => registerUser({
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'admin',
+    payload: {
+      name: 'Weak User',
+      email: 'weak@example.com',
+      password: 'short',
+      role: 'employee',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'La contraseña no cumple los requisitos.');
+    return true;
+  });
+});
+
 test('createRegisterUser allows trusted admins to create privileged admin accounts', async () => {
   let agentProfileCreateCalls = 0;
 
@@ -410,6 +437,48 @@ test('createRegisterUser rejects roleIds payloads without canonical role', async
   assert.equal(linkedAssociateId, null);
 });
 
+test('createRegisterUser rejects unsupported roles without exposing the role catalog', async () => {
+  const registerUser = createRegisterUser({
+    userRepository: {
+      async findByEmail() {
+        throw new Error('findByEmail should not be called');
+      },
+      async create() {
+        throw new Error('create should not be called');
+      },
+      async remove() {},
+    },
+    passwordHasher: {
+      async hash() {
+        throw new Error('hash should not be called');
+      },
+    },
+    tokenService: {
+      sign() {
+        throw new Error('sign should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => registerUser({
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'admin',
+    payload: {
+      name: 'Rol No Soportado',
+      email: 'rol@example.com',
+      password: 'Secret123',
+      role: 'partner',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.deepEqual(error.errors, [
+      { field: 'role', message: 'Selecciona un rol administrativo válido.' },
+    ]);
+    assert.doesNotMatch(error.errors[0].message, /employee|customer|socio|partner/i);
+    return true;
+  });
+});
+
 test('createRegisterUser blocks non-admin actors from creating privileged accounts in trusted flows', async () => {
   const registerUser = createRegisterUser({
     userRepository: {
@@ -448,7 +517,11 @@ test('createRegisterUser blocks non-admin actors from creating privileged accoun
       password: 'Secret123',
       role: 'admin',
     },
-  }), AuthorizationError);
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo un administrador puede crear cuentas administrativas.');
+    return true;
+  });
 });
 
 test('createRegisterUser rejects socio account provisioning in administrative auth', async () => {
@@ -503,7 +576,7 @@ test('createRegisterUser rejects socio account provisioning in administrative au
   }), (error) => {
     assert.ok(error instanceof ValidationError);
     assert.deepEqual(error.errors, [
-      { field: 'role', message: 'Los usuarios administrativos deben ser admin o employee' },
+      { field: 'role', message: 'Selecciona un rol administrativo válido.' },
     ]);
     return true;
   });
@@ -564,7 +637,7 @@ test('createLoginUser rejects non-administrative roles during login', async () =
     assert.fail('Should have rejected non-administrative role');
   } catch (error) {
     assert.equal(error.statusCode, 401);
-    assert.equal(error.message, 'Please enter correct email/password');
+    assert.equal(error.message, 'Correo o contraseña incorrectos.');
   }
 });
 
@@ -682,7 +755,39 @@ test('createUpdateProfile prevents duplicate email updates', async () => {
     },
   });
 
-  await assert.rejects(() => updateProfile(3, { email: 'other@example.com' }), ConflictError);
+  await assert.rejects(() => updateProfile(3, { email: 'other@example.com' }), (error) => {
+    assert.ok(error instanceof ConflictError);
+    assert.equal(error.message, 'Ya existe un usuario con ese correo electrónico.');
+    return true;
+  });
+});
+
+test('createRegisterUser rejects duplicate email with an operational conflict message', async () => {
+  const registerUser = createRegisterUser({
+    userRepository: {
+      async findByEmail() {
+        return { id: 8, email: 'existing@example.com' };
+      },
+    },
+    passwordHasher: {},
+    tokenService: {},
+  });
+
+  await assert.rejects(() => registerUser({
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'admin',
+    payload: {
+      name: 'Existing User',
+      email: 'existing@example.com',
+      password: 'Secret123',
+      role: 'employee',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ConflictError);
+    assert.equal(error.message, 'Ya existe un usuario con ese correo electrónico.');
+    assert.doesNotMatch(error.message, /User|email already exists/i);
+    return true;
+  });
 });
 
 test('createChangePassword updates the stored password hash', async () => {
@@ -741,7 +846,50 @@ test('createChangePassword rejects an invalid current password', async () => {
   await assert.rejects(() => changePassword(8, {
     currentPassword: 'wrong-secret',
     nextPassword: 'Newpass1',
-  }), AuthenticationError);
+  }), (error) => {
+    assert.ok(error instanceof AuthenticationError);
+    assert.equal(error.message, 'La contraseña actual es incorrecta.');
+    return true;
+  });
+});
+
+test('createChangePassword rejects incomplete and repeated password changes with operator messages', async () => {
+  const changePassword = createChangePassword({
+    userRepository: {
+      async findById() {
+        return { id: 8, role: 'admin', password: 'hashed-Current1' };
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    },
+    passwordHasher: {
+      async compare(candidate, hashed) {
+        return candidate === 'Current1' && hashed === 'hashed-Current1';
+      },
+      async hash() {
+        throw new Error('hash should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => changePassword(8, {
+    currentPassword: '',
+    nextPassword: 'Newpass1',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Ingresa la contraseña actual y la nueva contraseña.');
+    return true;
+  });
+
+  await assert.rejects(() => changePassword(8, {
+    currentPassword: 'Current1',
+    nextPassword: 'Current1',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'La nueva contraseña debe ser diferente de la actual.');
+    return true;
+  });
 });
 
 test('createChangePassword rejects weak passwords that do not meet complexity requirements', async () => {
@@ -770,6 +918,7 @@ test('createChangePassword rejects weak passwords that do not meet complexity re
     nextPassword: 'Short1',
   }), (error) => {
     assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'La contraseña no cumple los requisitos.');
     assert.ok(error.errors.some(e => e.message.includes('8 caracteres')));
     return true;
   });
@@ -860,6 +1009,64 @@ test('createRegisterWithPermissions creates user with explicit permissions', asy
   assert.equal(result.user.id, 25);
   assert.equal(result.user.role, 'admin');
   assert.deepEqual(result.permissions, ['READ_USERS', 'WRITE_USERS']);
+});
+
+test('createRegisterWithPermissions rejects invalid permissions without exposing raw permission names', async () => {
+  const registerWithPermissions = createRegisterWithPermissions({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async create() {
+        throw new Error('create should not be called');
+      },
+      async remove() {},
+    },
+    passwordHasher: {
+      async hash() {
+        throw new Error('hash should not be called');
+      },
+    },
+    tokenService: {
+      sign() {
+        throw new Error('sign should not be called');
+      },
+    },
+    userPermissionRepository: {
+      async grantBatch() {
+        throw new Error('grantBatch should not be called');
+      },
+    },
+    rolePermissionRepository: {
+      async findByRole() {
+        return [];
+      },
+    },
+    permissionRepository: {
+      async findAll() {
+        return [{ id: 1, name: 'READ_USERS' }];
+      },
+    },
+  });
+
+  await assert.rejects(() => registerWithPermissions({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Operador',
+      email: 'operador@example.com',
+      password: 'Secret123',
+      role: 'employee',
+      permissions: ['READ_USERS', 'DROP_DATABASE'],
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Permisos inválidos');
+    assert.deepEqual(error.errors, [
+      { field: 'permissions', message: 'Selecciona permisos válidos para el usuario.' },
+    ]);
+    assert.doesNotMatch(error.errors[0].message, /READ_USERS|DROP_DATABASE/);
+    return true;
+  });
 });
 
 test('createRegisterWithPermissions derives default permissions when not provided', async () => {
@@ -1029,6 +1236,7 @@ test('createRegisterWithPermissions throws AuthorizationError for non-admin acto
     },
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo un administrador puede asignar permisos.');
     return true;
   });
 });
@@ -1059,6 +1267,8 @@ test('createRegisterWithPermissions throws ConflictError for duplicate email', a
     },
   }), (error) => {
     assert.ok(error instanceof ConflictError);
+    assert.equal(error.message, 'Ya existe un usuario con ese correo electrónico.');
+    assert.doesNotMatch(error.message, /User|email already exists/i);
     return true;
   });
 });

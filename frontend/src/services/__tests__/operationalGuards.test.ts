@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { resolveOperationalGuard } from '../operationalGuards';
 
 describe('resolveOperationalGuard', () => {
+  beforeEach(() => {
+    localStorage.removeItem('app.locale');
+  });
+
   it('uses operator-facing status labels in disabled credit action reasons', () => {
     const guard = resolveOperationalGuard('installment.pay', {
       role: 'admin',
@@ -66,6 +70,30 @@ describe('resolveOperationalGuard', () => {
     });
 
     expect(guard).toMatchObject({
+      visible: true,
+      executable: true,
+    });
+  });
+
+  it('uses the backend credit update permission for promises and follow-ups', () => {
+    const promiseGuard = resolveOperationalGuard('installment.promise', {
+      role: 'employee',
+      permissions: ['CREDITS_UPDATE'],
+      loanStatus: 'active',
+      installmentStatus: 'pending',
+    });
+    const followUpGuard = resolveOperationalGuard('installment.followUp', {
+      role: 'employee',
+      permissions: ['CREDITS_UPDATE'],
+      loanStatus: 'active',
+      installmentStatus: 'pending',
+    });
+
+    expect(promiseGuard).toMatchObject({
+      visible: true,
+      executable: true,
+    });
+    expect(followUpGuard).toMatchObject({
       visible: true,
       executable: true,
     });
@@ -190,5 +218,26 @@ describe('resolveOperationalGuard', () => {
       visible: true,
       executable: true,
     });
+  });
+
+  it('uses the active locale for guard denial reasons', () => {
+    localStorage.setItem('app.locale', 'en');
+
+    expect(resolveOperationalGuard('installment.pay', {
+      role: 'admin',
+      loanStatus: 'closed',
+    }).reason).toBe('Loan closed: action unavailable.');
+
+    expect(resolveOperationalGuard('payout.register', {
+      role: 'customer',
+      permissions: ['*'],
+      payoutType: 'regular',
+    }).reason).toBe('Only authorized staff can record payments.');
+
+    expect(resolveOperationalGuard('capital.payment', {
+      role: 'employee',
+      permissions: [],
+      loanStatus: 'active',
+    }).reason).toBe('You do not have permission to execute this action.');
   });
 });

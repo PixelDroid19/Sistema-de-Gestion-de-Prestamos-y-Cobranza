@@ -1,8 +1,7 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
-  Calendar as CalendarIcon,
   CheckCircle2,
   Clock,
   DollarSign,
@@ -381,6 +380,7 @@ export default function CreditsCalendarView({
         <ModalShell
           title={tTerm('credits.modal.title')}
           subtitle={selectedEvent.clientName}
+          onClose={() => onSelectEvent(null)}
           footer={(
             <>
               <ActionButton onClick={() => onSelectEvent(null)} fullWidth>

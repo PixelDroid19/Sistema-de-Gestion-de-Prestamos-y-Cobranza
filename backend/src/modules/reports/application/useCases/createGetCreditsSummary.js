@@ -6,7 +6,7 @@ const { ensureAdmin, formatMoney } = require('@/modules/reports/application/repo
  * GET /api/reports/credits/summary
  */
 const createGetCreditsSummary = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
-  ensureAdmin(actor, 'Only admins can access credits summary');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al resumen de créditos.');
 
   const loans = await reportRepository.listOutstandingLoans();
 

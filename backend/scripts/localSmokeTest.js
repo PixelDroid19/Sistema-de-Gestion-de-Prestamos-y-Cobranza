@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const http = require('node:http');
 const https = require('node:https');
@@ -7,7 +7,21 @@ const DEFAULT_BASE_URL = 'http://127.0.0.1:5000';
 const baseUrl = String(process.env.SMOKE_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
 const allowRemote = process.env.SMOKE_ALLOW_REMOTE === 'true';
 const smokeOrigin = String(process.env.SMOKE_ORIGIN || '').trim();
-const requestTimeoutMs = Number.parseInt(process.env.SMOKE_TIMEOUT_MS || '15000', 10);
+const requestTimeoutRaw = process.env.SMOKE_TIMEOUT_MS || '15000';
+const parsePositiveInteger = (value, label) => {
+  const normalized = String(value || '').trim();
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  return parsed;
+};
+let requestTimeoutMs = null;
 
 const isLocalBaseUrl = (value) => {
   try {
@@ -215,8 +229,13 @@ const runEmployeeSmoke = async (summary) => {
   const profile = await expectStatus('employee profile', { path: '/api/auth/profile', token });
   assert(profile.body?.data?.user?.role === 'employee', 'employee credentials did not resolve to employee role', profile.body);
   await expectStatus('employee permissions', { path: '/api/permissions/me', token });
+  await expectStatus('employee config denied', { path: '/api/config/payment-methods', token }, 403);
+  await expectStatus('employee audit denied', { path: '/api/audits/stats', token }, 403);
+  await expectStatus('employee reports denied', { path: '/api/reports/dashboard', token }, 403);
+  await expectStatus('employee payments denied', { path: '/api/payments?page=1&pageSize=5', token }, 403);
+  await expectStatus('employee loans denied', { path: '/api/loans?page=1&pageSize=5', token }, 403);
 
-  summary.employee = 'authenticated limited backoffice flow passed';
+  summary.employee = 'authenticated limited backoffice flow and guard denials passed';
 };
 
 const runRetiredLoginSmoke = async (summary) => {
@@ -246,10 +265,7 @@ const main = async () => {
     isLocalBaseUrl(baseUrl) || smokeOrigin,
     'SMOKE_ORIGIN is required for remote smoke checks so production CORS is exercised with an allowed frontend origin.',
   );
-  assert(
-    Number.isInteger(requestTimeoutMs) && requestTimeoutMs > 0,
-    'SMOKE_TIMEOUT_MS must be a positive integer when provided.',
-  );
+  requestTimeoutMs = parsePositiveInteger(requestTimeoutRaw, 'SMOKE_TIMEOUT_MS');
 
   const summary = {
     baseUrl,
@@ -266,10 +282,19 @@ const main = async () => {
   console.log(JSON.stringify(summary, null, 2));
 };
 
-main().catch((error) => {
-  console.error(error.message);
-  if (error.details) {
-    console.error(JSON.stringify(error.details, null, 2));
-  }
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    if (error.details) {
+      console.error(JSON.stringify(error.details, null, 2));
+    }
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  DEFAULT_BASE_URL,
+  isLocalBaseUrl,
+  main,
+  parsePositiveInteger,
+};

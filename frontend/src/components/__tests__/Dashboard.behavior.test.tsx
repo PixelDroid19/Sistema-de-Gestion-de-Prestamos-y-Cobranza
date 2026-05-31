@@ -86,6 +86,7 @@ const renderDashboard = () => {
 
 describe('Dashboard behavior', () => {
   beforeEach(() => {
+    localStorage.clear();
     reportsState = {
       dashboardData: {
         summary: {
@@ -183,6 +184,18 @@ describe('Dashboard behavior', () => {
     expect(areaSeries).toContain('Desembolsado|disbursed');
     expect(barSeries).toContain('Recuperado|recovered');
     expect(barSeries).toContain('Desembolsado|disbursed');
+  });
+
+  it('uses translated tooltip copy in dashboard widgets', () => {
+    localStorage.setItem('app.locale', 'en');
+
+    renderDashboard();
+
+    expect(screen.getByLabelText('Total outstanding portfolio balance. Summarizes principal and amounts to recover across registered loans.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Loans that remain open and may require follow-up, collection, or operational review.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Percentage of overdue loans compared with total loans. Helps measure collection risk.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Summarizes by month how much principal went out in disbursements and how much money returned through recorded payments.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Resume por mes cuánto capital salió en desembolsos y cuánto dinero volvió por pagos registrados.')).not.toBeInTheDocument();
   });
 
   it('shows explicit error state instead of silent zero metrics', () => {

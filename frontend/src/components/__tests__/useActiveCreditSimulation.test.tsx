@@ -13,6 +13,7 @@ const mockCalculate = vi.mocked(creditCalculationService.calculate);
 
 describe('useActiveCreditSimulation', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     mockCalculate.mockReset();
   });
 
@@ -83,5 +84,63 @@ describe('useActiveCreditSimulation', () => {
     expect(result.current.input.interestRate).toBe(61);
     expect(result.current.input.annualLateFeeRate).toBe(28.17);
     expect(result.current.isResultStale).toBe(false);
+  });
+
+  it('does not expose raw backend validation messages as field errors', async () => {
+    mockCalculate.mockRejectedValue({
+      response: {
+        data: {
+          error: {
+            validationErrors: [
+              {
+                field: 'amount',
+                message: 'Amount must be greater than zero',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useActiveCreditSimulation({
+      initialInput: {
+        amount: 2000000,
+        interestRate: 60,
+        termMonths: 12,
+        lateFeeMode: 'SIMPLE',
+        rateSource: 'policy',
+        lateFeeSource: 'policy',
+      },
+      autoRun: false,
+    }));
+
+    await act(async () => {
+      await result.current.simulate();
+    });
+
+    expect(result.current.fieldErrors.amount).toBe('El monto debe ser un número mayor a 0.');
+    expect(result.current.fieldErrors.amount).not.toMatch(/Amount must/i);
+    expect(result.current.error).toBe('El servidor rechazó los parámetros. Revisa los campos marcados.');
+  });
+
+  it('resolves safe validation messages from the active locale', async () => {
+    window.localStorage.setItem('app.locale', 'en');
+
+    const { result } = renderHook(() => useActiveCreditSimulation({
+      initialInput: {
+        amount: 0,
+        interestRate: 60,
+        termMonths: 12,
+        lateFeeMode: 'SIMPLE',
+      },
+      autoRun: false,
+    }));
+
+    await act(async () => {
+      await result.current.simulate();
+    });
+
+    expect(result.current.fieldErrors.amount).toBe('The amount must be a number greater than 0.');
+    expect(result.current.error).toBe('Correct the marked fields before calculating.');
   });
 });

@@ -1,9 +1,18 @@
 const { ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError } = require('@/utils/errorHandler');
-const { APPLICATION_ROLES, isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
+const { isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
 const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
 
 const PRIVILEGED_ROLES = new Set(['admin']);
 const EMPLOYEE_ROLE = 'employee';
+const DUPLICATE_USER_EMAIL_MESSAGE = 'Ya existe un usuario con ese correo electrónico.';
+const ADMIN_ACCOUNT_CREATION_REQUIRED_MESSAGE = 'Solo un administrador puede crear cuentas administrativas.';
+const PASSWORD_REQUIREMENTS_MESSAGE = 'La contraseña no cumple los requisitos.';
+const INVALID_LOGIN_MESSAGE = 'Correo o contraseña incorrectos.';
+const INACTIVE_ACCOUNT_MESSAGE = 'Esta cuenta está inactiva.';
+const CHANGE_PASSWORD_REQUIRED_MESSAGE = 'Ingresa la contraseña actual y la nueva contraseña.';
+const CURRENT_PASSWORD_INCORRECT_MESSAGE = 'La contraseña actual es incorrecta.';
+const NEXT_PASSWORD_DIFFERENT_MESSAGE = 'La nueva contraseña debe ser diferente de la actual.';
+const PERMISSIONS_ASSIGN_REQUIRED_MESSAGE = 'Solo un administrador puede asignar permisos.';
 
 // Progressive login delay configuration
 const LOGIN_DELAY_CONFIG = {
@@ -151,7 +160,7 @@ const buildSupportedRolesError = () => {
   error.errors = [
     {
       field: 'role',
-      message: `El rol debe ser uno de: ${APPLICATION_ROLES.join(', ')}`,
+      message: 'Selecciona un rol administrativo válido.',
     },
   ];
 
@@ -163,7 +172,7 @@ const buildAdministrativeRoleValidationError = () => {
   error.errors = [
     {
       field: 'role',
-      message: 'Los usuarios administrativos deben ser admin o employee',
+      message: 'Selecciona un rol administrativo válido.',
     },
   ];
 
@@ -217,17 +226,17 @@ const createRegisterUser = ({
   const normalizedRole = requireAdministrativeLoginRole(resolvedRole);
 
   if (!isPublicRegistration && (PRIVILEGED_ROLES.has(normalizedRole) || normalizedRole === EMPLOYEE_ROLE) && actor?.role !== 'admin') {
-    throw new AuthorizationError('Privileged account creation requires admin access');
+    throw new AuthorizationError(ADMIN_ACCOUNT_CREATION_REQUIRED_MESSAGE);
   }
 
   const existingUser = await userRepository.findByEmail(email);
   if (existingUser) {
-    throw new ConflictError('User with this email already exists');
+    throw new ConflictError(DUPLICATE_USER_EMAIL_MESSAGE);
   }
 
   const passwordValidation = validatePasswordStrength(password);
   if (!passwordValidation.valid) {
-    const error = new ValidationError('Password does not meet requirements');
+    const error = new ValidationError(PASSWORD_REQUIREMENTS_MESSAGE);
     error.errors = passwordValidation.errors.map(msg => ({ field: 'password', message: msg }));
     throw error;
   }
@@ -269,7 +278,7 @@ const createRegisterUser = ({
  * @returns {Function}
  */
 const createLoginUser = ({ userRepository, passwordHasher, tokenService, refreshTokenRepository, auditService }) => async (credentials = {}) => {
-  const { AccountLockedError } = require('@/utils/errorHandler');
+  const { AccountLockedError, formatAccountLockedMessage } = require('@/utils/errorHandler');
   const { logSecurity } = require('@/utils/logger');
 
   const { email, username, identifier, password, req } = normalizeLoginCredentials(credentials);
@@ -282,7 +291,7 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
     : await userRepository.findByEmail(email || username);
   if (!user) {
     // Don't reveal whether identifier exists - generic error message
-    throw new AuthenticationError('Please enter correct email/password');
+    throw new AuthenticationError(INVALID_LOGIN_MESSAGE);
   }
 
   const now = new Date();
@@ -303,7 +312,7 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
       remainingMinutes,
     });
     const error = new AccountLockedError(
-      `Account temporarily locked due to too many failed login attempts. Try again in ${remainingMinutes} minute(s).`,
+      formatAccountLockedMessage(remainingMinutes),
       15
     );
     throw error;
@@ -354,15 +363,15 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
 
-    throw new AuthenticationError('Please enter correct email/password');
+    throw new AuthenticationError(INVALID_LOGIN_MESSAGE);
   }
 
   if (!isAdministrativeLoginRole(user.role)) {
-    throw new AuthenticationError('Please enter correct email/password');
+    throw new AuthenticationError(INVALID_LOGIN_MESSAGE);
   }
 
   if (user.isActive === false) {
-    throw new AuthenticationError('This account is inactive');
+    throw new AuthenticationError(INACTIVE_ACCOUNT_MESSAGE);
   }
 
   // Successful login - reset failed attempts and clear lockout
@@ -461,7 +470,7 @@ const createUpdateProfile = ({ userRepository }) => async (userId, { name, email
   if (email && email !== user.email) {
     const existingUser = await userRepository.findByEmail(email);
     if (existingUser && existingUser.id !== userId) {
-      throw new ConflictError('Email already in use');
+      throw new ConflictError(DUPLICATE_USER_EMAIL_MESSAGE);
     }
   }
 
@@ -489,24 +498,24 @@ const createChangePassword = ({ userRepository, passwordHasher, auditService }) 
   requireAdministrativeLoginRole(user.role);
 
   if (!currentPassword || !nextPassword) {
-    throw new ValidationError('Current password and next password are required');
+    throw new ValidationError(CHANGE_PASSWORD_REQUIRED_MESSAGE);
   }
 
   const passwordValidation = validatePasswordStrength(nextPassword);
   if (!passwordValidation.valid) {
-    const error = new ValidationError('Password does not meet requirements');
+    const error = new ValidationError(PASSWORD_REQUIREMENTS_MESSAGE);
     error.errors = passwordValidation.errors.map(msg => ({ field: 'nextPassword', message: msg }));
     throw error;
   }
 
   const isCurrentPasswordValid = await passwordHasher.compare(currentPassword, user.password);
   if (!isCurrentPasswordValid) {
-    throw new AuthenticationError('Current password is incorrect');
+    throw new AuthenticationError(CURRENT_PASSWORD_INCORRECT_MESSAGE);
   }
 
   const isSamePassword = await passwordHasher.compare(nextPassword, user.password);
   if (isSamePassword) {
-    throw new ValidationError('Next password must be different from the current password');
+    throw new ValidationError(NEXT_PASSWORD_DIFFERENT_MESSAGE);
   }
 
   const hashedPassword = await passwordHasher.hash(nextPassword);
@@ -613,7 +622,7 @@ const createRegisterWithPermissions = ({
   // Validate actor has PERMISSIONS_ASSIGN permission
   if (!actor || actor.role !== 'admin') {
     const { AuthorizationError } = require('@/utils/errorHandler');
-    throw new AuthorizationError('PERMISSIONS_ASSIGN permission required');
+    throw new AuthorizationError(PERMISSIONS_ASSIGN_REQUIRED_MESSAGE);
   }
 
   const normalizedRole = requireAdministrativeLoginRole(role);
@@ -621,13 +630,13 @@ const createRegisterWithPermissions = ({
   // Check for email conflicts
   const existingUser = await userRepository.findByEmail(email);
   if (existingUser) {
-    throw new ConflictError('User with this email already exists');
+    throw new ConflictError(DUPLICATE_USER_EMAIL_MESSAGE);
   }
 
   // Validate password
   const passwordValidation = validatePasswordStrength(password);
   if (!passwordValidation.valid) {
-    const error = new ValidationError('Password does not meet requirements');
+    const error = new ValidationError(PASSWORD_REQUIREMENTS_MESSAGE);
     error.errors = passwordValidation.errors.map(msg => ({ field: 'password', message: msg }));
     throw error;
   }
@@ -641,8 +650,8 @@ const createRegisterWithPermissions = ({
     
     const invalidPerms = explicitPermissions.filter(p => !validPermissionNames.has(p));
     if (invalidPerms.length > 0) {
-      const error = new ValidationError('Invalid permissions');
-      error.errors = [{ field: 'permissions', message: `Invalid permissions: ${invalidPerms.join(', ')}` }];
+      const error = new ValidationError('Permisos inválidos');
+      error.errors = [{ field: 'permissions', message: 'Selecciona permisos válidos para el usuario.' }];
       throw error;
     }
     

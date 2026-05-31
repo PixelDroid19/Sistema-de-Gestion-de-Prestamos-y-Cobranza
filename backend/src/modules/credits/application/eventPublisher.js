@@ -1,9 +1,28 @@
 const crypto = require('crypto');
 const { createOutboxEventRepository } = require('@/modules/credits/infrastructure/outboxEventRepository');
 
+const parsePositiveIntegerEnv = (key, defaultValue) => {
+  const raw = process.env[key];
+  if (raw === undefined || raw === '') {
+    return defaultValue;
+  }
+
+  const normalized = String(raw).trim();
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    throw new Error(`${key} must be a positive integer.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${key} must be a positive integer.`);
+  }
+
+  return parsed;
+};
+
 const createHttpEventPublisher = ({
   endpointUrl = process.env.OUTBOX_WEBHOOK_URL,
-  timeoutMs = Number(process.env.OUTBOX_WEBHOOK_TIMEOUT_MS || 3000),
+  timeoutMs = parsePositiveIntegerEnv('OUTBOX_WEBHOOK_TIMEOUT_MS', 3000),
   requestInit = {},
   logger = console,
 } = {}) => {

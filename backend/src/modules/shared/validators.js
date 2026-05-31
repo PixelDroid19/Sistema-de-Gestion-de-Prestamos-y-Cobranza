@@ -83,6 +83,32 @@ const validateIntegerId = (value) => {
   return Number.isSafeInteger(numericValue) && numericValue > 0;
 };
 
+const INTEGER_ID_MESSAGES = {
+  alertId: 'El número de la alerta debe ser válido',
+  associateId: 'El número del socio debe ser válido',
+  customerId: 'El número del cliente debe ser válido',
+  documentId: 'El número del documento debe ser válido',
+  expenseId: 'El número del gasto operativo debe ser válido',
+  installmentNumber: 'El número de la cuota debe ser válido',
+  loanId: 'El número del crédito debe ser válido',
+  loanIds: 'La lista de créditos debe contener solo números válidos',
+  notificationId: 'El número de la notificación debe ser válido',
+  paymentId: 'El número del pago debe ser válido',
+  paymentMethodId: 'El número del método de pago debe ser válido',
+  policyId: 'El número de la política debe ser válido',
+  promiseId: 'El número del compromiso debe ser válido',
+  userId: 'El número del usuario debe ser válido',
+};
+
+/**
+ * Build an operator-facing message for malformed numeric identifiers.
+ * @param {string} fieldName
+ * @returns {string}
+ */
+const buildInvalidIntegerIdMessage = (fieldName) => {
+  return INTEGER_ID_MESSAGES[fieldName] || 'El identificador debe ser válido';
+};
+
 /**
  * Validate an optional date input (null/undefined/empty are valid).
  * @param {string|null|undefined} value
@@ -168,6 +194,7 @@ module.exports = {
   validateInterestRate,
   validateTermMonths,
   validateIntegerId,
+  buildInvalidIntegerIdMessage,
   validateOptionalDateInput,
   validateIdempotencyKey,
   validateIntegerRange,

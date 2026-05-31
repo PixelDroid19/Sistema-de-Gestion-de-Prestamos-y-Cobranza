@@ -11,7 +11,7 @@ test('AccountLockedError has correct status code 423', () => {
 
 test('AccountLockedError has default message', () => {
   const error = new AccountLockedError();
-  assert.ok(error.message.includes('temporarily locked'));
+  assert.equal(error.message, 'La cuenta está bloqueada temporalmente por demasiados intentos fallidos.');
 });
 
 test('AccountLockedError has custom message', () => {
@@ -48,7 +48,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
     await assert.rejects(
       async () => loginUser({ email: 'nonexistent@test.com', password: 'any' }),
       (error) => {
-        assert.equal(error.message, 'Please enter correct email/password');
+        assert.equal(error.message, 'Correo o contraseña incorrectos.');
         return true;
       }
     );
@@ -117,7 +117,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
 
     await assert.rejects(
       async () => loginUser({ email: 'test@test.com', password: 'wrong' }),
-      /Please enter correct email\/password/
+      /Correo o contraseña incorrectos\./
     );
 
     assert.equal(updatedFields.failedLoginAttempts, 1);
@@ -152,7 +152,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
 
     await assert.rejects(
       async () => loginUser({ email: 'test@test.com', password: 'wrong' }),
-      /Please enter correct email\/password/
+      /Correo o contraseña incorrectos\./
     );
 
     assert.equal(updatedFields.failedLoginAttempts, 5);
@@ -191,6 +191,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
       (error) => {
         assert.equal(error.name, 'AccountLockedError');
         assert.equal(error.statusCode, 423);
+        assert.match(error.message, /^La cuenta está bloqueada temporalmente por demasiados intentos fallidos\. Intenta de nuevo en \d+ minuto\(s\)\.$/);
         return true;
       }
     );
@@ -260,7 +261,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
 
     await assert.rejects(
       async () => loginUser({ email: 'test@test.com', password: 'wrong' }),
-      /Please enter correct email\/password/
+      /Correo o contraseña incorrectos\./
     );
 
     assert.equal(updatedFields.failedLoginAttempts, 1);
@@ -306,7 +307,7 @@ describe('createUnlockUser', () => {
 
     await assert.rejects(
       async () => unlockUser(999),
-      /User not found/
+      /El usuario no existe/
     );
   });
 });

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 
 const { createAuditRouter } = require('@/modules/audit/presentation/router');
-const { globalErrorHandler } = require('@/utils/errorHandler');
+const { AuthorizationError, globalErrorHandler } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -106,9 +106,7 @@ test('GET /audits rejects when the permission middleware denies access', async (
   };
 
   const denyAuth = () => (req, res, next) => {
-    const error = new Error('Forbidden');
-    error.statusCode = 403;
-    next(error);
+    next(new AuthorizationError('No tienes acceso a esta acción.'));
   };
 
   const router = createAuditRouter({

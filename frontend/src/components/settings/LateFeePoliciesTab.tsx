@@ -3,6 +3,7 @@ import { CheckCircle2, CircleOff, Plus, Save, Trash2 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
+import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
   DataTableSurface,
@@ -61,7 +62,7 @@ export default function LateFeePoliciesTab({
       resetLateFeeDraft();
       toast.success({ description: tTerm('settings.lateFee.toast.created') });
     } catch (error) {
-      console.error('[settings] createLateFeePolicy failed', error);
+      reportClientError('settings.lateFee.create', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
     }
   };
@@ -78,7 +79,7 @@ export default function LateFeePoliciesTab({
       await deleteLateFeePolicy.mutateAsync(policy.id);
       toast.success({ description: tTerm('settings.lateFee.toast.deleted') });
     } catch (error) {
-      console.error('[settings] delete failed', error);
+      reportClientError('settings.lateFee.delete', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
     }
   };
@@ -177,7 +178,7 @@ export default function LateFeePoliciesTab({
                             await updateLateFeePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
                             toast.success({ description: policy.isActive === false ? tTerm('settings.lateFee.toast.activated') : tTerm('settings.lateFee.toast.deactivated') });
                           } catch (error) {
-                            console.error('[settings] updateLateFeePolicy failed', error);
+                            reportClientError('settings.lateFee.update', error);
                             toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
                           }
                         }}

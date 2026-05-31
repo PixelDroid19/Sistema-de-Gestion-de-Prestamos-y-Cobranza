@@ -248,6 +248,12 @@ describe('Credits behavioral parity scenarios', () => {
     });
   });
 
+  it('labels the credits tablist for assistive navigation', () => {
+    renderCredits();
+
+    expect(screen.getByRole('tablist', { name: 'Secciones de créditos' })).toBeInTheDocument();
+  });
+
   it('executes view details action and navigates to credit detail', async () => {
     renderCredits();
 
@@ -319,14 +325,27 @@ describe('Credits behavioral parity scenarios', () => {
     expect(screen.getAllByText((content) => content.includes('500.000')).length).toBeGreaterThan(0);
   });
 
+  it('keeps internal credit identifiers out of the portfolio list', () => {
+    renderCredits();
+
+    expect(screen.queryByRole('columnheader', { name: /^ID$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Crédito #77')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Seleccionar crédito 77')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Seleccionar crédito de Cliente Prueba')).toBeInTheDocument();
+  });
+
   it('turns the calendar tab into an operational agenda with actions for the next payable installment', async () => {
     renderCredits();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Calendario' }));
+
+
 
     expect(await screen.findByText('Agenda operativa')).toBeInTheDocument();
     expect(screen.getByText('Cobros accionables')).toBeInTheDocument();
     expect(await screen.findByText('Cliente Prueba')).toBeInTheDocument();
+    expect(screen.getAllByText(/Cuota 1 de 12/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Crédito #77/i)).not.toBeInTheDocument();
     expect(screen.getByText('4 días de atraso')).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Registrar pago' })[0]);
@@ -349,7 +368,7 @@ describe('Credits behavioral parity scenarios', () => {
   it('keeps credit calendar date filters within a valid range', async () => {
     renderCredits();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Calendario' }));
 
     const fromInput = await screen.findByLabelText('Desde');
     const toInput = screen.getByLabelText('Hasta');

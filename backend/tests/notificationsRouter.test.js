@@ -15,7 +15,7 @@ afterEach(async () => {
 
 const authMiddleware = () => (req, res, next) => {
   if (!req.headers.authorization) {
-    res.status(401).json({ success: false, error: { message: 'Authentication failed', statusCode: 401 } });
+    res.status(401).json({ success: false, error: { message: 'La autenticación es requerida.', statusCode: 401 } });
     return;
   }
 
@@ -203,7 +203,7 @@ test('createNotificationsRouter rejects malformed notification identifiers befor
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /notificationId/i);
+  assert.match(response.body.error.message, /número de la notificación/i);
   assert.deepEqual(calls, []);
 });
 
@@ -412,7 +412,7 @@ test('createNotificationsRouter rejects mobile subscription registration without
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.body.success, false);
-  assert.match(JSON.stringify(response.body.error.validationErrors), /Las suscripciones móviles requieren token del dispositivo/);
+  assert.match(JSON.stringify(response.body.error.validationErrors), /Las suscripciones móviles requieren el token del dispositivo/);
 });
 
 test('createNotificationsRouter rejects webpush deletion without endpoint identifier', async () => {
@@ -465,5 +465,64 @@ test('createNotificationsRouter rejects webpush deletion without endpoint identi
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.body.success, false);
-  assert.match(JSON.stringify(response.body.error.validationErrors), /webpush subscriptions require an endpoint identifier/);
+  assert.match(
+    response.body.error.validationErrors.map((entry) => entry.message).join(' '),
+    /Las suscripciones web requieren el identificador web de la suscripción/,
+  );
+});
+
+test('createNotificationsRouter rejects mobile subscription deletion without operator-facing implementation labels', async () => {
+  const { notificationValidation } = require('@/middleware/validation');
+
+  const router = createNotificationsRouter({
+    authMiddleware,
+    notificationValidation,
+    useCases: {
+      async getNotifications() {
+        throw new Error('getNotifications should not be called');
+      },
+      async getUnreadCount() {
+        throw new Error('getUnreadCount should not be called');
+      },
+      async markAsRead() {
+        throw new Error('markAsRead should not be called');
+      },
+      async markAllAsRead() {
+        throw new Error('markAllAsRead should not be called');
+      },
+      async clearNotifications() {
+        throw new Error('clearNotifications should not be called');
+      },
+      async registerPushSubscription() {
+        throw new Error('registerPushSubscription should not be called');
+      },
+      async deletePushSubscription() {
+        throw new Error('deletePushSubscription should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'DELETE',
+    path: '/subscriptions',
+    headers: { authorization: 'Bearer valid-token', 'x-test-user-id': '8' },
+    body: {
+      providerKey: 'fcm',
+      endpoint: 'https://push.example/sub',
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.success, false);
+  assert.match(
+    response.body.error.validationErrors.map((entry) => entry.message).join(' '),
+    /Las suscripciones móviles requieren el token del dispositivo/,
+  );
 });

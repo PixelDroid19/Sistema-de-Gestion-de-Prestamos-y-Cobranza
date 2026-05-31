@@ -54,6 +54,6 @@
 ## Pendiente para cierre total
 
 - Ejecutar suite completa backend y frontend.
-- Ejecutar QA browser por rol `customer` y `socio`.
+- Ejecutar QA browser por `admin` y `employee`; `customer` y `socio` se validan como registros de dominio sin login administrativo.
 - Validar exportes UI reales en `/reports`.
 - Validar configuración QA nueva sin tocar políticas activas reales.

@@ -47,6 +47,24 @@ describe('tokenService', () => {
     assert.equal(decoded.name, 'Admin Test', 'Name should match');
   });
 
+  test('createJwtTokenService rejects unsupported token roles with an operator-facing session error', () => {
+    const tokenService = createJwtTokenService({ secret: 'test-secret' });
+
+    assert.throws(
+      () => tokenService.sign({ id: 1, role: 'agent' }),
+      /La sesión no es válida\. Inicia sesión de nuevo\./,
+    );
+  });
+
+  test('createJwtTokenService rejects malformed token payloads with an operator-facing session error', () => {
+    const tokenService = createJwtTokenService({ secret: 'test-secret' });
+
+    assert.throws(
+      () => tokenService.sign(null),
+      /La sesión no es válida\. Inicia sesión de nuevo\./,
+    );
+  });
+
   test('hashRefreshToken produces consistent SHA-256 hash', () => {
     const token = 'test-refresh-token-12345';
     const hash = hashRefreshToken(token);
@@ -107,7 +125,7 @@ describe('tokenService', () => {
     
     await assert.rejects(
       async () => tokenService.verifyRefreshToken('invalid-token'),
-      /Invalid or expired refresh token/
+      /La sesión no es válida o expiró\. Inicia sesión de nuevo\./
     );
   });
 
@@ -126,7 +144,7 @@ describe('tokenService', () => {
     
     await assert.rejects(
       async () => tokenService.verifyRefreshToken('revoked-token'),
-      /Invalid or expired refresh token/
+      /La sesión no es válida o expiró\. Inicia sesión de nuevo\./
     );
   });
 
@@ -145,7 +163,7 @@ describe('tokenService', () => {
     
     await assert.rejects(
       async () => tokenService.verifyRefreshToken('expired-token'),
-      /Invalid or expired refresh token/
+      /La sesión no es válida o expiró\. Inicia sesión de nuevo\./
     );
   });
 

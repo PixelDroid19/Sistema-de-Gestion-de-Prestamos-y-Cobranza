@@ -12,20 +12,27 @@ const { assertActiveProfile } = require('./calculationProfiles');
 const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
 
 const resolveDefaultStartDate = () => normalizeDateOnly(new Date(), 'startDate').toISOString();
+const CREDIT_AMOUNT_POSITIVE_MESSAGE = 'El monto del crédito debe ser mayor que 0.';
+const CREDIT_INTEREST_RATE_RANGE_MESSAGE = 'La tasa del crédito debe estar entre 0 y 100.';
+const CREDIT_TERM_RANGE_MESSAGE = 'El plazo debe ser un número entero entre 1 y 360 meses.';
 
 const normalizeCreditCalculationInput = (input = {}) => {
   const amount = Number(input.amount);
   const interestRate = Number(input.interestRate);
-  const termMonths = Number(input.termMonths);
+  const normalizedTermMonths = typeof input.termMonths === 'string' ? input.termMonths.trim() : input.termMonths;
+  const hasPlainIntegerTerm = typeof normalizedTermMonths === 'string'
+    ? /^\d+$/.test(normalizedTermMonths)
+    : true;
+  const termMonths = Number(normalizedTermMonths);
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new ValidationError('amount must be greater than 0');
+    throw new ValidationError(CREDIT_AMOUNT_POSITIVE_MESSAGE);
   }
   if (!Number.isFinite(interestRate) || interestRate < 0 || interestRate > 100) {
-    throw new ValidationError('interestRate must be between 0 and 100');
+    throw new ValidationError(CREDIT_INTEREST_RATE_RANGE_MESSAGE);
   }
-  if (!Number.isInteger(termMonths) || termMonths < 1 || termMonths > 360) {
-    throw new ValidationError('termMonths must be an integer between 1 and 360');
+  if (!hasPlainIntegerTerm || !Number.isInteger(termMonths) || termMonths < 1 || termMonths > 360) {
+    throw new ValidationError(CREDIT_TERM_RANGE_MESSAGE);
   }
 
   const rawStartDate = input.startDate;

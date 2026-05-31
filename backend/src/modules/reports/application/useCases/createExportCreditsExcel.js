@@ -376,7 +376,7 @@ const buildCreditsExportDataset = async ({ reportRepository, paymentRepository, 
 };
 
 const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can export credits data');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar datos de créditos.');
 
   const { loans } = await buildCreditsExportDataset({
     reportRepository,
@@ -567,7 +567,7 @@ const buildPdfSummaryLines = (rows) => {
 };
 
 const createExportCreditsPdf = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can export credits data');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar datos de créditos.');
   const { loans } = await buildCreditsExportDataset({ reportRepository, paymentRepository, loanViewService, filters });
   const rows = await buildCreditsRowsForExport({ loans, paymentRepository, loanViewService });
   const buffer = buildPdfBuffer({

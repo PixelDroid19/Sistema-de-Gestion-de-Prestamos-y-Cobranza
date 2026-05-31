@@ -3,6 +3,8 @@ const { assertSupportedCalculationMethod } = require('./calculationMethods');
 const { assertSupportedLateFeeMode } = require('./lateFeeCalculator');
 
 const DEFAULT_CALCULATION_SCOPE_KEY = 'credit-calculation';
+const ACTIVE_CALCULATION_PROFILE_REQUIRED_MESSAGE = 'No hay un perfil de cálculo activo para créditos. Activa un perfil antes de calcular o crear créditos.';
+const CALCULATION_PROFILE_ACTIVE_STATUS_MESSAGE = 'El perfil de cálculo seleccionado no está activo.';
 
 const DEFAULT_PROFILE_PARAMETERS = Object.freeze({
   roundingMode: 'HALF_UP_2_DECIMALS',
@@ -13,7 +15,7 @@ const DEFAULT_PROFILE_PARAMETERS = Object.freeze({
 
 const DEFAULT_CALCULATION_PROFILE = Object.freeze({
   scopeKey: DEFAULT_CALCULATION_SCOPE_KEY,
-  name: 'Perfil base de calculo de credito',
+  name: 'Perfil base de cálculo de crédito',
   version: 1,
   status: 'active',
   calculationMethod: 'FRENCH',
@@ -56,14 +58,14 @@ const normalizeProfile = (profile) => {
 const assertActiveProfile = (profile, scopeKey = DEFAULT_CALCULATION_SCOPE_KEY) => {
   const normalizedProfile = normalizeProfile(profile);
   if (!normalizedProfile) {
-    const error = new ValidationError(`No active calculation profile is configured for scope '${scopeKey}'`);
+    const error = new ValidationError(ACTIVE_CALCULATION_PROFILE_REQUIRED_MESSAGE);
     error.code = 'CALCULATION_PROFILE_NOT_ACTIVE';
-    error.recovery = 'Seed or activate a CalculationProfileVersion before running credit calculations.';
+    error.recovery = 'Activa un perfil de cálculo antes de ejecutar cálculos de crédito.';
     throw error;
   }
 
   if (String(normalizedProfile.status || '').toLowerCase() !== 'active') {
-    throw new ValidationError(`Calculation profile ${normalizedProfile.id || normalizedProfile.version} is not active`);
+    throw new ValidationError(CALCULATION_PROFILE_ACTIVE_STATUS_MESSAGE);
   }
 
   return normalizedProfile;

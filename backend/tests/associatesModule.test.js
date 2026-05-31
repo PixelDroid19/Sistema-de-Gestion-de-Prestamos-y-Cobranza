@@ -95,7 +95,7 @@ test('createListAssociates rejects unsupported status filters', async () => {
     filters: { status: 'blocked' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Associate status filter must be active or inactive');
+    assert.equal(error.message, 'Filtro de estado de socio inválido.');
     return true;
   });
 });
@@ -111,7 +111,7 @@ test('createGetAssociateById rejects when the record is missing', async () => {
 
   await assert.rejects(() => getAssociateById(88), (error) => {
     assert.ok(error instanceof NotFoundError);
-    assert.equal(error.message, 'Associate not found');
+    assert.equal(error.message, 'El socio no existe.');
     return true;
   });
 });
@@ -329,7 +329,7 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
     },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'interestType must be monthly or annual');
+    assert.equal(error.message, 'El tipo de interés debe ser mensual o anual');
     return true;
   });
 
@@ -345,7 +345,7 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
     },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'interestStartDate must be a valid YYYY-MM-DD date');
+    assert.equal(error.message, 'La fecha de inicio de intereses debe tener formato AAAA-MM-DD');
     return true;
   });
 
@@ -361,7 +361,7 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
     },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'interestPaymentDay must be an integer between 1 and 28');
+    assert.equal(error.message, 'El día de pago de intereses debe ser un entero entre 1 y 28');
     return true;
   });
 
@@ -377,7 +377,7 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
     },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'interestPaymentMonth must be an integer between 1 and 12');
+    assert.equal(error.message, 'El mes de pago de intereses debe ser un entero entre 1 y 12');
     return true;
   });
 });
@@ -404,8 +404,8 @@ test('createCreateAssociate rejects duplicate contact details through the reposi
   }), (error) => {
     assert.ok(error instanceof ValidationError);
     assert.deepEqual(error.errors, [
-      { field: 'email', message: 'Associate email already exists' },
-      { field: 'phone', message: 'Associate phone already exists' },
+      { field: 'email', message: 'Ya existe un socio con ese correo.' },
+      { field: 'phone', message: 'Ya existe un socio con ese teléfono.' },
     ]);
     return true;
   });
@@ -468,7 +468,59 @@ test('createListAssociateFinancialDetails rejects socio records before associate
   await assert.rejects(() => listAssociateFinancialDetails({
     actor: { id: 9, role: 'socio', associateId: 12 },
     associateId: 12,
-  }), AuthorizationError);
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden consultar información financiera de socios.');
+    return true;
+  });
+});
+
+test('createListAssociateFinancialDetails requires an associate for backoffice financial details', async () => {
+  const listAssociateFinancialDetails = createListAssociateFinancialDetails({
+    associateRepository: {
+      async findById() {
+        throw new Error('findById should not be called without an associate id');
+      },
+      async listContributionsByAssociate() {
+        throw new Error('listContributionsByAssociate should not be called');
+      },
+      async listProfitDistributionsByAssociate() {
+        throw new Error('listProfitDistributionsByAssociate should not be called');
+      },
+      async findInstallmentsByAssociateId() {
+        throw new Error('findInstallmentsByAssociateId should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => listAssociateFinancialDetails({
+    actor: { id: 9, role: 'admin' },
+    associateId: null,
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Selecciona un socio para consultar su información financiera.');
+    return true;
+  });
+});
+
+test('createCreateAssociateContribution rejects non-admin actors with an operator-facing message', async () => {
+  const createAssociateContribution = createCreateAssociateContribution({
+    associateRepository: {
+      async findById() {
+        throw new Error('findById should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => createAssociateContribution({
+    actor: { id: 9, role: 'socio', associateId: 12 },
+    associateId: 12,
+    payload: { amount: 50 },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar aportes de socios.');
+    return true;
+  });
 });
 
 test('createCreateAssociateContribution validates positive amounts', async () => {
@@ -575,7 +627,7 @@ test('associate money movement use cases reject ambiguous currency amounts', asy
     payload: { amount: '1e2' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /Contribution amount/);
+    assert.match(error.message, /El monto del aporte/);
     return true;
   });
 
@@ -585,7 +637,7 @@ test('associate money movement use cases reject ambiguous currency amounts', asy
     payload: { amount: '50.999' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /Distribution amount/);
+    assert.match(error.message, /El monto de la distribución/);
     return true;
   });
 
@@ -595,7 +647,7 @@ test('associate money movement use cases reject ambiguous currency amounts', asy
     payload: { amount: '100abc' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /Reinvestment amount/);
+    assert.match(error.message, /El monto de la reinversión/);
     return true;
   });
 });
@@ -628,7 +680,7 @@ test('associate money movement use cases reject malformed operational dates', as
     payload: { amount: 500, contributionDate: '60517-02-14' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /contributionDate/);
+    assert.match(error.message, /La fecha del aporte/);
     return true;
   });
 
@@ -638,7 +690,7 @@ test('associate money movement use cases reject malformed operational dates', as
     payload: { amount: 500, distributionDate: '+060517-02-14T00:00:00.000Z' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /distributionDate/);
+    assert.match(error.message, /La fecha de distribución/);
     return true;
   });
 });
@@ -659,7 +711,48 @@ test('createCreateProfitDistribution rejects non-admin actors', async () => {
     actor: { id: 9, role: 'socio', associateId: 12 },
     associateId: 12,
     payload: { amount: 50 },
-  }), AuthorizationError);
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar distribuciones de utilidades.');
+    return true;
+  });
+});
+
+test('associate reinvestment and proportional distribution reject non-admin actors with operator-facing messages', async () => {
+  const createAssociateReinvestment = createCreateAssociateReinvestment({
+    associateRepository: {
+      async findById() {
+        throw new Error('findById should not be called');
+      },
+    },
+  });
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async listActive() {
+        throw new Error('listActive should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => createAssociateReinvestment({
+    actor: { id: 9, role: 'socio', associateId: 12 },
+    associateId: 12,
+    payload: { amount: 50 },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar reinversiones de socios.');
+    return true;
+  });
+
+  await assert.rejects(() => createProportionalProfitDistribution({
+    actor: { id: 9, role: 'socio', associateId: 12 },
+    idempotencyKey: 'dist-prop-1',
+    payload: { amount: 50 },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar distribuciones proporcionales.');
+    return true;
+  });
 });
 
 test('createCreateAssociateReinvestment records paired distribution and contribution entries', async () => {
@@ -725,7 +818,7 @@ test('createCreateProportionalProfitDistribution rejects missing active associat
     payload: { amount: '100.00' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'At least one active associate is required for proportional distributions');
+    assert.equal(error.message, 'Debe existir al menos un socio activo para distribuir utilidades.');
     return true;
   });
 });
@@ -747,15 +840,15 @@ test('createCreateProportionalProfitDistribution rejects missing or non-positive
     payload: { amount: '100.00' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Eligible associate participation is incomplete');
+    assert.equal(error.message, 'Completa la participación de los socios activos antes de distribuir utilidades.');
     assert.deepEqual(error.errors, [
       {
         field: 'participationPercentage',
-        message: 'Active associate 4 must define participationPercentage before proportional distributions',
+        message: 'Completa el porcentaje de participación de todos los socios activos.',
       },
       {
         field: 'participationPercentage',
-        message: 'Active associate 8 must have participationPercentage greater than 0 for proportional distributions',
+        message: 'Los porcentajes de participación de socios activos deben ser mayores que cero.',
       },
     ]);
     return true;
@@ -779,7 +872,7 @@ test('createCreateProportionalProfitDistribution rejects pools that do not total
     payload: { amount: '100.00' },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Active associate participation percentages must total exactly 100.0000');
+    assert.equal(error.message, 'La participación activa de socios debe sumar exactamente 100%.');
     return true;
   });
 });
@@ -930,7 +1023,9 @@ test('createCreateProportionalProfitDistribution rejects a reused idempotency ke
   }), (error) => {
     assert.equal(error.name, 'ConflictError');
     assert.equal(error.statusCode, 409);
+    assert.equal(error.message, 'Esta distribución proporcional ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.');
     assert.equal(error.errors[0].field, 'idempotencyKey');
+    assert.equal(error.errors[0].message, 'Esta distribución proporcional ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.');
     return true;
   });
 });
@@ -972,7 +1067,8 @@ test('createCreateProportionalProfitDistribution prevents a near-concurrent dupl
   }), (error) => {
     assert.equal(error.name, 'ConflictError');
     assert.equal(error.statusCode, 409);
-    assert.match(error.message, /already being processed/);
+    assert.equal(error.message, 'Esta distribución proporcional ya se está procesando. Espera el resultado antes de intentar nuevamente.');
+    assert.equal(error.errors[0].message, 'Esta distribución proporcional ya se está procesando. Espera el resultado antes de intentar nuevamente.');
     return true;
   });
 });
@@ -1150,7 +1246,7 @@ test('createPayAssociateInstallment rejects already paid installment', async () 
     payload: {},
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Installment already paid');
+    assert.equal(error.message, 'La cuota del socio ya fue pagada');
     return true;
   });
 });
@@ -1230,5 +1326,5 @@ test('createGetAssociateCalendar rejects inverted date ranges before reading cal
     associateId: 12,
     startDate: '2026-12-31',
     endDate: '2026-01-01',
-  }), /startDate must be before or equal to endDate/i);
+  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
 });

@@ -14,7 +14,9 @@ type CreditDetailsTabsProps = {
     calendar: string;
     alerts: string;
     promises: string;
+    payouts: string;
     history: string;
+    aria: string;
   };
   onSelect: (tab: CreditDetailsTab) => void;
 };
@@ -52,7 +54,7 @@ export function CreditDetailsTabs({
     { id: 'calendar', icon: Calendar, label: labels.calendar },
     ...(isAdmin ? [{ id: 'alerts', icon: Bell, label: labels.alerts, count: alertCount }] : []),
     ...(isAdmin ? [{ id: 'promises', icon: Clock, label: labels.promises, count: pendingPromiseCount }] : []),
-    { id: 'payouts', icon: DollarSign, label: 'Historial de pagos', count: paymentHistoryCount },
+    { id: 'payouts', icon: DollarSign, label: labels.payouts, count: paymentHistoryCount },
     { id: 'history', icon: Activity, label: labels.history },
   ];
 
@@ -61,7 +63,7 @@ export function CreditDetailsTabs({
       tabs={tabs}
       activeTab={activeTab}
       onChange={(tabId) => onSelect(tabId as CreditDetailsTab)}
-      ariaLabel="Secciones del detalle de crédito"
+      ariaLabel={labels.aria}
       data-tour="credit-detail-tabs"
     />
   );

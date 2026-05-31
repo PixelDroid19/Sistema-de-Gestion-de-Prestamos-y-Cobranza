@@ -46,7 +46,7 @@ const isLoanMutableByActor = ({ actor, loan }) => {
   return isBackofficeRole(resolveActorRole(actor));
 };
 
-const buildAccessDeniedMessage = () => 'Only authorized backoffice users can access loans';
+const buildAccessDeniedMessage = () => 'Solo usuarios administrativos autorizados pueden acceder a créditos.';
 
 const buildMutationDeniedMessage = () => 'You do not have permission to update this loan';
 

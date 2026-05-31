@@ -1,4 +1,4 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 import { AlertCircle, DollarSign, TrendingUp, Wallet } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
@@ -10,12 +10,13 @@ import { getPaymentMethodLabel, getPaymentTypeLabel } from '../../constants/paym
 import { getChipClassName } from '../../constants/uiChips';
 import {
   ActionButton,
-  DataTableSurface,
   FormField,
-  InsightStrip,
   SelectInput,
   TextInput,
 } from '../shared/Surfaces';
+import { ReportDataTableSection } from './ReportDataTableSection';
+import { ReportMetricsSection } from './ReportMetricsSection';
+import { ReportTabPanel } from './ReportTabPanel';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -32,6 +33,7 @@ type PayoutsTabProps = {
   payoutSummary: any;
   payoutPagination: any;
   isPayoutsLoading: boolean;
+  exportActions?: ReactNode;
 };
 
 export default function PayoutsTab({
@@ -45,6 +47,7 @@ export default function PayoutsTab({
   payoutSummary,
   payoutPagination,
   isPayoutsLoading,
+  exportActions,
 }: PayoutsTabProps) {
   const updateFilters = (patch: PayoutFilters) => {
     const candidateFilters = { ...payoutFilters, ...patch };
@@ -66,11 +69,71 @@ export default function PayoutsTab({
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="report-tab-layout">
+      <ReportTabPanel
+        title={tTerm('reports.payouts.panel.title')}
+        subtitle={tTerm('reports.payouts.panel.subtitle')}
+        filterColumns={5}
+        headerActions={exportActions}
+        filters={(
+          <>
+            <FormField label={tTerm('reports.payouts.filter.from')}>
+              <TextInput
+                type="date"
+                value={payoutFilters.fromDate || ''}
+                onChange={(event) => updateFilters({ fromDate: event.target.value })}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.payouts.filter.to')}>
+              <TextInput
+                type="date"
+                value={payoutFilters.toDate || ''}
+                onChange={(event) => updateFilters({ toDate: event.target.value })}
+              />
+            </FormField>
+            <FormField label={tTerm('reports.payouts.filter.paymentType')}>
+              <SelectInput
+                value={payoutFilters.paymentType || ''}
+                onChange={(event) => updateFilters({ paymentType: event.target.value })}
+              >
+                <option value="">{tTerm('credits.filter.all')}</option>
+                <option value="installment">{getPaymentTypeLabel('installment')}</option>
+                <option value="partial">{getPaymentTypeLabel('partial')}</option>
+                <option value="capital">{getPaymentTypeLabel('capital')}</option>
+                <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
+              </SelectInput>
+            </FormField>
+            <FormField label={tTerm('reports.payouts.filter.status')}>
+              <SelectInput
+                value={payoutFilters.status || ''}
+                onChange={(event) => updateFilters({ status: event.target.value })}
+              >
+                <option value="">{tTerm('common.status.completed')}</option>
+                <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
+              </SelectInput>
+            </FormField>
+            <FormField label={tTerm('reports.payouts.table.rows')}>
+              <SelectInput
+                value={payoutPageSize}
+                onChange={(event) => {
+                  onPayoutPageSizeChange(Number(event.target.value));
+                  onPayoutPageChange(1);
+                }}
+              >
+                {[10, 20, 50, 100].map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </SelectInput>
+            </FormField>
+          </>
+        )}
+      />
+
       {payoutSummary && (
-        <InsightStrip
-          aria-label={tTerm('reports.payouts.summary.aria')}
-          items={[
+        <ReportMetricsSection
+          primaryAriaLabel={tTerm('reports.payouts.summary.aria')}
+          secondaryAriaLabel={tTerm('reports.payouts.summary.aria')}
+          primaryItems={[
             {
               id: 'payouts-count',
               label: tTerm('reports.payouts.summary.count.label'),
@@ -95,6 +158,8 @@ export default function PayoutsTab({
               icon: <DollarSign size={18} />,
               accent: 'slate',
             },
+          ]}
+          secondaryItems={[
             {
               id: 'payouts-interest',
               label: tTerm('reports.payouts.summary.interest.label'),
@@ -115,69 +180,11 @@ export default function PayoutsTab({
         />
       )}
 
-      <DataTableSurface>
-        <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
-          <h3 className="font-medium">{tTerm('reports.payouts.table.title')}</h3>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
-              <FormField label={tTerm('reports.export.from')}>
-                <TextInput
-                  type="date"
-                  value={payoutFilters.fromDate || ''}
-                  onChange={(e) => updateFilters({ fromDate: e.target.value })}
-                />
-              </FormField>
-              <span className="pb-2.5 text-sm text-text-secondary">a</span>
-              <FormField label={tTerm('reports.export.to')}>
-                <TextInput
-                  type="date"
-                  value={payoutFilters.toDate || ''}
-                  onChange={(e) => updateFilters({ toDate: e.target.value })}
-                />
-              </FormField>
-            </div>
-            <FormField label={tTerm('reports.payouts.filter.paymentType')} className="sm:w-44">
-              <SelectInput
-                value={payoutFilters.paymentType || ''}
-                onChange={(event) => updateFilters({ paymentType: event.target.value })}
-              >
-                <option value="">{tTerm('credits.filter.all')}</option>
-                <option value="installment">{getPaymentTypeLabel('installment')}</option>
-                <option value="partial">{getPaymentTypeLabel('partial')}</option>
-                <option value="capital">{getPaymentTypeLabel('capital')}</option>
-                <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
-              </SelectInput>
-            </FormField>
-            <FormField label={tTerm('reports.payouts.filter.status')} className="sm:w-40">
-              <SelectInput
-                value={payoutFilters.status || ''}
-                onChange={(event) => updateFilters({ status: event.target.value })}
-              >
-                <option value="">{tTerm('common.status.completed')}</option>
-                <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
-              </SelectInput>
-            </FormField>
-            <FormField label={tTerm('reports.payouts.table.rows')} className="w-24">
-              <SelectInput
-                value={payoutPageSize}
-                onChange={(event) => {
-                  onPayoutPageSizeChange(Number(event.target.value));
-                  onPayoutPageChange(1);
-                }}
-              >
-                {[10, 20, 50, 100].map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </SelectInput>
-            </FormField>
-          </div>
-        </div>
+      <ReportDataTableSection title={tTerm('reports.payouts.table.title')}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
               <tr>
-                <th>{tTerm('reports.payouts.table.paymentId')}</th>
-                <th>{tTerm('payouts.table.loanId')}</th>
                 <th>{tTerm('payouts.table.date')}</th>
                 <th>{tTerm('payouts.table.amount')}</th>
                 <th>{tTerm('reports.payouts.summary.principal.label')}</th>
@@ -190,17 +197,15 @@ export default function PayoutsTab({
             <tbody>
               {isPayoutsLoading ? (
                 <tr>
-                  <td colSpan={9} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
+                  <td colSpan={7} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
                 </tr>
               ) : payouts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="table-empty-state">{tTerm('reports.payouts.table.empty')}</td>
+                  <td colSpan={7} className="table-empty-state">{tTerm('reports.payouts.table.empty')}</td>
                 </tr>
               ) : (
                 payouts.map((payout: any, i: number) => (
                   <tr key={`report-payout-${payout.id ?? 'no-id'}-${payout.loanId ?? 'loan'}-${payout.paymentDate ?? i}`}>
-                    <td className="font-mono text-text-secondary">#{payout.id}</td>
-                    <td className="font-mono text-blue-600 dark:text-blue-400">#{payout.loanId}</td>
                     <td>{formatDateValue(payout.paymentDate) || tTerm('common.notAvailable')}</td>
                     <td className="font-medium">{formatMoney(payout.amount)}</td>
                     <td className="text-text-secondary">{formatMoney(payout.principalApplied)}</td>
@@ -220,7 +225,7 @@ export default function PayoutsTab({
         </div>
 
         {payoutPagination && payoutPagination.totalPages > 1 && (
-          <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
               {tTerm('reports.payouts.pagination.summary', {
                 from: (payoutPage - 1) * payoutPageSize + 1,
@@ -248,7 +253,7 @@ export default function PayoutsTab({
             </div>
           </div>
         )}
-      </DataTableSurface>
+      </ReportDataTableSection>
     </div>
   );
 }

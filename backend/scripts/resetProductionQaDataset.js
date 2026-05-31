@@ -1,5 +1,5 @@
 require('module-alias/register');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const { sequelize, User, Customer } = require('@/models');
 const { createCreateAssociate } = require('@/modules/associates/application/useCases');
@@ -166,11 +166,22 @@ const main = async () => {
   console.log(JSON.stringify(summary, null, 2));
 };
 
-main()
-  .catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await sequelize.close();
-  });
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error(error.message);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await sequelize.close();
+    });
+}
+
+module.exports = {
+  CONFIRMATION_VALUE,
+  assertConfirmed,
+  buildSeedConfig,
+  getRequiredEnv,
+  main,
+  seedQaUsers,
+};

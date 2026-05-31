@@ -259,14 +259,14 @@ test('createCustomersRouter rejects malformed route identifiers before executing
   activeServer = await listen(app);
 
   const cases = [
-    { method: 'GET', path: '/7abc', field: /customerId/i },
-    { method: 'PATCH', path: '/1e2', field: /customerId/i, body: { name: 'Cliente QA' } },
-    { method: 'DELETE', path: '/1.5', field: /customerId/i },
-    { method: 'PATCH', path: '/abc/restore', field: /customerId/i },
-    { method: 'GET', path: '/abc/documents', field: /customerId/i },
-    { method: 'POST', path: '/abc/documents', field: /customerId/i, body: {} },
-    { method: 'GET', path: '/7/documents/abc/download', field: /documentId/i },
-    { method: 'DELETE', path: '/7/documents/1e2', field: /documentId/i },
+    { method: 'GET', path: '/7abc', field: /número del cliente/i },
+    { method: 'PATCH', path: '/1e2', field: /número del cliente/i, body: { name: 'Cliente QA' } },
+    { method: 'DELETE', path: '/1.5', field: /número del cliente/i },
+    { method: 'PATCH', path: '/abc/restore', field: /número del cliente/i },
+    { method: 'GET', path: '/abc/documents', field: /número del cliente/i },
+    { method: 'POST', path: '/abc/documents', field: /número del cliente/i, body: {} },
+    { method: 'GET', path: '/7/documents/abc/download', field: /número del documento/i },
+    { method: 'DELETE', path: '/7/documents/1e2', field: /número del documento/i },
   ];
 
   for (const routeCase of cases) {
@@ -537,7 +537,7 @@ test('globalErrorHandler returns conflict payload when unique constraint path me
   assert.deepEqual(response.body, {
     success: false,
     error: {
-      message: 'email already exists',
+      message: 'Ya existe un registro con ese correo electrónico.',
       statusCode: 409,
     },
   });
@@ -567,7 +567,7 @@ test('globalErrorHandler reports primary-key uniqueness conflicts without generi
   assert.deepEqual(response.body, {
     success: false,
     error: {
-      message: 'Customer id already exists',
+      message: 'No se pudo guardar el cliente porque el consecutivo ya está en uso. Intenta nuevamente.',
       statusCode: 409,
     },
   });

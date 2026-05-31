@@ -10,3 +10,4 @@ node_modules/
 artifacts/
 dogfood-output/
 qa-output/
+logs/

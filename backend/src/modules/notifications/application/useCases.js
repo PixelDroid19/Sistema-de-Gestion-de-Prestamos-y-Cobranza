@@ -2,7 +2,7 @@ const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/
 
 const ensureSubscriptionIdentifier = ({ endpoint, deviceToken }) => {
   if (!endpoint && !deviceToken) {
-    throw new ValidationError('Debe indicar endpoint o token del dispositivo para la suscripción');
+    throw new ValidationError('Debe indicar el identificador de la suscripción o el token del dispositivo');
   }
 };
 

@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ReportTabPanel } from './ReportTabPanel';
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { DollarSign, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useTranslation } from '../../i18n';
@@ -21,9 +22,10 @@ type DashboardTabProps = {
   metrics: any;
   monthlyData: any[];
   statusData: any[];
+  headerActions?: ReactNode;
 };
 
-export default function DashboardTab({ metrics, monthlyData, statusData }: DashboardTabProps) {
+export default function DashboardTab({ metrics, monthlyData, statusData, headerActions }: DashboardTabProps) {
   const { locale } = useTranslation();
   const [chartRange, setChartRange] = useState<'last6' | 'year' | 'historical'>('last6');
 
@@ -58,7 +60,13 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
   );
 
   return (
-    <>
+    <div className="report-tab-layout">
+      <ReportTabPanel
+        title={tTerm('reports.tab.dashboard')}
+        subtitle={tTerm('reports.dashboard.panel.subtitle')}
+        headerActions={headerActions}
+      />
+
       <InsightStrip
         aria-label={tTerm('reports.summary.aria')}
         items={[
@@ -128,7 +136,15 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
             <div className="h-72 w-full min-w-0 text-sm">
               <MeasuredChart className="h-full w-full min-w-0 text-sm" minHeight={288}>
                 {({ width, height }) => (
-                  <AreaChart width={width} height={height} data={filteredMonthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart
+                    accessibilityLayer={false}
+                    role="img"
+                    aria-label={tTerm('reports.chart.disbursementRecovery.title')}
+                    width={width}
+                    height={height}
+                    data={filteredMonthlyData}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
                     <defs>
                       <linearGradient id="colorDes" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -172,7 +188,13 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
           <div className="h-64 w-full min-w-0">
             <MeasuredChart className="h-full w-full min-w-0" minHeight={256}>
               {({ width, height }) => (
-                <PieChart width={width} height={height}>
+                <PieChart
+                  accessibilityLayer={false}
+                  role="img"
+                  aria-label={tTerm('reports.chart.portfolio.title')}
+                  width={width}
+                  height={height}
+                >
                   <Pie
                     data={labeledStatusData}
                     cx="50%"
@@ -182,6 +204,7 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
                     paddingAngle={5}
                     dataKey="count"
                     nameKey="statusLabel"
+                    rootTabIndex={-1}
                   >
                     {labeledStatusData.map((entry: any, index: number) => (
                       <Cell key={`portfolio-cell-${entry.status ?? 'unknown'}-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -208,6 +231,6 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
           </div>
         </SectionSurface>
       </div>
-    </>
+    </div>
   );
 }

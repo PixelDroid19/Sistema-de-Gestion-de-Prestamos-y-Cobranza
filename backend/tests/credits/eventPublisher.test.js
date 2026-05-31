@@ -1,7 +1,17 @@
-const { test } = require('node:test');
+const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createEventPublisher, buildAmortizationPayload } = require('@/modules/credits/application/eventPublisher');
+const { createEventPublisher, createHttpEventPublisher, buildAmortizationPayload } = require('@/modules/credits/application/eventPublisher');
+
+const originalOutboxWebhookTimeout = process.env.OUTBOX_WEBHOOK_TIMEOUT_MS;
+
+afterEach(() => {
+  if (originalOutboxWebhookTimeout === undefined) {
+    delete process.env.OUTBOX_WEBHOOK_TIMEOUT_MS;
+  } else {
+    process.env.OUTBOX_WEBHOOK_TIMEOUT_MS = originalOutboxWebhookTimeout;
+  }
+});
 
 test('buildAmortizationPayload keeps a provided eventId', () => {
   const payload = buildAmortizationPayload({
@@ -38,4 +48,13 @@ test('publishAmortizationCalculatedEvent persists an outbox event with payload m
   assert.equal(createdEvent.eventType, 'AmortizationCalculatedEvent');
   assert.equal(capturedEvent.payload.eventId, 'test-event-8');
   assert.equal(capturedEvent.payload._deliveryAttempts, 0);
+});
+
+test('createHttpEventPublisher rejects malformed timeout env values', () => {
+  process.env.OUTBOX_WEBHOOK_TIMEOUT_MS = '3000ms';
+
+  assert.throws(
+    () => createHttpEventPublisher({ endpointUrl: 'https://outbox.example.test/events' }),
+    /OUTBOX_WEBHOOK_TIMEOUT_MS must be a positive integer/,
+  );
 });

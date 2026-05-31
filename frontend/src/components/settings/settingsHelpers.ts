@@ -72,7 +72,10 @@ export const getLateFeeModeLabel = (mode: unknown) => {
   return tTerm('settings.lateFee.type.simple');
 };
 
-export const getMethodName = (method: any) => method?.name || method?.label || method?.key || tTerm('settings.paymentMethods.methodUnnamed');
+export const getMethodName = (method: any) => {
+  const displayName = String(method?.name || method?.label || '').trim();
+  return displayName || tTerm('settings.paymentMethods.methodUnnamed');
+};
 
 export const getMethodTypeLabel = (type: unknown) => getPaymentMethodTypeLabel(type);
 

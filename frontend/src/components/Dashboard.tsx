@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -324,7 +324,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.balanceTotal.title')}
             value={formatCurrency(summary.totalOutstandingAmount)}
             helper={`${summary.totalLoans || 0} ${tTerm('dashboard.widget.balanceTotal.subtitle')}`}
-            tooltip="Saldo total pendiente de la cartera. Resume el capital e importes por recuperar en los créditos registrados."
+            tooltip={tTerm('dashboard.widget.balanceTotal.tooltip')}
             icon={<Wallet size={18} />}
             accent="teal"
             className="h-full"
@@ -336,7 +336,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.activeLoans.title')}
             value={summary.activeLoans || 0}
             helper={`${delinquentLoans} ${tTerm('dashboard.widget.activeLoans.subtitle')}`}
-            tooltip="Créditos que siguen abiertos y pueden requerir seguimiento, cobro o consulta operativa."
+            tooltip={tTerm('dashboard.widget.activeLoans.tooltip')}
             icon={<Activity size={18} />}
             accent="emerald"
             className="h-full"
@@ -348,7 +348,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.delinquencyRate.title')}
             value={summary.totalLoans ? `${Math.round((delinquentLoans / summary.totalLoans) * 100)}%` : '0%'}
             helper={`${collections.overdueAlerts || 0} ${tTerm('dashboard.widget.delinquencyRate.subtitle')}`}
-            tooltip="Porcentaje de créditos con atraso frente al total de créditos. Ayuda a medir riesgo operativo de cobranza."
+            tooltip={tTerm('dashboard.widget.delinquencyRate.tooltip')}
             icon={<AlertTriangle size={18} />}
             accent="amber"
             className="h-full"
@@ -360,7 +360,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.totalRecovered.title')}
             value={formatCurrency(summary.totalRecoveredAmount)}
             helper={`${collections.pendingPromises || 0} ${tTerm('dashboard.widget.totalRecovered.subtitle')}`}
-            tooltip="Dinero recuperado mediante pagos registrados. Sirve para comparar recaudo contra cartera pendiente."
+            tooltip={tTerm('dashboard.widget.totalRecovered.tooltip')}
             icon={<Banknote size={18} />}
             accent="blue"
             className="h-full"
@@ -375,7 +375,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
                   {tTerm('dashboard.widget.disbursementEvolution.title')}
                   <HelpTooltip
-                    text="Resume por mes cuánto capital salió en desembolsos y cuánto dinero volvió por pagos registrados."
+                    text={tTerm('dashboard.widget.disbursementEvolution.tooltip')}
                     align="right"
                   />
                 </div>
@@ -389,7 +389,15 @@ export default function Dashboard() {
               <div className="min-h-[220px] min-w-0 flex-1">
                 <MeasuredChart className="h-full min-h-[220px] min-w-0" minHeight={220}>
                   {({ width, height }) => (
-                  <AreaChart width={width} height={height} data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart
+                    accessibilityLayer={false}
+                    role="img"
+                    aria-label={tTerm('dashboard.widget.disbursementEvolution.title')}
+                    width={width}
+                    height={height}
+                    data={chartData}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
                     <defs>
                       <linearGradient id="dashboard-disbursed-gradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -463,7 +471,14 @@ export default function Dashboard() {
             <div className="min-h-[220px] min-w-0 flex-1">
               <MeasuredChart className="h-full min-h-[220px] min-w-0" minHeight={220}>
                 {({ width, height }) => (
-                <BarChart width={width} height={height} data={chartData}>
+                <BarChart
+                  accessibilityLayer={false}
+                  role="img"
+                  aria-label={tTerm('dashboard.widget.recoveryPerformance.title')}
+                  width={width}
+                  height={height}
+                  data={chartData}
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} tickFormatter={(value) => formatCurrency(Number(value))} />
@@ -545,7 +560,7 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-text-primary">{tTerm('dashboard.widgetManager.title')}</h3>
             <IconActionButton
-              label="Cerrar gestor de widgets"
+              label={tTerm('dashboard.widgetManager.close')}
               icon={<X size={16} />}
               onClick={() => setShowWidgetManager(false)}
             />
@@ -619,7 +634,9 @@ export default function Dashboard() {
                   <IconActionButton
                     onClick={() => toggleWidget(id)}
                     className="absolute left-2 top-2 z-10 bg-bg-elevated/90 shadow-sm backdrop-blur"
-                    label={`Ocultar ${tTerm(AVAILABLE_WIDGETS.find((widget) => widget.id === id)?.titleKey ?? 'dashboard.cta.widgets')}`}
+                    label={tTerm('dashboard.widget.hide', {
+                      title: tTerm(AVAILABLE_WIDGETS.find((widget) => widget.id === id)?.titleKey ?? 'dashboard.cta.widgets'),
+                    })}
                     icon={<X size={16} />}
                     variant="danger"
                   />

@@ -101,7 +101,47 @@ test('credit policy resolver fails clearly when a policy-driven credit has no ac
 
   await assert.rejects(
     () => resolver.resolve({ input: { amount: 2000000, termMonths: 12, rateSource: 'policy' } }),
-    (error) => error instanceof ValidationError && error.message === 'No active rate policy is available for this credit amount',
+    (error) => error instanceof ValidationError
+      && error.message === 'No hay una política de tasa activa para el monto del crédito.',
+  );
+});
+
+test('credit policy resolver fails clearly when a policy-driven credit has no active late-fee policy', async () => {
+  const resolver = createCreditPolicyResolver({
+    configRepository: {
+      async listActiveByCategory(category) {
+        if (category === 'rate_policy') {
+          return [
+            {
+              id: 10,
+              key: 'standard',
+              label: 'Tasa estándar',
+              isActive: true,
+              value: {
+                minAmount: 0,
+                maxAmount: null,
+                annualEffectiveRate: 48,
+                priority: 'medium',
+              },
+            },
+          ];
+        }
+
+        return [];
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => resolver.resolve({
+      input: {
+        amount: 2000000,
+        termMonths: 12,
+        rateSource: 'policy',
+        lateFeeSource: 'policy',
+      },
+    }),
+    (error) => error instanceof ValidationError && error.message === 'No hay una política de mora activa.',
   );
 });
 
@@ -159,6 +199,7 @@ test('credit policy resolver rejects ambiguous late-fee policies before calculat
         lateFeeSource: 'policy',
       },
     }),
-    (error) => error instanceof ConflictError && error.message === 'Active late fee policies cannot share the same priority',
+    (error) => error instanceof ConflictError
+      && error.message === 'Las políticas de mora activas no pueden compartir la misma prioridad.',
   );
 });

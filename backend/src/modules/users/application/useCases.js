@@ -1,8 +1,8 @@
 const { ValidationError, NotFoundError, ConflictError } = require('@/utils/errorHandler');
-const { ADMINISTRATIVE_LOGIN_ROLES, isAdministrativeLoginRole } = require('@/modules/shared/roles');
+const { isAdministrativeLoginRole } = require('@/modules/shared/roles');
 const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
 
-const VALID_ROLES = ADMINISTRATIVE_LOGIN_ROLES;
+const DUPLICATE_USER_EMAIL_MESSAGE = 'Ya existe un usuario con ese correo electrónico.';
 
 const sanitizeUser = (user) => ({
   id: user.id,
@@ -17,7 +17,7 @@ const sanitizeUser = (user) => ({
 
 const validateRole = (role) => {
   if (!isAdministrativeLoginRole(role)) {
-    throw new ValidationError(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
+    throw new ValidationError('Selecciona un rol administrativo válido.');
   }
 };
 
@@ -78,7 +78,7 @@ const createUpdateUser = ({ userRepository }) => async (userId, payload) => {
     }
     const existing = await userRepository.findByEmail(payload.email);
     if (existing && existing.id !== user.id) {
-      throw new ConflictError('Email already in use');
+      throw new ConflictError(DUPLICATE_USER_EMAIL_MESSAGE);
     }
     updates.email = payload.email;
   }

@@ -16,6 +16,7 @@ const mockUseFinancialAnalytics = vi.fn();
 const mockUseMonthlyCashFlow = vi.fn();
 const mockUseDailyCashFlow = vi.fn();
 const mockUseCreditHistoryMonthly = vi.fn();
+const mockUseCustomerProfitability = vi.fn();
 const mockUsePayoutsReport = vi.fn();
 const mockUseOperatingExpenses = vi.fn();
 const mockUsePaymentSchedule = vi.fn(() => ({
@@ -53,6 +54,12 @@ let reportsState = {
   error: null,
 };
 
+let financialAnalyticsState = {
+  performanceAnalysis: { data: null as any, isLoading: false },
+  forecastAnalysis: { data: null as any, isLoading: false },
+  nextMonthProjection: { data: null as any, isLoading: false },
+};
+
 let payoutsReportState = {
   payouts: [] as Array<Record<string, unknown>>,
   summary: null as any,
@@ -86,11 +93,7 @@ vi.mock('../../services/reportService', () => ({
   useReports: () => reportsState,
   useFinancialAnalytics: (...args: unknown[]) => {
     mockUseFinancialAnalytics(...args);
-    return {
-      performanceAnalysis: { data: null, isLoading: false },
-      forecastAnalysis: { data: null, isLoading: false },
-      nextMonthProjection: { data: null, isLoading: false },
-    };
+    return financialAnalyticsState;
   },
   useMonthlyCashFlow: (...args: unknown[]) => {
     mockUseMonthlyCashFlow(...args);
@@ -198,6 +201,15 @@ vi.mock('../../services/reportService', () => ({
       isError: false,
     };
   },
+  useCustomerProfitability: (...args: unknown[]) => {
+    mockUseCustomerProfitability(...args);
+    return {
+      items: reportsState.profitabilityItems,
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+  },
   usePayoutsReport: (...args: unknown[]) => {
     mockUsePayoutsReport(...args);
     return payoutsReportState;
@@ -233,13 +245,24 @@ vi.mock('../../lib/toast', () => ({
 
 vi.mock('recharts', () => {
   const Mock = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+  const chartMock = (testId: string) => (
+    { children, accessibilityLayer }: { children?: ReactNode; accessibilityLayer?: boolean }
+  ) => (
+    <div data-testid={testId} data-accessibility-layer={String(accessibilityLayer)}>
+      {children}
+    </div>
+  );
   return {
     BarChart: Mock,
     Bar: Mock,
-    LineChart: Mock,
+    LineChart: chartMock('recharts-line-chart'),
     Line: Mock,
-    PieChart: Mock,
-    Pie: Mock,
+    PieChart: chartMock('recharts-pie-chart'),
+    Pie: ({ children, rootTabIndex }: { children?: ReactNode; rootTabIndex?: number }) => (
+      <div data-testid="recharts-pie" data-root-tab-index={String(rootTabIndex)}>
+        {children}
+      </div>
+    ),
     Cell: Mock,
     XAxis: Mock,
     YAxis: Mock,
@@ -247,7 +270,7 @@ vi.mock('recharts', () => {
     Tooltip: Mock,
     Legend: Mock,
     ResponsiveContainer: Mock,
-    AreaChart: Mock,
+    AreaChart: chartMock('recharts-area-chart'),
     Area: Mock,
   };
 });
@@ -285,6 +308,11 @@ describe('Reports behavioral parity scenarios', () => {
       isLoading: false,
       isError: false,
       error: null,
+    };
+    financialAnalyticsState = {
+      performanceAnalysis: { data: null, isLoading: false },
+      forecastAnalysis: { data: null, isLoading: false },
+      nextMonthProjection: { data: null, isLoading: false },
     };
     payoutsReportState = {
       payouts: [],
@@ -335,7 +363,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByText('Interés generado')).toBeInTheDocument();
     expect(screen.getByText('Interés pagado')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resumen general' }));
 
     await waitFor(() => {
       expect(mockExportDashboardSummary).toHaveBeenCalledTimes(1);
@@ -354,7 +382,7 @@ describe('Reports behavioral parity scenarios', () => {
     renderReports();
 
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Resumen general' })).not.toBeInTheDocument();
       expect(mockExportDashboardSummary).not.toHaveBeenCalled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
@@ -395,12 +423,13 @@ describe('Reports behavioral parity scenarios', () => {
   it('exports contextual report by selected type and date range', async () => {
     renderReports();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-01-01' } });
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-01-31' } });
     fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'payouts' } });
     fireEvent.change(screen.getByLabelText('Formato'), { target: { value: 'pdf' } });
-    fireEvent.change(screen.getByLabelText('Cliente del reporte'), { target: { value: '7' } });
-    fireEvent.change(screen.getByLabelText('Crédito del reporte'), { target: { value: '15' } });
+    fireEvent.change(document.getElementById('report-customer')!, { target: { value: '7' } });
+    fireEvent.change(document.getElementById('report-loan')!, { target: { value: '15' } });
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'capital' } });
     fireEvent.change(screen.getByLabelText('Estado de pago'), { target: { value: 'annulled' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar pagos' }));
@@ -422,12 +451,15 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
-    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-02-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-02-28' } });
-    fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'active' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial mensual' }));
+    fireEvent.change(screen.getByLabelText('Desde historial'), { target: { value: '2026-02-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta historial'), { target: { value: '2026-02-28' } });
+    fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
+    fireEvent.change(screen.getByPlaceholderText('Número de cliente'), { target: { value: '9' } });
+    fireEvent.change(screen.getByPlaceholderText('Número de crédito'), { target: { value: '18' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     fireEvent.change(screen.getByLabelText('Formato'), { target: { value: 'pdf' } });
-    fireEvent.change(screen.getByLabelText('Cliente del reporte'), { target: { value: '9' } });
-    fireEvent.change(screen.getByLabelText('Crédito del reporte'), { target: { value: '18' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar historial' }));
 
     await waitFor(() => {
@@ -445,8 +477,9 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps contextual export date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    const fromInput = screen.getByLabelText('Desde');
-    const toInput = screen.getByLabelText('Hasta');
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial mensual' }));
+    const fromInput = screen.getByLabelText('Desde historial');
+    const toInput = screen.getByLabelText('Hasta historial');
 
     fireEvent.change(fromInput, { target: { value: '2026-06-01' } });
     fireEvent.change(toInput, { target: { value: '2026-06-30' } });
@@ -455,6 +488,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     expect(toInput).toHaveDisplayValue('2026-06-30');
 
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Exportar historial' }));
 
     await waitFor(() => {
@@ -472,8 +506,10 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps contextual export customer, credit, and associate IDs unchanged when exponent notation is typed', async () => {
     renderReports();
 
-    const customerInput = screen.getByLabelText('Cliente del reporte');
-    const creditInput = screen.getByLabelText('Crédito del reporte');
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
+
+    const customerInput = document.getElementById('report-customer')!;
+    const creditInput = document.getElementById('report-loan')!;
 
     fireEvent.change(customerInput, { target: { value: '9' } });
     fireEvent.change(creditInput, { target: { value: '18' } });
@@ -485,6 +521,8 @@ describe('Reports behavioral parity scenarios', () => {
 
     fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'associates' } });
     const associateInput = screen.getByLabelText('Socio');
+    expect(screen.queryByPlaceholderText('ID socio')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Número de socio')).toBeInTheDocument();
 
     fireEvent.change(associateInput, { target: { value: '8' } });
     fireEvent.change(associateInput, { target: { value: '4e2' } });
@@ -496,6 +534,7 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-04-01' } });
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'associates' } });
@@ -531,7 +570,8 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rentabilidad de clientes' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rentabilidad de clientes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-05-01' } });
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-05-20' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar rentabilidad' }));
@@ -549,7 +589,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('shows monthly cash flow control and exports Excel/PDF', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Flujo de caja' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Flujo de caja' }));
     fireEvent.change(screen.getByLabelText('Desde flujo de caja'), { target: { value: '2026-03-01' } });
     fireEvent.change(screen.getByLabelText('Hasta flujo de caja'), { target: { value: '2026-03-31' } });
     fireEvent.change(screen.getByLabelText('Fecha de resumen diario'), { target: { value: '2026-03-15' } });
@@ -581,6 +621,7 @@ describe('Reports behavioral parity scenarios', () => {
       });
     });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
     await waitFor(() => {
       expect(mockExportMonthlyCashFlowExcel).toHaveBeenCalledWith(2026, {
@@ -589,6 +630,7 @@ describe('Reports behavioral parity scenarios', () => {
       });
     });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
     fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
     await waitFor(() => {
       expect(mockExportMonthlyCashFlowPdf).toHaveBeenCalledWith(2026, {
@@ -601,7 +643,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps monthly cash flow date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Flujo de caja' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Flujo de caja' }));
     const fromInput = screen.getByLabelText('Desde flujo de caja');
     const toInput = screen.getByLabelText('Hasta flujo de caja');
 
@@ -628,12 +670,13 @@ describe('Reports behavioral parity scenarios', () => {
   it('consults monthly credit history by date range from the reports screen', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Historial mensual' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial mensual' }));
     fireEvent.change(screen.getByLabelText('Desde historial'), { target: { value: '2026-04-01' } });
     fireEvent.change(screen.getByLabelText('Hasta historial'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '7' } });
-    fireEvent.change(screen.getByLabelText('Crédito'), { target: { value: '15' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
+    fireEvent.change(screen.getByPlaceholderText('Número de cliente'), { target: { value: '7' } });
+    fireEvent.change(screen.getByPlaceholderText('Número de crédito'), { target: { value: '15' } });
 
     expect(screen.getByRole('heading', { name: 'Historial mensual de créditos' })).toBeInTheDocument();
     expect(screen.getAllByText('Capital prestado').length).toBeGreaterThan(0);
@@ -662,9 +705,10 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps monthly credit history customer and credit filters unchanged when exponent notation is typed', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Historial mensual' }));
-    const customerInput = screen.getByLabelText('Cliente');
-    const creditInput = screen.getByLabelText('Crédito');
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial mensual' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
+    const customerInput = screen.getByPlaceholderText('Número de cliente');
+    const creditInput = screen.getByPlaceholderText('Número de crédito');
 
     fireEvent.change(customerInput, { target: { value: '7' } });
     fireEvent.change(creditInput, { target: { value: '15' } });
@@ -689,7 +733,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps monthly credit history date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Historial mensual' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial mensual' }));
     const fromInput = screen.getByLabelText('Desde historial');
     const toInput = screen.getByLabelText('Hasta historial');
 
@@ -716,8 +760,9 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps cash flow year unchanged when exponent notation is typed', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Flujo de caja' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Flujo de caja' }));
     fireEvent.change(screen.getByLabelText('Año'), { target: { value: '2e3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
 
     await waitFor(() => {
@@ -728,17 +773,95 @@ describe('Reports behavioral parity scenarios', () => {
 
   it('keeps profitability analytics year unchanged when exponent notation is typed', async () => {
     renderReports();
-    fireEvent.click(screen.getByRole('button', { name: 'Rentabilidad de clientes' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rentabilidad de clientes' }));
     await screen.findByRole('heading', { name: 'Rentabilidad por cliente' });
     fireEvent.change(screen.getByLabelText('Año analítico'), { target: { value: '2e3' } });
 
     expect(mockUseFinancialAnalytics).not.toHaveBeenCalledWith(2000);
+    expect(mockUseCustomerProfitability).not.toHaveBeenCalledWith({
+      fromDate: '2000-01-01',
+      toDate: '2000-12-31',
+    });
+  });
+
+  it('reloads customer profitability when the analytics year changes', async () => {
+    renderReports();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Rentabilidad de clientes' }));
+
+    await waitFor(() => {
+      expect(mockUseCustomerProfitability).toHaveBeenCalledWith({
+        fromDate: '2026-01-01',
+        toDate: '2026-12-31',
+      });
+    });
+
+    mockUseCustomerProfitability.mockClear();
+    fireEvent.change(screen.getByLabelText('Año analítico'), { target: { value: '2025' } });
+
+    await waitFor(() => {
+      expect(mockUseCustomerProfitability).toHaveBeenCalledWith({
+        fromDate: '2025-01-01',
+        toDate: '2025-12-31',
+      });
+    });
+  });
+
+  it('shows dashboard export actions only on the dashboard tab', () => {
+    renderReports();
+
+    expect(screen.getByRole('button', { name: 'Resumen general' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar datos' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Flujo de caja' }));
+
+    expect(screen.queryByRole('button', { name: 'Resumen general' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportar datos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument();
+  });
+
+  it('keeps report charts out of the keyboard focus order', async () => {
+    reportsState = {
+      ...reportsState,
+      monthlyPerformance: [
+        { month: '2026-01', disbursed: 1000, recovered: 800 },
+      ],
+      statusBreakdown: [
+        { status: 'active', count: 1 },
+      ],
+    };
+    financialAnalyticsState = {
+      performanceAnalysis: {
+        data: {
+          monthlyTrend: [
+            { month: '2026-01', recovered: 800, arrears: 50 },
+          ],
+        },
+        isLoading: false,
+      },
+      forecastAnalysis: { data: null, isLoading: false },
+      nextMonthProjection: { data: null, isLoading: false },
+    };
+
+    renderReports();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('recharts-area-chart')).toHaveAttribute('data-accessibility-layer', 'false');
+      expect(screen.getByTestId('recharts-pie-chart')).toHaveAttribute('data-accessibility-layer', 'false');
+      expect(screen.getByTestId('recharts-pie')).toHaveAttribute('data-root-tab-index', '-1');
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Rentabilidad de clientes' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('recharts-line-chart')).toHaveAttribute('data-accessibility-layer', 'false');
+    });
   });
 
   it('selects a loan for the payment calendar without requiring a manual loan ID', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario de pagos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Calendario de pagos' }));
 
     expect(screen.queryByPlaceholderText('Ingrese ID del crédito')).not.toBeInTheDocument();
     const loanSelect = screen.getByLabelText('Crédito');
@@ -763,8 +886,8 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resumen general' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
   });
 
   it('renders report loan statuses with operational labels instead of raw enum keys', async () => {
@@ -811,7 +934,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getAllByText('En mora').length).toBeGreaterThan(0);
     expect(screen.queryByText('defaulted')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario de pagos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Calendario de pagos' }));
 
     expect(screen.getByRole('option', { name: /Cliente Operativo · #3 · .* · Activo/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /ACTIVE/ })).not.toBeInTheDocument();
@@ -871,7 +994,7 @@ describe('Reports behavioral parity scenarios', () => {
     }));
 
     renderReports();
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario de pagos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Calendario de pagos' }));
 
     expect(screen.getByRole('cell', { name: 'Vencido' })).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'Parcial' })).toBeInTheDocument();
@@ -902,14 +1025,12 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos y desembolsos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos y desembolsos' }));
 
-    expect(screen.getByRole('columnheader', { name: 'Pago' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Crédito' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /ID pago/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Crédito ID/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: '#9' })).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: '#3' })).toBeInTheDocument();
+    expect(screen.queryByRole('cell', { name: '#9' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('cell', { name: '#3' })).not.toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'Efectivo' })).toBeInTheDocument();
     expect(screen.queryByRole('cell', { name: 'cash' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeInTheDocument();
@@ -919,7 +1040,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('filters payout report by movement type', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos y desembolsos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos y desembolsos' }));
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'capital' } });
 
     await waitFor(() => {
@@ -930,7 +1051,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('filters payout report by payment status', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos y desembolsos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos y desembolsos' }));
     fireEvent.change(screen.getByLabelText('Estado de pago'), { target: { value: 'annulled' } });
 
     await waitFor(() => {
@@ -941,9 +1062,9 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps payout report date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos y desembolsos' }));
-    const fromInput = screen.getAllByLabelText('Desde')[1];
-    const toInput = screen.getAllByLabelText('Hasta')[1];
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos y desembolsos' }));
+    const fromInput = screen.getByLabelText('Desde pagos');
+    const toInput = screen.getByLabelText('Hasta pagos');
 
     fireEvent.change(fromInput, { target: { value: '2026-07-01' } });
     fireEvent.change(toInput, { target: { value: '2026-07-31' } });
@@ -994,7 +1115,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Gastos operativos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Gastos operativos' }));
 
     expect(screen.getByRole('heading', { name: 'Control de gastos operativos' })).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'Arriendo oficina' })).toBeInTheDocument();
@@ -1003,7 +1124,8 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.change(screen.getByLabelText('Desde gastos'), { target: { value: '2026-05-01' } });
     fireEvent.change(screen.getByLabelText('Hasta gastos'), { target: { value: '2026-05-31' } });
     fireEvent.change(screen.getByLabelText('Estado del gasto'), { target: { value: 'completed' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar gastos en Excel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Excel/i }));
 
     await waitFor(() => {
       expect(mockExportOperatingExpensesReport).toHaveBeenCalledWith('xlsx', {
@@ -1013,7 +1135,8 @@ describe('Reports behavioral parity scenarios', () => {
       });
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar gastos en PDF' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
+    fireEvent.click(screen.getByRole('button', { name: /PDF/i }));
 
     await waitFor(() => {
       expect(mockExportOperatingExpensesReport).toHaveBeenCalledWith('pdf', {
@@ -1023,13 +1146,14 @@ describe('Reports behavioral parity scenarios', () => {
       });
     });
 
-    fireEvent.change(screen.getByLabelText('Monto'), { target: { value: '1250000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
+    fireEvent.change(await screen.findByLabelText('Monto'), { target: { value: '1250000' } });
     fireEvent.change(screen.getByLabelText('Fecha del gasto'), { target: { value: '2026-05-13' } });
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'Servicios' } });
     fireEvent.change(screen.getByLabelText('Descripción'), { target: { value: 'Internet oficina' } });
     fireEvent.change(screen.getByLabelText('Medio de pago'), { target: { value: 'Transferencia' } });
     fireEvent.change(screen.getByLabelText('Referencia'), { target: { value: 'TRX-100' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Registrar gasto' }).at(-1)!);
 
     await waitFor(() => {
       expect(mockCreateOperatingExpense).toHaveBeenCalledWith({
@@ -1043,11 +1167,12 @@ describe('Reports behavioral parity scenarios', () => {
       });
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Anular gasto #11' }));
+    expect(screen.queryByRole('button', { name: 'Anular gasto #11' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Anular gasto' }));
     fireEvent.change(await screen.findByLabelText('Motivo de anulación'), {
       target: { value: 'Registro duplicado' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Anular gasto' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Anular gasto' }).at(-1)!);
 
     await waitFor(() => {
       expect(mockAnnulOperatingExpense).toHaveBeenCalledWith(11, 'Registro duplicado');
@@ -1065,9 +1190,10 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Gastos operativos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Gastos operativos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
 
-    const amountInput = screen.getByLabelText('Monto');
+    const amountInput = await screen.findByLabelText('Monto');
     (amountInput as HTMLInputElement).focus();
     fireEvent.change(amountInput, { target: { value: '1250000' } });
     fireEvent.keyDown(amountInput, { key: 'a', metaKey: true });
@@ -1082,7 +1208,7 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.change(screen.getByLabelText('Fecha del gasto'), { target: { value: '2026-05-13' } });
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'Servicios' } });
     fireEvent.change(screen.getByLabelText('Descripción'), { target: { value: 'Internet oficina' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Registrar gasto' }).at(-1)!);
 
     await waitFor(() => {
       expect(mockCreateOperatingExpense).toHaveBeenCalledWith(expect.objectContaining({
@@ -1102,7 +1228,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Gastos operativos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Gastos operativos' }));
     const fromInput = screen.getByLabelText('Desde gastos');
     const toInput = screen.getByLabelText('Hasta gastos');
 
@@ -1137,7 +1263,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    expect(screen.queryByRole('button', { name: 'Gastos operativos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
   });
 
   it('shows clear scope messaging when KPI totals and selected chart range diverge', () => {

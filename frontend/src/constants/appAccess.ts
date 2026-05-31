@@ -1,6 +1,7 @@
 export type AppUserLike = {
   role?: 'admin' | 'employee' | 'customer' | 'socio' | string;
   associateId?: number;
+  permissions?: Array<string | { permission?: string; permissionName?: string; name?: string }>;
 } | null | undefined;
 
 /**

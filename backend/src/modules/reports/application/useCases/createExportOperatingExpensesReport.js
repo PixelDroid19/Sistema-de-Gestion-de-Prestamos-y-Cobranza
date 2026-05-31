@@ -6,6 +6,7 @@ const {
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const { buildDateRangeMessage } = require('@/modules/shared/dateUtils');
 const { ValidationError } = require('@/utils/errorHandler');
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -57,7 +58,7 @@ const normalizeStatus = (status) => {
 
   const normalized = String(status).trim().toLowerCase();
   if (!VALID_STATUSES.has(normalized)) {
-    throw new ValidationError('status must be completed or annulled');
+    throw new ValidationError('El estado del gasto operativo debe ser completado o anulado.');
   }
 
   return normalized;
@@ -65,7 +66,7 @@ const normalizeStatus = (status) => {
 
 const assertDateRangeOrder = ({ fromDate, toDate }) => {
   if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
-    throw new ValidationError('fromDate must be before or equal to toDate');
+    throw new ValidationError(buildDateRangeMessage('fromDate', 'toDate'));
   }
 };
 
@@ -128,10 +129,10 @@ const buildOperatingExpensePdf = (rows) => {
 };
 
 const createExportOperatingExpensesReport = ({ reportRepository }) => async ({ actor, filters = {}, format = 'xlsx' }) => {
-  ensureAdmin(actor, 'Only authorized backoffice users can export operating expense reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar reportes de gastos operativos.');
   const normalizedFormat = String(format || 'xlsx').trim().toLowerCase();
   if (!['xlsx', 'excel', 'pdf'].includes(normalizedFormat)) {
-    throw new ValidationError('format must be xlsx or pdf');
+    throw new ValidationError('El formato del reporte debe ser Excel o PDF.');
   }
 
   const normalizedFilters = normalizeExportFilters(filters);

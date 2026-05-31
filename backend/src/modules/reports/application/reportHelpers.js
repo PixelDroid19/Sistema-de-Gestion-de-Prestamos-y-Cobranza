@@ -1,6 +1,6 @@
 const { AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { formatCurrency } = require('@/modules/shared/money');
-const { normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
+const { buildDateRangeMessage, normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
 
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
@@ -16,7 +16,7 @@ const isBackofficeActor = (actor) => actor?.role === 'admin' || actor?.role === 
  * @throws {AuthorizationError}
  * @returns {void}
  */
-const ensureAdmin = (actor, message = 'Only authorized backoffice users can access reports') => {
+const ensureAdmin = (actor, message = 'Solo usuarios administrativos autorizados pueden acceder a reportes.') => {
   if (!isBackofficeActor(actor)) {
     throw new AuthorizationError(message);
   }
@@ -26,7 +26,7 @@ const formatMoney = formatCurrency;
 
 const assertDateRangeOrder = ({ fromDate, toDate }, { fromLabel = 'fromDate', toLabel = 'toDate' } = {}) => {
   if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
-    throw new ValidationError(`${fromLabel} must be before or equal to ${toLabel}`);
+    throw new ValidationError(buildDateRangeMessage(fromLabel, toLabel));
   }
 };
 

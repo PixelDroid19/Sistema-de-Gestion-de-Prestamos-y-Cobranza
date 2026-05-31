@@ -61,7 +61,7 @@ test('authValidation.adminRegister rejects agent as an unsupported administrativ
   assert.deepEqual(error.errors, [
     {
       field: 'role',
-      message: 'El rol debe ser uno de: admin, employee',
+      message: 'Selecciona un rol administrativo válido.',
     },
   ]);
 });
@@ -80,7 +80,7 @@ test('authValidation.adminRegister rejects socio as a role only without socio pr
   assert.deepEqual(error.errors, [
     {
       field: 'role',
-      message: 'El rol debe ser uno de: admin, employee',
+      message: 'Selecciona un rol administrativo válido.',
     },
   ]);
 });

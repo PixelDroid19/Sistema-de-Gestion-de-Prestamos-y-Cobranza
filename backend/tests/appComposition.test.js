@@ -86,6 +86,28 @@ test('createApp exposes OpenAPI documentation for registered production surfaces
   assert.equal(JSON.stringify(response.body).includes('/auth/register'), false);
 });
 
+test('createApp emits security and traceability headers on public API responses', async () => {
+  const app = createApp({
+    sharedRuntime: { id: 'runtime-security-headers' },
+    moduleRegistry: [],
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/health',
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.match(String(response.headers['content-security-policy'] || ''), /default-src 'self'/);
+  assert.equal(response.headers['x-frame-options'], 'SAMEORIGIN');
+  assert.equal(response.headers['x-content-type-options'], 'nosniff');
+  assert.match(String(response.headers['strict-transport-security'] || ''), /max-age=31536000/);
+  assert.match(String(response.headers['x-request-id'] || ''), /^[0-9a-f-]{36}$/i);
+  assert.match(String(response.headers['x-trace-id'] || ''), /^[0-9a-f-]{36}$/i);
+  assert.equal(response.headers['x-powered-by'], undefined);
+});
+
 test('createApp forwards all modularized business surfaces from injected module routers', async () => {
   const creditsRouter = express.Router();
   creditsRouter.get('/recovery-roster', (req, res) => {

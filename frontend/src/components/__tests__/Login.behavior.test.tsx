@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import Login from '../Login';
 
 const mockLogin = vi.fn();
@@ -33,6 +34,33 @@ describe('Login behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentLocation = {};
+  });
+
+  it('allows keyboard users to focus and toggle password visibility', async () => {
+    const user = userEvent.setup();
+
+    render(<Login />);
+
+    const emailInput = screen.getByLabelText('Correo electrónico');
+    const passwordInput = screen.getByLabelText('Contraseña');
+    const passwordToggle = screen.getByRole('button', { name: 'Mostrar contraseña' });
+
+    await user.tab();
+    expect(emailInput).toHaveFocus();
+
+    await user.type(emailInput, 'qa.admin@example.com');
+    await user.tab();
+    expect(passwordInput).toHaveFocus();
+
+    await user.type(passwordInput, 'Admin123!');
+    await user.tab();
+    expect(passwordToggle).toHaveFocus();
+
+    expect(passwordInput).toHaveAttribute('type', 'password');
+    await user.keyboard('[Enter]');
+
+    expect(passwordInput).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Ocultar contraseña' })).toHaveFocus();
   });
 
   it('redirects employees to their default route when no pending route exists', async () => {

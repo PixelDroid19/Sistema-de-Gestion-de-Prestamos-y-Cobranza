@@ -68,7 +68,7 @@ describe('Customers behavior', () => {
     vi.clearAllMocks();
     mockSessionUser = { role: 'admin', permissions: ['*'] };
     confirmDanger.mockResolvedValue(true);
-    useCustomersSpy.mockImplementation((params) => buildCustomersResponse([
+    useCustomersSpy.mockImplementation(() => buildCustomersResponse([
       {
         id: 2,
         name: 'Ana Cliente',
@@ -151,5 +151,29 @@ describe('Customers behavior', () => {
 
     expect(screen.getByText('Devora Alvarez')).toBeInTheDocument();
     expect(screen.queryByText('ora Alvarez')).not.toBeInTheDocument();
+  });
+
+  it('keeps internal customer identifiers out of the list table', () => {
+    render(<Customers setCurrentView={vi.fn()} />);
+
+    expect(screen.queryByRole('columnheader', { name: /^ID$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('CUS-2')).not.toBeInTheDocument();
+  });
+
+  it('uses a generic customer fallback instead of rendering the internal id', () => {
+    useCustomersSpy.mockImplementation(() => buildCustomersResponse([
+      {
+        id: 44,
+        name: '',
+        email: '',
+        status: 'active',
+        createdAt: '2026-04-26T00:00:00.000Z',
+      },
+    ]));
+
+    render(<Customers setCurrentView={vi.fn()} />);
+
+    expect(screen.getByText('Cliente')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente #44')).not.toBeInTheDocument();
   });
 });

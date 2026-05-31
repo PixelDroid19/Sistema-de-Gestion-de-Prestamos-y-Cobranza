@@ -1,17 +1,46 @@
 const { BusinessRuleViolationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
-const { normalizeOperationalDate, normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
+const { buildDateRangeMessage, normalizeOperationalDate, normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
 
 const VALID_EXPENSE_STATUSES = new Set(['completed', 'annulled']);
+const OPERATING_EXPENSE_FIELD_LABELS = {
+  category: 'La categoría del gasto',
+  description: 'La descripción del gasto',
+  paymentMethod: 'El método de pago',
+  reference: 'La referencia',
+  notes: 'Las notas',
+  reason: 'El motivo de anulación',
+};
+const OPERATING_EXPENSE_AMOUNT_MESSAGE = 'El monto del gasto debe ser un valor monetario positivo.';
+const OPERATING_EXPENSE_STATUS_MESSAGE = 'El estado del gasto operativo debe ser completado o anulado.';
+const OPERATING_EXPENSE_ALREADY_ANNULLED_MESSAGE = 'El gasto operativo ya está anulado.';
+
+const getOperatingExpenseFieldLabel = (field) => OPERATING_EXPENSE_FIELD_LABELS[field] || 'El campo';
+const buildRequiredTextMessage = (fieldLabel) => {
+  if (fieldLabel.startsWith('Las ')) {
+    return `${fieldLabel} son obligatorias.`;
+  }
+  if (fieldLabel.startsWith('La ')) {
+    return `${fieldLabel} es obligatoria.`;
+  }
+  return `${fieldLabel} es obligatorio.`;
+};
+const buildMaxLengthTextMessage = (fieldLabel, maxLength) => {
+  if (fieldLabel.startsWith('Las ')) {
+    return `${fieldLabel} deben tener ${maxLength} caracteres o menos.`;
+  }
+  return `${fieldLabel} debe tener ${maxLength} caracteres o menos.`;
+};
 
 const normalizeText = (value, field, { maxLength = 255 } = {}) => {
+  const fieldLabel = getOperatingExpenseFieldLabel(field);
   const text = String(value || '').trim();
   if (!text) {
-    throw new ValidationError(`${field} is required`);
+    throw new ValidationError(buildRequiredTextMessage(fieldLabel));
   }
 
   if (text.length > maxLength) {
-    throw new ValidationError(`${field} must be ${maxLength} characters or less`);
+    throw new ValidationError(buildMaxLengthTextMessage(fieldLabel, maxLength));
   }
 
   return text;
@@ -32,7 +61,7 @@ const normalizeStatusFilter = (status) => {
 
   const normalizedStatus = String(status).trim().toLowerCase();
   if (!VALID_EXPENSE_STATUSES.has(normalizedStatus)) {
-    throw new ValidationError('status must be completed or annulled');
+    throw new ValidationError(OPERATING_EXPENSE_STATUS_MESSAGE);
   }
 
   return normalizedStatus;
@@ -40,14 +69,14 @@ const normalizeStatusFilter = (status) => {
 
 const assertDateRangeOrder = ({ fromDate, toDate }) => {
   if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
-    throw new ValidationError('fromDate must be before or equal to toDate');
+    throw new ValidationError(buildDateRangeMessage('fromDate', 'toDate'));
   }
 };
 
 const normalizeExpensePayload = (payload = {}, actor = {}) => {
   const amount = parsePositiveCurrencyAmount(payload.amount);
   if (amount === null) {
-    throw new ValidationError('amount must be a valid positive currency amount');
+    throw new ValidationError(OPERATING_EXPENSE_AMOUNT_MESSAGE);
   }
 
   return {
@@ -93,7 +122,7 @@ const createAnnulOperatingExpense = ({ operatingExpenseRepository }) => async ({
   }
 
   if (expense.status === 'annulled') {
-    throw new BusinessRuleViolationError('Operating expense is already annulled', {
+    throw new BusinessRuleViolationError(OPERATING_EXPENSE_ALREADY_ANNULLED_MESSAGE, {
       code: 'OPERATING_EXPENSE_ALREADY_ANNULLED',
     });
   }

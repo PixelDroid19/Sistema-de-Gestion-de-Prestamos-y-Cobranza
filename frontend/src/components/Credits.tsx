@@ -7,8 +7,6 @@ import {
   Calendar as CalendarIcon,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from '../i18n';
-import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { useLoans, useLoanStatistics, useSearchLoans } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
 import { apiClient } from '../api/client';
@@ -16,12 +14,11 @@ import { apiClient } from '../api/client';
 import { toast } from '../lib/toast';
 import { downloadCreditReport, exportCreditsExcel } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
+import { useResolvedPermissionNames } from '../services/permissionsService';
 import { useOperationalActions } from './hooks/useOperationalActions';
-import { invalidateAfterDelete, invalidateAfterReport } from '../services/operationalInvalidation';
 import { tTerm } from '../i18n/terminology';
 import { PERMISSION } from '../constants/permissionNames';
 import { getLocalDateInputValue } from '../lib/dateInput';
-import { normalizeVisibleName } from '../lib/displayNames';
 import {
   ActionButton,
   PageHeader,
@@ -45,7 +42,6 @@ import CreditsCalendarView from './credits/CreditsCalendarView';
  * via operational guards delegated to the backend credit domain.
  */
 export default function Credits({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
-  const { locale } = useTranslation();
   const [activeTab, setActiveTab] = useState('list');
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -89,10 +85,15 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     search: '',
   });
   const { user } = useSessionStore();
+  const resolvedPermissions = useResolvedPermissionNames(user);
+  const userWithResolvedPermissions = useMemo(
+    () => user ? { ...user, permissions: resolvedPermissions } : user,
+    [resolvedPermissions, user],
+  );
   const isAdmin = user?.role === 'admin';
   const grantedPermissions = useMemo(
-    () => new Set((user?.permissions || []).map((permission: string) => String(permission).toUpperCase())),
-    [user?.permissions],
+    () => new Set(resolvedPermissions.map((permission: string) => String(permission).toUpperCase())),
+    [resolvedPermissions],
   );
   const canReadPortfolioStatistics = isAdmin
     || grantedPermissions.has('*')
@@ -159,7 +160,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     data: defaultLoansData,
     isLoading: isDefaultLoading,
     isError: isDefaultError,
-    deleteLoan,
   } = useLoans({ page, pageSize });
 
   const loansData = hasAppliedServerFilters ? searchedLoansData : defaultLoansData;
@@ -289,39 +289,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleDeleteCredit = async (credit: any) => {
-    await executeGuardedAction({
-      action: 'credit.delete',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
-      confirmationMessage: `¿Cancelar el crédito #${credit?.id} de ${getCreditLabelInline(credit)}? El registro quedará en el historial operativo.`,
-      run: async () => { await deleteLoan.mutateAsync(Number(credit.id)); },
-      onSuccess: async () => {
-        await invalidateAfterDelete(queryClient, { loanId: Number(credit.id), loansParams: { page, pageSize } });
-      },
-      successMessage: 'Crédito cancelado correctamente',
-    });
-  };
-
-  const handleDownloadReport = async (credit: any) => {
-    await executeGuardedAction({
-      action: 'credit.report.download',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
-      run: async () => { await downloadCreditReport(Number(credit.id)); },
-      onSuccess: async () => {
-        await invalidateAfterReport(queryClient, { loanId: Number(credit.id), loansParams: { page, pageSize } });
-      },
-      successMessage: 'Reporte descargado',
-    });
-  };
-
-  const handleNavigatePayouts = async (credit: any) => {
-    await executeGuardedAction({
-      action: 'credit.payouts.navigate',
-      context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
-      run: async () => { navigateToView('payouts'); },
-    });
-  };
-
   const toggleSelectedCredit = (creditId: number) => {
     setSelectedCreditIds((prev) =>
       prev.includes(creditId) ? prev.filter((id) => id !== creditId) : [...prev, creditId],
@@ -339,7 +306,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     for (const creditId of selectedCreditIds) {
       await executeGuardedAction({
         action: 'credit.report.download',
-        context: { role: user?.role, permissions: user?.permissions },
+        context: { role: user?.role, permissions: resolvedPermissions },
         run: async () => { await downloadCreditReport(creditId); },
       });
     }
@@ -393,13 +360,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       helper: tTerm('credits.stats.portfolio.visibleHelper'),
     };
 
-  // ─── Inline helper (uses no closure over component state) ─────────────────
-
-  const getCreditLabelInline = (credit: any) => {
-    const name = normalizeVisibleName(credit?.Customer?.name || credit?.customerName || '');
-    return name || (credit?.customerId ? tTerm('credits.label.customerFallback', { id: credit.customerId }) : tTerm('credits.label.customerMissing'));
-  };
-
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -446,6 +406,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
       <ViewTabs
         data-tour="credits-tabs"
+        ariaLabel={tTerm('credits.tabs.aria')}
         activeTab={activeTab}
         onChange={updateActiveTab}
         tabs={[
@@ -490,7 +451,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           onViewCredit={(credit: any) => navigateToView(`credits/${credit.id}`)}
-          user={user}
+          user={userWithResolvedPermissions}
         />
       )}
 

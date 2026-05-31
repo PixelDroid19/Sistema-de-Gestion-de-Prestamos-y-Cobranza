@@ -15,7 +15,7 @@ afterEach(async () => {
 const createMockUseCases = (overrides = {}) => {
   const defaultGrantPermission = mock.fn(({ actor, targetUserId, permissionId }) => {
     if (actor.role !== 'admin') {
-      const error = new Error('Only admin can grant permissions');
+      const error = new Error('Solo un administrador puede conceder permisos.');
       error.name = 'AuthorizationError';
       error.statusCode = 403;
       throw error;
@@ -33,7 +33,7 @@ const createMockUseCases = (overrides = {}) => {
 
   const defaultRevokePermission = mock.fn(({ actor, targetUserId, permissionId }) => {
     if (actor.role !== 'admin') {
-      const error = new Error('Only admin can revoke permissions');
+      const error = new Error('Solo un administrador puede revocar permisos.');
       error.name = 'AuthorizationError';
       error.statusCode = 403;
       throw error;
@@ -133,7 +133,7 @@ test('E2E: admin can grant permission to user', async () => {
   const useCases = createMockUseCases({
     grantPermission: mock.fn(({ actor, targetUserId, permissionId }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can grant permissions');
+        const error = new Error('Solo un administrador puede conceder permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;
@@ -186,7 +186,7 @@ test('E2E: admin can grant permission using permission name payload', async () =
   const useCases = createMockUseCases({
     grantPermission: mock.fn(({ actor, targetUserId, permissionId, permission }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can grant permissions');
+        const error = new Error('Solo un administrador puede conceder permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;
@@ -282,7 +282,7 @@ test('E2E: admin can revoke permission', async () => {
   const useCases = createMockUseCases({
     revokePermission: mock.fn(({ actor, targetUserId, permissionId }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can revoke permissions');
+        const error = new Error('Solo un administrador puede revocar permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;
@@ -327,7 +327,7 @@ test('E2E: admin can revoke permission using permission name payload', async () 
   const useCases = createMockUseCases({
     revokePermission: mock.fn(({ actor, targetUserId, permissionId, permission }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can revoke permissions');
+        const error = new Error('Solo un administrador puede revocar permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;

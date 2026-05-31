@@ -1,5 +1,52 @@
 const { logError } = require('./logger');
 
+const SESSION_INVALID_MESSAGE = 'La sesión no es válida. Inicia sesión de nuevo.';
+const SESSION_EXPIRED_MESSAGE = 'La sesión expiró. Inicia sesión de nuevo.';
+const ACCOUNT_LOCKED_MESSAGE = 'La cuenta está bloqueada temporalmente por demasiados intentos fallidos.';
+const AUTHENTICATION_REQUIRED_MESSAGE = 'La autenticación es requerida.';
+const ACCESS_DENIED_MESSAGE = 'No tienes acceso a esta acción.';
+const RESOURCE_CONFLICT_MESSAGE = 'El registro tiene un conflicto con la información existente.';
+const CORS_ORIGIN_DENIED_MESSAGE = 'El origen de la solicitud no está permitido.';
+const CORS_ORIGIN_REQUIRED_MESSAGE = 'El origen de la solicitud es requerido.';
+const INTERNAL_SERVER_ERROR_MESSAGE = 'Ocurrió un error interno del servidor.';
+const UNIQUE_CONSTRAINT_MESSAGES = {
+  email: 'Ya existe un registro con ese correo electrónico.',
+  phone: 'Ya existe un registro con ese teléfono.',
+  document: 'Ya existe un registro con ese documento.',
+  documentNumber: 'Ya existe un registro con ese documento.',
+  identificationNumber: 'Ya existe un registro con ese documento.',
+};
+const NOT_FOUND_MESSAGES = {
+  'Attachment file': 'El archivo adjunto no existe.',
+  Associate: 'El socio no existe.',
+  Customer: 'El cliente no existe.',
+  Installment: 'La cuota no existe.',
+  Loan: 'El crédito no existe.',
+  'Loan alert': 'La alerta del crédito no existe.',
+  Notification: 'La notificación no existe.',
+  'Operating expense': 'El gasto operativo no existe.',
+  Payment: 'El pago no existe.',
+  'Payment method': 'El método de pago no existe.',
+  Permission: 'El permiso no existe.',
+  'Promise to pay': 'La promesa de pago no existe.',
+  'Rate policy': 'La política de tasa no existe.',
+  'Late fee policy': 'La política de mora no existe.',
+  'Refresh token': 'La sesión no existe o ya no está disponible.',
+  Route: 'La ruta solicitada no existe.',
+  User: 'El usuario no existe.',
+};
+
+const getNotFoundMessage = (resource = 'Resource') => {
+  const normalizedResource = String(resource || '').trim();
+  if (NOT_FOUND_MESSAGES[normalizedResource]) {
+    return NOT_FOUND_MESSAGES[normalizedResource];
+  }
+  if (/^FinancialProduct\b/.test(normalizedResource)) {
+    return 'El producto financiero no existe.';
+  }
+  return 'El registro solicitado no existe.';
+};
+
 /**
  * Base application error that carries HTTP status metadata for API responses.
  */
@@ -24,6 +71,13 @@ class ValidationError extends AppError {
   }
 }
 
+class BadRequestError extends ValidationError {
+  constructor(message) {
+    super(message);
+    this.name = 'BadRequestError';
+  }
+}
+
 /**
  * Validation error raised when a business rule denies an otherwise valid action.
  */
@@ -40,7 +94,7 @@ class BusinessRuleViolationError extends ValidationError {
  * Authentication error raised when a caller is not authenticated.
  */
 class AuthenticationError extends AppError {
-  constructor(message = 'Authentication failed') {
+  constructor(message = AUTHENTICATION_REQUIRED_MESSAGE) {
     super(message, 401);
     this.name = 'AuthenticationError';
   }
@@ -50,7 +104,7 @@ class AuthenticationError extends AppError {
  * Authorization error raised when a caller lacks permission.
  */
 class AuthorizationError extends AppError {
-  constructor(message = 'Access denied') {
+  constructor(message = ACCESS_DENIED_MESSAGE) {
     super(message, 403);
     this.name = 'AuthorizationError';
   }
@@ -61,8 +115,9 @@ class AuthorizationError extends AppError {
  */
 class NotFoundError extends AppError {
   constructor(resource = 'Resource') {
-    super(`${resource} not found`, 404);
+    super(getNotFoundMessage(resource), 404);
     this.name = 'NotFoundError';
+    this.resource = resource;
   }
 }
 
@@ -70,7 +125,7 @@ class NotFoundError extends AppError {
  * Conflict error raised when persistence detects duplicate or incompatible state.
  */
 class ConflictError extends AppError {
-  constructor(message = 'Resource conflict') {
+  constructor(message = RESOURCE_CONFLICT_MESSAGE) {
     super(message, 409);
     this.name = 'ConflictError';
   }
@@ -95,12 +150,19 @@ class IdempotentReplayError extends AppError {
  * consecutive failed login attempts.
  */
 class AccountLockedError extends AppError {
-  constructor(message = 'Account temporarily locked due to too many failed login attempts', lockoutDurationMinutes = 15) {
+  constructor(message = ACCOUNT_LOCKED_MESSAGE, lockoutDurationMinutes = 15) {
     super(message, 423); // 423 Locked
     this.name = 'AccountLockedError';
     this.lockoutDurationMinutes = lockoutDurationMinutes;
   }
 }
+
+const formatAccountLockedMessage = (remainingMinutes) => {
+  const minutes = Number.isFinite(Number(remainingMinutes))
+    ? Math.max(1, Math.ceil(Number(remainingMinutes)))
+    : 1;
+  return `${ACCOUNT_LOCKED_MESSAGE} Intenta de nuevo en ${minutes} minuto(s).`;
+};
 
 /**
  * Build the JSON API error payload, including development diagnostics when enabled.
@@ -152,7 +214,7 @@ const asyncHandler = (fn) => {
 const getUniqueConstraintField = (err) => {
   const constraintName = String(err?.parent?.constraint || err?.original?.constraint || '').trim();
   if (constraintName === 'Customers_pkey') {
-    return 'Customer id';
+    return 'customerSequence';
   }
 
   if (Array.isArray(err?.errors)) {
@@ -170,6 +232,15 @@ const getUniqueConstraintField = (err) => {
   }
 
   return 'Resource';
+};
+
+const getUniqueConstraintMessage = (err) => {
+  const field = getUniqueConstraintField(err);
+  if (field === 'customerSequence') {
+    return 'No se pudo guardar el cliente porque el consecutivo ya está en uso. Intenta nuevamente.';
+  }
+
+  return UNIQUE_CONSTRAINT_MESSAGES[field] || 'Ya existe un registro con esos datos.';
 };
 
 /**
@@ -198,25 +269,24 @@ const globalErrorHandler = (err, req, res, next) => {
   }
 
   if (err.name === 'SequelizeUniqueConstraintError') {
-    const message = `${getUniqueConstraintField(err)} already exists`;
-    error = new ConflictError(message);
+    error = new ConflictError(getUniqueConstraintMessage(err));
   }
 
   if (err.name === 'SequelizeForeignKeyConstraintError') {
-    const message = 'Referenced resource does not exist';
+    const message = 'El registro relacionado no existe.';
     error = new ValidationError(message);
   }
 
   if (err.name === 'JsonWebTokenError') {
-    error = new AuthenticationError('Invalid token');
+    error = new AuthenticationError(SESSION_INVALID_MESSAGE);
   }
 
   if (err.name === 'TokenExpiredError') {
-    error = new AuthenticationError('Token expired');
+    error = new AuthenticationError(SESSION_EXPIRED_MESSAGE);
   }
 
   if (err.name === 'CastError') {
-    const message = 'Invalid resource identifier';
+    const message = 'El identificador recibido no es válido.';
     error = new ValidationError(message);
   }
 
@@ -234,7 +304,17 @@ const globalErrorHandler = (err, req, res, next) => {
     return res.status(403).json({
       success: false,
       error: {
-        message: 'Origin not allowed by CORS policy',
+        message: CORS_ORIGIN_DENIED_MESSAGE,
+        statusCode: 403,
+      },
+    });
+  }
+
+  if (err.message === 'Origin header is required') {
+    return res.status(403).json({
+      success: false,
+      error: {
+        message: CORS_ORIGIN_REQUIRED_MESSAGE,
         statusCode: 403,
       },
     });
@@ -242,7 +322,7 @@ const globalErrorHandler = (err, req, res, next) => {
 
   if (!error.statusCode) {
     error.statusCode = 500;
-    error.message = 'Internal server error';
+    error.message = INTERNAL_SERVER_ERROR_MESSAGE;
   }
 
   const errorResponse = formatErrorResponse(error, req);
@@ -264,6 +344,7 @@ const notFoundHandler = (req, res, next) => {
 module.exports = {
   AppError,
   ValidationError,
+  BadRequestError,
   BusinessRuleViolationError,
   AuthenticationError,
   AuthorizationError,
@@ -271,6 +352,14 @@ module.exports = {
   ConflictError,
   IdempotentReplayError,
   AccountLockedError,
+  ACCOUNT_LOCKED_MESSAGE,
+  AUTHENTICATION_REQUIRED_MESSAGE,
+  ACCESS_DENIED_MESSAGE,
+  RESOURCE_CONFLICT_MESSAGE,
+  CORS_ORIGIN_DENIED_MESSAGE,
+  CORS_ORIGIN_REQUIRED_MESSAGE,
+  INTERNAL_SERVER_ERROR_MESSAGE,
+  formatAccountLockedMessage,
   asyncHandler,
   globalErrorHandler,
   notFoundHandler,

@@ -1,3 +1,5 @@
+import { tTerm, type TermKey } from '../i18n/terminology';
+
 export type SafeErrorDomain =
   | 'auth'
   | 'credits'
@@ -43,127 +45,137 @@ export type SafeErrorContext = {
   fallbackMessage?: string;
 };
 
-const GENERIC_FALLBACK: SafeToastMessage = {
-  title: 'No se pudo completar la acción',
-  description: 'Intenta nuevamente en unos minutos.',
+type SafeToastMessageTemplate = {
+  titleKey: TermKey;
+  descriptionKey?: TermKey;
 };
 
-const DOMAIN_MESSAGES: Record<SafeErrorDomain, SafeToastMessage> = {
+const GENERIC_FALLBACK: SafeToastMessageTemplate = {
+  titleKey: 'safeError.generic.title',
+  descriptionKey: 'safeError.generic.description',
+};
+
+const resolveTemplate = (template: SafeToastMessageTemplate): SafeToastMessage => ({
+  title: tTerm(template.titleKey),
+  description: template.descriptionKey ? tTerm(template.descriptionKey) : undefined,
+});
+
+const DOMAIN_MESSAGES: Record<SafeErrorDomain, SafeToastMessageTemplate> = {
   auth: {
-    title: 'No se pudo completar la autenticación',
-    description: 'Verifica tus credenciales o vuelve a iniciar sesión.',
+    titleKey: 'safeError.domain.auth.title',
+    descriptionKey: 'safeError.domain.auth.description',
   },
   credits: {
-    title: 'No se pudo completar la gestión del crédito',
-    description: 'Revisa los datos y vuelve a intentarlo.',
+    titleKey: 'safeError.domain.credits.title',
+    descriptionKey: 'safeError.domain.credits.description',
   },
   payments: {
-    title: 'No se pudo completar la operación de pago',
-    description: 'Valida la información y vuelve a intentarlo.',
+    titleKey: 'safeError.domain.payments.title',
+    descriptionKey: 'safeError.domain.payments.description',
   },
   customers: {
-    title: 'No se pudo completar la operación del cliente',
-    description: 'Revisa la información e inténtalo nuevamente.',
+    titleKey: 'safeError.domain.customers.title',
+    descriptionKey: 'safeError.domain.customers.description',
   },
   associates: {
-    title: 'No se pudo completar la operación del socio',
-    description: 'Revisa la información e inténtalo nuevamente.',
+    titleKey: 'safeError.domain.associates.title',
+    descriptionKey: 'safeError.domain.associates.description',
   },
   users: {
-    title: 'No se pudo completar la operación de usuario',
-    description: 'Intenta nuevamente o contacta a un administrador.',
+    titleKey: 'safeError.domain.users.title',
+    descriptionKey: 'safeError.domain.users.description',
   },
   config: {
-    title: 'No se pudo actualizar la configuración',
-    description: 'Revisa los valores ingresados y vuelve a intentarlo.',
+    titleKey: 'safeError.domain.config.title',
+    descriptionKey: 'safeError.domain.config.description',
   },
   reports: {
-    title: 'No se pudo completar la operación del reporte',
-    description: 'Recarga la vista o inténtalo nuevamente en unos minutos.',
+    titleKey: 'safeError.domain.reports.title',
+    descriptionKey: 'safeError.domain.reports.description',
   },
   notifications: {
-    title: 'No se pudieron cargar las notificaciones',
-    description: 'Recarga la vista e inténtalo nuevamente.',
+    titleKey: 'safeError.domain.notifications.title',
+    descriptionKey: 'safeError.domain.notifications.description',
   },
   generic: GENERIC_FALLBACK,
 };
 
-const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessage>> = {
+const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessageTemplate>> = {
   login: {
-    title: 'No se pudo iniciar sesión',
-    description: 'Verifica tus credenciales e inténtalo de nuevo.',
+    titleKey: 'safeError.action.login.title',
+    descriptionKey: 'safeError.action.login.description',
   },
   session: {
-    title: 'Tu sesión expiró o no es válida',
-    description: 'Inicia sesión nuevamente para continuar.',
+    titleKey: 'safeError.action.session.title',
+    descriptionKey: 'safeError.action.session.description',
   },
   'profile.update': {
-    title: 'No se pudo actualizar el perfil',
-    description: 'Revisa los datos e inténtalo nuevamente.',
+    titleKey: 'safeError.action.profileUpdate.title',
+    descriptionKey: 'safeError.action.profileUpdate.description',
   },
   'password.change': {
-    title: 'No se pudo cambiar la contraseña',
-    description: 'Verifica la contraseña actual e inténtalo de nuevo.',
+    titleKey: 'safeError.action.passwordChange.title',
+    descriptionKey: 'safeError.action.passwordChange.description',
   },
   'credit.create': {
-    title: 'No se pudo crear el crédito',
-    description: 'Revisa los datos ingresados e inténtalo nuevamente.',
+    titleKey: 'safeError.action.creditCreate.title',
+    descriptionKey: 'safeError.action.creditCreate.description',
   },
   'credit.calculate': {
-    title: 'No se pudo calcular el crédito',
-    description: 'Verifica los datos ingresados e inténtalo nuevamente.',
+    titleKey: 'safeError.action.creditCalculate.title',
+    descriptionKey: 'safeError.action.creditCalculate.description',
   },
   'payment.register': {
-    title: 'No se pudo registrar el pago',
-    description: 'Verifica los datos del pago e inténtalo nuevamente.',
+    titleKey: 'safeError.action.paymentRegister.title',
+    descriptionKey: 'safeError.action.paymentRegister.description',
   },
   'payout.register': {
-    title: 'No se pudo registrar el desembolso',
-    description: 'Verifica los datos e inténtalo nuevamente.',
+    titleKey: 'safeError.action.payoutRegister.title',
+    descriptionKey: 'safeError.action.payoutRegister.description',
   },
   'customer.create': {
-    title: 'No se pudo crear el cliente',
-    description: 'Revisa los datos e inténtalo nuevamente.',
+    titleKey: 'safeError.action.customerCreate.title',
+    descriptionKey: 'safeError.action.customerCreate.description',
   },
   'customer.update': {
-    title: 'No se pudo actualizar el cliente',
-    description: 'Revisa los datos e inténtalo nuevamente.',
+    titleKey: 'safeError.action.customerUpdate.title',
+    descriptionKey: 'safeError.action.customerUpdate.description',
   },
   'customer.restore': {
-    title: 'No se pudo restaurar el cliente',
-    description: 'Recarga la lista e inténtalo nuevamente.',
+    titleKey: 'safeError.action.customerRestore.title',
+    descriptionKey: 'safeError.action.customerRestore.description',
   },
   'associate.create': {
-    title: 'No se pudo crear el socio',
-    description: 'Revisa los datos e inténtalo nuevamente.',
+    titleKey: 'safeError.action.associateCreate.title',
+    descriptionKey: 'safeError.action.associateCreate.description',
   },
   'associate.update': {
-    title: 'No se pudo actualizar el socio',
-    description: 'Revisa los datos e inténtalo nuevamente.',
+    titleKey: 'safeError.action.associateUpdate.title',
+    descriptionKey: 'safeError.action.associateUpdate.description',
   },
   'permission.grant': {
-    title: 'No se pudo conceder el permiso',
-    description: 'Intenta nuevamente o contacta a un administrador.',
+    titleKey: 'safeError.action.permissionGrant.title',
+    descriptionKey: 'safeError.action.permissionGrant.description',
   },
   'permission.revoke': {
-    title: 'No se pudo revocar el permiso',
-    description: 'Intenta nuevamente o contacta a un administrador.',
+    titleKey: 'safeError.action.permissionRevoke.title',
+    descriptionKey: 'safeError.action.permissionRevoke.description',
   },
   'config.update': {
-    title: 'No se pudo actualizar la configuración',
-    description: 'Verifica los valores e inténtalo nuevamente.',
+    titleKey: 'safeError.action.configUpdate.title',
+    descriptionKey: 'safeError.action.configUpdate.description',
   },
   'reports.load': {
-    title: 'No se pudieron cargar los reportes',
-    description: 'Recarga la vista e inténtalo nuevamente.',
+    titleKey: 'safeError.action.reportsLoad.title',
+    descriptionKey: 'safeError.action.reportsLoad.description',
   },
   'reports.export': {
-    title: 'No se pudo generar la exportación',
-    description: 'Intenta nuevamente en unos minutos.',
+    titleKey: 'safeError.action.reportsExport.title',
+    descriptionKey: 'safeError.action.reportsExport.description',
   },
   'notifications.load': {
-    title: 'No se pudieron cargar las notificaciones',
-    description: 'Recarga la vista e inténtalo nuevamente.',
+    titleKey: 'safeError.action.notificationsLoad.title',
+    descriptionKey: 'safeError.action.notificationsLoad.description',
   },
 };
 
@@ -229,21 +241,21 @@ export const isSensitiveErrorMessage = (message: string): boolean => {
 
 const resolveBaseMessage = (context?: SafeErrorContext): SafeToastMessage => {
   if (context?.action && ACTION_MESSAGES[context.action]) {
-    return ACTION_MESSAGES[context.action] as SafeToastMessage;
+    return resolveTemplate(ACTION_MESSAGES[context.action] as SafeToastMessageTemplate);
   }
 
   if (context?.domain && DOMAIN_MESSAGES[context.domain]) {
-    return DOMAIN_MESSAGES[context.domain];
+    return resolveTemplate(DOMAIN_MESSAGES[context.domain]);
   }
 
   if (context?.fallbackMessage?.trim()) {
     return {
       title: context.fallbackMessage.trim(),
-      description: GENERIC_FALLBACK.description,
+      description: tTerm(GENERIC_FALLBACK.descriptionKey as TermKey),
     };
   }
 
-  return GENERIC_FALLBACK;
+  return resolveTemplate(GENERIC_FALLBACK);
 };
 
 export const getSafeErrorMessage = (error: unknown, context?: SafeErrorContext): SafeToastMessage => {
@@ -254,44 +266,44 @@ export const getSafeErrorMessage = (error: unknown, context?: SafeErrorContext):
   if (statusCode === 401) {
     if (context?.action === 'login') {
       return {
-        title: 'Correo o contraseña incorrectos',
-        description: 'Verifica tus credenciales e inténtalo nuevamente.',
+        title: tTerm('safeError.status.invalidCredentials.title'),
+        description: tTerm('safeError.status.invalidCredentials.description'),
       };
     }
 
     if (context?.action === 'session' || context?.domain === 'auth') {
-      return ACTION_MESSAGES.session as SafeToastMessage;
+      return resolveTemplate(ACTION_MESSAGES.session as SafeToastMessageTemplate);
     }
 
     return {
-      title: 'Tu sesión expiró o no es válida',
-      description: 'Inicia sesión nuevamente para continuar.',
+      title: tTerm('safeError.action.session.title'),
+      description: tTerm('safeError.action.session.description'),
     };
   }
 
   if (statusCode === 403) {
     return {
-      title: 'No tienes permisos para realizar esta acción',
-      description: 'Si necesitas acceso, solicita apoyo a un administrador.',
+      title: tTerm('operational.error.title.permissionDenied'),
+      description: tTerm('operational.error.description.permissionDenied'),
     };
   }
 
   if (statusCode === 404) {
     return {
       title: base.title,
-      description: 'La información ya no está disponible o cambió. Recarga e intenta nuevamente.',
+      description: tTerm('safeError.status.notFound.description'),
     };
-  }
-
-  if (statusCode === 409 || isSensitiveErrorMessage(rawMessage)) {
-    return base;
   }
 
   if (statusCode && statusCode >= 500) {
     return {
       title: base.title,
-      description: 'Ocurrió un problema interno. Intenta nuevamente en unos minutos.',
+      description: tTerm('operational.error.description.server'),
     };
+  }
+
+  if (statusCode === 409 || isSensitiveErrorMessage(rawMessage)) {
+    return base;
   }
 
   return base;

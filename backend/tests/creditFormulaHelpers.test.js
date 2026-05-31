@@ -10,7 +10,7 @@ const { SUPPORTED_CALCULATION_METHODS } = require('@/modules/credits/domain/calc
 
 test('calculation domain exposes backend-supported calculation methods', () => {
   assert.deepEqual(SUPPORTED_CALCULATION_METHODS.map((method) => method.key), ['FRENCH', 'SIMPLE', 'COMPOUND']);
-  assert.equal(SUPPORTED_CALCULATION_METHODS[0].label, 'Sistema frances');
+  assert.equal(SUPPORTED_CALCULATION_METHODS[0].label, 'Sistema francés');
 });
 
 test('buildAmortizationSchedule defaults missing calculationMethod to french method', () => {
@@ -32,13 +32,20 @@ test('buildAmortizationSchedule defaults missing calculationMethod to french met
 });
 
 test('buildAmortizationSchedule rejects invalid calculation methods with a clear error', () => {
-  assert.throws(() => buildAmortizationSchedule({
-    amount: 2000000,
-    interestRate: 60,
-    termMonths: 12,
-    startDate: '2026-01-01T00:00:00.000Z',
-    calculationMethod: 'UNKNOWN',
-  }), /Metodo de calculo invalido: UNKNOWN/);
+  assert.throws(
+    () => buildAmortizationSchedule({
+      amount: 2000000,
+      interestRate: 60,
+      termMonths: 12,
+      startDate: '2026-01-01T00:00:00.000Z',
+      calculationMethod: 'UNKNOWN',
+    }),
+    (error) => {
+      assert.equal(error.message, 'Selecciona un método de cálculo válido.');
+      assert.doesNotMatch(error.message, /UNKNOWN|FRENCH|SIMPLE|COMPOUND/);
+      return true;
+    },
+  );
 });
 
 test('buildAmortizationSchedule supports simple interest method as a real schedule', () => {

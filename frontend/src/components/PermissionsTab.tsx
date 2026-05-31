@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Lock, Shield, Users, X } from 'lucide-react';
 import {
   useGrantBatchPermissions,
@@ -9,6 +9,7 @@ import {
 import { useUsers } from '../services/userService';
 import { toast } from '../lib/toast';
 import { useTranslation } from '../i18n';
+import { getPermissionDisplayName, getPermissionModuleLabel } from './shared/permissionDisplay';
 import {
   ActionButton,
   ClickableSurface,
@@ -26,24 +27,6 @@ type PermissionRecord = {
   module: string;
   source?: 'direct' | 'role' | string;
   description?: string;
-};
-
-const MODULE_DISPLAY_LABELS: Record<string, string> = {
-  auditoria: 'Auditoría',
-  auditoría: 'Auditoría',
-  clientes: 'Clientes',
-  creditos: 'Créditos',
-  dashboard: 'Dashboard',
-  pagos: 'Pagos',
-  permisos: 'Permisos',
-  reportes: 'Reportes',
-  socios: 'Socios',
-  usuarios: 'Usuarios',
-};
-
-const getModuleLabel = (module: string) => {
-  const normalizedModule = module.trim().toLowerCase();
-  return MODULE_DISPLAY_LABELS[normalizedModule] || module;
 };
 
 export default function PermissionsTab() {
@@ -155,24 +138,29 @@ export default function PermissionsTab() {
 
   const handleToggleUserPermission = async (permission: PermissionRecord, shouldGrant: boolean) => {
     if (!selectedUserId) {
-      toast.error({ title: 'Seleccione un usuario para gestionar permisos.' });
+      toast.error({ title: t('settings.employees.modal.permissions.selectUserRequired') });
       return;
     }
 
     try {
+      const permissionLabel = getPermissionDisplayName(permission, t);
       if (shouldGrant) {
         await grantBatchPermissions.mutateAsync({
           userId: selectedUserId,
           permissions: [{ permission: permission.permission, module: permission.module }],
         });
-        toast.success({ description: `Permiso concedido: ${permission.permission}` });
+        toast.success({
+          description: t('settings.employees.modal.permissions.permissionGranted', { permission: permissionLabel }),
+        });
       } else {
         await revokePermission.mutateAsync({
           userId: selectedUserId,
           permission: permission.permission,
           module: permission.module,
         });
-        toast.success({ description: `Permiso revocado: ${permission.permission}` });
+        toast.success({
+          description: t('settings.employees.modal.permissions.permissionRevoked', { permission: permissionLabel }),
+        });
       }
       await selectedUserPermissionsQuery.refetch();
     } catch (error) {
@@ -182,12 +170,13 @@ export default function PermissionsTab() {
 
   const handleToggleModulePermissions = async (module: string, shouldGrantAll: boolean) => {
     if (!selectedUserId) {
-      toast.error({ title: 'Seleccione un usuario para gestionar permisos.' });
+      toast.error({ title: t('settings.employees.modal.permissions.selectUserRequired') });
       return;
     }
 
     const modulePermissions = normalizedPermissions.filter((permission) => permission.module === module);
     if (modulePermissions.length === 0) return;
+    const moduleLabel = getPermissionModuleLabel(module);
 
     try {
       if (shouldGrantAll) {
@@ -198,7 +187,9 @@ export default function PermissionsTab() {
             module: permission.module,
           })),
         });
-        toast.success({ description: `Permisos del módulo ${module} concedidos.` });
+        toast.success({
+          description: t('settings.employees.modal.permissions.moduleGranted', { module: moduleLabel }),
+        });
       } else {
         await Promise.all(modulePermissions.map((permission) => {
           if (!directPermissionSet.has(permission.permission.toLowerCase())) {
@@ -210,7 +201,9 @@ export default function PermissionsTab() {
             module: permission.module,
           });
         }));
-        toast.success({ description: `Permisos directos del módulo ${module} revocados.` });
+        toast.success({
+          description: t('settings.employees.modal.permissions.moduleRevoked', { module: moduleLabel }),
+        });
       }
 
       await selectedUserPermissionsQuery.refetch();
@@ -220,25 +213,25 @@ export default function PermissionsTab() {
   };
 
   if (isLoadingPermissions || isLoadingUsers) {
-    return <EmptyState title="Cargando permisos…" compact />;
+    return <EmptyState title={t('settings.employees.modal.permissions.loading')} compact />;
   }
 
   return (
     <div className="space-y-6">
       <ViewTabs
-        ariaLabel="Vistas de permisos"
+        ariaLabel={t('settings.employees.modal.permissions.viewsAria')}
         activeTab={activeView}
         onChange={(tabId) => setActiveView(tabId as typeof activeView)}
         tabs={[
-          { id: 'all', label: 'Catálogo de permisos', icon: Shield },
-          { id: 'user', label: 'Gestión por usuario', icon: Users },
+          { id: 'all', label: t('settings.employees.modal.permissions.catalogTab'), icon: Shield },
+          { id: 'user', label: t('settings.employees.modal.permissions.userTab'), icon: Users },
         ]}
       />
 
       {activeView === 'all' && (
         <div className="settings-permission-grid">
           {groupedPermissions.length === 0 ? (
-            <EmptyState title="No hay permisos disponibles" compact />
+            <EmptyState title={t('settings.employees.modal.permissions.noPermissions')} compact />
           ) : (
             groupedPermissions.map((group) => (
               <div key={group.module} className="settings-permission-card">
@@ -249,9 +242,9 @@ export default function PermissionsTab() {
                 >
                   <div className="flex items-center gap-2 font-medium">
                     <Shield size={16} />
-                    <span>{getModuleLabel(group.module)}</span>
+                    <span>{getPermissionModuleLabel(group.module)}</span>
                     <span className="text-xs text-text-secondary bg-bg-base px-2 py-0.5 rounded-full">
-                      {group.permissions.length} permisos
+                      {t('settings.employees.modal.permissions.permissionCount', { count: group.permissions.length })}
                     </span>
                   </div>
                   {expandedModules.has(group.module) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -262,12 +255,10 @@ export default function PermissionsTab() {
                     {group.permissions.map((permission) => (
                       <div key={`${permission.module}-${permission.permission}`} className="px-4 py-3 flex items-center justify-between gap-4">
                         <div>
-                          <p className="font-medium text-sm">{permission.permission}</p>
-                          <p className="text-xs text-text-secondary">
-                            {permission.description || t('settings.employees.modal.permissions.noDescription')}
-                          </p>
+                          <p className="font-medium text-sm">{getPermissionDisplayName(permission, t)}</p>
+                          <p className="text-xs text-text-secondary">{getPermissionModuleLabel(permission.module)}</p>
                         </div>
-                        <span className="text-xs px-2 py-0.5 rounded bg-bg-base text-text-secondary">{getModuleLabel(permission.module)}</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-bg-base text-text-secondary">{getPermissionModuleLabel(permission.module)}</span>
                       </div>
                     ))}
                   </div>
@@ -282,29 +273,29 @@ export default function PermissionsTab() {
         <div className="space-y-4">
           <SectionSurface bodyClassName="space-y-3">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <FormField label="Usuario">
+              <FormField label={t('settings.employees.modal.permissions.userLabel')}>
                 <SelectInput
                   id="permissions-user-select"
                   value={selectedUserId}
                   onChange={(event) => setSelectedUserId(event.target.value)}
                 >
-                  <option value="">Seleccione un usuario</option>
+                  <option value="">{t('settings.employees.modal.permissions.userPlaceholder')}</option>
                   {employeeUsers.map((user: any) => (
                     <option key={user.id} value={String(user.id)}>
-                      {user.name || user.email} (empleado)
+                      {user.name || user.email} ({t('settings.employees.modal.permissions.employeeSuffix')})
                     </option>
                   ))}
                 </SelectInput>
               </FormField>
-              <FormField label="Módulo">
+              <FormField label={t('settings.employees.modal.permissions.moduleLabel')}>
                 <SelectInput
                   id="permissions-module-filter"
                   value={moduleFilter}
                   onChange={(event) => setModuleFilter(event.target.value)}
                 >
-                  <option value="all">Todos los módulos</option>
+                  <option value="all">{t('settings.employees.modal.permissions.moduleAll')}</option>
                   {groupedPermissions.map((group) => (
-                    <option key={group.module} value={group.module}>{getModuleLabel(group.module)}</option>
+                    <option key={group.module} value={group.module}>{getPermissionModuleLabel(group.module)}</option>
                   ))}
                 </SelectInput>
               </FormField>
@@ -314,33 +305,37 @@ export default function PermissionsTab() {
                   disabled={!selectedUserId || selectedUserPermissionsQuery.isLoading}
                   fullWidth
                 >
-                  {selectedUserPermissionsQuery.isLoading ? 'Actualizando…' : 'Actualizar permisos'}
+                  {selectedUserPermissionsQuery.isLoading
+                    ? t('settings.employees.modal.permissions.refreshing')
+                    : t('settings.employees.modal.permissions.refresh')}
                 </ActionButton>
               </div>
             </div>
             {selectedUserId ? (
               <p className="settings-inline-note">
-                Gestionando permisos de <span className="font-medium text-text-primary">{selectedUser?.name || selectedUser?.email}</span>. Los permisos heredados por rol se muestran bloqueados.
+                {t('settings.employees.modal.permissions.managingNote', { user: selectedUser?.name || selectedUser?.email || '' })}
               </p>
             ) : null}
           </SectionSurface>
 
           {!selectedUserId ? (
             <EmptyState
-              title={employeeUsers.length === 0 ? 'No hay empleados creados' : 'Seleccione un empleado'}
+              title={employeeUsers.length === 0
+                ? t('settings.employees.modal.permissions.noEmployeesTitle')
+                : t('settings.employees.modal.permissions.selectEmployeeTitle')}
               description={employeeUsers.length === 0
-                ? 'Cree primero una cuenta de empleado. Los permisos solo se asignan a empleados administrativos.'
-                : 'Luego podrá gestionar permisos por módulo y permiso individual.'}
+                ? t('settings.employees.modal.permissions.noEmployeesDescription')
+                : t('settings.employees.modal.permissions.selectEmployeeDescription')}
               icon={<Users size={36} />}
             />
           ) : (
             <div className="space-y-3">
               <InsightStrip
-                aria-label="Resumen de permisos del empleado"
+                aria-label={t('settings.employees.modal.permissions.summaryAria')}
                 items={[
-                  { id: 'permissions-effective', label: 'Permisos efectivos', value: selectedEffectiveCount, helper: 'Accesos que puede usar', icon: <Shield size={18} />, accent: 'blue' },
-                  { id: 'permissions-direct', label: 'Directos', value: selectedDirectCount, helper: 'Asignados manualmente', icon: <Check size={18} />, accent: 'emerald' },
-                  { id: 'permissions-inherited', label: 'Heredados', value: selectedInheritedCount, helper: 'Vienen del rol', icon: <Lock size={18} />, accent: 'slate' },
+                  { id: 'permissions-effective', label: t('settings.employees.modal.permissions.effectiveLabel'), value: selectedEffectiveCount, helper: t('settings.employees.modal.permissions.effectiveHelper'), icon: <Shield size={18} />, accent: 'blue' },
+                  { id: 'permissions-direct', label: t('settings.employees.modal.permissions.directLabel'), value: selectedDirectCount, helper: t('settings.employees.modal.permissions.directHelper'), icon: <Check size={18} />, accent: 'emerald' },
+                  { id: 'permissions-inherited', label: t('settings.employees.modal.permissions.inheritedLabel'), value: selectedInheritedCount, helper: t('settings.employees.modal.permissions.inheritedHelper'), icon: <Lock size={18} />, accent: 'slate' },
                 ]}
               />
               {visibleGroupedPermissions.map((group) => {
@@ -358,9 +353,13 @@ export default function PermissionsTab() {
                     <div className="w-full px-4 py-3 flex items-center justify-between bg-bg-base border-b border-border-subtle">
                       <div className="flex items-center gap-2 font-medium">
                         <Shield size={16} />
-                        <span>{getModuleLabel(group.module)}</span>
+                        <span>{getPermissionModuleLabel(group.module)}</span>
                         <span className="text-xs text-text-secondary bg-bg-surface px-2 py-0.5 rounded-full">
-                          {directCount}/{totalPermissions} directos · {roleCount} heredados
+                          {t('settings.employees.modal.permissions.summary', {
+                            direct: directCount,
+                            total: totalPermissions,
+                            inherited: roleCount,
+                          })}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -369,14 +368,14 @@ export default function PermissionsTab() {
                           disabled={isBusy}
                           className="!min-h-0 !px-2 !py-1 text-xs"
                         >
-                          Conceder módulo
+                          {t('settings.employees.modal.permissions.grantModule')}
                         </ActionButton>
                         <ActionButton
                           onClick={() => handleToggleModulePermissions(group.module, false)}
                           disabled={isBusy || directCount === 0}
                           className="!min-h-0 !px-2 !py-1 text-xs"
                         >
-                          Revocar directos
+                          {t('settings.employees.modal.permissions.revokeDirect')}
                         </ActionButton>
                       </div>
                     </div>
@@ -390,15 +389,13 @@ export default function PermissionsTab() {
                         return (
                           <div key={`permission-${group.module}-${permission.permission}`} className="px-4 py-3 flex items-center justify-between gap-4">
                             <div>
-                              <p className="font-medium text-sm">{permission.permission}</p>
-                              <p className="text-xs text-text-secondary">
-                                {permission.description || t('settings.employees.modal.permissions.noDescription')}
-                              </p>
+                              <p className="font-medium text-sm">{getPermissionDisplayName(permission, t)}</p>
+                              <p className="text-xs text-text-secondary">{getPermissionModuleLabel(permission.module)}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               {grantedByRole && !grantedDirect && (
                                 <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-bg-base text-text-secondary">
-                                  <Lock size={12} /> heredado
+                                  <Lock size={12} /> {t('settings.employees.modal.permissions.inherited')}
                                 </span>
                               )}
                               <ActionButton
@@ -408,12 +405,14 @@ export default function PermissionsTab() {
                                 variant={effectiveGranted ? 'secondary' : 'ghost'}
                                 className="!min-h-0 !px-2 !py-1 text-xs"
                                 title={grantedByRole
-                                  ? 'Permiso heredado desde rol. No se puede revocar aquí.'
+                                  ? t('settings.employees.modal.permissions.inheritedPermissionTitle')
                                   : grantedDirect
-                                    ? 'Revocar permiso directo'
-                                    : 'Conceder permiso directo'}
+                                    ? t('settings.employees.modal.permissions.revokeDirectTitle')
+                                    : t('settings.employees.modal.permissions.grantDirectTitle')}
                               >
-                                {grantedDirect ? 'Revocar' : 'Conceder'}
+                                {grantedDirect
+                                  ? t('settings.employees.modal.permissions.revoke')
+                                  : t('settings.employees.modal.permissions.grant')}
                               </ActionButton>
                             </div>
                           </div>

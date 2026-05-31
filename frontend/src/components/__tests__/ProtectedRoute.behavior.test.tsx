@@ -46,6 +46,7 @@ const renderWithProviders = (ui: React.ReactNode, initialEntries = ['/private'])
 
 describe('ProtectedRoute behavior', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     sessionState.accessToken = null;
     sessionState.refreshToken = null;
@@ -74,6 +75,28 @@ describe('ProtectedRoute behavior', () => {
     expect(screen.getByText('Restaurando sesión…')).toBeInTheDocument();
     expect(screen.queryByText('Acceso')).not.toBeInTheDocument();
     expect(restoreAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('uses translated copy while restoring the persisted session', () => {
+    localStorage.setItem('app.locale', 'en');
+    sessionState.refreshToken = 'refresh-token';
+
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/private"
+          element={(
+            <ProtectedRoute>
+              <div>Private area</div>
+            </ProtectedRoute>
+          )}
+        />
+        <Route path="/login" element={<div>Access</div>} />
+      </Routes>,
+    );
+
+    expect(screen.getByText('Restoring session...')).toBeInTheDocument();
+    expect(screen.queryByText('Restaurando sesión…')).not.toBeInTheDocument();
   });
 
   it('redirects to login after hydration if there is no valid session', () => {

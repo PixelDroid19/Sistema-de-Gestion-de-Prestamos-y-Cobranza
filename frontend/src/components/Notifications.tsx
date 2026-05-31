@@ -1,4 +1,3 @@
-import React from 'react';
 import { Bell, CheckCircle2, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../i18n';

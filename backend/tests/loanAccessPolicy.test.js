@@ -34,7 +34,7 @@ test('createLoanAccessPolicy finds only authorized loans', async () => {
     loanId: 18,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can access loans');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a créditos.');
     return true;
   });
 });

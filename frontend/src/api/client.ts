@@ -1,4 +1,5 @@
 import { isAdministrativeUser, useSessionStore } from '../store/sessionStore';
+import { tTerm } from '../i18n/terminology';
 
 const normalizeApiBaseUrl = (value?: string): string => {
   if (!value || value.trim().length === 0) {
@@ -184,7 +185,7 @@ const normalizeError = async (response: Response): Promise<{ message: string; st
 
   if (payload && typeof payload === 'object' && payload.success === false && payload.error) {
     return {
-      message: payload.error.message || `HTTP ${response.status}`,
+      message: payload.error.message || tTerm('toast.api.fallback'),
       statusCode: payload.error.statusCode || response.status,
       details: payload.error,
     };
@@ -225,12 +226,12 @@ const refreshAccessToken = async (): Promise<string> => {
 
   if (!isAdministrativeUser(user)) {
     logout();
-    throw { message: 'No administrative user available', statusCode: 401 };
+    throw { message: tTerm('safeError.action.session.description'), statusCode: 401 };
   }
 
   if (!refreshToken) {
     logout();
-    throw { message: 'No refresh token available', statusCode: 401 };
+    throw { message: tTerm('safeError.action.session.description'), statusCode: 401 };
   }
 
   const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
@@ -250,7 +251,7 @@ const refreshAccessToken = async (): Promise<string> => {
 
   if (!accessToken) {
     logout();
-    throw { message: 'Invalid refresh response', statusCode: 500 };
+    throw { message: tTerm('safeError.action.session.description'), statusCode: 401 };
   }
 
   updateAccessToken(accessToken, newRefreshToken);
@@ -353,7 +354,7 @@ const request = async <T>(
   if (data && typeof data === 'object' && (data as any).success === false && (data as any).error) {
     const backendError = (data as any).error;
     throw {
-      message: backendError.message || 'Request failed',
+      message: backendError.message || tTerm('toast.api.fallback'),
       statusCode: backendError.statusCode || response.status,
       details: backendError,
     };

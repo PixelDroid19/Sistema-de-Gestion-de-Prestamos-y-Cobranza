@@ -3,8 +3,20 @@ const assert = require('node:assert/strict');
 
 const { createOutboxRelayWorker } = require('@/workers/outboxRelayWorker');
 
+const originalOutboxEnv = {
+  OUTBOX_MAX_DELIVERY_ATTEMPTS: process.env.OUTBOX_MAX_DELIVERY_ATTEMPTS,
+  OUTBOX_RETRY_MULTIPLIER: process.env.OUTBOX_RETRY_MULTIPLIER,
+};
+
 afterEach(() => {
   mock.restoreAll();
+  for (const [key, value] of Object.entries(originalOutboxEnv)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
 });
 
 test('start sets up polling with setInterval', () => {
@@ -226,4 +238,34 @@ test('stop is idempotent when worker is not running', () => {
 
   assert.equal(warningMessages.length, 1);
   assert.ok(warningMessages[0].includes('not running'));
+});
+
+test('worker rejects malformed max retry env values', () => {
+  process.env.OUTBOX_MAX_DELIVERY_ATTEMPTS = '5x';
+
+  assert.throws(
+    () => createOutboxRelayWorker({
+      outboxEventRepository: { findPending: async () => [], markAsProcessing: async () => 1, markAsProcessed: async () => [1], markAsFailed: async () => [1] },
+      eventPublisher: { publish: async () => ({ published: true }) },
+      logger: { log: () => {}, warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
+      setIntervalFn: () => 1,
+      clearIntervalFn: () => {},
+    }),
+    /OUTBOX_MAX_DELIVERY_ATTEMPTS must be a positive integer/,
+  );
+});
+
+test('worker rejects malformed retry multiplier env values', () => {
+  process.env.OUTBOX_RETRY_MULTIPLIER = '1.2.3';
+
+  assert.throws(
+    () => createOutboxRelayWorker({
+      outboxEventRepository: { findPending: async () => [], markAsProcessing: async () => 1, markAsProcessed: async () => [1], markAsFailed: async () => [1] },
+      eventPublisher: { publish: async () => ({ published: true }) },
+      logger: { log: () => {}, warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
+      setIntervalFn: () => 1,
+      clearIntervalFn: () => {},
+    }),
+    /OUTBOX_RETRY_MULTIPLIER must be a positive number/,
+  );
 });

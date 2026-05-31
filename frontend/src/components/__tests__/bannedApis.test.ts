@@ -12,6 +12,8 @@ const BANNED_PATTERNS = [
   { pattern: /[^a-zA-Z]prompt\s*\(/, name: 'prompt(' },
   { pattern: /<dialog/, name: '<dialog' },
   { pattern: /showModalDialog/, name: 'showModalDialog' },
+  { pattern: /console\.error\s*\(/, name: 'console.error' },
+  { pattern: /\binnerHTML\b/, name: 'innerHTML' },
 ];
 
 const TSX_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
@@ -24,7 +26,7 @@ async function* getSourceFiles(dir: string): AsyncGenerator<string> {
       if (entry.name === 'node_modules' || entry.name === '__tests__' || entry.name === 'dist') continue;
       yield* getSourceFiles(fullPath);
     } else if (TSX_EXTENSIONS.includes(extname(entry.name))) {
-      if (fullPath.includes(join('lib', 'confirmModal'))) continue;
+      if (fullPath.includes(join('lib', 'clientDiagnostics'))) continue;
       yield fullPath;
     }
   }
@@ -113,6 +115,22 @@ describe('Banned APIs audit', () => {
     const showModalDialogViolations = violations.filter(v => v.pattern === 'showModalDialog');
     expect(showModalDialogViolations, 
       `Found showModalDialog usage at:\n${showModalDialogViolations.map(v => `  ${v.file}:${v.line}`).join('\n')}`
+    ).toHaveLength(0);
+  });
+
+  it('should not log raw component errors directly', async () => {
+    const violations = await findViolations();
+    const consoleErrorViolations = violations.filter(v => v.pattern === 'console.error');
+    expect(consoleErrorViolations,
+      `Found direct console.error usage at:\n${consoleErrorViolations.map(v => `  ${v.file}:${v.line}`).join('\n')}`
+    ).toHaveLength(0);
+  });
+
+  it('should not build runtime UI with raw innerHTML', async () => {
+    const violations = await findViolations();
+    const innerHtmlViolations = violations.filter(v => v.pattern === 'innerHTML');
+    expect(innerHtmlViolations,
+      `Found direct innerHTML usage at:\n${innerHtmlViolations.map(v => `  ${v.file}:${v.line}`).join('\n')}`
     ).toHaveLength(0);
   });
 

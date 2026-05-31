@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Search,
   Filter,
@@ -316,7 +315,6 @@ export default function CreditsListView({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-semibold text-text-primary">{getCreditLabel(credit)}</p>
-                    <p className="mt-1 text-xs text-text-secondary">{tTerm('credits.card.number', { id: credit.id })}</p>
                   </div>
                   <ExplainedChip
                     label={getLoanStatusLabel(credit.status)}
@@ -386,7 +384,6 @@ export default function CreditsListView({
                   onChange={onToggleSelectAll}
                 />
               </th>
-              <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">{tTerm('credits.table.id')}</th>
               <th className="min-w-[150px] px-3 py-3 font-semibold">{tTerm('credits.table.customer')}</th>
               <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.capital')}</th>
               <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">{tTerm('credits.table.rate')}</th>
@@ -405,11 +402,11 @@ export default function CreditsListView({
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {isLoading ? (
-              <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.loading')}</td></tr>
+              <tr><td colSpan={11} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.loading')}</td></tr>
             ) : isError ? (
-              <tr><td colSpan={12} className="px-4 py-8 text-center text-red-600">{tTerm('credits.table.error')}</td></tr>
+              <tr><td colSpan={11} className="px-4 py-8 text-center text-red-600">{tTerm('credits.table.error')}</td></tr>
             ) : creditsList.length === 0 ? (
-              <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.none')}</td></tr>
+              <tr><td colSpan={11} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.none')}</td></tr>
             ) : (
               creditsList.map((credit: any, index: number) => {
                 const principalOutstanding = Number(credit.principalOutstanding) || 0;
@@ -431,12 +428,11 @@ export default function CreditsListView({
                     <td className="px-3 py-4" {...(index === 0 ? { 'data-tour': 'credits-row-actions' } : {})}>
                       <CheckboxInput
                         type="checkbox"
-                        aria-label={tTerm('credits.table.selectOne', { id: credit.id })}
+                        aria-label={tTerm('credits.table.selectOne', { name: getCreditLabel(credit) })}
                         checked={selectedCreditIds.includes(Number(credit.id))}
                         onChange={() => onToggleSelect(Number(credit.id))}
                       />
                     </td>
-                    <td className="hidden whitespace-nowrap px-3 py-4 font-mono text-text-secondary 2xl:table-cell">{String(credit.id).substring(0, 8)}</td>
                     <td className="px-3 py-4 font-medium text-text-primary">
                       <span className="block max-w-[180px] truncate" title={getCreditLabel(credit)}>
                         {getCreditLabel(credit)}

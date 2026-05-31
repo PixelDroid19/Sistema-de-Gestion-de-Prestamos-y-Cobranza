@@ -15,6 +15,7 @@
 import { sileo, Toaster } from 'sileo';
 import { extractValidationErrors } from '../services/apiErrors';
 import { getSafeErrorMessage, type SafeErrorContext } from '../services/safeErrorMessages';
+import { tTerm, type TermKey } from '../i18n/terminology';
 
 // =============================================================================
 // Types
@@ -46,7 +47,7 @@ export interface ToastTheme {
 
 const platformTheme: ToastTheme = {
   fill: '#171717',        // Dark background (matches dark mode)
-  title: 'text-white!',  // White text
+  title: 'text-white! normal-case!',  // White text
   description: 'text-white/75!',
   badge: 'bg-white/10!',
   button: 'bg-white/10! hover:bg-white/15!',
@@ -54,10 +55,65 @@ const platformTheme: ToastTheme = {
 
 const lightTheme: ToastTheme = {
   fill: '#FFFFFF',        // Light background
-  title: 'text-gray-900!',
+  title: 'text-gray-900! normal-case!',
   description: 'text-gray-600!',
   badge: 'bg-gray-100!',
   button: 'bg-gray-100! hover:bg-gray-200!',
+};
+
+const VALIDATION_FIELD_LABEL_KEYS: Record<string, TermKey> = {
+  amount: 'toast.validation.field.amount',
+  capital: 'toast.validation.field.capital',
+  email: 'toast.validation.field.email',
+  firstName: 'toast.validation.field.firstName',
+  interestRate: 'toast.validation.field.interestRate',
+  lastName: 'toast.validation.field.lastName',
+  name: 'toast.validation.field.name',
+  password: 'toast.validation.field.password',
+  paymentDate: 'toast.validation.field.paymentDate',
+  paymentMethod: 'toast.validation.field.paymentMethod',
+  phone: 'toast.validation.field.phone',
+  role: 'toast.validation.field.role',
+  startDate: 'toast.validation.field.startDate',
+  status: 'toast.validation.field.status',
+  termMonths: 'toast.validation.field.termMonths',
+  annualLateFeeRate: 'toast.validation.field.annualLateFeeRate',
+};
+
+const getSafeValidationFieldLabel = (field: string) => {
+  const normalizedField = field
+    .replace(/\[(.*?)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean)
+    .at(-1)
+    ?.trim();
+
+  if (!normalizedField) return tTerm('toast.validation.field.generic');
+  return tTerm(VALIDATION_FIELD_LABEL_KEYS[normalizedField] ?? 'toast.validation.field.generic');
+};
+
+const getSafeValidationMessage = (message: string) => {
+  if (/required|missing|oblig/i.test(message)) {
+    return tTerm('toast.validation.message.required');
+  }
+
+  if (/email|correo/i.test(message)) {
+    return tTerm('toast.validation.message.email');
+  }
+
+  if (/date|fecha/i.test(message)) {
+    return tTerm('toast.validation.message.date');
+  }
+
+  if (/amount|monto|number|numeric|greater|less|positive|zero|range|between|mayor|menor|rango|valor/i.test(message)) {
+    return tTerm('toast.validation.message.number');
+  }
+
+  if (/permission|permiso/i.test(message)) {
+    return tTerm('toast.validation.message.permission');
+  }
+
+  return tTerm('toast.validation.message.generic');
 };
 
 // =============================================================================
@@ -71,7 +127,7 @@ export const toast = {
    */
   success: (options: ToastOptions) => {
     return sileo.success({
-      title: options.title || 'Éxito',
+      title: options.title || tTerm('toast.title.success'),
       description: options.description,
       duration: options.duration ?? 4000,
       position: options.position,
@@ -84,7 +140,7 @@ export const toast = {
    */
   error: (options: ToastOptions) => {
     return sileo.error({
-      title: options.title || 'Error',
+      title: options.title || tTerm('toast.title.error'),
       description: options.description,
       duration: options.duration ?? 6000,
       position: options.position,
@@ -97,7 +153,7 @@ export const toast = {
    */
   warning: (options: ToastOptions) => {
     return sileo.warning({
-      title: options.title || 'Advertencia',
+      title: options.title || tTerm('toast.title.warning'),
       description: options.description,
       duration: options.duration ?? 5000,
       position: options.position,
@@ -110,7 +166,7 @@ export const toast = {
    */
   info: (options: ToastOptions) => {
     return sileo.info({
-      title: options.title || 'Información',
+      title: options.title || tTerm('toast.title.info'),
       description: options.description,
       duration: options.duration ?? 4000,
       position: options.position,
@@ -121,8 +177,10 @@ export const toast = {
    * Validation errors toast - shows multiple field errors
    * Use for: form validation errors from backend
    */
-  validationErrors: (errors: ValidationError[], title = 'Error de validación') => {
-    const description = errors.map(err => `${err.field}: ${err.message}`).join('\n');
+  validationErrors: (errors: ValidationError[], title = tTerm('toast.validation.title')) => {
+    const description = errors
+      .map((err) => `${getSafeValidationFieldLabel(err.field)}: ${getSafeValidationMessage(err.message)}`)
+      .join('\n');
     return sileo.error({
       title,
       description,
@@ -134,7 +192,7 @@ export const toast = {
    * API error toast - safe by default (no backend leakage)
    * Use for: HTTP client error responses
    */
-  apiError: (error: unknown, fallbackMessage = 'No se pudo completar la operación') => {
+  apiError: (error: unknown, fallbackMessage = tTerm('toast.api.fallback')) => {
     const safeMessage = getSafeErrorMessage(error, {
       domain: 'generic',
       fallbackMessage,
@@ -152,7 +210,7 @@ export const toast = {
    */
   apiErrorSafe: (error: unknown, context?: SafeErrorContext) => {
     const validationErrors = extractValidationErrors(error);
-    if (validationErrors && Array.isArray(validationErrors)) {
+    if (Array.isArray(validationErrors) && validationErrors.length > 0) {
       return toast.validationErrors(validationErrors);
     }
 
@@ -173,17 +231,22 @@ export const toast = {
     promise: Promise<T>,
     loadingTitle: string,
     successTitle: string | ((data: T) => string),
-    errorTitle = 'Operation failed'
+    errorTitle = tTerm('toast.api.fallback')
   ) => {
     return sileo.promise(promise, {
       loading: { title: loadingTitle, duration: null },
       success: typeof successTitle === 'function' 
         ? (data) => ({ title: successTitle(data) })
         : { title: successTitle },
-      error: (err) => ({ 
-        title: errorTitle,
-        description: err instanceof Error ? err.message : String(err)
-      }),
+      error: (err) => {
+        const safeMessage = getSafeErrorMessage(err, {
+          fallbackMessage: errorTitle,
+        });
+        return {
+          title: safeMessage.title,
+          description: safeMessage.description,
+        };
+      },
     });
   },
 

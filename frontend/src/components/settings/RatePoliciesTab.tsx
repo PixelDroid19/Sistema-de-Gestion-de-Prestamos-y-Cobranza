@@ -4,6 +4,7 @@ import { useTranslation } from '../../i18n';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
+import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
   DataTableSurface,
@@ -160,7 +161,7 @@ export default function RatePoliciesTab({
       }
       resetRatePolicyDraft();
     } catch (error) {
-      console.error('[settings] saveRatePolicy failed', error);
+      reportClientError('settings.ratePolicy.save', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
     }
   };
@@ -182,7 +183,7 @@ export default function RatePoliciesTab({
       await deleteRatePolicy.mutateAsync(policy.id);
       toast.success({ description: tTerm('settings.rate.toast.deleted') });
     } catch (error) {
-      console.error('[settings] delete failed', error);
+      reportClientError('settings.ratePolicy.delete', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
     }
   };
@@ -325,7 +326,7 @@ export default function RatePoliciesTab({
                               await updateRatePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
                               toast.success({ description: policy.isActive === false ? tTerm('settings.rate.toast.activated') : tTerm('settings.rate.toast.deactivated') });
                             } catch (error) {
-                              console.error('[settings] updateRatePolicy failed', error);
+                              reportClientError('settings.ratePolicy.update', error);
                               toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
                             }
                           }}
@@ -471,6 +472,7 @@ export default function RatePoliciesTab({
           title={isEditingRatePolicy ? tTerm('settings.rate.modal.titleEdit') : tTerm('settings.rate.modal.titleCreate')}
           subtitle={isEditingRatePolicy ? tTerm('settings.rate.modal.subtitleEdit') : tTerm('settings.rate.modal.subtitleCreate')}
           maxWidthClassName="max-w-3xl"
+          onClose={resetRatePolicyDraft}
           footer={(
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
               <ActionButton

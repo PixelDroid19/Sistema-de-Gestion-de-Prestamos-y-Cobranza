@@ -5,6 +5,7 @@ import { formatDate as formatDateValue } from '../../i18n/format';
 import { useUsers } from '../../services/userService';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
+import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
   DataTableSurface,
@@ -40,7 +41,7 @@ export default function EmployeesTab() {
 
   const handleToggleEmployeeStatus = async (employee: any) => {
     const isActive = employee?.isActive !== false;
-    const employeeLabel = employee?.name || employee?.email || 'empleado';
+    const employeeLabel = employee?.name || employee?.email || t('settings.employees.table.nameMissing');
 
     if (isActive) {
       const confirmed = await confirmDanger({
@@ -61,7 +62,7 @@ export default function EmployeesTab() {
       await reactivateUser.mutateAsync(Number(employee.id));
       toast.success({ description: t('errors.employeeReactivated') });
     } catch (error) {
-      console.error('[settings] toggle employee status failed', error);
+      reportClientError('settings.employee.statusToggle', error);
       toast.apiErrorSafe(error, { domain: 'users', action: 'generic' });
     }
   };
@@ -105,7 +106,7 @@ export default function EmployeesTab() {
       setIsCreateEmployeeModalOpen(false);
       toast.success({ description: t('errors.employeeCreated') });
     } catch (error) {
-      console.error('[settings] create employee failed', error);
+      reportClientError('settings.employee.create', error);
       toast.apiErrorSafe(error, { domain: 'users', action: 'generic' });
     }
   };

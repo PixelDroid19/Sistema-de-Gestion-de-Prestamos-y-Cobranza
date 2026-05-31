@@ -10,6 +10,7 @@ import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import { extractRawErrorMessage } from '../services/safeErrorMessages';
+import { getLoanStatusLabel } from './credits/creditsHelpers';
 import {
   ActionButton,
   CheckboxInput,
@@ -101,11 +102,6 @@ export default function CustomerDetails() {
       : formatLocaleDate(value) || tTerm('common.dateUnavailable');
   };
 
-  const formatLoanId = (value: unknown) => {
-    const rawId = value == null ? '' : String(value);
-    return rawId ? rawId.slice(0, 8) : tTerm('common.notAvailable');
-  };
-
   const formatLoanDate = (dateStr: string) => {
     return formatLocaleDate(dateStr, {
       year: 'numeric',
@@ -146,9 +142,7 @@ export default function CustomerDetails() {
       case 'customer_updated':
         return tTerm('customerDetails.history.action.customerUpdated');
       default:
-        return action
-          ? action.replace(/_/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
-          : tTerm('customerDetails.history.eventFallback');
+        return tTerm('customerDetails.history.eventFallback');
     }
   };
 
@@ -169,28 +163,23 @@ export default function CustomerDetails() {
       case 'customer':
         return tTerm('customerDetails.history.type.customer');
       default:
-        return entityType
-          ? entityType.replace(/_/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
-          : tTerm('customerDetails.history.descriptionFallback');
+        return tTerm('customerDetails.history.descriptionFallback');
     }
   };
 
   const getLoanStatusBadge = (status: string) => {
+    const normalizedStatus = String(status || '').toLowerCase();
     const statusMap: Record<string, { label: string; className: string }> = {
-      'active': { label: tTerm('common.status.active'), className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
-      'ACTIVE': { label: tTerm('common.status.active'), className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
-      'closed': { label: tTerm('common.status.closed'), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
-      'CLOSED': { label: tTerm('common.status.closed'), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
-      'completed': { label: tTerm('common.status.completed'), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
-      'COMPLETED': { label: tTerm('common.status.completed'), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
-      'overdue': { label: tTerm('schedule.status.overdue'), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
-      'OVERDUE': { label: tTerm('schedule.status.overdue'), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
-      'pending': { label: tTerm('schedule.status.pending'), className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-      'PENDING': { label: tTerm('schedule.status.pending'), className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
+      active: { label: getLoanStatusLabel(status), className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+      closed: { label: getLoanStatusLabel(status), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
+      completed: { label: getLoanStatusLabel(status), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
+      overdue: { label: getLoanStatusLabel(status), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
+      defaulted: { label: getLoanStatusLabel(status), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
+      pending: { label: getLoanStatusLabel(status), className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
     };
 
-    const config = statusMap[status] || {
-      label: status,
+    const config = statusMap[normalizedStatus] || {
+      label: getLoanStatusLabel(status),
       className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400',
     };
 
@@ -280,7 +269,6 @@ export default function CustomerDetails() {
       <PageHeader
         title={customerName}
         subtitle={tTerm('customerDetails.header.subtitle', {
-          id: formatNumber(customer.id),
           documentNumber: customer.documentNumber || tTerm('common.notAvailable'),
         })}
         guideKey="customer-details"
@@ -486,7 +474,7 @@ export default function CustomerDetails() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <CreditCard size={16} className="text-text-secondary" />
-                        <p className="font-medium">{tTerm('customerDetails.loans.card.title', { loanId: formatLoanId(loan.id) })}</p>
+                        <p className="font-medium">{tTerm('customerDetails.loans.card.title')}</p>
                         {getLoanStatusBadge(loan.status)}
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-text-secondary mt-3">

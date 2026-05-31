@@ -88,7 +88,11 @@ test('config payment-method mutations reject duplicates and missing records', as
     },
   });
 
-  await assert.rejects(() => createPaymentMethod({ label: 'Cash', key: 'cash' }), ConflictError);
+  await assert.rejects(() => createPaymentMethod({ label: 'Cash', key: 'cash' }), (error) => {
+    assert.ok(error instanceof ConflictError);
+    assert.equal(error.message, 'Ya existe un método de pago con ese identificador operativo.');
+    return true;
+  });
 
   const updatePaymentMethod = createUpdatePaymentMethod({
     configRepository: {
@@ -143,7 +147,205 @@ test('config payment methods reject duplicate labels even with different keys', 
 
   await assert.rejects(
     () => createPaymentMethod({ label: 'Transferencia bancaria', key: 'transferencia-bancaria-alterna' }),
-    ConflictError,
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Ya existe un método de pago con ese nombre.');
+      return true;
+    },
+  );
+});
+
+test('config financial policies reject duplicate labels and keys with operational messages', async () => {
+  const duplicateRateByKey = createCreateRatePolicy({
+    configRepository: {
+      async listByCategory() {
+        return [];
+      },
+      async findByCategoryAndKey() {
+        return { id: 11, key: 'credito-estandar', label: 'Crédito estándar' };
+      },
+      async create() {
+        throw new Error('create should not be called for duplicate rate key');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => duplicateRateByKey({
+      label: 'Crédito estándar',
+      key: 'credito-estandar',
+      minAmount: 0,
+      maxAmount: 1000000,
+      annualEffectiveRate: 36,
+    }),
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Ya existe una política de tasa con ese identificador operativo.');
+      return true;
+    },
+  );
+
+  const duplicateRateByLabel = createCreateRatePolicy({
+    configRepository: {
+      async listByCategory() {
+        return [{
+          id: 12,
+          key: 'credito-existente',
+          label: 'Crédito existente',
+          isActive: false,
+          value: { minAmount: 0, maxAmount: 1000000, annualEffectiveRate: 36, priority: 'medium' },
+        }];
+      },
+      async findByCategoryAndKey() {
+        return null;
+      },
+      async create() {
+        throw new Error('create should not be called for duplicate rate label');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => duplicateRateByLabel({
+      label: 'Crédito existente',
+      key: 'credito-alterno',
+      minAmount: 1000001,
+      maxAmount: 2000000,
+      annualEffectiveRate: 40,
+    }),
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Ya existe una política de tasa con ese nombre.');
+      return true;
+    },
+  );
+
+  const duplicateLateFeeByKey = createCreateLateFeePolicy({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return { id: 21, key: 'mora-simple', label: 'Mora simple' };
+      },
+      async create() {
+        throw new Error('create should not be called for duplicate late-fee key');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => duplicateLateFeeByKey({
+      label: 'Mora simple',
+      key: 'mora-simple',
+      annualEffectiveRate: 24,
+      lateFeeMode: 'SIMPLE',
+    }),
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Ya existe una política de mora con ese identificador operativo.');
+      return true;
+    },
+  );
+
+  const duplicateLateFeeByLabel = createCreateLateFeePolicy({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return null;
+      },
+      async listByCategory() {
+        return [{
+          id: 22,
+          key: 'mora-existente',
+          label: 'Mora existente',
+          isActive: false,
+          value: { annualEffectiveRate: 24, lateFeeMode: 'SIMPLE', priority: 'medium' },
+        }];
+      },
+      async create() {
+        throw new Error('create should not be called for duplicate late-fee label');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => duplicateLateFeeByLabel({
+      label: 'Mora existente',
+      key: 'mora-alterna',
+      annualEffectiveRate: 24,
+      lateFeeMode: 'SIMPLE',
+    }),
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Ya existe una política de mora con ese nombre.');
+      return true;
+    },
+  );
+});
+
+test('config payment methods reject invalid types without exposing the type catalog', async () => {
+  const createPaymentMethod = createCreatePaymentMethod({
+    configRepository: {
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createPaymentMethod({ label: 'Cripto', type: 'crypto_wallet' }),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'Selecciona un tipo de método de pago válido.');
+      assert.doesNotMatch(error.message, /cash|bank_transfer|crypto_wallet/i);
+      return true;
+    },
+  );
+});
+
+test('config policies reject invalid priority and late-fee modes without exposing internal values', async () => {
+  const createRatePolicy = createCreateRatePolicy({
+    configRepository: {
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createRatePolicy({
+      label: 'Crédito inválido',
+      minAmount: 0,
+      maxAmount: 100000,
+      annualEffectiveRate: 36,
+      priority: 'urgent_internal',
+    }),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'Selecciona una prioridad válida.');
+      assert.doesNotMatch(error.message, /low|medium|high|urgent_internal/i);
+      return true;
+    },
+  );
+
+  const createLateFeePolicy = createCreateLateFeePolicy({
+    configRepository: {
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createLateFeePolicy({
+      label: 'Mora inválida',
+      annualEffectiveRate: 24,
+      lateFeeMode: 'SIMPLE_DAILY',
+      priority: 'medium',
+    }),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'Selecciona un método de mora válido.');
+      assert.doesNotMatch(error.message, /SIMPLE_DAILY|SIMPLE|COMPOUND|FLAT|TIERED/);
+      return true;
+    },
   );
 });
 
@@ -183,7 +385,11 @@ test('config policies reject active duplicates that would make resolution ambigu
       annualEffectiveRate: 55,
       priority: 'high',
     }),
-    ConflictError,
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Las políticas de tasa activas no pueden solaparse.');
+      return true;
+    },
   );
 
   const createLateFeePolicy = createCreateLateFeePolicy({
@@ -219,7 +425,11 @@ test('config policies reject active duplicates that would make resolution ambigu
       lateFeeMode: 'SIMPLE',
       priority: 'medium',
     }),
-    ConflictError,
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Las políticas de mora activas no pueden compartir la misma prioridad.');
+      return true;
+    },
   );
 });
 
@@ -259,7 +469,7 @@ test('rate policy creation rejects a catch-all range that overlaps an existing e
       annualEffectiveRate: 50,
       priority: 'medium',
     }),
-    (error) => error instanceof ConflictError && error.message === 'Active rate policies cannot overlap',
+    (error) => error instanceof ConflictError && error.message === 'Las políticas de tasa activas no pueden solaparse.',
   );
 });
 
@@ -314,7 +524,7 @@ test('rate policy update rejects changing an existing range into a catch-all ove
       annualEffectiveRate: 45,
       priority: 'medium',
     }),
-    (error) => error instanceof ConflictError && error.message === 'Active rate policies cannot overlap',
+    (error) => error instanceof ConflictError && error.message === 'Las políticas de tasa activas no pueden solaparse.',
   );
 });
 
@@ -340,7 +550,11 @@ test('config financial policies reject exponent notation in rates and amount ran
       annualEffectiveRate: 36,
       priority: 'medium',
     }),
-    (error) => error instanceof ValidationError && /minAmount/.test(error.message),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'El monto mínimo debe ser un número válido.');
+      return true;
+    },
   );
 
   await assert.rejects(
@@ -351,7 +565,11 @@ test('config financial policies reject exponent notation in rates and amount ran
       annualEffectiveRate: '1e2',
       priority: 'medium',
     }),
-    (error) => error instanceof ValidationError && /annualEffectiveRate/.test(error.message),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'La tasa efectiva anual debe estar entre 0 y 100.');
+      return true;
+    },
   );
 
   const createLateFeePolicy = createCreateLateFeePolicy({ configRepository: buildRepository() });
@@ -362,7 +580,66 @@ test('config financial policies reject exponent notation in rates and amount ran
       lateFeeMode: 'SIMPLE',
       priority: 'medium',
     }),
-    (error) => error instanceof ValidationError && /annualEffectiveRate/.test(error.message),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'La tasa efectiva anual debe estar entre 0 y 100.');
+      return true;
+    },
+  );
+});
+
+test('config financial policies reject missing labels and invalid ranges with operational messages', async () => {
+  const createRatePolicy = createCreateRatePolicy({
+    configRepository: {
+      async create() {
+        throw new Error('create should not be called for invalid rate policy input');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createRatePolicy({
+      label: '',
+      minAmount: 0,
+      maxAmount: 1000000,
+      annualEffectiveRate: 36,
+    }),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'El nombre es obligatorio.');
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () => createRatePolicy({
+      label: 'Rango invertido',
+      minAmount: 2000000,
+      maxAmount: 1000000,
+      annualEffectiveRate: 36,
+    }),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'El monto mínimo no puede ser mayor que el monto máximo.');
+      return true;
+    },
+  );
+
+  const createLateFeePolicy = createCreateLateFeePolicy({
+    configRepository: {
+      async create() {
+        throw new Error('create should not be called for invalid late-fee policy input');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createLateFeePolicy({ label: '', annualEffectiveRate: 24, lateFeeMode: 'SIMPLE' }),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.equal(error.message, 'El nombre es obligatorio.');
+      return true;
+    },
   );
 });
 
@@ -448,7 +725,7 @@ test('late-fee policies reject modes that are not configurable from the operatio
       lateFeeMode: 'FLAT',
       priority: 'medium',
     }),
-    /lateFeeMode is invalid/,
+    (error) => error instanceof ValidationError && error.message === 'Selecciona un método de mora válido.',
   );
 
   await assert.rejects(
@@ -458,7 +735,7 @@ test('late-fee policies reject modes that are not configurable from the operatio
       lateFeeMode: 'TIERED',
       priority: 'medium',
     }),
-    /lateFeeMode is invalid/,
+    (error) => error instanceof ValidationError && error.message === 'Selecciona un método de mora válido.',
   );
 });
 
@@ -497,7 +774,8 @@ test('late-fee policy resolution rejects active policies with the same priority 
 
   await assert.rejects(
     () => resolveLateFeePolicy(),
-    (error) => error instanceof ConflictError && error.message === 'Active late fee policies cannot share the same priority',
+    (error) => error instanceof ConflictError
+      && error.message === 'Las políticas de mora activas no pueden compartir la misma prioridad.',
   );
 });
 
@@ -521,7 +799,8 @@ test('late-fee policy deletion rejects policies already used by existing loans',
 
   await assert.rejects(
     () => deleteLateFeePolicy(45),
-    (error) => error instanceof ConflictError && error.message === 'Late fee policy is used by existing loans and cannot be deleted',
+    (error) => error instanceof ConflictError
+      && error.message === 'No se puede eliminar la política de mora porque ya está asociada a créditos existentes.',
   );
 });
 
@@ -545,7 +824,7 @@ test('rate policy deletion rejects policies already used by existing loans', asy
 
   await assert.rejects(() => deleteRatePolicy(15), (error) => {
     assert.ok(error instanceof ConflictError);
-    assert.match(error.message, /used by existing loans/i);
+    assert.equal(error.message, 'No se puede eliminar la política de tasa porque ya está asociada a créditos existentes.');
     return true;
   });
 });

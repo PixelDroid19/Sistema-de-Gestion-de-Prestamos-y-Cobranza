@@ -1,10 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const { createSharedRuntime } = require('./bootstrap/sharedRuntime');
-const { globalErrorHandler, notFoundHandler } = require('./utils/errorHandler');
+const {
+  AuthorizationError,
+  CORS_ORIGIN_DENIED_MESSAGE,
+  CORS_ORIGIN_REQUIRED_MESSAGE,
+  globalErrorHandler,
+  notFoundHandler,
+} = require('./utils/errorHandler');
 const { logger, logRequest } = require('./utils/logger');
 const { buildModuleRegistry } = require('./modules');
 const { runWithRequestContext } = require('./modules/shared/requestContext');
@@ -87,7 +93,7 @@ const createApp = ({
           }
 
           if (process.env.NODE_ENV === 'production') {
-            return originCallback(new Error('Origin header is required'));
+            return originCallback(new AuthorizationError(CORS_ORIGIN_REQUIRED_MESSAGE));
           }
           return originCallback(null, true);
         }
@@ -101,7 +107,7 @@ const createApp = ({
         }
       
         // Reject origins not in whitelist
-        originCallback(new Error(`Origin ${origin} is not allowed by CORS policy`));
+        originCallback(new AuthorizationError(CORS_ORIGIN_DENIED_MESSAGE));
       },
       credentials: true, // Allow cookies and authentication headers
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

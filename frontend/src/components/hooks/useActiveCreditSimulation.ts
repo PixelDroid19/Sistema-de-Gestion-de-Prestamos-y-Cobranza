@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tTerm, type TermKey } from '../../i18n/terminology';
 import { creditCalculationService } from '../../services/creditCalculationService';
 import { getSafeErrorText } from '../../services/safeErrorMessages';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
@@ -12,19 +13,33 @@ export const DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT: CreditCalculationInput = {
 
 export type CreditCalculationFieldErrors = Record<string, string>;
 
+const SAFE_FIELD_ERROR_MESSAGE_KEYS: Record<string, TermKey> = {
+  amount: 'activeCreditSimulation.error.amount',
+  interestRate: 'activeCreditSimulation.error.interestRate',
+  termMonths: 'activeCreditSimulation.error.termMonths',
+  annualLateFeeRate: 'activeCreditSimulation.error.annualLateFeeRate',
+  lateFeeMode: 'activeCreditSimulation.error.lateFeeMode',
+  startDate: 'activeCreditSimulation.error.startDate',
+};
+
+const getSafeFieldErrorMessage = (field: string) => {
+  const key = SAFE_FIELD_ERROR_MESSAGE_KEYS[field];
+  return key ? tTerm(key) : null;
+};
+
 const validateCalculationInput = (input: CreditCalculationInput): CreditCalculationFieldErrors => {
   const errors: CreditCalculationFieldErrors = {};
 
   if (typeof input.amount !== 'number' || !Number.isFinite(input.amount) || input.amount <= 0) {
-    errors.amount = 'El monto debe ser un número mayor a 0.';
+    errors.amount = tTerm(SAFE_FIELD_ERROR_MESSAGE_KEYS.amount);
   }
 
   if (typeof input.interestRate !== 'number' || !Number.isFinite(input.interestRate) || input.interestRate < 0 || input.interestRate > 100) {
-    errors.interestRate = 'La tasa debe estar entre 0% y 100%.';
+    errors.interestRate = tTerm(SAFE_FIELD_ERROR_MESSAGE_KEYS.interestRate);
   }
 
   if (typeof input.termMonths !== 'number' || !Number.isInteger(input.termMonths) || input.termMonths < 1 || input.termMonths > 360) {
-    errors.termMonths = 'El plazo debe ser un entero entre 1 y 360 meses.';
+    errors.termMonths = tTerm(SAFE_FIELD_ERROR_MESSAGE_KEYS.termMonths);
   }
 
   return errors;
@@ -40,8 +55,9 @@ const extractBackendFieldErrors = (error: unknown): CreditCalculationFieldErrors
 
   const fieldErrors: CreditCalculationFieldErrors = {};
   for (const ve of validationErrors) {
-    if (ve.field && ve.message) {
-      fieldErrors[ve.field] = ve.message;
+    const safeMessage = ve.field ? getSafeFieldErrorMessage(ve.field) : null;
+    if (ve.field && safeMessage) {
+      fieldErrors[ve.field] = safeMessage;
     }
   }
   return fieldErrors;
@@ -86,7 +102,7 @@ export const useActiveCreditSimulation = ({
     const localFieldErrors = validateCalculationInput(input);
     if (Object.keys(localFieldErrors).length > 0) {
       setFieldErrors(localFieldErrors);
-      setError('Corrige los campos marcados antes de calcular.');
+      setError(tTerm('activeCreditSimulation.error.correctFields'));
       return;
     }
 
@@ -102,7 +118,7 @@ export const useActiveCreditSimulation = ({
       const backendFields = extractBackendFieldErrors(calculationError);
       if (Object.keys(backendFields).length > 0) {
         setFieldErrors(backendFields);
-        setError('El servidor rechazó los parámetros. Revisa los campos marcados.');
+        setError(tTerm('activeCreditSimulation.error.serverValidation'));
       } else {
         setError(getSafeErrorText(calculationError, {
           domain: 'credits',

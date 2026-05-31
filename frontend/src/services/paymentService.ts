@@ -7,7 +7,7 @@ import { withIdempotencyKey } from './idempotency';
 
 /**
  * Download a payment voucher PDF.
- * @param paymentId - The payment ID
+ * @param paymentId - Payment record identifier used by the API route.
  */
 export const downloadVoucher = async (paymentId: number | string): Promise<void> => {
   await downloadBlob({

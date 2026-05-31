@@ -3,6 +3,11 @@ const { createJwtTokenService } = require('./auth/tokenService');
 const { isAdministrativeLoginRole, normalizeApplicationRole } = require('./roles');
 const { enrichContextWithUser } = require('./requestContext');
 
+const SESSION_REQUIRED_MESSAGE = 'Debes iniciar sesión para continuar.';
+const SESSION_INVALID_MESSAGE = 'La sesión no es válida. Inicia sesión de nuevo.';
+const SESSION_EXPIRED_MESSAGE = 'La sesión expiró. Inicia sesión de nuevo.';
+const ADMIN_PLATFORM_ACCESS_MESSAGE = 'Esta cuenta no puede acceder a la plataforma administrativa.';
+
 const normalizeRoles = (roles = []) => {
   const requestedRoles = typeof roles === 'string' ? [roles] : roles;
 
@@ -18,6 +23,9 @@ const normalizeRoles = (roles = []) => {
 };
 
 const normalizeOptions = (options = []) => {
+  if (typeof options === 'string') {
+    return { roles: [options], permissions: [] };
+  }
   if (Array.isArray(options)) {
     return { roles: options, permissions: [] };
   }
@@ -41,23 +49,23 @@ const createAuthMiddleware = ({ tokenService, permissionService }) => (options =
       const authHeader = req.headers?.authorization || req.headers?.Authorization;
 
       if (!authHeader) {
-        throw new AuthenticationError('Authorization header is required');
+        throw new AuthenticationError(SESSION_REQUIRED_MESSAGE);
       }
 
       const [scheme, token] = authHeader.split(' ');
       if (scheme !== 'Bearer' || !token) {
-        throw new AuthenticationError('Bearer token is required');
+        throw new AuthenticationError(SESSION_INVALID_MESSAGE);
       }
 
       const user = tokenService.verify(token);
       const normalizedRole = normalizeApplicationRole(user?.role);
 
       if (!normalizedRole) {
-        throw new AuthenticationError('Token contains an unsupported application role');
+        throw new AuthenticationError(SESSION_INVALID_MESSAGE);
       }
 
       if (!isAdministrativeLoginRole(normalizedRole)) {
-        throw new AuthenticationError('This account cannot access the administrative platform');
+        throw new AuthenticationError(ADMIN_PLATFORM_ACCESS_MESSAGE);
       }
 
       const authenticatedUser = {
@@ -66,13 +74,13 @@ const createAuthMiddleware = ({ tokenService, permissionService }) => (options =
       };
 
       if (normalizedRoles.length > 0 && !normalizedRoles.includes(authenticatedUser.role)) {
-        throw new AuthorizationError(`Access denied. Required roles: ${normalizedRoles.join(', ')}`);
+        throw new AuthorizationError('No tienes acceso a esta sección.');
       }
 
       if (requiredPermissions.length > 0 && permissionService) {
         const { denied } = await permissionService.checkMultiple(authenticatedUser, requiredPermissions);
         if (denied.length > 0) {
-          const err = new AuthorizationError(`Insufficient permissions. Denied: ${denied.join(', ')}`);
+          const err = new AuthorizationError('No tienes permisos suficientes para realizar esta acción.');
           err.code = 'INSUFFICIENT_PERMISSION';
           throw err;
         }
@@ -83,11 +91,11 @@ const createAuthMiddleware = ({ tokenService, permissionService }) => (options =
       next();
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
-        return next(new AuthenticationError('Token has expired'));
+        return next(new AuthenticationError(SESSION_EXPIRED_MESSAGE));
       }
 
       if (error.name === 'JsonWebTokenError') {
-        return next(new AuthenticationError('Invalid token format'));
+        return next(new AuthenticationError(SESSION_INVALID_MESSAGE));
       }
 
       if (error.code === 'INSUFFICIENT_PERMISSION') {

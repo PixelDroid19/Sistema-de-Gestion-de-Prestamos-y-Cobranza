@@ -8,12 +8,14 @@ import {
 import { useAssociates } from '../services/associateService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
+import { reportClientError } from '../lib/clientDiagnostics';
 import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
+import { useResolvedPermissionNames } from '../services/permissionsService';
 import { ActionButton, FormField, IconActionButton, InsightStrip, ModalShell, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 import NewAssociate from './NewAssociate';
@@ -30,10 +32,11 @@ type AssociateActionMenuState = {
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { user } = useSessionStore();
+  const resolvedPermissions = useResolvedPermissionNames(user);
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const permissionSet = new Set((user?.permissions || []).map((permission) => permission.toUpperCase()));
+  const permissionSet = new Set(resolvedPermissions.map((permission) => permission.toUpperCase()));
   const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
   const canCreateAssociates = hasPermission(PERMISSION.SOCIOS_CREATE);
   const canUpdateAssociates = hasPermission(PERMISSION.SOCIOS_UPDATE);
@@ -63,7 +66,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
   const handleExportAssociatesExcel = async () => {
     if (!canExportAssociates) {
-      toast.error({ description: 'No tiene permiso para exportar reportes de socios.' });
+      toast.error({ description: tTerm('associates.toast.export.permissionDenied') });
       return;
     }
 
@@ -75,7 +78,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       toast.success({ description: tTerm('associates.toast.export.success') });
     } catch (error) {
       toast.error({ description: tTerm('associates.toast.export.error') });
-      console.error('Export error:', error);
+      reportClientError('associates.export', error);
     } finally {
       setIsExporting(false);
     }
@@ -117,7 +120,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       return associate.name.trim();
     }
 
-    return [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || 'Socio sin nombre';
+    return [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || tTerm('associates.fallback.name');
   };
 
   const getAssociateInitials = (associate: any) => {
@@ -148,7 +151,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   const handleToggleStatus = async (associate: any) => {
     setActionMenu(null);
     if (!canUpdateAssociates) {
-      toast.apiErrorSafe(new Error('No tiene permiso para cambiar el estado de socios.'), { domain: 'associates' });
+      toast.apiErrorSafe(new Error(tTerm('associates.toast.status.permissionDenied')), { domain: 'associates' });
       return;
     }
 
@@ -159,11 +162,15 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
 
     const confirmed = await confirmDanger({
-      title: nextStatus === 'inactive' ? 'Desactivar socio' : 'Reactivar socio',
+      title: nextStatus === 'inactive'
+        ? tTerm('associates.confirm.deactivate.title')
+        : tTerm('associates.confirm.reactivate.title'),
       message: nextStatus === 'inactive'
-        ? `¿Desea desactivar a ${getAssociateName(associate)}?`
-        : `¿Desea reactivar a ${getAssociateName(associate)}?`,
-      confirmLabel: nextStatus === 'inactive' ? 'Desactivar' : 'Reactivar',
+        ? tTerm('associates.confirm.deactivate.message', { name: getAssociateName(associate) })
+        : tTerm('associates.confirm.reactivate.message', { name: getAssociateName(associate) }),
+      confirmLabel: nextStatus === 'inactive'
+        ? tTerm('associates.confirm.deactivate.confirm')
+        : tTerm('associates.confirm.reactivate.confirm'),
     });
     if (!confirmed) return;
 
@@ -175,11 +182,11 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       }
       toast.success({
         description: nextStatus === 'inactive'
-          ? 'Socio desactivado correctamente'
-          : 'Socio reactivado correctamente',
+          ? tTerm('associates.toast.status.deactivated')
+          : tTerm('associates.toast.status.reactivated'),
       });
     } catch (error) {
-      console.error('[associates] updateAssociate status failed', error);
+      reportClientError('associates.statusUpdate', error);
       toast.apiErrorSafe(error, { domain: 'associates' });
     }
   };
@@ -253,39 +260,39 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         {(associateStripMetrics.totalCount > 0 || associateStripMetrics.totalContributed > 0) && (
           <InsightStrip
-            aria-label="Resumen operativo de socios inversionistas"
+            aria-label={tTerm('associates.summary.aria')}
             items={[
               {
                 id: 'associate-capital',
-                label: 'Capital aportado',
+                label: tTerm('associates.summary.capital'),
                 value: formatCurrency(associateStripMetrics.totalContributed),
-                helper: 'Aportes registrados',
+                helper: tTerm('associates.summary.capitalHelper'),
                 icon: <DollarSign size={18} />,
                 accent: 'blue',
               },
               {
                 id: 'associate-interest',
-                label: 'Interés estimado',
+                label: tTerm('associates.summary.estimatedInterest'),
                 value: formatCurrency(associateStripMetrics.monthlyInterestEstimate),
-                helper: 'Compromiso mensual aprox.',
+                helper: tTerm('associates.summary.estimatedInterestHelper'),
                 icon: <TrendingUp size={18} />,
                 accent: 'emerald',
               },
               {
                 id: 'associate-active',
-                label: 'Socios activos',
+                label: tTerm('associates.summary.active'),
                 value: `${associateStripMetrics.activeCount} / ${associateStripMetrics.totalCount}`,
-                helper: 'Habilitados / visibles',
+                helper: tTerm('associates.summary.activeHelper'),
                 icon: <Users size={18} />,
                 accent: 'slate',
               },
               {
                 id: 'associate-participation',
-                label: 'Participación',
+                label: tTerm('associates.summary.participation'),
                 value: formatPercent(associateStripMetrics.participationAssigned),
                 helper: associateStripMetrics.participationAssigned === 100
-                  ? 'Distribución completa'
-                  : 'Porcentaje configurado',
+                  ? tTerm('associates.summary.participationComplete')
+                  : tTerm('associates.summary.participationConfigured'),
                 icon: <Percent size={18} />,
                 accent: associateStripMetrics.participationAssigned === 100 ? 'emerald' : 'amber',
               },
@@ -295,12 +302,12 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
         <ToolbarSurface data-tour="associates-search">
           <div className="grid items-start gap-3 lg:grid-cols-[minmax(18rem,26rem)_14rem]">
-            <FormField label="Buscar socio">
+            <FormField label={tTerm('associates.search.label')}>
               <div className="relative">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <TextInput
                   type="text"
-                  placeholder="Buscar por nombre, correo o teléfono…"
+                  placeholder={tTerm('associates.search.placeholder')}
                   value={searchTerm}
                   onChange={(event) => {
                     setSearchTerm(event.target.value);
@@ -310,7 +317,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 />
               </div>
             </FormField>
-            <FormField label="Estado" tooltip="Filtra socios activos o inactivos dentro de la operación.">
+            <FormField label={tTerm('associates.filter.status')} tooltip={tTerm('associates.filter.statusTooltip')}>
               <SelectInput
                 value={statusFilter}
                 onChange={(event) => {
@@ -318,7 +325,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                   setPage(1);
                 }}
               >
-                <option value="all">Todos los estados</option>
+                <option value="all">{tTerm('associates.filter.allStatuses')}</option>
                 <option value="active">{tTerm('common.status.active')}</option>
                 <option value="inactive">{tTerm('common.status.inactive')}</option>
               </SelectInput>
@@ -331,10 +338,10 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           isLoading={isLoading}
           isError={isError}
           hasData={associates.length > 0}
-          loadingContent={<div className="py-4 text-center text-text-secondary">Cargando socios…</div>}
-          errorContent={<div className="py-4 text-center text-red-500">Error al cargar socios.</div>}
-          emptyContent={<div className="py-4 text-center text-text-secondary">No hay socios registrados.</div>}
-          recordsLabel="socios"
+          loadingContent={<div className="py-4 text-center text-text-secondary">{tTerm('associates.state.loading')}</div>}
+          errorContent={<div className="py-4 text-center text-red-500">{tTerm('associates.state.error')}</div>}
+          emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associates.state.empty')}</div>}
+          recordsLabel={tTerm('associates.table.recordsLabel')}
           pagination={pagination ? {
             page,
             pageSize,
@@ -352,24 +359,22 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           <table className="min-w-[820px] w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="pb-3 font-medium">ID</th>
-                <th className="pb-3 font-medium">Nombre del socio</th>
+                <th className="pb-3 font-medium">{tTerm('associates.table.name')}</th>
                 <th className="pb-3 font-medium">
-                  <HelpLabel label="Estado" text="Estado del socio dentro de la plataforma. Define si sigue habilitado para aportes, intereses, reportes y movimientos operativos." />
+                  <HelpLabel label={tTerm('associates.table.status')} text={tTerm('associates.table.statusHelp')} />
                 </th>
                 <th className="pb-3 font-medium">
-                  <HelpLabel label="Participación" text="Porcentaje pactado para distribuir rentabilidad o movimientos proporcionales entre socios inversionistas." />
+                  <HelpLabel label={tTerm('associates.table.participation')} text={tTerm('associates.table.participationHelp')} />
                 </th>
                 <th className="pb-3 font-medium">
-                  <HelpLabel label="Interés pactado" text="Tasa mensual o anual que se reconoce al socio sobre su capital aportado." />
+                  <HelpLabel label={tTerm('associates.table.interest')} text={tTerm('associates.table.interestHelp')} />
                 </th>
-                <th className="pb-3 text-center font-medium">Acciones</th>
+                <th className="pb-3 text-center font-medium">{tTerm('associates.table.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {associates.map((associate: any) => (
                 <tr key={associate.id} className="hover:bg-hover-bg transition-colors">
-                  <td className="py-4 text-text-secondary font-mono">{String(associate.id).substring(0, 8)}</td>
                   <td className="py-4 font-medium flex items-center gap-3">
                     <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
                       {getAssociateInitials(associate)}
@@ -382,7 +387,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                     </span>
                   </td>
                   <td className="py-4 text-text-secondary">
-                    {associate.participationPercentage ? formatPercent(associate.participationPercentage) : 'Sin definir'}
+                    {associate.participationPercentage ? formatPercent(associate.participationPercentage) : tTerm('common.notAvailable')}
                   </td>
                   <td className="py-4 text-text-secondary">{getInterestLabel(associate)}</td>
                   <td className="py-4">

@@ -1,10 +1,11 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { useInvalidatingMutation } from './crudHooks';
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
-type PermissionEntry = {
+export type PermissionEntry = {
   id?: string | number;
   permission?: string;
   name?: string;
@@ -38,6 +39,7 @@ const normalizePermissionEntries = (value: unknown): PermissionEntry[] => {
       const obj = entry as Record<string, unknown>;
       const permission =
         toStringValue(obj.permission)
+        ?? toStringValue(obj.permissionName)
         ?? toStringValue(obj.name)
         ?? toStringValue(obj.code)
         ?? toStringValue(obj.key);
@@ -101,6 +103,7 @@ const normalizePermissionEntries = (value: unknown): PermissionEntry[] => {
         const obj = entry as Record<string, unknown>;
         if (
           Object.prototype.hasOwnProperty.call(obj, 'permission')
+          || Object.prototype.hasOwnProperty.call(obj, 'permissionName')
           || Object.prototype.hasOwnProperty.call(obj, 'name')
           || Object.prototype.hasOwnProperty.call(obj, 'module')
           || Object.prototype.hasOwnProperty.call(obj, 'source')
@@ -118,6 +121,10 @@ const normalizePermissionEntries = (value: unknown): PermissionEntry[] => {
 
   return records;
 };
+
+export const toPermissionNames = (value: unknown): string[] => normalizePermissionEntries(value)
+  .map((entry) => entry.permission)
+  .filter((permission): permission is string => typeof permission === 'string' && permission.trim().length > 0);
 
 type PermissionMutationPayload = {
   userId: string;
@@ -199,6 +206,56 @@ export const useMyPermissions = (options?: { enabled?: boolean }) => {
     isLoading: getMyPermissions.isLoading,
     isError: getMyPermissions.isError,
   };
+};
+
+export const useResolvedPermissionNames = (
+  user?: { id?: string | number; email?: string; role?: string; permissions?: unknown[] } | null,
+): string[] => {
+  const hasSessionPermissions = Array.isArray(user?.permissions) && user.permissions.length > 0;
+  const shouldFetchEmployeePermissions = user?.role === 'employee' && !hasSessionPermissions;
+  const permissionFetchIdentity = user?.id ?? user?.email ?? user?.role ?? '';
+  const [fetchedPermissions, setFetchedPermissions] = useState<PermissionEntry[]>([]);
+
+  useEffect(() => {
+    if (!shouldFetchEmployeePermissions) {
+      setFetchedPermissions([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setFetchedPermissions([]);
+
+    apiClient.get('/permissions/me')
+      .then(({ data }) => {
+        if (cancelled) return;
+        setFetchedPermissions(normalizePermissionEntries(
+          data?.data?.permissions
+          ?? data?.data?.permissionsByModule
+          ?? data?.data,
+        ));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFetchedPermissions([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [permissionFetchIdentity, shouldFetchEmployeePermissions]);
+
+  return useMemo(() => {
+    if (user?.role === 'admin') {
+      return ['*'];
+    }
+
+    if (hasSessionPermissions) {
+      return toPermissionNames(user?.permissions);
+    }
+
+    return toPermissionNames(fetchedPermissions);
+  }, [fetchedPermissions, hasSessionPermissions, user?.permissions, user?.role]);
 };
 
 export const useMyPermissionsSummary = () => {

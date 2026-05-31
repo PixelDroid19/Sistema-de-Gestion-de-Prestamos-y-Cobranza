@@ -1,12 +1,13 @@
 import { apiClient } from '../api/client';
+import { tTerm } from '../i18n/terminology';
 import type { CreditCalculationInput, CreditCalculationResponse } from '../types/creditCalculation';
 
 const assertCalculationResponse = (payload: CreditCalculationResponse): CreditCalculationResponse => {
   if (!payload?.data?.calculation) {
-    throw new Error('Credit calculation response is missing data.calculation');
+    throw new Error(tTerm('activeCreditSimulation.error.incompleteResponse'));
   }
   if (payload.data.calculation.calculationProfileVersionId == null) {
-    throw new Error('Credit calculation response is missing data.calculation.calculationProfileVersionId');
+    throw new Error(tTerm('activeCreditSimulation.error.incompleteResponse'));
   }
 
   return payload;

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, ChevronDown, Languages, Menu, Moon, Search, Sun } from 'lucide-react';
 import { APP_BRAND, getRoleLabel, getShellDestinationsForUser } from '../constants/appShell';
 import { getDefaultRouteForUser } from '../constants/appAccess';
@@ -65,7 +65,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
     ...user,
     permissions: user?.role === 'employee' ? myPermissions : undefined,
   }), [myPermissions, user]);
-  const shellDestinations = useMemo(() => getShellDestinationsForUser(shellUser), [shellUser]);
+  const shellDestinations = useMemo(() => getShellDestinationsForUser(shellUser), [locale, shellUser]);
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const searchResults = useMemo(() => {
     if (!normalizedQuery) {

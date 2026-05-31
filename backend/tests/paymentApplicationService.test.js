@@ -30,7 +30,7 @@ test('processPayment rejects malformed operational payment dates before mutation
     actorId: 1,
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /paymentDate/);
+    assert.match(error.message, /fecha de pago.*operativa válida/i);
     return true;
   });
 });
@@ -590,7 +590,7 @@ test('applyCapitalPayment reduce_payment requires an explicit new term', async (
     amount: 300,
     paymentDate: '2026-05-15T00:00:00.000Z',
     strategy: 'reduce_payment',
-  }), /newTermMonths must be an integer/);
+  }), /Para reducir la cuota debes indicar un plazo nuevo entre 1 y 360 meses\./);
 });
 
 test('applyCapitalPayment rejects amounts greater than the live principal before mutation', async () => {
@@ -710,7 +710,7 @@ test('applyCapitalPayment reduce_payment rejects exponent-like new term strings'
     paymentDate: '2026-05-15T00:00:00.000Z',
     strategy: 'reduce_payment',
     newTermMonths: '1e2',
-  }), /newTermMonths must be an integer/);
+  }), /Para reducir la cuota debes indicar un plazo nuevo entre 1 y 360 meses\./);
 });
 
 test('applyCapitalPayment rejects loans before the first installment is paid', async () => {
@@ -1011,7 +1011,83 @@ test('applyPayment rejects invalid amounts before persistence', async () => {
     amount: 0,
   }), (error) => {
     assert.equal(error.name, 'ValidationError');
-    assert.match(error.message, /greater than 0/i);
+    assert.equal(error.message, 'El monto del pago debe ser mayor que 0.');
+    return true;
+  });
+});
+
+test('applyPayment rejects malformed payment method keys before persistence', async () => {
+  const service = createPaymentApplicationService({ loanViewService });
+
+  await assert.rejects(() => service.applyPayment({
+    loanId: 10,
+    amount: 100,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    paymentMethod: 'tarjeta credito',
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'Selecciona un método de pago configurado.');
+    return true;
+  });
+});
+
+test('applyPartialPayment rejects loans that are not payable with an operator message', async () => {
+  const loan = {
+    id: 12,
+    status: 'closed',
+    recoveryStatus: 'recovered',
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPartialPayment({
+    loanId: 12,
+    amount: 100,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'Solo se pueden registrar pagos en créditos pendientes, aprobados, activos, vencidos o en incumplimiento.');
+    return true;
+  });
+});
+
+test('applyPayment rejects conflicting idempotency payment requests with an operator message', async () => {
+  mock.restoreAll();
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.IdempotencyKey, 'findOne', async () => ({ requestHash: 'different-request' }));
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayment({
+    loanId: 12,
+    amount: 100,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    idempotencyKey: 'payment-conflict-key',
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'Esta operación de pago ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.');
+    return true;
+  });
+});
+
+test('applyPayment rejects pending idempotency payment requests with an operator message', async () => {
+  mock.restoreAll();
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.IdempotencyKey, 'findOne', async () => ({ status: 'pending' }));
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayment({
+    loanId: 12,
+    amount: 100,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    idempotencyKey: 'payment-pending-key',
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'Esta operación de pago ya se está procesando. Espera el resultado antes de intentar nuevamente.');
     return true;
   });
 });
@@ -1171,7 +1247,7 @@ test('applyPayoff rejects stale payoff quotes before persistence', async () => {
     quotedTotal: 1000,
   }), (error) => {
     assert.equal(error.name, 'ValidationError');
-    assert.match(error.message, /stale or insufficient/i);
+    assert.equal(error.message, 'La cotización de pago total ya no está vigente o no cubre el saldo. Solicita una nueva cotización.');
     return true;
   });
 });
@@ -1433,7 +1509,10 @@ test('Payment model allows zero-amount records only for annulled payments', asyn
     paymentMetadata: {},
   });
 
-  await assert.rejects(() => regularPayment.validate(), /Validation min on amount failed/);
+  await assert.rejects(
+    () => regularPayment.validate(),
+    /El monto del pago debe ser mayor a cero salvo que el pago esté anulado/,
+  );
 });
 
 test('annulInstallment respects requested installment number when it matches nearest cancellable installment', async () => {
@@ -1538,8 +1617,127 @@ test('annulInstallment blocks requested installment when it is not the nearest c
     paymentDate: '2026-01-20T00:00:00.000Z',
   }), (error) => {
     assert.equal(error.name, 'ValidationError');
-    assert.match(error.message, /only the nearest pending or overdue installment/i);
-    assert.match(error.message, /#1/i);
+    assert.equal(error.message, 'Solo puedes anular la cuota pendiente o vencida más cercana. La cuota disponible es la número 1.');
+    return true;
+  });
+});
+
+test('annulInstallment rejects invalid annulment states with Spanish operator messages', async () => {
+  let currentLoan;
+  const service = createPaymentApplicationService({ loanViewService });
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => currentLoan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  const assertAnnulmentMessage = async ({ loan, installmentNumber = null, expectedMessage }) => {
+    currentLoan = {
+      id: 47,
+      recoveryStatus: 'assigned',
+      async save() {
+        throw new Error('loan.save should not be called');
+      },
+      ...loan,
+    };
+
+    await assert.rejects(() => service.annulInstallment({
+      loanId: 47,
+      actor: { id: 99, role: 'admin' },
+      installmentNumber,
+      paymentDate: '2026-01-20T00:00:00.000Z',
+    }), (error) => {
+      assert.equal(error.name, 'ValidationError');
+      assert.equal(error.message, expectedMessage);
+      return true;
+    });
+  };
+
+  await assertAnnulmentMessage({
+    loan: { status: 'closed', emiSchedule: [] },
+    expectedMessage: 'No se pueden anular cuotas de un crédito que no está pendiente, activo, vencido o en incumplimiento.',
+  });
+
+  await assertAnnulmentMessage({
+    loan: {
+      status: 'active',
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-01-15T00:00:00.000Z', remainingPrincipal: 0, remainingInterest: 0, paidPrincipal: 100, paidInterest: 10, paidTotal: 110, status: 'paid' },
+        { installmentNumber: 2, dueDate: '2026-02-15T00:00:00.000Z', remainingPrincipal: 0, remainingInterest: 0, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'annulled' },
+      ],
+    },
+    expectedMessage: 'No hay cuotas pendientes o vencidas disponibles para anular.',
+  });
+
+  await assertAnnulmentMessage({
+    loan: {
+      status: 'active',
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-01-15T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      ],
+    },
+    installmentNumber: 9,
+    expectedMessage: 'La cuota número 9 no existe en este crédito.',
+  });
+
+  await assertAnnulmentMessage({
+    loan: {
+      status: 'active',
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-01-15T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+        { installmentNumber: 2, dueDate: '2026-02-15T00:00:00.000Z', remainingPrincipal: 50, remainingInterest: 5, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'annulled' },
+      ],
+    },
+    installmentNumber: 2,
+    expectedMessage: 'La cuota número 2 ya está anulada.',
+  });
+
+  await assertAnnulmentMessage({
+    loan: {
+      status: 'active',
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-01-15T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+        { installmentNumber: 2, dueDate: '2026-02-15T00:00:00.000Z', remainingPrincipal: 0, remainingInterest: 0, paidPrincipal: 50, paidInterest: 5, paidTotal: 55, status: 'paid' },
+      ],
+    },
+    installmentNumber: 2,
+    expectedMessage: 'La cuota número 2 ya está pagada y no se puede anular.',
+  });
+
+  await assertAnnulmentMessage({
+    loan: {
+      status: 'active',
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-01-15T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+        { installmentNumber: 2, dueDate: '2026-02-15T00:00:00.000Z', remainingPrincipal: 20, remainingInterest: 2, paidPrincipal: 80, paidInterest: 8, paidTotal: 88, status: 'partial' },
+      ],
+    },
+    installmentNumber: 2,
+    expectedMessage: 'La cuota número 2 no se puede anular porque no está pendiente ni vencida.',
+  });
+
+  await assertAnnulmentMessage({
+    loan: {
+      status: 'active',
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-01-15T00:00:00.000Z', remainingPrincipal: 20, remainingInterest: 2, paidPrincipal: 80, paidInterest: 8, paidTotal: 88, status: 'partial' },
+        { installmentNumber: 2, dueDate: '2026-02-15T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      ],
+    },
+    installmentNumber: 2,
+    expectedMessage: 'Solo puedes anular la cuota pendiente o vencida más cercana. La cuota disponible es la número 1.',
+  });
+});
+
+test('annulInstallment rejects non-admin actors with a Spanish operator message', async () => {
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).annulInstallment({
+    loanId: 48,
+    actor: { id: 7, role: 'employee' },
+    paymentDate: '2026-01-20T00:00:00.000Z',
+  }), (error) => {
+    assert.equal(error.name, 'AuthorizationError');
+    assert.equal(error.message, 'Solo un administrador puede anular cuotas.');
     return true;
   });
 });
@@ -1584,7 +1782,20 @@ test('updatePaymentMethod updates method for non-reconciled payments and preserv
     actor: { id: 1, role: 'admin' },
   }), (error) => {
     assert.equal(error.name, 'ValidationError');
-    assert.match(error.message, /reconciled/i);
+    assert.equal(error.message, 'No se puede cambiar el método de pago de un pago conciliado.');
+    return true;
+  });
+});
+
+test('updatePaymentMethod rejects non-admin actors with a Spanish operator message', async () => {
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).updatePaymentMethod({
+    loanId: 50,
+    paymentId: 700,
+    paymentMethod: 'cash',
+    actor: { id: 7, role: 'employee' },
+  }), (error) => {
+    assert.equal(error.name, 'AuthorizationError');
+    assert.equal(error.message, 'Solo un administrador puede cambiar métodos de pago.');
     return true;
   });
 });

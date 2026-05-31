@@ -1,10 +1,12 @@
 require('module-alias/register');
 const createApp = require('./app');
 const { bootstrap } = require('./bootstrap');
+const { parseTcpPort } = require('./bootstrap/ports');
 const { createOutboxRelayWorker } = require('./workers/outboxRelayWorker');
 const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
 
-const PORT = process.env.PORT || 5000;
+const DEFAULT_PORT = 5000;
+const resolveServerPort = (port = process.env.PORT || DEFAULT_PORT) => parseTcpPort('PORT', port, { allowZero: true });
 
 /**
  * Bootstrap infrastructure, compose the Express app, and start listening.
@@ -12,11 +14,12 @@ const PORT = process.env.PORT || 5000;
  * @returns {Promise<{ app: import('express').Express, server: import('http').Server, bootstrap: object }>}
  */
 const startServer = async ({
-  port = PORT,
+  port = process.env.PORT || DEFAULT_PORT,
   bootstrap: runBootstrap = bootstrap,
   createApp: buildApp = createApp,
   createWorker = createOutboxRelayWorker,
 } = {}) => {
+  const listenPort = resolveServerPort(port);
   const bootstrapResult = await runBootstrap();
   const app = buildApp({
     sharedRuntime: bootstrapResult.sharedRuntime,
@@ -28,9 +31,9 @@ const startServer = async ({
 
   return new Promise((resolve, reject) => {
     let server;
-    server = app.listen(port, () => {
-      console.log(`Backend server running on http://localhost:${port}`);
-      domainEventBus.emit(EVENT_TYPES.SERVER_STARTED, { port });
+    server = app.listen(listenPort, () => {
+      console.log(`Backend server running on http://localhost:${listenPort}`);
+      domainEventBus.emit(EVENT_TYPES.SERVER_STARTED, { port: listenPort });
 
       const shutdown = async (signal) => {
         console.log(`Received ${signal}, shutting down gracefully...`);
@@ -66,4 +69,5 @@ if (require.main === module) {
 
 module.exports = {
   startServer,
+  resolveServerPort,
 };

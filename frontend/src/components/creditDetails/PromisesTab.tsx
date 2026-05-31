@@ -4,7 +4,7 @@ import { ActionButton } from '../shared/Surfaces';
 import { TabEmptyState } from './CreditDetailsTabs';
 import { formatOperationalStatus, stableCreditKey } from './creditDetailsHelpers';
 
-/** Retorna solo las líneas de texto ingresadas por el usuario, filtrando las de auditoría interna. */
+/** Returns only user-entered note lines, excluding internal audit lines. */
 const extractUserNotes = (raw: string | null | undefined): string | null => {
   if (!raw) return null;
   const cleaned = raw
@@ -102,22 +102,22 @@ export function PromisesTab({
               {isPending ? (
                 <>
                   <ActionButton type="button" onClick={() => onUpdatePromiseStatus(promise, 'kept')} disabled={isUpdating} variant="primary" icon={<CheckCircle size={16} />}>
-                    Cumplida
+                    {tTerm('creditDetails.promises.action.markKept')}
                   </ActionButton>
                   <ActionButton type="button" onClick={() => onUpdatePromiseStatus(promise, 'broken')} disabled={isUpdating} variant="danger" icon={<AlertTriangle size={16} />}>
-                    Incumplida
+                    {tTerm('creditDetails.promises.action.markBroken')}
                   </ActionButton>
                   <ActionButton type="button" onClick={() => onUpdatePromiseStatus(promise, 'cancelled')} disabled={isUpdating} variant="ghost">
-                    Cancelar
+                    {tTerm('creditDetails.promises.action.cancel')}
                   </ActionButton>
                 </>
               ) : (
                 <ActionButton type="button" onClick={() => onUpdatePromiseStatus(promise, 'pending')} disabled={isUpdating} icon={<Clock size={16} />}>
-                  Reabrir
+                  {tTerm('creditDetails.promises.action.reopen')}
                 </ActionButton>
               )}
               <ActionButton type="button" onClick={() => onDownloadPromise(promise)} disabled={isDownloading} icon={<FileText size={16} />}>
-                Descargar
+                {tTerm('creditDetails.promises.action.download')}
               </ActionButton>
             </div>
           </div>

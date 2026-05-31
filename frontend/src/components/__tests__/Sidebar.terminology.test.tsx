@@ -4,6 +4,7 @@ import Sidebar from '../Sidebar';
 const mockClearSession = vi.fn();
 const mockRequestLogout = vi.fn(() => Promise.resolve());
 const mockNavigate = vi.fn();
+const mockClearQueryCache = vi.fn();
 type SidebarTestUser = {
   id: number;
   name: string;
@@ -35,7 +36,28 @@ vi.mock('../../services/authService', () => ({
   }),
 }));
 
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({
+    clear: mockClearQueryCache,
+  }),
+}));
+
 let currentPermissions: Array<{ permission: string }> = [];
+
+const setViewportMatch = (matches: boolean) => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+};
 
 vi.mock('../../services/permissionsService', () => ({
   useMyPermissions: () => ({
@@ -51,6 +73,7 @@ vi.mock('react-router-dom', () => ({
 describe('Sidebar canonical terminology parity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setViewportMatch(true);
     currentUser = {
       id: 1,
       name: 'Administrador QA',
@@ -156,6 +179,56 @@ describe('Sidebar canonical terminology parity', () => {
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
   });
 
+  it('removes the closed mobile drawer from the accessibility tree', () => {
+    setViewportMatch(false);
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    const { container } = render(
+      <Sidebar
+        currentView="dashboard"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    const aside = container.querySelector('aside');
+
+    expect(aside).toHaveAttribute('aria-hidden', 'true');
+    expect(aside).toHaveAttribute('inert');
+    expect(aside).toHaveStyle({ transform: 'translateX(-100%)' });
+    expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the open mobile drawer available to assistive navigation', () => {
+    setViewportMatch(false);
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    const { container } = render(
+      <Sidebar
+        currentView="dashboard"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={true}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    const aside = container.querySelector('aside');
+
+    expect(aside).not.toHaveAttribute('aria-hidden');
+    expect(aside).not.toHaveAttribute('inert');
+    expect(aside).toHaveStyle({ transform: 'translateX(0)' });
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+  });
+
   it('keeps administrative module links in the scrollable navigation area', () => {
     const setCurrentView = vi.fn();
     const setIsCollapsed = vi.fn();
@@ -176,6 +249,26 @@ describe('Sidebar canonical terminology parity', () => {
     expect(navigation).not.toBeNull();
     expect(within(navigation as HTMLElement).getByRole('button', { name: 'Auditoría' })).toBeInTheDocument();
     expect(within(navigation as HTMLElement).getByRole('button', { name: 'Configuración' })).toBeInTheDocument();
+  });
+
+  it('announces expandable section state in the navigation', () => {
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    render(
+      <Sidebar
+        currentView="credits"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Clientes' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Créditos' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('closes inactive section menus when the active module changes', () => {
@@ -234,6 +327,7 @@ describe('Sidebar canonical terminology parity', () => {
       user: currentUser,
     });
     expect(mockClearSession).toHaveBeenCalledTimes(1);
+    expect(mockClearQueryCache).toHaveBeenCalledTimes(1);
     expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
     expect(setIsMobileOpen).toHaveBeenCalledWith(false);
   });

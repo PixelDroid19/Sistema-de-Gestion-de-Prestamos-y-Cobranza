@@ -41,6 +41,20 @@ const confirmStyles = {
   label: 'block text-sm font-medium text-text-secondary mb-2 mt-4',
 };
 
+const modalFocusableSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+const getFocusableModalElements = (dialog: HTMLElement) => (
+  Array.from(dialog.querySelectorAll<HTMLElement>(modalFocusableSelector))
+    .filter((element) => element.tabIndex >= 0 && element.getAttribute('aria-hidden') !== 'true')
+);
+
 const createModalContainer = (): HTMLDivElement => {
   const container = document.createElement('div');
   container.className = confirmStyles.overlay;
@@ -52,30 +66,105 @@ const stopDialogClick = (event: MouseEvent) => {
   event.stopPropagation();
 };
 
+const createTextElement = <K extends keyof HTMLElementTagNameMap>(
+  tagName: K,
+  className: string,
+  text: string,
+): HTMLElementTagNameMap[K] => {
+  const element = document.createElement(tagName);
+  element.className = className;
+  element.textContent = text;
+  return element;
+};
+
+const createButton = (id: string, className: string, label: string): HTMLButtonElement => {
+  const button = document.createElement('button');
+  button.id = id;
+  button.type = 'button';
+  button.className = className;
+  button.textContent = label;
+  return button;
+};
+
+const createDialogScaffold = (id: string, title: string) => {
+  const titleId = `${id}-title`;
+  const messageId = `${id}-message`;
+  const dialog = document.createElement('div');
+  dialog.id = id;
+  dialog.className = confirmStyles.dialog;
+  dialog.style.animation = 'fadeIn 0.15s ease-out';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.setAttribute('aria-labelledby', titleId);
+  dialog.setAttribute('aria-describedby', messageId);
+
+  const style = document.createElement('style');
+  style.textContent = '@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }';
+  dialog.appendChild(style);
+
+  const header = document.createElement('div');
+  header.className = confirmStyles.header;
+  const titleElement = createTextElement('h3', confirmStyles.title, title);
+  titleElement.id = titleId;
+  header.appendChild(titleElement);
+  dialog.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = confirmStyles.body;
+  dialog.appendChild(body);
+
+  const footer = document.createElement('div');
+  footer.className = confirmStyles.footer;
+  dialog.appendChild(footer);
+
+  return { dialog, body, footer, messageId };
+};
+
+const trapDialogTabFocus = (event: KeyboardEvent, dialog: HTMLElement) => {
+  if (event.key !== 'Tab') {
+    return;
+  }
+
+  const focusableElements = getFocusableModalElements(dialog);
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    dialog.focus({ preventScroll: true });
+    return;
+  }
+
+  const firstFocusable = focusableElements[0];
+  const lastFocusable = focusableElements[focusableElements.length - 1];
+  const activeElement = document.activeElement;
+
+  if (event.shiftKey) {
+    if (activeElement === firstFocusable || activeElement === dialog || !dialog.contains(activeElement)) {
+      event.preventDefault();
+      lastFocusable.focus({ preventScroll: true });
+    }
+    return;
+  }
+
+  if (activeElement === lastFocusable || activeElement === dialog || !dialog.contains(activeElement)) {
+    event.preventDefault();
+    firstFocusable.focus({ preventScroll: true });
+  }
+};
+
 const requestConfirmation = async (options: ConfirmOptions): Promise<ConfirmResult> => {
   return new Promise((resolve) => {
     const container = createModalContainer();
     const confirmVariant = options.confirmVariant || 'primary';
     const confirmLabel = options.confirmLabel || tTerm('common.cta.confirm');
     const cancelLabel = options.cancelLabel || tTerm('common.cta.cancel');
+    const { dialog, body, footer, messageId } = createDialogScaffold('confirm-dialog', options.title);
+    const cancelButton = createButton('confirm-cancel', confirmStyles.cancelButton, cancelLabel);
+    const confirmButton = createButton('confirm-ok', confirmStyles.confirmButton(confirmVariant), confirmLabel);
+    const message = createTextElement('p', confirmStyles.message, options.message);
 
-    container.innerHTML = `
-      <div id="confirm-dialog" class="${confirmStyles.dialog}" style="animation: fadeIn 0.15s ease-out" role="dialog" aria-modal="true">
-        <style>
-          @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        </style>
-        <div class="${confirmStyles.header}">
-          <h3 class="${confirmStyles.title}">${options.title}</h3>
-        </div>
-        <div class="${confirmStyles.body}">
-          <p class="${confirmStyles.message}">${options.message}</p>
-        </div>
-        <div class="${confirmStyles.footer}">
-          <button id="confirm-cancel" type="button" class="${confirmStyles.cancelButton}">${cancelLabel}</button>
-          <button id="confirm-ok" type="button" class="${confirmStyles.confirmButton(confirmVariant)}">${confirmLabel}</button>
-        </div>
-      </div>
-    `;
+    message.id = messageId;
+    body.appendChild(message);
+    footer.append(cancelButton, confirmButton);
+    container.appendChild(dialog);
 
     const onClose = (result: ConfirmResult) => {
       document.removeEventListener('keydown', onKeyDown);
@@ -92,16 +181,19 @@ const requestConfirmation = async (options: ConfirmOptions): Promise<ConfirmResu
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose(null);
+        return;
       }
+
+      trapDialogTabFocus(event, dialog);
     };
 
     container.addEventListener('click', onOverlayClick);
     document.addEventListener('keydown', onKeyDown);
-    document.getElementById('confirm-dialog')?.addEventListener('click', stopDialogClick as EventListener);
-    document.getElementById('confirm-cancel')?.addEventListener('click', () => onClose(false));
-    document.getElementById('confirm-ok')?.addEventListener('click', () => onClose(true));
+    dialog.addEventListener('click', stopDialogClick as EventListener);
+    cancelButton.addEventListener('click', () => onClose(false));
+    confirmButton.addEventListener('click', () => onClose(true));
 
-    (document.getElementById('confirm-ok') as HTMLButtonElement | null)?.focus();
+    confirmButton.focus();
   });
 };
 
@@ -117,32 +209,25 @@ export const requestInput = async (options: PromptOptions): Promise<PromptResult
     const confirmVariant = options.confirmVariant || 'primary';
     const confirmLabel = options.confirmLabel || tTerm('common.cta.confirm');
     const cancelLabel = options.cancelLabel || tTerm('common.cta.cancel');
+    const { dialog, body, footer, messageId } = createDialogScaffold('prompt-dialog', options.title);
+    const message = createTextElement('p', confirmStyles.message, options.message);
+    const label = createTextElement('label', confirmStyles.label, options.label);
+    label.setAttribute('for', 'prompt-input');
 
-    container.innerHTML = `
-      <div id="prompt-dialog" class="${confirmStyles.dialog}" style="animation: fadeIn 0.15s ease-out" role="dialog" aria-modal="true">
-        <style>
-          @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        </style>
-        <div class="${confirmStyles.header}">
-          <h3 class="${confirmStyles.title}">${options.title}</h3>
-        </div>
-        <div class="${confirmStyles.body}">
-          <p class="${confirmStyles.message}">${options.message}</p>
-          <label for="prompt-input" class="${confirmStyles.label}">${options.label}</label>
-          <input
-            id="prompt-input"
-            type="text"
-            class="${confirmStyles.input}"
-            placeholder="${options.placeholder || ''}"
-            value="${options.defaultValue || ''}"
-          />
-        </div>
-        <div class="${confirmStyles.footer}">
-          <button id="prompt-cancel" type="button" class="${confirmStyles.cancelButton}">${cancelLabel}</button>
-          <button id="prompt-ok" type="button" class="${confirmStyles.confirmButton(confirmVariant)}">${confirmLabel}</button>
-        </div>
-      </div>
-    `;
+    const input = document.createElement('input');
+    input.id = 'prompt-input';
+    input.type = 'text';
+    input.className = confirmStyles.input;
+    input.placeholder = options.placeholder || '';
+    input.value = options.defaultValue || '';
+
+    const cancelButton = createButton('prompt-cancel', confirmStyles.cancelButton, cancelLabel);
+    const confirmButton = createButton('prompt-ok', confirmStyles.confirmButton(confirmVariant), confirmLabel);
+
+    message.id = messageId;
+    body.append(message, label, input);
+    footer.append(cancelButton, confirmButton);
+    container.appendChild(dialog);
 
     const onClose = (result: PromptResult) => {
       document.removeEventListener('keydown', onKeyDown);
@@ -151,18 +236,21 @@ export const requestInput = async (options: PromptOptions): Promise<PromptResult
     };
 
     const onConfirm = () => {
-      const value = (document.getElementById('prompt-input') as HTMLInputElement | null)?.value ?? '';
-      onClose(value);
+      onClose(input.value);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose(null);
+        return;
       }
 
       if (event.key === 'Enter') {
         onConfirm();
+        return;
       }
+
+      trapDialogTabFocus(event, dialog);
     };
 
     const onOverlayClick = (event: MouseEvent) => {
@@ -173,13 +261,12 @@ export const requestInput = async (options: PromptOptions): Promise<PromptResult
 
     container.addEventListener('click', onOverlayClick);
     document.addEventListener('keydown', onKeyDown);
-    document.getElementById('prompt-dialog')?.addEventListener('click', stopDialogClick as EventListener);
-    document.getElementById('prompt-cancel')?.addEventListener('click', () => onClose(null));
-    document.getElementById('prompt-ok')?.addEventListener('click', onConfirm);
+    dialog.addEventListener('click', stopDialogClick as EventListener);
+    cancelButton.addEventListener('click', () => onClose(null));
+    confirmButton.addEventListener('click', onConfirm);
 
-    const input = document.getElementById('prompt-input') as HTMLInputElement | null;
-    input?.focus();
-    input?.select();
+    input.focus();
+    input.select();
   });
 };
 

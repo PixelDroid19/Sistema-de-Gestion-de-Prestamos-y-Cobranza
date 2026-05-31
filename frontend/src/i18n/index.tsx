@@ -1,6 +1,6 @@
 // In-house i18n provider (no external deps).
 // Locale persistence in localStorage; fallback to es.
-import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { es } from './dictionaries/es';
 import { en } from './dictionaries/en';

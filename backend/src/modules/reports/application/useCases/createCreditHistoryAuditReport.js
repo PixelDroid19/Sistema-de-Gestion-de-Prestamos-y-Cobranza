@@ -1,7 +1,13 @@
 const { ensureAdmin, formatMoney, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
-const { normalizeOptionalOperationalDate, toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
+const {
+  buildDateRangeMessage,
+  normalizeOptionalOperationalDate,
+  toDateOnlyOrNull,
+  toOperationalDateOrNull,
+} = require('@/modules/shared/dateUtils');
+const { buildInvalidIntegerIdMessage } = require('@/modules/shared/validators');
 const { BadRequestError } = require('@/utils/errorHandler');
 
 const MONEY_FORMAT = '"$" #,##0.00;[Red]-"$" #,##0.00;"-"';
@@ -125,12 +131,12 @@ const normalizeOptionalPositiveId = (value, fieldName) => {
 
   const normalized = String(value).trim();
   if (!/^\d+$/.test(normalized)) {
-    throw new BadRequestError(`${fieldName} must be a valid positive integer`);
+    throw new BadRequestError(buildInvalidIntegerIdMessage(fieldName));
   }
 
   const numericValue = Number(normalized);
   if (!Number.isSafeInteger(numericValue) || numericValue <= 0) {
-    throw new BadRequestError(`${fieldName} must be a valid positive integer`);
+    throw new BadRequestError(buildInvalidIntegerIdMessage(fieldName));
   }
 
   return numericValue;
@@ -144,13 +150,13 @@ const parseMonthFilter = (value) => {
   const normalized = String(value).trim();
   const match = normalized.match(/^(\d{4})-(\d{2})$/);
   if (!match) {
-    throw new BadRequestError('month must use YYYY-MM format');
+    throw new BadRequestError('El mes del reporte debe usar el formato AAAA-MM.');
   }
 
   const year = Number(match[1]);
   const monthIndex = Number(match[2]) - 1;
   if (!Number.isInteger(year) || monthIndex < 0 || monthIndex > 11) {
-    throw new BadRequestError('month must use YYYY-MM format');
+    throw new BadRequestError('El mes del reporte debe usar el formato AAAA-MM.');
   }
 
   const startDate = new Date(Date.UTC(year, monthIndex, 1));
@@ -166,7 +172,7 @@ const normalizeCreditHistoryFilters = (filters = {}) => {
     || normalizeOptionalOperationalDate(filters.endDate ?? filters.toDate, 'endDate');
 
   if (startDate && endDate && startDate > endDate) {
-    throw new BadRequestError('startDate must be before or equal to endDate');
+    throw new BadRequestError(buildDateRangeMessage('startDate', 'endDate'));
   }
 
   return {

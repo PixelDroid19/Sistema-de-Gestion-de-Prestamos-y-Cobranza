@@ -6,6 +6,7 @@ const { paginateArray } = require('@/modules/shared/pagination');
 const { validateInterestRate } = require('@/modules/shared/validators');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { isAdministrativeLoginRole } = require('@/modules/shared/roles');
+const { buildDateFormatMessage, buildDateRangeMessage } = require('@/modules/shared/dateUtils');
 const {
   normalizeAttachmentVisibility,
   ensureUploadedFile,
@@ -14,6 +15,8 @@ const {
   buildStoredFileFields,
   ensureDocumentExists,
   resolveDocumentDownload,
+  isValidAttachmentSignature,
+  validateAttachmentFileSignature,
 } = require('@/modules/shared/documentOperations');
 const {
   evaluateCapitalPaymentEligibility,
@@ -22,14 +25,32 @@ const {
 } = require('./paymentEligibility');
 const { normalizeUtcDateOnly } = require('./loanFinancials');
 
-const SIGNATURE_LENGTH = 12;
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const JPEG_SIGNATURE_PREFIX = Buffer.from([0xff, 0xd8, 0xff]);
-const WEBP_SIGNATURE_RIFF = Buffer.from([0x52, 0x49, 0x46, 0x46]);
-const WEBP_SIGNATURE_WEBP = Buffer.from([0x57, 0x45, 0x42, 0x50]);
-const PDF_SIGNATURE = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
 const LOAN_CREATION_IDEMPOTENCY_SCOPE = 'loan_creation';
 const IDEMPOTENCY_WAIT_BASE_MS = 50;
+const CREDIT_ACCESS_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden acceder a créditos.';
+const CREDIT_CREATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden crear créditos.';
+const CUSTOMER_CREDIT_LIST_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden consultar créditos del cliente.';
+const CREDIT_SEARCH_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden buscar créditos.';
+const CREDIT_CANCEL_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden anular créditos.';
+const CREDIT_ATTACHMENT_LIST_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden consultar soportes del crédito.';
+const CREDIT_ATTACHMENT_DOWNLOAD_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden descargar soportes del crédito.';
+const PAYOFF_EXECUTE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden registrar pagos totales.';
+const PROMISE_CREATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden registrar promesas de pago.';
+const FOLLOW_UP_CREATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden crear recordatorios de seguimiento.';
+const LOAN_ALERT_UPDATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden actualizar alertas del crédito.';
+const PROMISE_UPDATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden actualizar promesas de pago.';
+const PROMISE_DOWNLOAD_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden descargar documentos de promesa de pago.';
+const LATE_FEE_RATE_VALID_MESSAGE = 'La tasa de mora debe ser un número entre 0 y 100.';
+const LOAN_CREATION_IDEMPOTENCY_CONFLICT_MESSAGE = 'Esta creación de crédito ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.';
+const LOAN_CREATION_IDEMPOTENCY_PENDING_MESSAGE = 'La creación del crédito ya se está procesando. Espera el resultado antes de intentar nuevamente.';
+const PROMISE_AMOUNT_POSITIVE_MESSAGE = 'El monto prometido debe ser mayor que 0.';
+const FOLLOW_UP_DUE_DATE_VALID_MESSAGE = 'La fecha del recordatorio es obligatoria y debe ser válida.';
+const PROMISE_STATUS_VALID_MESSAGE = 'Selecciona un estado de promesa válido.';
+const CALENDAR_AGENDA_LIMIT_MESSAGE = 'El límite de la agenda debe ser un entero positivo.';
+const LATE_FEE_RATE_ADMIN_REQUIRED_MESSAGE = 'Solo un administrador puede actualizar tasas de mora.';
+const CREDIT_CANCEL_REJECTED_ONLY_MESSAGE = 'Solo se pueden cancelar créditos rechazados.';
+const CLOSED_LOAN_MODIFICATION_MESSAGE = 'No se puede modificar un crédito cerrado.';
+const REJECTED_LOAN_MODIFICATION_MESSAGE = 'No se puede modificar un crédito rechazado.';
 
 class PendingIdempotencyError extends Error {}
 
@@ -70,54 +91,6 @@ const toPlainJson = (value) => {
   )));
 };
 
-const startsWithSignature = (buffer, signature) => (
-  Buffer.isBuffer(buffer) && buffer.length >= signature.length && buffer.subarray(0, signature.length).equals(signature)
-);
-
-const hasWebpSignature = (buffer) => (
-  Buffer.isBuffer(buffer)
-  && buffer.length >= 12
-  && buffer.subarray(0, 4).equals(WEBP_SIGNATURE_RIFF)
-  && buffer.subarray(8, 12).equals(WEBP_SIGNATURE_WEBP)
-);
-
-const isValidAttachmentSignature = (buffer, mimetype) => {
-  if (!Buffer.isBuffer(buffer) || typeof mimetype !== 'string') {
-    return false;
-  }
-
-  if (mimetype === 'application/pdf') {
-    return startsWithSignature(buffer, PDF_SIGNATURE);
-  }
-  if (mimetype === 'image/png') {
-    return startsWithSignature(buffer, PNG_SIGNATURE);
-  }
-  if (mimetype === 'image/jpeg') {
-    return startsWithSignature(buffer, JPEG_SIGNATURE_PREFIX);
-  }
-  if (mimetype === 'image/webp') {
-    return hasWebpSignature(buffer);
-  }
-
-  return false;
-};
-
-const getMinimumSignatureLength = (mimetype) => {
-  if (mimetype === 'image/webp') {
-    return 12;
-  }
-  if (mimetype === 'application/pdf') {
-    return PDF_SIGNATURE.length;
-  }
-  if (mimetype === 'image/png') {
-    return PNG_SIGNATURE.length;
-  }
-  if (mimetype === 'image/jpeg') {
-    return JPEG_SIGNATURE_PREFIX.length;
-  }
-  return 1;
-};
-
 const sendOptionalNotification = async (sendFn) => {
   try {
     await sendFn();
@@ -130,33 +103,6 @@ const sendOptionalNotification = async (sendFn) => {
 const uniqueNotificationRecipients = (...ids) => [...new Set(ids
   .map((id) => Number(id))
   .filter((id) => Number.isInteger(id) && id > 0))];
-
-const validateAttachmentFileSignature = async (file, fsModule) => {
-  if (!file?.path || typeof file.mimetype !== 'string') {
-    throw new ValidationError('Attachment file metadata is invalid');
-  }
-
-  let handle;
-  try {
-    handle = await fsModule.open(file.path, 'r');
-    const buffer = Buffer.alloc(SIGNATURE_LENGTH);
-    const { bytesRead } = await handle.read(buffer, 0, SIGNATURE_LENGTH, 0);
-
-    const minimumSignatureLength = getMinimumSignatureLength(file.mimetype);
-
-    if (bytesRead < minimumSignatureLength) {
-      throw new ValidationError('Attachment file is unreadable or too small for the declared file type');
-    }
-
-    const header = buffer.subarray(0, bytesRead);
-
-    if (!isValidAttachmentSignature(header, file.mimetype)) {
-      throw new ValidationError('Attachment content does not match the declared file type');
-    }
-  } finally {
-    await handle?.close();
-  }
-};
 
 const escapePdfText = (value) => String(value)
   .replaceAll('\\', '\\\\')
@@ -379,7 +325,7 @@ const normalizeDateOnly = (value, field = 'date') => {
 
   const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    throw new ValidationError(`${field} must be a valid date`);
+    throw new ValidationError(buildDateFormatMessage(field));
   }
 
   return parsed;
@@ -704,12 +650,12 @@ const parseCalendarOverviewFilters = (filters = {}) => {
 
     const normalizedValue = String(value).trim();
     if (!/^\d+$/.test(normalizedValue)) {
-      throw new ValidationError('limit must be a positive integer');
+      throw new ValidationError(CALENDAR_AGENDA_LIMIT_MESSAGE);
     }
 
     const limit = Number(normalizedValue);
     if (!Number.isSafeInteger(limit)) {
-      throw new ValidationError('limit must be a positive integer');
+      throw new ValidationError(CALENDAR_AGENDA_LIMIT_MESSAGE);
     }
 
     return Math.min(Math.max(limit || 100, 1), 250);
@@ -726,7 +672,7 @@ const parseCalendarOverviewFilters = (filters = {}) => {
 
 const assertCalendarOverviewDateRange = ({ startDate, endDate }) => {
   if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
-    throw new ValidationError('startDate must be before or equal to endDate');
+    throw new ValidationError(buildDateRangeMessage('startDate', 'endDate'));
   }
 };
 
@@ -848,7 +794,7 @@ const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
 };
 
 const createGetLoanById = ({ loanAccessPolicy, loanRepository, loanViewService }) => async ({ actor, loanId }) => {
-  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can access loans');
+  ensureCreditBackofficeActor(actor, CREDIT_ACCESS_DENIED_MESSAGE);
 
   if (loanAccessPolicy) {
     const authorizedLoan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -886,7 +832,7 @@ const validateLoanCreationIdempotencyKey = (idempotencyKey) => {
 
 const assertSameLoanCreationRequest = (record, requestHash) => {
   if (record?.requestHash && record.requestHash !== requestHash) {
-    throw new ValidationError('Idempotency key was already used with a different loan creation request');
+    throw new ValidationError(LOAN_CREATION_IDEMPOTENCY_CONFLICT_MESSAGE);
   }
 };
 
@@ -922,7 +868,7 @@ const waitForCompletedLoanCreationKey = async ({
     await new Promise((resolve) => setTimeout(resolve, IDEMPOTENCY_WAIT_BASE_MS * attempt));
   }
 
-  throw new ValidationError('Loan creation with this idempotency key is currently being processed');
+  throw new ValidationError(LOAN_CREATION_IDEMPOTENCY_PENDING_MESSAGE);
 };
 
 const runLoanCreationWithIdempotency = async ({
@@ -951,7 +897,7 @@ const runLoanCreationWithIdempotency = async ({
     }
 
     if (existingKey?.status === 'pending') {
-      throw new PendingIdempotencyError('Loan creation with this idempotency key is currently being processed');
+      throw new PendingIdempotencyError(LOAN_CREATION_IDEMPOTENCY_PENDING_MESSAGE);
     }
 
     if (existingKey) {
@@ -975,7 +921,7 @@ const runLoanCreationWithIdempotency = async ({
         if (error.name !== 'SequelizeUniqueConstraintError') {
           throw error;
         }
-        throw new PendingIdempotencyError('Loan creation with this idempotency key is currently being processed');
+        throw new PendingIdempotencyError(LOAN_CREATION_IDEMPOTENCY_PENDING_MESSAGE);
       }
     }
 
@@ -1021,7 +967,7 @@ const runLoanCreationWithIdempotency = async ({
  */
 const createCreateLoan = ({ loanCreationService, auditService, idempotencyKeyModel = IdempotencyKey }) => {
   const useCase = async ({ actor, payload, idempotencyKey }) => {
-    ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can create loans');
+    ensureCreditBackofficeActor(actor, CREDIT_CREATE_DENIED_MESSAGE);
 
     return runLoanCreationWithIdempotency({
       actor,
@@ -1044,7 +990,7 @@ const createCreateLoan = ({ loanCreationService, auditService, idempotencyKeyMod
  * @returns {Function}
  */
 const createListLoansByCustomer = ({ customerRepository, loanRepository }) => async ({ actor, customerId, pagination }) => {
-  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can list customer loans');
+  ensureCreditBackofficeActor(actor, CUSTOMER_CREDIT_LIST_DENIED_MESSAGE);
 
   const foundCustomer = await customerRepository.findById(customerId);
   const customer = await enrichCustomerWithLoanSummary({ customerRepository, customer: foundCustomer });
@@ -1084,7 +1030,7 @@ const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy, auditService
   const useCase = async ({ actor, loanId, status }) => {
     const validStatuses = ['pending', 'approved', 'rejected', 'active', 'overdue', 'paid', 'closed', 'defaulted', 'cancelled'];
     if (!validStatuses.includes(status)) {
-      throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+      throw new ValidationError('Selecciona un estado de crédito válido.');
     }
 
     const loan = loanAccessPolicy
@@ -1095,20 +1041,17 @@ const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy, auditService
       throw new NotFoundError('Loan');
     }
 
-    const allowedTransitions = LOAN_STATUS_TRANSITIONS[loan.status] || [];
-    if (!allowedTransitions.includes(status)) {
-      throw new ValidationError(
-        `Cannot transition loan from '${loan.status}' to '${status}'. `
-        + `Allowed transitions: ${allowedTransitions.length > 0 ? allowedTransitions.join(', ') : 'none (terminal state)'}`
-      );
-    }
-
     if (loan.status === 'closed' && status !== 'closed') {
-      throw new ValidationError('Cannot modify a closed loan');
+      throw new ValidationError(CLOSED_LOAN_MODIFICATION_MESSAGE);
     }
 
     if (loan.status === 'rejected' && status !== 'rejected') {
-      throw new ValidationError('Cannot modify a rejected loan');
+      throw new ValidationError(REJECTED_LOAN_MODIFICATION_MESSAGE);
+    }
+
+    const allowedTransitions = LOAN_STATUS_TRANSITIONS[loan.status] || [];
+    if (!allowedTransitions.includes(status)) {
+      throw new ValidationError('El cambio de estado solicitado no está permitido para este crédito.');
     }
 
     loan.status = status;
@@ -1147,11 +1090,11 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
   const useCase = async ({ actor, loanId, recoveryStatus }) => {
     const validRecoveryStatuses = ['pending', 'assigned', 'in_progress', 'contacted', 'negotiated', 'recovered', 'failed'];
     if (!validRecoveryStatuses.includes(recoveryStatus)) {
-      throw new ValidationError(`Invalid recovery status. Must be one of: ${validRecoveryStatuses.join(', ')}`);
+      throw new ValidationError('Selecciona un estado de recuperación válido.');
     }
 
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can update recovery status');
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden actualizar la recuperación.');
     }
 
     const loan = loanAccessPolicy
@@ -1197,7 +1140,7 @@ const saveLoanRecord = async (loanRepository, loan) => {
 const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) => {
   const useCase = async ({ actor, loanId }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can delete loans');
+      throw new AuthorizationError(CREDIT_CANCEL_DENIED_MESSAGE);
     }
 
     const loan = loanAccessPolicy
@@ -1209,7 +1152,7 @@ const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) =>
     }
 
     if (loan.status !== 'rejected') {
-      throw new ValidationError('Only rejected loans can be cancelled');
+      throw new ValidationError(CREDIT_CANCEL_REJECTED_ONLY_MESSAGE);
     }
 
     loan.status = 'cancelled';
@@ -1231,7 +1174,7 @@ const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) =>
  * @returns {Function}
  */
 const createListLoanAttachments = ({ attachmentRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
-  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can list loan attachments');
+  ensureCreditBackofficeActor(actor, CREDIT_ATTACHMENT_LIST_DENIED_MESSAGE);
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const attachments = await attachmentRepository.listByLoan(loan.id);
@@ -1252,7 +1195,7 @@ const createCreateLoanAttachment = ({
   fsModule = require('node:fs/promises'),
 }) => {
   const useCase = async ({ actor, loanId, file, metadata = {} }) => {
-    ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
+    ensureUploadedFile(file, () => new ValidationError('Debes adjuntar un archivo'));
 
     return withUploadCleanup({
       file,
@@ -1286,7 +1229,7 @@ const createCreateLoanAttachment = ({
  * @returns {Function}
  */
 const createDownloadLoanAttachment = ({ attachmentRepository, attachmentStorage, loanAccessPolicy }) => async ({ actor, loanId, attachmentId }) => {
-  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can download loan attachments');
+  ensureCreditBackofficeActor(actor, CREDIT_ATTACHMENT_DOWNLOAD_DENIED_MESSAGE);
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const attachment = await attachmentRepository.findByIdForLoan({ loanId: loan.id, attachmentId });
@@ -1399,7 +1342,7 @@ const createGetPayoffQuote = ({ loanAccessPolicy, loanViewService }) => async ({
 const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, auditService, clock = () => new Date() }) => {
   const useCase = async ({ actor, loanId, asOfDate, quotedTotal, idempotencyKey }) => {
     if (!['admin', 'employee'].includes(actor?.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can execute payoff payments');
+      throw new AuthorizationError(PAYOFF_EXECUTE_DENIED_MESSAGE);
     }
 
     const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -1428,25 +1371,16 @@ const createListPromisesToPay = ({ promiseRepository, loanAccessPolicy }) => asy
 const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, notificationPort, auditService }) => {
   const useCase = async ({ actor, loanId, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can create promises to pay');
+      throw new AuthorizationError(PROMISE_CREATE_DENIED_MESSAGE);
     }
 
     const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
-    const promisedDateInput = typeof payload.promisedDate === 'string' ? payload.promisedDate.trim() : '';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(promisedDateInput)) {
-      throw new ValidationError('Promised date must be a valid YYYY-MM-DD date');
-    }
-
-    let promisedDate;
-    try {
-      promisedDate = normalizeUtcDateOnly(promisedDateInput, 'Promised date');
-    } catch {
-      throw new ValidationError('Promised date must be a valid YYYY-MM-DD date');
-    }
+    const promisedDateInput = typeof payload.promisedDate === 'string' ? payload.promisedDate.trim() : payload.promisedDate;
+    const promisedDate = normalizeUtcDateOnly(promisedDateInput, 'promisedDate');
 
     const amount = Number(payload.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      throw new ValidationError('Promise amount must be greater than 0');
+      throw new ValidationError(PROMISE_AMOUNT_POSITIVE_MESSAGE);
     }
 
     const now = new Date();
@@ -1489,14 +1423,14 @@ const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, notific
 
 const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, payload }) => {
   if (!['admin', 'employee'].includes(actor.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can create follow-up reminders');
+    throw new AuthorizationError(FOLLOW_UP_CREATE_DENIED_MESSAGE);
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
   const dueDate = new Date(payload.dueDate || payload.reminderDate || new Date());
 
   if (Number.isNaN(dueDate.getTime())) {
-    throw new ValidationError('Reminder due date is required');
+    throw new ValidationError(FOLLOW_UP_DUE_DATE_VALID_MESSAGE);
   }
 
   const scheduledAmount = Number(payload.scheduledAmount || 0);
@@ -1559,7 +1493,7 @@ const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificat
 
 const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => async ({ actor, loanId, alertId, payload }) => {
   if (!['admin', 'employee'].includes(actor.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can update loan alerts');
+    throw new AuthorizationError(LOAN_ALERT_UPDATE_DENIED_MESSAGE);
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -1571,7 +1505,7 @@ const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => a
 
   const nextStatus = payload.status;
   if (!['active', 'resolved'].includes(nextStatus)) {
-    throw new ValidationError('Alert status must be active or resolved');
+    throw new ValidationError('Selecciona un estado de alerta válido.');
   }
 
   const changedAt = new Date();
@@ -1594,7 +1528,7 @@ const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => a
 const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, notificationPort, auditService }) => {
   const useCase = async ({ actor, loanId, promiseId, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Only authorized backoffice users can update promise statuses');
+      throw new AuthorizationError(PROMISE_UPDATE_DENIED_MESSAGE);
     }
 
     const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -1606,7 +1540,7 @@ const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, n
 
     const nextStatus = payload.status;
     if (!['pending', 'kept', 'broken', 'cancelled'].includes(nextStatus)) {
-      throw new ValidationError('Promise status must be pending, kept, broken, or cancelled');
+      throw new ValidationError(PROMISE_STATUS_VALID_MESSAGE);
     }
 
     const changedAt = new Date();
@@ -1653,7 +1587,7 @@ const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, n
 
 const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, promiseId }) => {
   if (!['admin', 'employee'].includes(actor.role)) {
-    throw new AuthorizationError('Only authorized backoffice users can download promise documents');
+    throw new AuthorizationError(PROMISE_DOWNLOAD_DENIED_MESSAGE);
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -1868,7 +1802,7 @@ const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService
  * @returns {Function}
  */
 const createSearchLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor, filters = {}, pagination }) => {
-  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can search loans');
+  ensureCreditBackofficeActor(actor, CREDIT_SEARCH_DENIED_MESSAGE);
 
   if (pagination && typeof loanRepository.searchPage === 'function') {
     return loanRepository.searchPage({ actor, filters, ...pagination });
@@ -1899,11 +1833,11 @@ const createSearchLoans = ({ loanRepository, loanAccessPolicy }) => async ({ act
 const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditService }) => {
   const useCase = async ({ actor, loanId, lateFeeRate }) => {
     if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can update late fee rates');
+      throw new AuthorizationError(LATE_FEE_RATE_ADMIN_REQUIRED_MESSAGE);
     }
 
     if (!validateInterestRate(lateFeeRate)) {
-      throw new ValidationError('Late fee rate must be a number between 0 and 100');
+      throw new ValidationError(LATE_FEE_RATE_VALID_MESSAGE);
     }
     const parsedRate = Number(typeof lateFeeRate === 'string' ? lateFeeRate.trim() : lateFeeRate);
 

@@ -181,6 +181,6 @@ test('createUsersRouter rejects malformed user identifiers before executing muta
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /userId/i);
+  assert.match(response.body.error.message, /número del usuario/i);
   assert.deepEqual(calls, []);
 });

@@ -166,7 +166,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.queryByRole('button', { name: 'Reinvertir intereses' })).not.toBeInTheDocument();
     expect(screen.getByText(/los movimientos financieros se registran desde la mesa operativa/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos de intereses' }));
 
     expect(screen.queryByRole('button', { name: /Registrar pago/i })).not.toBeInTheDocument();
   });
@@ -209,7 +209,8 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Próximo pago')).toBeInTheDocument();
     expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
     expect(screen.getAllByText(/\$\s*125[,.]000/).length).toBeGreaterThan(0);
-    expect(screen.getByText('transfer')).toBeInTheDocument();
+    expect(screen.getByText('Transferencia')).toBeInTheDocument();
+    expect(screen.queryByText('transfer')).not.toBeInTheDocument();
   });
 
   it('shows upcoming and overdue associate payment alerts', () => {
@@ -231,7 +232,7 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Calendario' }));
     fireEvent.change(screen.getByLabelText('Desde calendario'), { target: { value: '2026-07-01' } });
     fireEvent.change(screen.getByLabelText('Hasta calendario'), { target: { value: '2026-06-30' } });
 
@@ -269,7 +270,7 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos de intereses' }));
 
     expect(screen.getAllByText('Vencido').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument();
@@ -303,7 +304,7 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos de intereses' }));
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
 
     expect(screen.getByRole('heading', { name: 'Registrar pago de interés' })).toBeInTheDocument();
@@ -354,6 +355,21 @@ describe('AssociateDetails behavior', () => {
     expect(detailsResponse.createContribution.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it('closes associate money action modals with Escape', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar aporte de capital' }));
+    const dialog = screen.getByRole('dialog', { name: 'Registrar aporte de capital' });
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Registrar aporte de capital' })).not.toBeInTheDocument();
+  });
+
   it('shows a Spanish inline validation error when the interest payment date is empty', async () => {
     mockUseSessionStore.mockReturnValue({
       user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
@@ -382,13 +398,48 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos de intereses' }));
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
     fireEvent.change(screen.getByLabelText('Fecha real de pago'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar pago' }));
 
     expect(await screen.findByText('La fecha real de pago es obligatoria.')).toBeInTheDocument();
     expect(detailsResponse.payInstallment.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('closes associate installment payment modal with Escape', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    useAssociateDetailsSpy.mockReturnValue({
+      ...buildDetailsResponse(),
+      installments: {
+        installments: [
+          {
+            id: 11,
+            installmentNumber: 1,
+            amount: 350000,
+            dueDate: '2000-05-10T00:00:00.000Z',
+            status: 'overdue',
+          },
+        ],
+        totals: {
+          totalPending: 0,
+          totalPaid: 0,
+          totalOverdue: 350000,
+        },
+      },
+    });
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos de intereses' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    const dialog = screen.getByRole('dialog', { name: 'Registrar pago de interés' });
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Registrar pago de interés' })).not.toBeInTheDocument();
   });
 
   it('keeps separate normalized amounts for each associate money action', () => {

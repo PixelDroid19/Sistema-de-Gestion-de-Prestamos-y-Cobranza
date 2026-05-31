@@ -8,6 +8,7 @@ const deleteDocumentMutateAsync = vi.fn();
 
 let documentsFixture: any[] = [];
 let loansFixture: any[] = [];
+let historyFixture: any[] = [];
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateSpy,
@@ -47,7 +48,7 @@ vi.mock('../../services/customerService', () => ({
 
 vi.mock('../../services/reportService', () => ({
   useCustomerReports: () => ({
-    history: { data: { timeline: [] } },
+    history: { data: { timeline: historyFixture } },
     creditProfile: { data: { profile: { summary: {} } } },
   }),
 }));
@@ -79,6 +80,7 @@ describe('CustomerDetails behavior', () => {
     vi.clearAllMocks();
     documentsFixture = [];
     loansFixture = [];
+    historyFixture = [];
   });
 
   it('uploads customer documents as internal records by default', async () => {
@@ -86,7 +88,7 @@ describe('CustomerDetails behavior', () => {
 
     const { container } = render(<CustomerDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Documentos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Documentos' }));
 
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: 'proof_of_address' },
@@ -127,7 +129,7 @@ describe('CustomerDetails behavior', () => {
 
     render(<CustomerDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Documentos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Documentos' }));
 
     expect(screen.getByText('Comprobante de Ingresos')).toBeInTheDocument();
     expect(screen.getByText(/Uso interno/i)).toBeInTheDocument();
@@ -150,10 +152,76 @@ describe('CustomerDetails behavior', () => {
 
     render(<CustomerDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Créditos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Créditos' }));
 
     expect(screen.getByText('Saldo Pendiente')).toBeInTheDocument();
     expect(screen.getByText(/\$\s*0/)).toBeInTheDocument();
     expect(screen.queryByText(/-\$/)).not.toBeInTheDocument();
+  });
+
+  it('keeps internal customer and loan identifiers out of detail surfaces', () => {
+    loansFixture = [
+      {
+        id: 3,
+        customerId: 5,
+        status: 'active',
+        amount: 900000,
+        totalPaid: 300000,
+        interestRate: 24,
+        termMonths: 6,
+        startDate: '2026-04-27T00:00:00.000Z',
+      },
+    ];
+
+    render(<CustomerDetails />);
+
+    expect(screen.queryByText(/ID:/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Documento: QA-5')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Créditos' }));
+
+    expect(screen.getByText('Crédito del cliente')).toBeInTheDocument();
+    expect(screen.queryByText('Crédito #3')).not.toBeInTheDocument();
+  });
+
+  it('renders customer loan statuses with operator-facing labels', () => {
+    loansFixture = [
+      {
+        id: 4,
+        customerId: 5,
+        status: 'defaulted',
+        amount: 900000,
+        totalPaid: 100000,
+        interestRate: 24,
+        termMonths: 6,
+        startDate: '2026-04-27T00:00:00.000Z',
+      },
+    ];
+
+    render(<CustomerDetails />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Créditos' }));
+
+    expect(screen.getByText('En mora')).toBeInTheDocument();
+    expect(screen.queryByText(/^defaulted$/i)).not.toBeInTheDocument();
+  });
+
+  it('renders unknown history events with neutral operational fallbacks', () => {
+    historyFixture = [
+      {
+        action: 'internal_policy_recalculated',
+        entityType: 'calculation_profile_version',
+        date: '2026-05-30T12:00:00.000Z',
+      },
+    ];
+
+    render(<CustomerDetails />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial' }));
+
+    expect(screen.getByText('Evento registrado')).toBeInTheDocument();
+    expect(screen.getByText('Actividad del cliente')).toBeInTheDocument();
+    expect(screen.queryByText(/Internal policy recalculated/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Calculation profile version/i)).not.toBeInTheDocument();
   });
 });

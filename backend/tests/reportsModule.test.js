@@ -650,7 +650,7 @@ test('customer profitability export rejects inverted date ranges before reading 
   await assert.rejects(() => exportCustomerProfitabilityReport({
     actor: { id: 1, role: 'admin' },
     filters: { fromDate: '2026-05-31', toDate: '2026-05-01' },
-  }), /fromDate must be before or equal to toDate/i);
+  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
   assert.equal(repositoryCalled, false);
 });
 
@@ -969,7 +969,7 @@ test('createGetAssociateProfitabilityReport rejects socio records as report user
     actor: { id: 9, role: 'socio', associateId: 12 },
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can access profitability reports');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
     return true;
   });
 });
@@ -997,7 +997,33 @@ test('createGetAssociateProfitabilityReport rejects socio records before associa
     associateId: 99,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can access profitability reports');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
+    return true;
+  });
+});
+
+test('createGetAssociateProfitabilityReport rejects missing associate access with an operator message', async () => {
+  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
+    associateRepository: {
+      async findById(id) {
+        assert.equal(id, 12);
+        return null;
+      },
+      async listContributionsByAssociate() {
+        throw new Error('listContributionsByAssociate should not be called without associate access');
+      },
+      async listProfitDistributionsByAssociate() {
+        throw new Error('listProfitDistributionsByAssociate should not be called without associate access');
+      },
+    },
+  });
+
+  await assert.rejects(() => getAssociateProfitabilityReport({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'El acceso a la rentabilidad del socio no está configurado para este usuario.');
     return true;
   });
 });
@@ -1071,7 +1097,7 @@ test('createExportAssociateProfitabilityReport rejects socio export requests', a
     format: 'xlsx',
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can access profitability reports');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
     return true;
   });
 });

@@ -18,6 +18,25 @@ const mockUpdateAlertStatus = vi.fn().mockResolvedValue(undefined);
 const mockUpdatePromiseStatus = vi.fn().mockResolvedValue(undefined);
 const mockDownloadPromiseDocument = vi.fn().mockResolvedValue(undefined);
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
+const defaultCreditDetailPaymentMethods = [
+  { key: 'transfer', type: 'transfer', label: 'Transferencia', name: 'Transferencia', isActive: true },
+  { key: 'cash', type: 'cash', label: 'Efectivo', name: 'Efectivo', isActive: true },
+];
+const defaultHistoryPayments = [
+  {
+    id: 9001,
+    amount: 250000,
+    paymentDate: '2026-03-10T00:00:00.000Z',
+    paymentType: 'installment',
+    paymentMethod: 'transfer',
+    status: 'completed',
+    reconciled: false,
+    createdBy: { id: 72, name: 'Operadora Caja', email: 'caja@test.local', role: 'employee' },
+  },
+];
+let routeLoanId = '101';
+let creditDetailPaymentMethods: any[] = [...defaultCreditDetailPaymentMethods];
+let historyPayments = [...defaultHistoryPayments];
 let mockCalendarEntries: Array<{
   installmentNumber: number | string;
   scheduledPayment: number;
@@ -65,7 +84,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
     ...actual,
-    useParams: () => ({ id: '101' }),
+    useParams: () => ({ id: routeLoanId }),
     useNavigate: () => mockNavigate,
   };
 });
@@ -81,16 +100,7 @@ vi.mock('../../services/reportService', () => ({
       data: {
         history: {
           payments: [
-            {
-              id: 9001,
-              amount: 250000,
-              paymentDate: '2026-03-10T00:00:00.000Z',
-              paymentType: 'installment',
-              paymentMethod: 'transfer',
-              status: 'completed',
-              reconciled: false,
-              createdBy: { id: 72, name: 'Operadora Caja', email: 'caja@test.local', role: 'employee' },
-            },
+            ...historyPayments,
           ],
           payoffHistory: [],
         },
@@ -128,10 +138,7 @@ vi.mock('../../store/sessionStore', () => ({
 
 vi.mock('../../services/configService', () => ({
   useConfig: () => ({
-    paymentMethods: [
-      { key: 'transfer', type: 'transfer', label: 'Transferencia', name: 'Transferencia', isActive: true },
-      { key: 'cash', type: 'cash', label: 'Efectivo', name: 'Efectivo', isActive: true },
-    ],
+    paymentMethods: creditDetailPaymentMethods,
   }),
 }));
 
@@ -205,6 +212,9 @@ describe('CreditDetails behavioral parity scenarios', () => {
     mockConfirmDanger.mockResolvedValue(true);
     mockLoan = buildMockLoan();
     mockPayoffQuote = null;
+    routeLoanId = '101';
+    creditDetailPaymentMethods = [...defaultCreditDetailPaymentMethods];
+    historyPayments = [...defaultHistoryPayments];
     mockCalendarEntries = [
       { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending', dueDate: '2026-03-25', outstandingAmount: 250000 },
     ];
@@ -223,13 +233,23 @@ describe('CreditDetails behavioral parity scenarios', () => {
     mockUseSessionStore.mockReturnValue({ user });
   };
 
+  it('uses operator-facing copy for invalid credit routes', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    routeLoanId = 'abc';
+
+    renderCreditDetails();
+
+    expect(screen.getByText('Crédito inválido')).toBeInTheDocument();
+    expect(screen.queryByText('ID de crédito inválido')).not.toBeInTheDocument();
+  });
+
   it('executes installment payment action with installment context', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockRecordPayment.mockResolvedValueOnce({ data: { paymentId: 7001 } });
     renderCreditDetails();
 
-    expect(screen.getByRole('button', { name: 'Calendario' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cronograma' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Calendario' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Cronograma' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
     expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
@@ -264,7 +284,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: /Historial de pagos/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Historial de pagos/ }));
 
     expect(screen.getByRole('cell', { name: 'Transferencia' })).toBeInTheDocument();
     const voucherButton = screen.getByRole('button', { name: 'Descargar comprobante' });
@@ -436,7 +456,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Historial' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial' }));
     fireEvent.click(screen.getByRole('button', { name: /Método/i }));
     fireEvent.change(screen.getByLabelText('Nuevo método'), { target: { value: 'cash' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
@@ -447,6 +467,26 @@ describe('CreditDetails behavioral parity scenarios', () => {
         paymentMethod: 'cash',
       });
     });
+  });
+
+  it('uses a generic payment method label when config lacks display names', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    creditDetailPaymentMethods = [
+      { key: 'internal_gateway', type: 'other', isActive: true },
+    ];
+    historyPayments = [
+      {
+        ...defaultHistoryPayments[0],
+        paymentMethod: 'internal_gateway',
+      },
+    ];
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Historial de pagos/ }));
+
+    expect(screen.getByText('Método sin nombre')).toBeInTheDocument();
+    expect(screen.queryByText(/internal_gateway/i)).not.toBeInTheDocument();
   });
 
   it('resolves alerts and updates promise statuses from their detail tabs', async () => {
@@ -471,7 +511,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: /Alertas/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Alertas/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
 
     await waitFor(() => {
@@ -481,7 +521,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
       }));
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Compromisos de pago/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Compromisos de pago/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Cumplida' }));
 
     await waitFor(() => {
@@ -507,7 +547,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: /Alertas/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Alertas/ }));
 
     expect(screen.getByText('Recordatorio de pago')).toBeInTheDocument();
     expect(screen.getByText('Cuota n.º 1')).toBeInTheDocument();
@@ -515,7 +555,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByText('prueba')).toBeInTheDocument();
     expect(screen.queryByText(/REMINDER|actor:3|status:active/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Historial' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial' }));
 
     expect(screen.getByText('Alerta activa')).toBeInTheDocument();
     expect(screen.getByText('Recordatorio de pago · Cuota n.º 1 · Sin saldo pendiente')).toBeInTheDocument();
@@ -798,8 +838,8 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    expect(screen.queryByRole('button', { name: 'Alertas' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Alertas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pago total' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Pagar cuota' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
@@ -821,8 +861,8 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    expect(screen.getByRole('button', { name: /Alertas/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Compromisos de pago/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Alertas/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Compromisos de pago/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeEnabled();
     expect(screen.getByTitle('Registrar pago de cuota')).toBeInTheDocument();
     expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
@@ -833,7 +873,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
   it('shows who registered each payment in the credit payment history', async () => {
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: /Historial de pagos/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Historial de pagos/ }));
 
     expect(await screen.findByText('Operadora Caja')).toBeInTheDocument();
     expect(screen.getByText('Registrado por')).toBeInTheDocument();
@@ -844,8 +884,9 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    expect(screen.queryByRole('button', { name: 'Alertas' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Alertas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
+
     expect(screen.getByRole('button', { name: 'Pago total' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Estado' })).not.toBeInTheDocument();

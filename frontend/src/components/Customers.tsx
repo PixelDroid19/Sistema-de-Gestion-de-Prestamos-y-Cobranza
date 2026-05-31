@@ -6,20 +6,23 @@ import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
+import { reportClientError } from '../lib/clientDiagnostics';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import { normalizeVisibleName } from '../lib/displayNames';
+import { useResolvedPermissionNames } from '../services/permissionsService';
 import TableShell from './shared/TableShell';
 import { ActionButton, FormField, IconActionButton, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
   const { user } = useSessionStore();
+  const resolvedPermissions = useResolvedPermissionNames(user);
   const { page, pageSize, setPage, setPageSize } = usePaginationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
-  const permissionSet = new Set((user?.permissions || []).map((permission) => permission.toUpperCase()));
+  const permissionSet = new Set(resolvedPermissions.map((permission) => permission.toUpperCase()));
   const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
   const canCreateCustomers = hasPermission(PERMISSION.CLIENTS_CREATE);
   const canUpdateCustomers = hasPermission(PERMISSION.CLIENTS_UPDATE);
@@ -42,15 +45,10 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   const totalPages = pagination?.totalPages || 1;
   const totalItems = pagination?.totalItems || pagination?.total || customers.length;
 
-  const formatCustomerId = (value: unknown) => {
-    const rawId = value == null ? '' : String(value);
-    return rawId ? `CUS-${rawId.slice(0, 8)}` : 'CUS-N/A';
-  };
-
   const formatCreatedAt = (value: unknown) => {
-    if (!value) return 'N/A';
+    if (!value) return tTerm('common.notAvailable');
 
-    return formatDateValue(value) || 'N/A';
+    return formatDateValue(value) || tTerm('common.notAvailable');
   };
 
   const getCustomerName = (customer: any) => {
@@ -59,12 +57,12 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
       name = normalizeVisibleName([customer?.firstName, customer?.lastName].filter(Boolean).join(' '));
     }
     name = name || normalizeVisibleName(customer?.email);
-    return name || tTerm('credits.label.customerFallback', { id: customer?.id || 'N/A' });
+    return name || tTerm('customerDetails.fallback.customerName');
   };
 
   const handleDelete = async (customer: any) => {
     if (!canDeleteCustomers) {
-      toast.apiErrorSafe(new Error('No tiene permiso para eliminar clientes.'), { domain: 'customers' });
+      toast.apiErrorSafe(new Error(tTerm('customers.permission.deleteDenied')), { domain: 'customers' });
       return;
     }
 
@@ -72,24 +70,24 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     if (!Number.isFinite(customerId)) return;
 
     const confirmed = await confirmDanger({
-      title: 'Eliminar cliente',
-      message: `¿Está seguro de eliminar a ${getCustomerName(customer)}? Esta acción no se puede deshacer.`,
-      confirmLabel: 'Eliminar',
+      title: tTerm('customers.confirm.delete.title'),
+      message: tTerm('customers.confirm.delete.message', { name: getCustomerName(customer) }),
+      confirmLabel: tTerm('customers.action.delete'),
     });
     if (!confirmed) return;
 
     try {
       await deleteCustomer.mutateAsync(customerId);
-      toast.success({ description: 'Cliente eliminado correctamente' });
+      toast.success({ description: tTerm('customers.toast.delete.success') });
     } catch (error) {
-      console.error('[customers] deleteCustomer failed', error);
+      reportClientError('customers.delete', error);
       toast.apiErrorSafe(error, { domain: 'customers' });
     }
   };
 
   const handleToggleStatus = async (customer: any) => {
     if (!canUpdateCustomers) {
-      toast.apiErrorSafe(new Error('No tiene permiso para cambiar el estado de clientes.'), { domain: 'customers' });
+      toast.apiErrorSafe(new Error(tTerm('customers.permission.statusDenied')), { domain: 'customers' });
       return;
     }
 
@@ -99,19 +97,23 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     const currentStatus = String(customer?.status || '').toLowerCase();
     const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
     const actionLabel = currentStatus === 'active'
-      ? 'Desactivar'
+      ? tTerm('customers.action.deactivate')
       : currentStatus === 'blacklisted'
-        ? 'Quitar bloqueo'
-        : 'Reactivar';
+        ? tTerm('customers.action.unblock')
+        : tTerm('customers.cta.restore');
 
     const confirmed = await confirmDanger({
-      title: nextStatus === 'inactive' ? 'Desactivar cliente' : actionLabel === 'Quitar bloqueo' ? 'Quitar bloqueo del cliente' : 'Reactivar cliente',
+      title: nextStatus === 'inactive'
+        ? tTerm('customers.confirm.deactivate.title')
+        : currentStatus === 'blacklisted'
+          ? tTerm('customers.confirm.unblock.title')
+          : tTerm('customers.confirm.restore.title'),
       message: nextStatus === 'inactive'
-        ? `¿Desea desactivar a ${getCustomerName(customer)}?`
-        : actionLabel === 'Quitar bloqueo'
-          ? `¿Desea quitar el bloqueo de ${getCustomerName(customer)} y dejarlo activo?`
-          : `¿Desea reactivar a ${getCustomerName(customer)}?`,
-      confirmLabel: nextStatus === 'inactive' ? 'Desactivar' : actionLabel,
+        ? tTerm('customers.confirm.deactivate.message', { name: getCustomerName(customer) })
+        : currentStatus === 'blacklisted'
+          ? tTerm('customers.confirm.unblock.message', { name: getCustomerName(customer) })
+          : tTerm('customers.confirm.restore.message', { name: getCustomerName(customer) }),
+      confirmLabel: nextStatus === 'inactive' ? tTerm('customers.action.deactivate') : actionLabel,
     });
     if (!confirmed) return;
 
@@ -119,11 +121,11 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
       await updateCustomer.mutateAsync({ id: customerId, status: nextStatus });
       toast.success({
         description: nextStatus === 'inactive'
-          ? 'Cliente desactivado correctamente'
-          : 'Cliente reactivado correctamente',
+          ? tTerm('customers.toast.deactivate.success')
+          : tTerm('customers.toast.restore.success'),
       });
     } catch (error) {
-      console.error('[customers] updateCustomer status failed', error);
+      reportClientError('customers.statusUpdate', error);
       toast.apiErrorSafe(error, { domain: 'customers' });
     }
   };
@@ -149,39 +151,39 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         <ToolbarSurface data-tour="customers-filters">
           <div className="grid items-start gap-3 lg:grid-cols-[minmax(18rem,26rem)_14rem_14rem]">
-            <FormField label="Buscar cliente" data-tour="customers-search">
+            <FormField label={tTerm('customers.filter.search.label')} data-tour="customers-search">
               <div className="relative">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <TextInput
                   type="text"
-                  placeholder="Buscar por nombre, correo o documento…"
+                  placeholder={tTerm('customers.filter.search.placeholder')}
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                   className="pl-10"
                 />
               </div>
             </FormField>
-            <FormField label="Estado" tooltip="Filtra la lista por estado operativo del cliente.">
+            <FormField label={tTerm('customers.filter.status.label')} tooltip={tTerm('customers.filter.status.tooltip')}>
               <SelectInput
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               >
-                <option value="all">Todos los estados</option>
+                <option value="all">{tTerm('customers.filter.status.all')}</option>
                 <option value="active">{tTerm('common.status.active')}</option>
                 <option value="inactive">{tTerm('common.status.inactive')}</option>
                 <option value="blacklisted">{tTerm('common.status.blacklisted')}</option>
               </SelectInput>
             </FormField>
-            <FormField label="Registro" tooltip="Acota clientes por fecha de alta en la plataforma.">
+            <FormField label={tTerm('customers.filter.registered.label')} tooltip={tTerm('customers.filter.registered.tooltip')}>
               <SelectInput
                 value={dateFilter}
                 onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
               >
-                <option value="all">Todo el tiempo</option>
-                <option value="today">Hoy</option>
-                <option value="week">Esta semana</option>
-                <option value="month">Este mes</option>
-                <option value="year">Este año</option>
+                <option value="all">{tTerm('customers.filter.registered.all')}</option>
+                <option value="today">{tTerm('customers.filter.registered.today')}</option>
+                <option value="week">{tTerm('customers.filter.registered.week')}</option>
+                <option value="month">{tTerm('customers.filter.registered.month')}</option>
+                <option value="year">{tTerm('customers.filter.registered.year')}</option>
               </SelectInput>
             </FormField>
           </div>
@@ -194,16 +196,16 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           hasData={customers.length > 0}
           loadingContent={
             <div className="flex items-center justify-center h-64 text-text-secondary">
-              Cargando clientes…
+              {tTerm('customers.state.loading')}
             </div>
           }
-          errorContent={<div className="flex items-center justify-center h-64 text-red-500">Error al cargar los clientes.</div>}
+          errorContent={<div className="flex items-center justify-center h-64 text-red-500">{tTerm('customers.state.error')}</div>}
           emptyContent={
             <div className="flex flex-col items-center justify-center h-64 text-text-secondary">
-              <p>No se encontraron clientes con esos filtros.</p>
+              <p>{tTerm('customers.state.empty')}</p>
             </div>
           }
-          recordsLabel="registros"
+          recordsLabel={tTerm('customers.table.recordsLabel')}
           pagination={{
             page,
             pageSize,
@@ -221,25 +223,23 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
             <table className="min-w-[760px] w-full text-sm text-left">
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
                 <tr>
-                  <th className="pb-3 font-medium">ID</th>
-                  <th className="pb-3 font-medium">Nombre</th>
-                  <th className="pb-3 font-medium">Contacto</th>
+                  <th className="pb-3 font-medium">{tTerm('customers.table.name')}</th>
+                  <th className="pb-3 font-medium">{tTerm('customers.table.contact')}</th>
                   <th className="pb-3 font-medium">
                     <HelpLabel
-                      label="Estado"
-                      text="Estado del perfil del cliente. Activo permite operar normalmente; inactivo o bloqueado restringe nuevas gestiones según la política."
+                      label={tTerm('customers.table.status')}
+                      text={tTerm('customers.table.statusHelp')}
                     />
                   </th>
-                  <th className="pb-3 font-medium">Registrado</th>
-                  <th className="pb-3 font-medium">Acciones</th>
+                  <th className="pb-3 font-medium">{tTerm('customers.table.registered')}</th>
+                  <th className="pb-3 font-medium">{tTerm('customers.table.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {customers.map((customer: any) => (
                   <tr key={customer.id} className="hover:bg-hover-bg transition-colors">
-                    <td className="py-4 text-text-secondary">{formatCustomerId(customer?.id)}</td>
                     <td className="py-4 font-medium flex items-center gap-3">
-                      <img src={`https://i.pravatar.cc/150?u=${customer.id}`} className="size-8 rounded-full" alt="avatar" />
+                      <img src={`https://i.pravatar.cc/150?u=${customer.id}`} className="size-8 rounded-full" alt={tTerm('customers.table.avatarAlt')} />
                       {getCustomerName(customer)}
                     </td>
                     <td className="py-4 text-text-secondary">{customer.email}</td>

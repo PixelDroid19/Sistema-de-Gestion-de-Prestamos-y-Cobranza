@@ -1,5 +1,6 @@
 import type React from 'react';
 import { ArrowLeft, CreditCard, DollarSign, Edit2, FileSpreadsheet, FileText, GitBranch, Layers, Percent, Table } from 'lucide-react';
+import { tTerm } from '../../i18n/terminology';
 import { QuickGuideButton } from '../shared/HelpSupport';
 import { ActionButton, IconActionButton, StatusChip } from '../shared/Surfaces';
 
@@ -90,11 +91,13 @@ export function CreditDetailHeader({
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <IconActionButton
               onClick={onBack}
-              label="Volver a créditos"
+              label={tTerm('creditDetails.header.back')}
               icon={<ArrowLeft size={20} />}
               className="shrink-0"
             />
-            <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-text-primary md:text-3xl">Crédito #{loanId}</h1>
+            <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-text-primary md:text-3xl">
+              {tTerm('creditDetails.header.title', { id: loanId })}
+            </h1>
             <StatusChip size="sm" className={`uppercase tracking-[0.12em] ${statusInfo.className}`}>
               {statusInfo.label}
             </StatusChip>
@@ -104,8 +107,8 @@ export function CreditDetailHeader({
           </p>
 
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1.5">
-            <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
-            <InlineMetaLine icon={GitBranch} label="Perfil" value={calculationProfileSummary} />
+            <InlineMetaLine icon={FileText} label={tTerm('creditDetails.header.customer')} value={customerLabel} />
+            <InlineMetaLine icon={GitBranch} label={tTerm('creditDetails.header.profile')} value={calculationProfileSummary} />
           </div>
         </div>
 
@@ -119,20 +122,20 @@ export function CreditDetailHeader({
             <ActionButton
               onClick={onOpenLateFeeRate}
               disabled={!lateFeeUpdateGuard.executable}
-              title={lateFeeUpdateGuard.executable ? 'Ajustar tasa de mora del crédito' : lateFeeUpdateGuard.reason}
+              title={lateFeeUpdateGuard.executable ? tTerm('creditDetails.header.lateFeeTitle') : lateFeeUpdateGuard.reason}
               icon={<Percent size={16} />}
             >
-              Tasa de mora
+              {tTerm('creditDetails.header.lateFee')}
             </ActionButton>
           )}
           {canAccessBackofficeActions && creditStatusUpdateGuard.visible && (
             <ActionButton
               onClick={onOpenStatus}
               disabled={!creditStatusUpdateGuard.executable}
-              title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
+              title={creditStatusUpdateGuard.executable ? tTerm('creditDetails.header.statusTitle') : creditStatusUpdateGuard.reason}
               icon={<Edit2 size={16} />}
             >
-              Estado
+              {tTerm('creditDetails.header.status')}
             </ActionButton>
           )}
           {canExportCreditExcel && (
@@ -140,18 +143,18 @@ export function CreditDetailHeader({
               onClick={onExportCreditExcel}
               disabled={isExportingCreditExcel}
               isLoading={isExportingCreditExcel}
-              title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
+              title={tTerm('creditDetails.header.excelTitle')}
               icon={<FileSpreadsheet size={16} />}
             >
-              Excel
+              {tTerm('creditDetails.header.excel')}
             </ActionButton>
           )}
           <ActionButton
             onClick={onOpenSchedule}
-            title="Ver plan de pagos completo"
+            title={tTerm('creditDetails.header.scheduleTitle')}
             icon={<Table size={16} />}
           >
-            Plan de pagos
+            {tTerm('creditDetails.header.schedule')}
           </ActionButton>
         </div>
       </div>
@@ -163,10 +166,10 @@ export function CreditDetailHeader({
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,0.75fr)_auto] lg:items-center">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary/60">
-              Acciones de pago
+              {tTerm('creditDetails.header.paymentActions')}
             </p>
             <p className="mt-1 text-xs leading-5 text-text-secondary">
-              Recaudos y liquidación del crédito.
+              {tTerm('creditDetails.header.paymentActionsSubtitle')}
             </p>
           </div>
           <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:flex lg:flex-nowrap lg:justify-end">
@@ -186,8 +189,10 @@ export function CreditDetailHeader({
             <ActionButton
               onClick={onOpenCapitalPayment}
               disabled={!capitalPaymentGuard.executable}
-              disabledReason={!capitalPaymentGuard.executable && capitalPaymentGuard.reason ? `Abono a capital no disponible. ${capitalPaymentGuard.reason}` : undefined}
-              title="Registrar un abono que reduce capital vivo y recalcula el cronograma pendiente"
+              disabledReason={!capitalPaymentGuard.executable && capitalPaymentGuard.reason
+                ? tTerm('creditDetails.header.capitalDisabled', { reason: capitalPaymentGuard.reason })
+                : undefined}
+              title={tTerm('creditDetails.header.capitalTitle')}
               icon={<Layers size={16} />}
               className="w-full lg:w-auto"
             >
@@ -198,12 +203,14 @@ export function CreditDetailHeader({
             <ActionButton
               onClick={onPayoff}
               disabled={!payoffPaymentGuard.executable}
-              disabledReason={!payoffPaymentGuard.executable && payoffPaymentGuard.reason ? `Pago total no disponible. ${payoffPaymentGuard.reason}` : undefined}
-              title="Liquidar el saldo completo del crédito"
+              disabledReason={!payoffPaymentGuard.executable && payoffPaymentGuard.reason
+                ? tTerm('creditDetails.header.payoffDisabled', { reason: payoffPaymentGuard.reason })
+                : undefined}
+              title={tTerm('creditDetails.header.payoffTitle')}
               icon={<CreditCard size={16} />}
               className="w-full lg:w-auto"
             >
-              Pago total
+              {tTerm('creditDetails.header.payoff')}
             </ActionButton>
           )}
           </div>

@@ -23,6 +23,19 @@ const PAYOFF_PAYMENT_TYPE = 'payoff';
 const PARTIAL_PAYMENT_TYPE = 'partial';
 const CAPITAL_PAYMENT_TYPE = 'capital';
 const PAYMENT_METHOD_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const PAYMENT_METHOD_CONFIGURED_MESSAGE = 'Selecciona un método de pago configurado.';
+const LOAN_NOT_PAYABLE_PAYMENT_MESSAGE = 'Solo se pueden registrar pagos en créditos pendientes, aprobados, activos, vencidos o en incumplimiento.';
+const PAYMENT_POSITIVE_AMOUNT_MESSAGE = 'El monto del pago debe ser mayor que 0.';
+const CAPITAL_RESCHEDULE_TERM_MESSAGE = 'Para reducir la cuota debes indicar un plazo nuevo entre 1 y 360 meses.';
+const PAYOFF_QUOTE_STALE_MESSAGE = 'La cotización de pago total ya no está vigente o no cubre el saldo. Solicita una nueva cotización.';
+const INSTALLMENT_ANNUL_LOAN_STATUS_MESSAGE = 'No se pueden anular cuotas de un crédito que no está pendiente, activo, vencido o en incumplimiento.';
+const INSTALLMENT_ANNUL_NONE_MESSAGE = 'No hay cuotas pendientes o vencidas disponibles para anular.';
+const INSTALLMENT_ANNUL_NEAREST_MESSAGE = 'Solo puedes anular la cuota pendiente o vencida más cercana.';
+const PAYMENT_RECONCILED_METHOD_UPDATE_MESSAGE = 'No se puede cambiar el método de pago de un pago conciliado.';
+const PAYMENT_IDEMPOTENCY_CONFLICT_MESSAGE = 'Esta operación de pago ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.';
+const PAYMENT_IDEMPOTENCY_PENDING_MESSAGE = 'Esta operación de pago ya se está procesando. Espera el resultado antes de intentar nuevamente.';
+const INSTALLMENT_ANNUL_ADMIN_REQUIRED_MESSAGE = 'Solo un administrador puede anular cuotas.';
+const PAYMENT_METHOD_UPDATE_ADMIN_REQUIRED_MESSAGE = 'Solo un administrador puede cambiar métodos de pago.';
 const CAPITAL_STRATEGY_ALIASES = new Map([
   ['reduce_term', 'reduce_term'],
   ['reduce_time', 'reduce_term'],
@@ -146,7 +159,7 @@ const normalizePaymentMethod = (paymentMethod) => {
 
   const normalizedPaymentMethod = String(paymentMethod).trim().toLowerCase();
   if (!PAYMENT_METHOD_KEY_PATTERN.test(normalizedPaymentMethod)) {
-    throw new ValidationError('Payment method must be a configured key using letters, numbers, hyphen or underscore');
+    throw new ValidationError(PAYMENT_METHOD_CONFIGURED_MESSAGE);
   }
 
   return normalizedPaymentMethod;
@@ -191,14 +204,14 @@ const buildPaymentOperationCachePayload = (result = {}) => ({
 
 const assertPayableLoanStatus = (loan) => {
   if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
-    throw new ValidationError('Payments can only be applied to pending, approved, active, overdue, or defaulted loans');
+    throw new ValidationError(LOAN_NOT_PAYABLE_PAYMENT_MESSAGE);
   }
 };
 
 const assertPositiveAmount = (amount) => {
   const numericAmount = roundCurrency(amount);
   if (numericAmount <= 0) {
-    throw new ValidationError('Payment amount must be greater than 0');
+    throw new ValidationError(PAYMENT_POSITIVE_AMOUNT_MESSAGE);
   }
 
   return numericAmount;
@@ -216,12 +229,12 @@ const assertCapitalRescheduleTerm = (termMonths) => {
     || normalizedTerm === ''
     || (typeof normalizedTerm === 'string' && !/^\d+$/.test(normalizedTerm))
   ) {
-    throw new ValidationError('newTermMonths must be an integer between 1 and 360 for reduce_payment capital payments');
+    throw new ValidationError(CAPITAL_RESCHEDULE_TERM_MESSAGE);
   }
 
   const numericTerm = Number(normalizedTerm);
   if (!Number.isInteger(numericTerm) || numericTerm < 1 || numericTerm > 360) {
-    throw new ValidationError('newTermMonths must be an integer between 1 and 360 for reduce_payment capital payments');
+    throw new ValidationError(CAPITAL_RESCHEDULE_TERM_MESSAGE);
   }
   return numericTerm;
 };
@@ -1203,7 +1216,7 @@ const createPaymentApplicationService = ({
       const recomputedQuote = loanViewService.getPayoffQuote(loan, asOfDate);
 
       if (roundCurrency(recomputedQuote.total) !== normalizedQuotedTotal) {
-        throw new ValidationError('Submitted payoff quote is stale or insufficient; request a new quote');
+        throw new ValidationError(PAYOFF_QUOTE_STALE_MESSAGE);
       }
 
       const normalizedPaymentDate = normalizePaymentDate(paymentDate);
@@ -1290,7 +1303,7 @@ const createPaymentApplicationService = ({
    */
   const annulInstallment = async ({ loanId, actor, reason, installmentNumber = null, paymentDate = clock(), idempotencyKey = null }) => {
     if (actor?.role !== 'admin') {
-      throw new AuthorizationError('Only admins can annul installments');
+      throw new AuthorizationError(INSTALLMENT_ANNUL_ADMIN_REQUIRED_MESSAGE);
     }
 
     return runPaymentOperationWithIdempotency({
@@ -1310,7 +1323,7 @@ const createPaymentApplicationService = ({
 
       const cancellableLoanStatuses = new Set(['pending', 'active', 'overdue', 'defaulted']);
       if (!cancellableLoanStatuses.has(loan.status)) {
-        throw new ValidationError('Cannot annul installments on a loan with status: ' + loan.status);
+        throw new ValidationError(INSTALLMENT_ANNUL_LOAN_STATUS_MESSAGE);
       }
 
       const normalizedPaymentDate = normalizePaymentDate(paymentDate);
@@ -1333,7 +1346,7 @@ const createPaymentApplicationService = ({
       });
 
       if (!nearestCancellableRow) {
-        throw new ValidationError('No cancellable installments found. All installments may already be paid or annulled.');
+        throw new ValidationError(INSTALLMENT_ANNUL_NONE_MESSAGE);
       }
 
       let cancellableRow = nearestCancellableRow;
@@ -1342,24 +1355,24 @@ const createPaymentApplicationService = ({
         const requestedRow = schedule.find((row) => Number(row.installmentNumber) === requestedInstallmentNumber);
 
         if (!requestedRow) {
-          throw new ValidationError(`Installment #${requestedInstallmentNumber} does not exist for this loan`);
+          throw new ValidationError(`La cuota número ${requestedInstallmentNumber} no existe en este crédito.`);
         }
 
         if (requestedRow.status === 'annulled') {
-          throw new ValidationError(`Installment #${requestedInstallmentNumber} is already annulled`);
+          throw new ValidationError(`La cuota número ${requestedInstallmentNumber} ya está anulada.`);
         }
 
         const requestedOutstanding = roundCurrency((requestedRow.remainingPrincipal || 0) + (requestedRow.remainingInterest || 0));
         if (requestedOutstanding <= 0 || requestedRow.status === 'paid') {
-          throw new ValidationError(`Installment #${requestedInstallmentNumber} is already paid and cannot be annulled`);
+          throw new ValidationError(`La cuota número ${requestedInstallmentNumber} ya está pagada y no se puede anular.`);
         }
 
         if (!CANCELLABLE_STATUSES.has(requestedRow.status)) {
-          throw new ValidationError(`Installment #${requestedInstallmentNumber} cannot be annulled because it is in status '${requestedRow.status}'. Only pending or overdue installments can be annulled.`);
+          throw new ValidationError(`La cuota número ${requestedInstallmentNumber} no se puede anular porque no está pendiente ni vencida.`);
         }
 
         if (Number(requestedRow.installmentNumber) !== Number(nearestCancellableRow.installmentNumber)) {
-          throw new ValidationError(`Cannot annul installment #${requestedInstallmentNumber}. Only the nearest pending or overdue installment (#${nearestCancellableRow.installmentNumber}) can be annulled.`);
+          throw new ValidationError(`${INSTALLMENT_ANNUL_NEAREST_MESSAGE} La cuota disponible es la número ${nearestCancellableRow.installmentNumber}.`);
         }
 
         cancellableRow = requestedRow;
@@ -1373,7 +1386,7 @@ const createPaymentApplicationService = ({
       });
 
       if (hasEarlierNonCancelled) {
-        throw new ValidationError('Cannot annul this installment. Only the nearest pending or overdue installment can be annulled.');
+        throw new ValidationError(INSTALLMENT_ANNUL_NEAREST_MESSAGE);
       }
 
       const previousStatus = cancellableRow.status;
@@ -1462,7 +1475,7 @@ const createPaymentApplicationService = ({
    */
   const updatePaymentMethod = async ({ loanId, paymentId, paymentMethod, actor }) => {
     if (actor?.role !== 'admin') {
-      throw new AuthorizationError('Only admins can update payment methods');
+      throw new AuthorizationError(PAYMENT_METHOD_UPDATE_ADMIN_REQUIRED_MESSAGE);
     }
 
     const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
@@ -1478,7 +1491,7 @@ const createPaymentApplicationService = ({
       }
 
       if (payment.status === 'reconciled') {
-        throw new ValidationError('Cannot update payment method for reconciled payments');
+        throw new ValidationError(PAYMENT_RECONCILED_METHOD_UPDATE_MESSAGE);
       }
 
       payment.paymentMethod = normalizedPaymentMethod;
@@ -1530,7 +1543,7 @@ const createPaymentApplicationService = ({
 
   const assertSameIdempotencyRequest = (record, requestHash) => {
     if (record?.requestHash && record.requestHash !== requestHash) {
-      throw new ValidationError('Idempotency key was already used with a different payment request');
+      throw new ValidationError(PAYMENT_IDEMPOTENCY_CONFLICT_MESSAGE);
     }
   };
 
@@ -1552,7 +1565,7 @@ const createPaymentApplicationService = ({
       await sleep(BASE_DELAY_MS * attempt);
     }
 
-    throw new ValidationError('Payment operation with this idempotency key is currently being processed');
+    throw new ValidationError(PAYMENT_IDEMPOTENCY_PENDING_MESSAGE);
   };
 
   const runTransactionWithRetry = async (transactionFn) => {
@@ -1665,7 +1678,7 @@ const createPaymentApplicationService = ({
         }
 
         if (existingKey?.status === 'pending') {
-          throw new PendingIdempotencyError('Payment operation with this idempotency key is currently being processed');
+          throw new PendingIdempotencyError(PAYMENT_IDEMPOTENCY_PENDING_MESSAGE);
         }
 
         if (existingKey) {
@@ -1693,7 +1706,7 @@ const createPaymentApplicationService = ({
               throw error;
             }
 
-            throw new PendingIdempotencyError('Payment operation with this idempotency key is currently being processed');
+            throw new PendingIdempotencyError(PAYMENT_IDEMPOTENCY_PENDING_MESSAGE);
           }
         }
 

@@ -218,7 +218,31 @@ describe('apiClient refresh coordination', () => {
     expect(sessionState.updateAccessToken).toHaveBeenCalledWith('fresh-access', 'refresh-token-2');
   });
 
-  it('logs out instead of refreshing when the administrative user is missing', async () => {
+  it('uses an operational fallback when an API error payload has no message', async () => {
+    sessionState.accessToken = 'fresh-access';
+    sessionState.refreshToken = null as unknown as string;
+
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: false,
+      error: {
+        statusCode: 500,
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('./client');
+
+    await expect(apiClient.get('/reports/dashboard')).rejects.toMatchObject({
+      message: 'No se pudo completar la operación',
+      statusCode: 500,
+    });
+  });
+
+  it('logs out with session-safe copy instead of refreshing when the administrative user is missing', async () => {
     sessionState.accessToken = null as unknown as string;
     sessionState.refreshToken = 'orphan-refresh-token';
     sessionState.user = null as never;
@@ -241,11 +265,68 @@ describe('apiClient refresh coordination', () => {
     const { apiClient } = await import('./client');
 
     await expect(apiClient.get('/reports/dashboard')).rejects.toMatchObject({
-      message: 'No administrative user available',
+      message: 'Inicia sesión nuevamente para continuar.',
       statusCode: 401,
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(sessionState.logout).toHaveBeenCalled();
+  });
+
+  it('logs out with session-safe copy when a stale session has no refresh token', async () => {
+    sessionState.accessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.signature';
+    sessionState.refreshToken = null as unknown as string;
+    sessionState.user = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin' };
+
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: false,
+      error: { message: 'expired', statusCode: 401 },
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('./client');
+
+    await expect(apiClient.get('/reports/dashboard')).rejects.toMatchObject({
+      message: 'Inicia sesión nuevamente para continuar.',
+      statusCode: 401,
+    });
+
+    expect(sessionState.logout).toHaveBeenCalled();
+  });
+
+  it('logs out with session-safe copy when the refresh response is incomplete', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/api/auth/refresh')) {
+        return new Response(JSON.stringify({ success: true, data: {} }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: { message: 'expired', statusCode: 401 },
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('./client');
+
+    await expect(apiClient.get('/reports/dashboard')).rejects.toMatchObject({
+      message: 'Inicia sesión nuevamente para continuar.',
+      statusCode: 401,
+    });
+
     expect(sessionState.logout).toHaveBeenCalled();
   });
 });

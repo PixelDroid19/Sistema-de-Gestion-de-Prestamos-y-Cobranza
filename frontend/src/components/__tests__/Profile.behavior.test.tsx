@@ -71,6 +71,12 @@ describe('Profile behavior', () => {
     expect(screen.queryByText(/clientes y socios/i)).not.toBeInTheDocument();
   });
 
+  it('labels the profile tablist for assistive navigation', () => {
+    renderProfile();
+
+    expect(screen.getByRole('tablist', { name: 'Secciones del perfil' })).toBeInTheDocument();
+  });
+
   it('does not send customer contact fields when an employee updates the profile', async () => {
     currentUser = {
       id: 2,

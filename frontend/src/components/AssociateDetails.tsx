@@ -7,6 +7,7 @@ import { tTerm } from '../i18n/terminology';
 import { useAssociateDetails } from '../services/associateService';
 import { parseFormattedPositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
+import { getPaymentMethodLabel } from '../constants/paymentTypes';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
@@ -439,7 +440,7 @@ export default function AssociateDetails() {
                   <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
                   <td>{formatAssociateDate(entry.dueDate)}</td>
                   <td>{formatAssociateDate(entry.paidAt)}</td>
-                  <td className="text-text-secondary">{entry.paymentMethod || tTerm('common.notSpecified')}</td>
+                  <td className="text-text-secondary">{getPaymentMethodLabel(entry.paymentMethod)}</td>
                 </tr>
               ))}
             </tbody>
@@ -758,6 +759,7 @@ export default function AssociateDetails() {
             : showModal === 'distribution'
               ? tTerm('associateDetails.modal.title.distribution')
               : tTerm('associateDetails.modal.title.reinvestment')}
+          onClose={closeMoneyActionModal}
         >
             <form noValidate onSubmit={handleAction} className="space-y-4">
               <FormField
@@ -803,6 +805,7 @@ export default function AssociateDetails() {
         <ModalShell
           title={tTerm('associateDetails.installmentPayment.title')}
           subtitle={tTerm('associateDetails.installmentPayment.subtitle', { installmentNumber: payingInstallmentNumber })}
+          onClose={handleClosePayInstallmentModal}
         >
           <form noValidate onSubmit={handlePayInstallment} className="space-y-4">
             <FormField

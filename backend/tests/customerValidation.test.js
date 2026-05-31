@@ -53,7 +53,7 @@ test('customerValidation.update rejects invalid partial customer updates with st
   assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     { field: 'name', message: 'El nombre debe tener al menos 2 caracteres' },
-    { field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' },
+    { field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario@empresa.com)' },
     { field: 'phone', message: 'El teléfono debe ser válido' },
     { field: 'status', message: 'El estado debe ser activo, inactivo o bloqueado' },
     { field: 'birthDate', message: 'La fecha de nacimiento debe tener formato AAAA-MM-DD' },

@@ -13,14 +13,6 @@ type DecimalOptions = NumericRangeOptions & {
   maxDecimals?: number;
 };
 
-const isWithinRange = (value: number, options: NumericRangeOptions = {}) => {
-  if (!Number.isFinite(value)) return false;
-  if (!options.allowZero && value === 0) return false;
-  if (options.min !== undefined && value < options.min) return false;
-  if (options.max !== undefined && value > options.max) return false;
-  return true;
-};
-
 const exceedsUpperBound = (value: number, options: NumericRangeOptions = {}) => (
   Number.isFinite(value)
   && options.max !== undefined

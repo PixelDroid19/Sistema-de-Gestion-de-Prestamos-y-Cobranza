@@ -187,7 +187,7 @@ test('push subscription use cases reject payloads without endpoint or device tok
       providerKey: 'fcm',
       channel: 'mobile',
     },
-  }), /Debe indicar endpoint o token del dispositivo para la suscripción/);
+  }), /Debe indicar el identificador de la suscripción o el token del dispositivo/);
 });
 
 test('createNotificationsModule publishes notification ports to the shared runtime', () => {

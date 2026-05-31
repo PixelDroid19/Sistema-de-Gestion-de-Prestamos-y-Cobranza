@@ -34,7 +34,7 @@ const createAttachmentUpload = ({
   },
   fileFilter(req, file, callback) {
     if (!isAllowedAttachmentMimeType(file?.mimetype, allowedMimeTypes)) {
-      const error = new Error('Unsupported attachment file type');
+      const error = new Error('Tipo de archivo no permitido para el soporte.');
       error.statusCode = 400;
       return callback(error);
     }

@@ -37,7 +37,7 @@ const parsePaginationQuery = (
   if (!isBlank(source.page)) {
     const parsedPage = parsePositiveInteger(source.page);
     if (!parsedPage) {
-      errors.push({ field: 'page', message: 'page must be a positive integer' });
+      errors.push({ field: 'page', message: 'La página debe ser un entero positivo' });
     } else {
       page = parsedPage;
     }
@@ -48,9 +48,9 @@ const parsePaginationQuery = (
   if (!isBlank(rawPageSize)) {
     const parsedPageSize = parsePositiveInteger(rawPageSize);
     if (!parsedPageSize) {
-      errors.push({ field: 'pageSize', message: 'pageSize must be a positive integer' });
+      errors.push({ field: 'pageSize', message: 'El tamaño de página debe ser un entero positivo' });
     } else if (parsedPageSize > maxPageSize) {
-      errors.push({ field: 'pageSize', message: `pageSize must be less than or equal to ${maxPageSize}` });
+      errors.push({ field: 'pageSize', message: `El tamaño de página debe ser menor o igual a ${maxPageSize}` });
     } else {
       pageSize = parsedPageSize;
     }

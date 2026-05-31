@@ -80,11 +80,30 @@ test('createUpdateLateFeeRate rejects malformed numeric rates before saving', as
   for (const lateFeeRate of ['1abc', '1e2']) {
     await assert.rejects(
       () => updateLateFeeRate({ actor: { id: 1, role: 'admin' }, loanId: 11, lateFeeRate }),
-      (error) => error instanceof ValidationError && /Late fee rate/.test(error.message),
+      (error) => error instanceof ValidationError && error.message === 'La tasa de mora debe ser un número entre 0 y 100.',
     );
   }
 
   assert.deepEqual(savedLoans, []);
+});
+
+test('createUpdateLateFeeRate rejects non-admin actors with an operator-facing message', async () => {
+  const updateLateFeeRate = createUpdateLateFeeRate({
+    loanRepository: {
+      async findById() {
+        throw new Error('findById should not be called for unauthorized actors');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => updateLateFeeRate({ actor: { id: 2, role: 'employee' }, loanId: 11, lateFeeRate: 5 }),
+    (error) => {
+      assert.ok(error instanceof AuthorizationError);
+      assert.equal(error.message, 'Solo un administrador puede actualizar tasas de mora.');
+      return true;
+    },
+  );
 });
 
 test('createListLoans enriches visible loan rows with additive customer summary data', async () => {
@@ -189,7 +208,7 @@ test('createSearchLoans rejects customer records before repository lookup', asyn
     filters: { search: 'ana' },
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can search loans');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden buscar créditos.');
     return true;
   });
 });
@@ -304,7 +323,57 @@ test('createCreateLoan rejects customer records before loan creation', async () 
     idempotencyKey: 'qa-credit-create-1',
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can create loans');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden crear créditos.');
+    return true;
+  });
+});
+
+test('createCreateLoan rejects conflicting idempotency requests with an operator message', async () => {
+  const createLoan = createCreateLoan({
+    loanCreationService: {
+      async create() {
+        throw new Error('loan creation should not be called for conflicting idempotency keys');
+      },
+    },
+    idempotencyKeyModel: {
+      async findOne() {
+        return { requestHash: 'different-request' };
+      },
+    },
+  });
+
+  await assert.rejects(() => createLoan({
+    actor: { id: 7, role: 'admin' },
+    payload: { customerId: 7, amount: 1000 },
+    idempotencyKey: 'qa-credit-create-conflict',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Esta creación de crédito ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.');
+    return true;
+  });
+});
+
+test('createCreateLoan rejects pending idempotency requests with an operator message', async () => {
+  const createLoan = createCreateLoan({
+    loanCreationService: {
+      async create() {
+        throw new Error('loan creation should not be called while idempotency key is pending');
+      },
+    },
+    idempotencyKeyModel: {
+      async findOne() {
+        return { status: 'pending' };
+      },
+    },
+  });
+
+  await assert.rejects(() => createLoan({
+    actor: { id: 7, role: 'admin' },
+    payload: { customerId: 7, amount: 1000 },
+    idempotencyKey: 'qa-credit-create-pending',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'La creación del crédito ya se está procesando. Espera el resultado antes de intentar nuevamente.');
     return true;
   });
 });
@@ -328,7 +397,7 @@ test('createListLoansByCustomer rejects customer records before repository looku
     customerId: 7,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can list customer loans');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden consultar créditos del cliente.');
     return true;
   });
 });
@@ -361,6 +430,103 @@ test('createUpdateLoanStatus moves defaulted loans into pending recovery', async
 
   assert.equal(updatedLoan.status, 'defaulted');
   assert.equal(updatedLoan.recoveryStatus, 'pending');
+});
+
+test('createUpdateLoanStatus rejects invalid statuses without exposing status catalogs', async () => {
+  const updateLoanStatus = createUpdateLoanStatus({
+    loanRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => updateLoanStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 32,
+    status: 'archived_internal',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Selecciona un estado de crédito válido.');
+    assert.doesNotMatch(error.message, /pending|approved|archived_internal/i);
+    return true;
+  });
+});
+
+test('createUpdateLoanStatus rejects invalid transitions without exposing internal state names', async () => {
+  const updateLoanStatus = createUpdateLoanStatus({
+    loanRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return {
+          id: 32,
+          status: 'approved',
+          recoveryStatus: null,
+          customerId: 4,
+          termMonths: 12,
+        };
+      },
+    },
+  });
+
+  await assert.rejects(() => updateLoanStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 32,
+    status: 'cancelled',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'El cambio de estado solicitado no está permitido para este crédito.');
+    assert.doesNotMatch(error.message, /approved|cancelled|active|rejected/i);
+    return true;
+  });
+});
+
+test('createUpdateLoanStatus rejects terminal loan states with specific operator messages', async () => {
+  let currentStatus = 'closed';
+  const updateLoanStatus = createUpdateLoanStatus({
+    loanRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return {
+          id: 32,
+          status: currentStatus,
+          recoveryStatus: null,
+          customerId: 4,
+          termMonths: 12,
+        };
+      },
+    },
+  });
+
+  await assert.rejects(() => updateLoanStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 32,
+    status: 'active',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'No se puede modificar un crédito cerrado.');
+    return true;
+  });
+
+  currentStatus = 'rejected';
+
+  await assert.rejects(() => updateLoanStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 32,
+    status: 'approved',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'No se puede modificar un crédito rechazado.');
+    return true;
+  });
 });
 
 test('createUpdateLoanStatus rejects unauthorized admin mutation attempts through shared policy', async () => {
@@ -420,6 +586,50 @@ test('createUpdateRecoveryStatus lets admins progress recovery', async () => {
   });
 
   assert.equal(updatedLoan.recoveryStatus, 'in_progress');
+});
+
+test('createUpdateRecoveryStatus rejects invalid recovery states without exposing state catalogs', async () => {
+  const updateRecoveryStatus = createUpdateRecoveryStatus({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        throw new Error('findAuthorizedMutationLoan should not be called');
+      },
+    },
+    loanRepository: {},
+  });
+
+  await assert.rejects(() => updateRecoveryStatus({
+    actor: { id: 9, role: 'admin' },
+    loanId: 32,
+    recoveryStatus: 'escalated_internal',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Selecciona un estado de recuperación válido.');
+    assert.doesNotMatch(error.message, /pending|assigned|escalated_internal/i);
+    return true;
+  });
+});
+
+test('createUpdateRecoveryStatus rejects non-administrative actors with an operator-facing message', async () => {
+  const updateRecoveryStatus = createUpdateRecoveryStatus({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        throw new Error('findAuthorizedMutationLoan should not be called');
+      },
+    },
+    loanRepository: {},
+  });
+
+  await assert.rejects(() => updateRecoveryStatus({
+    actor: { id: 9, role: 'customer' },
+    loanId: 32,
+    recoveryStatus: 'pending',
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden actualizar la recuperación.');
+    assert.doesNotMatch(error.message, /customer|backoffice|employee/i);
+    return true;
+  });
 });
 
 test('createDeleteLoan rejects deletion of a foreign rejected loan before destroy', async () => {
@@ -513,11 +723,32 @@ test('createDeleteLoan rejects non-admin actors before touching the repository',
     loanId: 77,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can delete loans');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden anular créditos.');
     return true;
   });
 
   assert.equal(checkedMutationAccess, false);
+});
+
+test('createDeleteLoan rejects non-rejected loans with an operator-facing message', async () => {
+  const activeLoan = { id: 77, status: 'active' };
+  const deleteLoan = createDeleteLoan({
+    loanRepository: {},
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return activeLoan;
+      },
+    },
+  });
+
+  await assert.rejects(() => deleteLoan({
+    actor: { id: 1, role: 'admin' },
+    loanId: 77,
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Solo se pueden cancelar créditos rechazados.');
+    return true;
+  });
 });
 
 test('createListLoanAttachments rejects customer records before loading attachments', async () => {
@@ -538,7 +769,7 @@ test('createListLoanAttachments rejects customer records before loading attachme
 
   await assert.rejects(() => listLoanAttachments({ actor: { id: 7, role: 'customer' }, loanId: 22 }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can list loan attachments');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden consultar soportes del crédito.');
     return true;
   });
 });
@@ -659,7 +890,7 @@ test('createLoanAttachment rejects mismatched attachment file signatures', async
       mimetype: 'application/pdf',
       size: 2048,
     },
-  }), /does not match the declared file type/i);
+  }), /no coincide con el tipo declarado/i);
 
   assert.equal(deletedPath, '/tmp/loan-proof.pdf');
 });
@@ -707,7 +938,7 @@ test('createLoanAttachment rejects unreadable or too-small files for declared si
       mimetype: 'image/webp',
       size: 4,
     },
-  }), /unreadable or too small/i);
+  }), /no se puede leer o es demasiado pequeño/i);
 
   assert.equal(deletedPath, '/tmp/loan-proof.pdf');
 });
@@ -738,7 +969,7 @@ test('createDownloadLoanAttachment rejects customer records before attachment lo
     attachmentId: 4,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only authorized backoffice users can download loan attachments');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden descargar soportes del crédito.');
     return true;
   });
 });
@@ -1141,7 +1372,11 @@ test('createGetPaymentCalendarOverview rejects malformed limit filters', async (
     actor: { id: 1, role: 'admin' },
     loanIds: [],
     filters: { limit: '1e2' },
-  }), /limit/);
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'El límite de la agenda debe ser un entero positivo.');
+    return true;
+  });
 });
 
 test('createGetPaymentCalendarOverview rejects inverted date range in calendar filters', async () => {
@@ -1178,7 +1413,45 @@ test('createGetPaymentCalendarOverview rejects inverted date range in calendar f
       startDate: '2026-06-30',
       endDate: '2026-06-01',
     },
-  }), (error) => /startDate must be before or equal to endDate/.test(error.message));
+  }), (error) => /fecha inicial debe ser anterior o igual a la fecha final/i.test(error.message));
+});
+
+test('createGetPaymentCalendarOverview rejects malformed date filters with an operator message', async () => {
+  const getPaymentCalendarOverview = createGetPaymentCalendarOverview({
+    loanAccessPolicy: {
+      filterVisibleLoans({ loans }) {
+        return loans;
+      },
+    },
+    loanRepository: {
+      async list() {
+        throw new Error('list should not be called when filters are invalid');
+      },
+      async search() {
+        throw new Error('search should not be called when filters are invalid');
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        throw new Error('getCanonicalLoanView should not be called');
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        throw new Error('listByLoan should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => getPaymentCalendarOverview({
+    actor: { id: 1, role: 'admin' },
+    loanIds: [],
+    filters: { startDate: 'not-a-date' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'La fecha inicial debe tener formato AAAA-MM-DD');
+    return true;
+  });
 });
 
 test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {
@@ -1294,7 +1567,107 @@ test('createExecutePayoff rejects unsupported actors before payment execution', 
     loanId: 22,
     asOfDate: '2026-03-15',
     quotedTotal: 104.56,
-  }), AuthorizationError);
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar pagos totales.');
+    return true;
+  });
+});
+
+test('credit follow-up use cases reject unsupported actors with operator-facing messages', async () => {
+  const loanAccessPolicy = {
+    async findAuthorizedLoan() {
+      throw new Error('findAuthorizedLoan should not be called');
+    },
+    async findAuthorizedMutationLoan() {
+      throw new Error('findAuthorizedMutationLoan should not be called');
+    },
+  };
+  const notificationPort = {
+    async sendLoanReminder() {
+      throw new Error('sendLoanReminder should not be called');
+    },
+    async sendPromiseStatus() {
+      throw new Error('sendPromiseStatus should not be called');
+    },
+  };
+  const createPromiseToPay = createCreatePromiseToPay({
+    promiseRepository: {},
+    loanAccessPolicy,
+    notificationPort,
+  });
+  const createLoanFollowUp = createCreateLoanFollowUp({
+    alertRepository: {},
+    loanAccessPolicy,
+    notificationPort,
+  });
+  const updateLoanAlertStatus = createUpdateLoanAlertStatus({
+    alertRepository: {},
+    loanAccessPolicy,
+  });
+  const updatePromiseToPayStatus = createUpdatePromiseToPayStatus({
+    promiseRepository: {},
+    loanAccessPolicy,
+    notificationPort,
+  });
+  const downloadPromiseToPay = createDownloadPromiseToPay({
+    promiseRepository: {},
+    loanAccessPolicy,
+  });
+
+  const actor = { id: 1, role: 'socio' };
+
+  await assert.rejects(() => createPromiseToPay({
+    actor,
+    loanId: 22,
+    payload: { amount: 100, promisedDate: '2026-03-20' },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar promesas de pago.');
+    return true;
+  });
+
+  await assert.rejects(() => createLoanFollowUp({
+    actor,
+    loanId: 22,
+    payload: { dueDate: '2026-03-20' },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden crear recordatorios de seguimiento.');
+    return true;
+  });
+
+  await assert.rejects(() => updateLoanAlertStatus({
+    actor,
+    loanId: 22,
+    alertId: 8,
+    payload: { status: 'resolved' },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden actualizar alertas del crédito.');
+    return true;
+  });
+
+  await assert.rejects(() => updatePromiseToPayStatus({
+    actor,
+    loanId: 22,
+    promiseId: 9,
+    payload: { status: 'cancelled' },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden actualizar promesas de pago.');
+    return true;
+  });
+
+  await assert.rejects(() => downloadPromiseToPay({
+    actor,
+    loanId: 22,
+    promiseId: 9,
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden descargar documentos de promesa de pago.');
+    return true;
+  });
 });
 
 test('createCreatePromiseToPay records a pending promise with status history', async () => {
@@ -1354,7 +1727,35 @@ test('createCreatePromiseToPay rejects malformed promised dates', async () => {
     actor: { id: 9, role: 'admin' },
     loanId: 22,
     payload: { promisedDate: '60620-02-02', amount: 300 },
-  }), ValidationError);
+  }), (error) => error instanceof ValidationError && /fecha prometida.*AAAA-MM-DD/i.test(error.message));
+});
+
+test('createCreatePromiseToPay rejects non-positive promised amounts with an operator message', async () => {
+  const createPromiseToPay = createCreatePromiseToPay({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    promiseRepository: {
+      async create() {
+        throw new Error('Promise should not be created with an invalid amount');
+      },
+    },
+    notificationPort: {
+      async sendPromiseCreated() {},
+    },
+  });
+
+  await assert.rejects(() => createPromiseToPay({
+    actor: { id: 9, role: 'admin' },
+    loanId: 22,
+    payload: { promisedDate: '2026-03-25', amount: 0 },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'El monto prometido debe ser mayor que 0.');
+    return true;
+  });
 });
 
 test('createListPromisesToPay expires broken pending promises before returning history', async () => {
@@ -1495,6 +1896,34 @@ test('createCreateLoanFollowUp creates a reminder and notifies the customer', as
   assert.equal(sentPayload.payload.installmentNumber, 5);
 });
 
+test('createCreateLoanFollowUp rejects invalid reminder dates with an operator message', async () => {
+  const createLoanFollowUp = createCreateLoanFollowUp({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    alertRepository: {
+      async create() {
+        throw new Error('Reminder should not be created with an invalid date');
+      },
+    },
+    notificationPort: {
+      async sendLoanReminder() {},
+    },
+  });
+
+  await assert.rejects(() => createLoanFollowUp({
+    actor: { id: 9, role: 'admin' },
+    loanId: 22,
+    payload: { dueDate: 'not-a-date' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'La fecha del recordatorio es obligatoria y debe ser válida.');
+    return true;
+  });
+});
+
 test('createUpdateLoanAlertStatus resolves active alerts with audit notes', async () => {
   const alert = { id: 8, status: 'active', notes: null, async save() { return this; } };
   const updateLoanAlertStatus = createUpdateLoanAlertStatus({
@@ -1522,6 +1951,36 @@ test('createUpdateLoanAlertStatus resolves active alerts with audit notes', asyn
 
   assert.equal(updated.status, 'resolved');
   assert.match(updated.notes, /Paid manually/);
+});
+
+test('createUpdateLoanAlertStatus rejects invalid statuses without exposing raw alert states', async () => {
+  const updateLoanAlertStatus = createUpdateLoanAlertStatus({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22 };
+      },
+    },
+    alertRepository: {
+      async findByIdForLoan() {
+        return { id: 8, status: 'active', notes: null };
+      },
+      async save() {
+        throw new Error('save should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => updateLoanAlertStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 22,
+    alertId: 8,
+    payload: { status: 'archived_internal' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Selecciona un estado de alerta válido.');
+    assert.doesNotMatch(error.message, /active|resolved|archived_internal/i);
+    return true;
+  });
 });
 
 test('createUpdatePromiseToPayStatus updates status history and notifies customer', async () => {
@@ -1564,6 +2023,39 @@ test('createUpdatePromiseToPayStatus updates status history and notifies custome
   assert.equal(updated.status, 'kept');
   assert.equal(updated.statusHistory.length, 1);
   assert.equal(notificationPayload.userId, 7);
+});
+
+test('createUpdatePromiseToPayStatus rejects invalid statuses with an operator message', async () => {
+  const updatePromiseToPayStatus = createUpdatePromiseToPayStatus({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    promiseRepository: {
+      async findByIdForLoan() {
+        return { id: 5, status: 'pending', statusHistory: [], notes: null };
+      },
+      async save() {
+        throw new Error('Promise should not be saved with an invalid status');
+      },
+    },
+    notificationPort: {
+      async sendPromiseStatus() {},
+    },
+  });
+
+  await assert.rejects(() => updatePromiseToPayStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 22,
+    promiseId: 5,
+    payload: { status: 'archived_internal' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Selecciona un estado de promesa válido.');
+    assert.doesNotMatch(error.message, /pending|kept|broken|archived_internal/i);
+    return true;
+  });
 });
 
 test('createCreditsModule reuses auth and credit ports from the shared runtime', () => {

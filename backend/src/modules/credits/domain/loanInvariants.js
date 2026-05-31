@@ -10,6 +10,9 @@
 
 const CLOSED_STATUSES = new Set(['closed', 'cancelled', 'paid']);
 const CLOSURE_REASONS = new Set(['payoff', 'schedule_completion', 'annulled', 'cancelled']);
+const END_DATE_ORDER_MESSAGE = 'La fecha final del crédito debe ser igual o posterior a la fecha de inicio';
+const CLOSURE_REASON_STATUS_MESSAGE = 'El motivo de cierre requiere que el crédito esté cerrado, cancelado o pagado';
+const CLOSED_STATUS_DATE_MESSAGE = 'Los créditos cerrados, cancelados o pagados deben tener fecha de cierre';
 
 /**
  * Ensure endDate is not before startDate when both are present.
@@ -19,7 +22,7 @@ const CLOSURE_REASONS = new Set(['payoff', 'schedule_completion', 'annulled', 'c
 const assertEndDateNotBeforeStartDate = ({ startDate, endDate }) => {
   if (startDate && endDate) {
     if (new Date(endDate) < new Date(startDate)) {
-      throw new Error('endDate must be on or after startDate');
+      throw new Error(END_DATE_ORDER_MESSAGE);
     }
   }
 };
@@ -31,19 +34,20 @@ const assertEndDateNotBeforeStartDate = ({ startDate, endDate }) => {
  */
 const assertConsistentClosureState = ({ status, closureReason, closedAt }) => {
   if (CLOSURE_REASONS.has(closureReason) && !CLOSED_STATUSES.has(status)) {
-    throw new Error(
-      `Loan with closureReason '${closureReason}' must have a closed status (closed, cancelled, or paid)`,
-    );
+    throw new Error(CLOSURE_REASON_STATUS_MESSAGE);
   }
 
   if (CLOSED_STATUSES.has(status) && !closedAt) {
-    throw new Error(`Loan with status '${status}' must have a closedAt date`);
+    throw new Error(CLOSED_STATUS_DATE_MESSAGE);
   }
 };
 
 module.exports = {
   CLOSED_STATUSES,
+  CLOSED_STATUS_DATE_MESSAGE,
   CLOSURE_REASONS,
+  CLOSURE_REASON_STATUS_MESSAGE,
+  END_DATE_ORDER_MESSAGE,
   assertEndDateNotBeforeStartDate,
   assertConsistentClosureState,
 };

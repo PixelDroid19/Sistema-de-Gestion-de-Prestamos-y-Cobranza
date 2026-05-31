@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 require('module-alias/register');
 
 const { sequelize, Loan, Payment } = require('@/models');
@@ -10,11 +10,41 @@ const {
   summarizeSchedule,
 } = require('@/modules/credits/application/creditFormulaHelpers');
 
-const args = new Set(process.argv.slice(2));
-const shouldApply = args.has('--apply');
-const targetLoanId = [...args]
-  .find((arg) => arg.startsWith('--loan-id='))
-  ?.split('=')[1];
+const CONFIRMATION_VALUE = 'REPAIR_CAPITAL_PAYMENT_SCHEDULES';
+
+const parsePositiveInteger = (value, name) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
+};
+
+const parseArgs = (argv = []) => {
+  const args = new Set(argv);
+  const unknownArgs = [...args].filter((arg) => arg !== '--apply' && !arg.startsWith('--loan-id='));
+  if (unknownArgs.length > 0) {
+    throw new Error(`Unknown arguments: ${unknownArgs.join(', ')}`);
+  }
+
+  const rawLoanId = [...args]
+    .find((arg) => arg.startsWith('--loan-id='))
+    ?.split('=')[1];
+
+  return {
+    apply: args.has('--apply'),
+    targetLoanId: rawLoanId ? parsePositiveInteger(rawLoanId, '--loan-id') : null,
+  };
+};
+
+const assertApplyConfirmed = ({ apply, env = process.env }) => {
+  if (!apply) return;
+  if (env.REPAIR_CAPITAL_PAYMENT_SCHEDULES_CONFIRM !== CONFIRMATION_VALUE) {
+    throw new Error(
+      `Refusing to apply schedule repairs. Set REPAIR_CAPITAL_PAYMENT_SCHEDULES_CONFIRM=${CONFIRMATION_VALUE}`,
+    );
+  }
+};
 
 const isBadCapitalRow = (row) => {
   const paidPrincipal = Number(row?.paidPrincipal || 0);
@@ -190,30 +220,46 @@ const repairLoan = async (loan, { apply }) => {
   return report;
 };
 
-const main = async () => {
+const main = async ({ argv = process.argv.slice(2) } = {}) => {
+  const { apply, targetLoanId } = parseArgs(argv);
+  assertApplyConfirmed({ apply });
+
   await sequelize.authenticate();
-  const where = targetLoanId ? { id: Number(targetLoanId) } : {};
+  const where = targetLoanId ? { id: targetLoanId } : {};
   const loans = await Loan.findAll({ where, order: [['id', 'ASC']] });
   const reports = [];
 
   for (const loan of loans) {
-    const report = await repairLoan(loan, { apply: shouldApply });
+    const report = await repairLoan(loan, { apply });
     if (report) reports.push(report);
   }
 
   console.log(JSON.stringify({
-    mode: shouldApply ? 'apply' : 'dry-run',
+    mode: apply ? 'apply' : 'dry-run',
     checkedLoans: loans.length,
     affectedLoans: reports.length,
     reports,
   }, null, 2));
 };
 
-main()
-  .catch((error) => {
-    console.error('Failed to repair capital payment schedules:', error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await sequelize.close();
-  });
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error('Failed to repair capital payment schedules:', error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await sequelize.close();
+    });
+}
+
+module.exports = {
+  CONFIRMATION_VALUE,
+  assertApplyConfirmed,
+  buildRepairedSchedule,
+  buildSnapshotWithCapitalAdjustments,
+  isBadCapitalRow,
+  parseArgs,
+  repairLoan,
+  resolveStrategy,
+};

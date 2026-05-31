@@ -1,3 +1,22 @@
+const path = require('node:path');
+
+const DEFAULT_DOWNLOAD_FILE_NAME = 'download';
+
+const sanitizeDownloadFileName = (fileName) => {
+  const rawFileName = fileName === undefined || fileName === null ? '' : String(fileName);
+  const baseName = path.basename(rawFileName.replace(/\\/g, '/'));
+  const safeName = [...baseName].map((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127 || character === '"' ? '_' : character;
+  }).join('').trim();
+
+  if (!safeName || safeName === '.' || safeName === '..') {
+    return DEFAULT_DOWNLOAD_FILE_NAME;
+  }
+
+  return safeName;
+};
+
 /**
  * Send a JSON response with the provided status code.
  * @param {import('express').Response} res
@@ -36,8 +55,9 @@ const created = (res, data, message = 'Created successfully', extra = {}) => suc
  * @param {{ contentType: string, fileName: string, buffer: Buffer }} file
  */
 const sendBufferDownload = (res, { contentType, fileName, buffer }) => {
+  const safeFileName = sanitizeDownloadFileName(fileName);
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
   res.send(buffer);
 };
 
@@ -46,7 +66,7 @@ const sendBufferDownload = (res, { contentType, fileName, buffer }) => {
  * @param {import('express').Response} res
  * @param {{ absolutePath: string, fileName: string }} file
  */
-const sendPathDownload = (res, { absolutePath, fileName }) => res.download(absolutePath, fileName);
+const sendPathDownload = (res, { absolutePath, fileName }) => res.download(absolutePath, sanitizeDownloadFileName(fileName));
 
 module.exports = {
   respond,

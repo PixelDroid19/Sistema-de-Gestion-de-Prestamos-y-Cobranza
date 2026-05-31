@@ -7,7 +7,7 @@ const { ensureAdmin, formatMoney, mapMonthlySeries } = require('@/modules/report
  * GET /api/reports/comprehensive-analytics?year={year}
  */
 const createGetComprehensiveAnalytics = ({ reportRepository, paymentRepository }) => async ({ actor, year }) => {
-  ensureAdmin(actor, 'Only admins can access financial reports');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes financieros.');
 
   const targetYear = year || new Date().getFullYear();
   const metrics = await reportRepository.getPerformanceMetrics(targetYear);

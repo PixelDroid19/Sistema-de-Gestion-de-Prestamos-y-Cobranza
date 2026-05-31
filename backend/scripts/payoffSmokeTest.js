@@ -1,4 +1,5 @@
-require('dotenv').config();
+require('module-alias/register');
+require('dotenv').config({ quiet: true });
 
 const jwt = require('jsonwebtoken');
 
@@ -9,10 +10,18 @@ const { buildAmortizationSchedule, summarizeSchedule, roundCurrency } = require(
 const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
 
 const loanViewService = createLoanViewService();
+const SAFE_PAYOFF_SMOKE_ENVIRONMENTS = new Set(['development', 'test', 'local']);
 
 const assert = (condition, message) => {
   if (!condition) {
     throw new Error(message);
+  }
+};
+
+const assertSafePayoffSmokeEnvironment = (env = process.env) => {
+  const nodeEnv = String(env.NODE_ENV || '').trim().toLowerCase();
+  if (!SAFE_PAYOFF_SMOKE_ENVIRONMENTS.has(nodeEnv)) {
+    throw new Error('payoff smoke resets the database; set NODE_ENV to development, test, or local explicitly.');
   }
 };
 
@@ -83,8 +92,6 @@ const seedFixtures = async () => {
 
   await User.bulkCreate([
     { id: 1, name: 'Smoke Admin', email: 'admin.smoke@example.com', password: 'manual-smoke', role: 'admin' },
-    { id: 7, name: 'Active Payoff Customer', email: 'active.payoff@example.com', password: 'manual-smoke', role: 'customer' },
-    { id: 8, name: 'Overdue Payoff Customer', email: 'overdue.payoff@example.com', password: 'manual-smoke', role: 'customer' },
   ]);
 
   await Customer.bulkCreate([
@@ -138,6 +145,7 @@ const run = async () => {
   let startedServer = null;
 
   try {
+    assertSafePayoffSmokeEnvironment();
     await sequelize.authenticate();
     await seedFixtures();
 
@@ -152,14 +160,12 @@ const run = async () => {
     const overdueQuote = loanViewService.getPayoffQuote(overdueLoan, '2026-03-20');
 
     const adminToken = buildToken({ id: 1, role: 'admin' });
-    const activeCustomerToken = buildToken({ id: 7, role: 'customer' });
-    const overdueCustomerToken = buildToken({ id: 8, role: 'customer' });
 
     const activeQuoteResponse = await makeFetch({
       baseUrl,
       path: '/api/loans/101/payoff-quote?asOfDate=2026-03-15',
       options: {
-        headers: { authorization: `Bearer ${activeCustomerToken}` },
+        headers: { authorization: `Bearer ${adminToken}` },
       },
     });
 
@@ -169,7 +175,7 @@ const run = async () => {
       options: {
         method: 'POST',
         headers: {
-          authorization: `Bearer ${activeCustomerToken}`,
+          authorization: `Bearer ${adminToken}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ asOfDate: '2026-03-15', quotedTotal: activeQuote.total }),
@@ -180,7 +186,7 @@ const run = async () => {
       baseUrl,
       path: '/api/reports/credit-history/loan/101',
       options: {
-        headers: { authorization: `Bearer ${activeCustomerToken}` },
+        headers: { authorization: `Bearer ${adminToken}` },
       },
     });
 
@@ -188,7 +194,7 @@ const run = async () => {
       baseUrl,
       path: '/api/loans/102/payoff-quote?asOfDate=2026-03-20',
       options: {
-        headers: { authorization: `Bearer ${overdueCustomerToken}` },
+        headers: { authorization: `Bearer ${adminToken}` },
       },
     });
 
@@ -198,7 +204,7 @@ const run = async () => {
       options: {
         method: 'POST',
         headers: {
-          authorization: `Bearer ${overdueCustomerToken}`,
+          authorization: `Bearer ${adminToken}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ asOfDate: '2026-03-20', quotedTotal: overdueQuote.total }),
@@ -209,7 +215,7 @@ const run = async () => {
       baseUrl,
       path: '/api/reports/credit-history/loan/102',
       options: {
-        headers: { authorization: `Bearer ${overdueCustomerToken}` },
+        headers: { authorization: `Bearer ${adminToken}` },
       },
     });
 
@@ -282,7 +288,13 @@ const run = async () => {
   }
 };
 
-run().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  run().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  assertSafePayoffSmokeEnvironment,
+};

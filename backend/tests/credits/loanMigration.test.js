@@ -1,7 +1,11 @@
 const { test, mock, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { migrateLoansToDefaultProduct } = require('@/scripts/migrateLoansToProducts');
+const {
+  CONFIRMATION_VALUE,
+  assertConfirmed,
+  migrateLoansToDefaultProduct,
+} = require('@/scripts/migrateLoansToProducts');
 const models = require('@/models');
 
 beforeEach(() => {
@@ -15,6 +19,14 @@ test('migrateLoansToDefaultProduct throws error when default product is missing'
     async () => migrateLoansToDefaultProduct(),
     { message: 'Product "Personal Loan 12%" not found. Run seed data first.' }
   );
+});
+
+test('loan product migration CLI requires explicit confirmation', () => {
+  assert.throws(
+    () => assertConfirmed({}),
+    { message: 'Refusing to migrate loans. Set MIGRATE_LOANS_TO_PRODUCTS_CONFIRM=MIGRATE_LOANS_TO_PRODUCTS' },
+  );
+  assert.doesNotThrow(() => assertConfirmed({ MIGRATE_LOANS_TO_PRODUCTS_CONFIRM: CONFIRMATION_VALUE }));
 });
 
 test('migrateLoansToDefaultProduct returns migrated: 0 when no orphaned loans', async () => {

@@ -1,6 +1,6 @@
 const express = require('express');
 const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
-const { validateIntegerId } = require('@/modules/shared/validators');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 /**
  * Composes permission catalog, effective-permission and grant/revoke routes
@@ -17,7 +17,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
    */
   const parseUserId = (value) => {
     if (!validateIntegerId(value)) {
-      throw new ValidationError('userId must be a valid positive integer');
+      throw new ValidationError(buildInvalidIntegerIdMessage('userId'));
     }
 
     return Number(String(value).trim());

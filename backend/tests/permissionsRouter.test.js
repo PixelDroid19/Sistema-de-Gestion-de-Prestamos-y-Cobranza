@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 
 const { createPermissionsRouter } = require('@/modules/permissions/presentation/router');
-const { globalErrorHandler } = require('@/utils/errorHandler');
+const { globalErrorHandler, NotFoundError } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -154,7 +154,7 @@ test('GET /api/permissions/user/:userId rejects malformed route identifiers befo
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /userId/i);
+  assert.match(response.body.error.message, /número del usuario/i);
   assert.deepEqual(calls, []);
 });
 
@@ -343,7 +343,7 @@ test('POST /api/permissions/grant requires admin role', async () => {
     getMyPermissions: mock.fn(() => Promise.resolve({ userId: 1, permissions: [] })),
     grantPermission: mock.fn(({ actor }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can grant permissions');
+        const error = new Error('Solo un administrador puede conceder permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;
@@ -390,7 +390,7 @@ test('POST /api/permissions/revoke requires admin role', async () => {
     grantBatchPermissions: mock.fn(() => Promise.resolve({ granted: [], failed: [] })),
     revokePermission: mock.fn(({ actor }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can revoke permissions');
+        const error = new Error('Solo un administrador puede revocar permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;
@@ -433,15 +433,12 @@ test('POST /api/permissions/grant with invalid permission ID returns error', asy
     getMyPermissions: mock.fn(() => Promise.resolve({ userId: 1, permissions: [] })),
     grantPermission: mock.fn(({ actor }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can grant permissions');
+        const error = new Error('Solo un administrador puede conceder permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;
       }
-      const error = new Error('Permission not found');
-      error.name = 'NotFoundError';
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('Permission');
     }),
     grantBatchPermissions: mock.fn(() => Promise.resolve({ granted: [], failed: [] })),
     revokePermission: mock.fn(() => Promise.resolve({ success: true })),
@@ -471,6 +468,7 @@ test('POST /api/permissions/grant with invalid permission ID returns error', asy
   });
 
   assert.equal(response.statusCode, 404);
+  assert.equal(response.body.error.message, 'El permiso no existe.');
 });
 
 test('POST /api/permissions/revoke with invalid permission ID returns error', async () => {
@@ -483,15 +481,12 @@ test('POST /api/permissions/revoke with invalid permission ID returns error', as
     grantBatchPermissions: mock.fn(() => Promise.resolve({ granted: [], failed: [] })),
     revokePermission: mock.fn(({ actor }) => {
       if (actor.role !== 'admin') {
-        const error = new Error('Only admin can revoke permissions');
+        const error = new Error('Solo un administrador puede revocar permisos.');
         error.name = 'AuthorizationError';
         error.statusCode = 403;
         throw error;
       }
-      const error = new Error('Permission not found');
-      error.name = 'NotFoundError';
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('Permission');
     }),
     checkPermission: mock.fn(() => Promise.resolve({ allowed: false, source: null })),
     checkMultiplePermissions: mock.fn(() => Promise.resolve({ permissions: [] })),
@@ -519,6 +514,7 @@ test('POST /api/permissions/revoke with invalid permission ID returns error', as
   });
 
   assert.equal(response.statusCode, 404);
+  assert.equal(response.body.error.message, 'El permiso no existe.');
 });
 
 test('GET /api/permissions without auth returns 401', async () => {
@@ -535,7 +531,7 @@ test('GET /api/permissions without auth returns 401', async () => {
   };
 
   const rejectAuth = () => (req, res, next) => {
-    const error = new Error('Authorization header is required');
+    const error = new Error('Debes iniciar sesión para continuar.');
     error.name = 'AuthenticationError';
     error.statusCode = 401;
     next(error);

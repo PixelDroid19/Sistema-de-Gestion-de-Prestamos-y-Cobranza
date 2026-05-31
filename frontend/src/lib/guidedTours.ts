@@ -1,4 +1,5 @@
 import { driver, type DriveStep } from 'driver.js';
+import { tTerm, type TermKey } from '../i18n/terminology';
 
 export type GuideRole = 'admin' | 'employee';
 export type GuideViewKey =
@@ -23,8 +24,8 @@ export type GuideViewKey =
 
 export type GuideStep = {
   selector: string;
-  title: string;
-  description: string;
+  titleKey: TermKey;
+  descriptionKey: TermKey;
   side?: 'top' | 'right' | 'bottom' | 'left';
 };
 
@@ -45,6 +46,116 @@ type ViewGuideDefinition = {
   admin?: GuideProducer;
   employee?: GuideProducer;
 };
+
+const GUIDE_STEP_COPY_KEYS = [
+  'dashboardPage',
+  'dashboardHeader',
+  'dashboardToolbar',
+  'dashboardGrid',
+  'customersPage',
+  'customersHeader',
+  'customersSearch',
+  'customersFilters',
+  'customersTable',
+  'customerDetailsPage',
+  'customerDetailsHeader',
+  'customerDetailsTabs',
+  'customerDetailsContent',
+  'newCustomerPage',
+  'newCustomerHeader',
+  'newCustomerPersonal',
+  'newCustomerContact',
+  'creditsPage',
+  'creditsPageTitle',
+  'creditsExport',
+  'creditsPreview',
+  'creditsNew',
+  'creditsTabs',
+  'creditsSearch',
+  'creditsFilters',
+  'creditsListTable',
+  'creditsRowActions',
+  'newCreditPage',
+  'newCreditHeader',
+  'newCreditCustomerSelect',
+  'newCreditBorrower',
+  'newCreditLateFeeMode',
+  'newCreditSimulation',
+  'newCreditActionDock',
+  'creditDetailPage',
+  'creditDetailHeader',
+  'creditDetailPrimaryActions',
+  'creditDetailMetrics',
+  'creditDetailTabs',
+  'creditDetailCalendar',
+  'creditDetailHistory',
+  'paymentSchedulePage',
+  'paymentScheduleHeader',
+  'paymentScheduleSummary',
+  'paymentScheduleTable',
+  'associatesPage',
+  'associatesHeader',
+  'associatesSearch',
+  'associatesTable',
+  'associateDetailsPage',
+  'associateDetailsHeader',
+  'associateDetailsTabs',
+  'associateDetailsContent',
+  'newAssociatePage',
+  'newAssociateHeader',
+  'newAssociateForm',
+  'payoutsPage',
+  'payoutsHeader',
+  'payoutsSearch',
+  'payoutsTable',
+  'notificationsPage',
+  'notificationsHeader',
+  'notificationsActions',
+  'notificationsList',
+  'reportsPage',
+  'reportsHeader',
+  'reportsTabs',
+  'reportsContent',
+  'settingsPage',
+  'settingsHeader',
+  'settingsTabs',
+  'settingsContent',
+  'profilePage',
+  'profileHeader',
+  'profileTabs',
+  'profileContent',
+  'auditLogPage',
+  'auditLogHeader',
+  'auditLogStats',
+  'auditLogFilters',
+  'auditLogTable',
+  'creditCalculatorPage',
+  'creditCalculatorHeader',
+  'creditCalculatorSimulation',
+  'creditCalculatorNext',
+] as const;
+
+type GuideStepCopyKey = (typeof GUIDE_STEP_COPY_KEYS)[number];
+type GuideStepTitleTermKey = `guidedTour.step.${GuideStepCopyKey}.title`;
+type GuideStepDescriptionTermKey = `guidedTour.step.${GuideStepCopyKey}.description`;
+
+const asTermKey = <T extends TermKey>(key: T): T => key;
+
+const getGuideStepTitleKey = (copyKey: GuideStepCopyKey): TermKey => (
+  asTermKey(`guidedTour.step.${copyKey}.title` as GuideStepTitleTermKey)
+);
+
+const getGuideStepDescriptionKey = (copyKey: GuideStepCopyKey): TermKey => (
+  asTermKey(`guidedTour.step.${copyKey}.description` as GuideStepDescriptionTermKey)
+);
+
+const guideStep = (selector: string, copyKey: GuideStepCopyKey, side?: GuideStep['side']): GuideStep => ({
+  selector,
+  titleKey: getGuideStepTitleKey(copyKey),
+  descriptionKey: getGuideStepDescriptionKey(copyKey),
+  ...(side ? { side } : {}),
+});
+
 
 const isBrowserAvailable = () => typeof document !== 'undefined';
 
@@ -76,8 +187,8 @@ const resolveTourStep = (raw: GuideStep): DriveStep | null => {
     ? {
         element: raw.selector,
         popover: {
-          title: raw.title,
-          description: raw.description,
+          title: tTerm(raw.titleKey),
+          description: tTerm(raw.descriptionKey),
           side: raw.side || 'bottom',
         },
       }
@@ -87,162 +198,159 @@ const resolveTourStep = (raw: GuideStep): DriveStep | null => {
 const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
   dashboard: {
     default: [
-      { selector: '[data-tour="dashboard-page"]', title: 'Dashboard', description: 'Resume cartera, mora y actividad reciente para iniciar la operación diaria.' },
-      { selector: '[data-tour="dashboard-header"]', title: 'Encabezado del panel', description: 'Desde aquí gestionas widgets y reordenas el tablero según tu operación.' },
-      { selector: '[data-tour="dashboard-toolbar"]', title: 'Personalización', description: 'Muestra u oculta widgets. Úsalo para adaptar el panel a tu flujo.' },
-      { selector: '[data-tour="dashboard-grid"]', title: 'Widgets', description: 'Cada tarjeta o gráfico muestra un indicador de negocio o una tendencia reciente.' },
+      guideStep('[data-tour="dashboard-page"]', 'dashboardPage'),
+      guideStep('[data-tour="dashboard-header"]', 'dashboardHeader'),
+      guideStep('[data-tour="dashboard-toolbar"]', 'dashboardToolbar'),
+      guideStep('[data-tour="dashboard-grid"]', 'dashboardGrid'),
     ],
   },
   customers: {
     default: [
-      { selector: '[data-tour="customers-page"]', title: 'Clientes', description: 'Aquí administras la base de prestatarios y entras a su historial.' },
-      { selector: '[data-tour="customers-header"]', title: 'Acciones del módulo', description: 'Puedes crear un cliente nuevo y revisar el estado general del listado.' },
-      { selector: '[data-tour="customers-search"]', title: 'Búsqueda', description: 'Busca por nombre, correo o documento antes de editar o crear un crédito.' },
-      { selector: '[data-tour="customers-filters"]', title: 'Filtros', description: 'Acota la lista por estado o fecha de registro.' },
-      { selector: '[data-tour="customers-table"]', title: 'Tabla de clientes', description: 'Abre detalle, edita, desactiva o reactiva cada cliente desde su fila.' },
+      guideStep('[data-tour="customers-page"]', 'customersPage'),
+      guideStep('[data-tour="customers-header"]', 'customersHeader'),
+      guideStep('[data-tour="customers-search"]', 'customersSearch'),
+      guideStep('[data-tour="customers-filters"]', 'customersFilters'),
+      guideStep('[data-tour="customers-table"]', 'customersTable'),
     ],
   },
   'customer-details': {
     default: [
-      { selector: '[data-tour="customer-details-page"]', title: 'Detalle del cliente', description: 'Reúne perfil, documentos, créditos e historial del cliente.' },
-      { selector: '[data-tour="customer-details-header"]', title: 'Resumen del cliente', description: 'Muestra identidad, documento y estado actual del perfil.' },
-      { selector: '[data-tour="customer-details-tabs"]', title: 'Pestañas', description: 'Separa información personal, documentos, préstamos e historial.' },
-      { selector: '[data-tour="customer-details-content"]', title: 'Contenido operativo', description: 'Aquí se ejecutan cargas de documentos y navegación hacia créditos relacionados.' },
+      guideStep('[data-tour="customer-details-page"]', 'customerDetailsPage'),
+      guideStep('[data-tour="customer-details-header"]', 'customerDetailsHeader'),
+      guideStep('[data-tour="customer-details-tabs"]', 'customerDetailsTabs'),
+      guideStep('[data-tour="customer-details-content"]', 'customerDetailsContent'),
     ],
   },
   'new-customer': {
     default: [
-      { selector: '[data-tour="new-customer-page"]', title: 'Alta de cliente', description: 'Registra o edita un cliente que luego podrá recibir créditos.' },
-      { selector: '[data-tour="new-customer-header"]', title: 'Guardar o cancelar', description: 'Estas acciones afectan el perfil del cliente, no crean todavía un crédito.' },
-      { selector: '[data-tour="new-customer-personal"]', title: 'Datos personales', description: 'Captura identidad y estado del cliente. El documento debe quedar correcto antes de operar.' },
-      { selector: '[data-tour="new-customer-contact"]', title: 'Contacto y dirección', description: 'Estos datos sirven para seguimiento, notificaciones y trazabilidad.' },
+      guideStep('[data-tour="new-customer-page"]', 'newCustomerPage'),
+      guideStep('[data-tour="new-customer-header"]', 'newCustomerHeader'),
+      guideStep('[data-tour="new-customer-personal"]', 'newCustomerPersonal'),
+      guideStep('[data-tour="new-customer-contact"]', 'newCustomerContact'),
     ],
   },
   credits: {
     default: [
-      { selector: '[data-tour="credits-page"]', title: 'Módulo de créditos', description: 'Aquí gestionas todos los créditos vivos y en mora de la cartera.' },
-      { selector: '[data-tour="credits-page-title"]', title: 'Encabezado', description: 'Desde aquí navegas acciones del módulo y mides su estado.' },
-      { selector: '[data-tour="credits-export"]', title: 'Exportar cartera', description: 'Descarga el estado actual en Excel para reconciliación y respaldo.' },
-      { selector: '[data-tour="credits-preview"]', title: 'Previsualizar crédito', description: 'Simula escenarios antes de crear un crédito real.' },
-      { selector: '[data-tour="credits-new"]', title: 'Crear crédito', description: 'Abre el flujo de origen para registrar un crédito con la regla de cálculo activa.' },
-      { selector: '[data-tour="credits-tabs"]', title: 'Vista principal', description: 'Alterna entre créditos vigentes y calendario para operación diaria.' },
-      { selector: '[data-tour="credits-search"]', title: 'Búsqueda y filtros', description: 'Filtra por cliente, estado y fechas para encontrar el préstamo correcto.' },
-      { selector: '[data-tour="credits-filters"]', title: 'Filtros avanzados', description: 'Ajusta montos y fechas antes de buscar.' },
-      { selector: '[data-tour="credits-list-table"]', title: 'Lista de créditos', description: 'Revisa estados, saldo y acciones disponibles de cada préstamo.' },
-      { selector: '[data-tour="credits-row-actions"]', title: 'Acciones de crédito', description: 'Ver detalle, pagar cuota o registrar promesas desde la fila.' },
+      guideStep('[data-tour="credits-page"]', 'creditsPage'),
+      guideStep('[data-tour="credits-page-title"]', 'creditsPageTitle'),
+      guideStep('[data-tour="credits-export"]', 'creditsExport'),
+      guideStep('[data-tour="credits-preview"]', 'creditsPreview'),
+      guideStep('[data-tour="credits-new"]', 'creditsNew'),
+      guideStep('[data-tour="credits-tabs"]', 'creditsTabs'),
+      guideStep('[data-tour="credits-search"]', 'creditsSearch'),
+      guideStep('[data-tour="credits-filters"]', 'creditsFilters'),
+      guideStep('[data-tour="credits-list-table"]', 'creditsListTable'),
+      guideStep('[data-tour="credits-row-actions"]', 'creditsRowActions'),
     ],
   },
   'new-credit': {
     default: [
-      { selector: '[data-tour="new-credit-page"]', title: 'Nuevo crédito', description: 'Este flujo registra un crédito real y congela la fórmula usada en ese momento.' },
-      { selector: '[data-tour="new-credit-header"]', title: 'Qué estás registrando', description: 'La validación aquí usa la regla de cálculo activa. Registrar crea un crédito real en cartera.' },
-      { selector: '[data-tour="new-credit-customer-select"]', title: 'Cliente del crédito', description: 'Debes seleccionar al titular antes de validar y registrar.' },
-      { selector: '[data-tour="new-credit-borrower"]', title: 'Titular del crédito', description: 'El crédito se registra únicamente al cliente seleccionado. Los socios inversionistas se gestionan en su propio módulo y no se asignan a créditos nuevos.' },
-      { selector: '[data-tour="new-credit-late-fee-mode"]', title: 'Cálculo de mora', description: 'Define el método matemático de recargo. La tasa viene de la política activa si no se ajusta manualmente.' },
-      { selector: '[data-tour="new-credit-simulation"]', title: 'Simulación y cronograma', description: 'Revisa cuota, intereses, total a pagar y tabla de amortización antes de registrar.' },
-      { selector: '[data-tour="new-credit-action-dock"]', title: 'Acciones de registro', description: 'Restablece, valida o registra desde el cierre del formulario sin tapar la información revisada.' },
+      guideStep('[data-tour="new-credit-page"]', 'newCreditPage'),
+      guideStep('[data-tour="new-credit-header"]', 'newCreditHeader'),
+      guideStep('[data-tour="new-credit-customer-select"]', 'newCreditCustomerSelect'),
+      guideStep('[data-tour="new-credit-borrower"]', 'newCreditBorrower'),
+      guideStep('[data-tour="new-credit-late-fee-mode"]', 'newCreditLateFeeMode'),
+      guideStep('[data-tour="new-credit-simulation"]', 'newCreditSimulation'),
+      guideStep('[data-tour="new-credit-action-dock"]', 'newCreditActionDock'),
     ],
   },
   'credit-details': {
-    default: (context) => {
-      const loanLabel = context.loanId ? ` del crédito #${String(context.loanId)}` : '';
-      return [
-        { selector: '[data-tour="credit-detail-page"]', title: 'Detalle del crédito', description: `Aquí operas pagos, seguimiento y cronograma${loanLabel}.` },
-        { selector: '[data-tour="credit-detail-header"]', title: 'Encabezado del crédito', description: 'Muestra cliente, fórmula congelada y estado operativo actual.' },
-        { selector: '[data-tour="credit-detail-primary-actions"]', title: 'Acciones críticas', description: 'Desde aquí registras pagos o gestionas acciones operativas disponibles.' },
-        { selector: '[data-tour="credit-detail-metrics"]', title: 'Indicadores', description: 'Resume capital vivo, interés, cuotas y mora para decidir la acción siguiente.' },
-        { selector: '[data-tour="credit-detail-tabs"]', title: 'Pestañas', description: 'Separan calendario, alertas, compromisos, historial de pagos y payoff.' },
-        { selector: '[data-tour="credit-detail-calendar"]', title: 'Calendario operativo', description: 'Aquí confirmas la próxima cuota operable y el estado de cada cuota.' },
-        { selector: '[data-tour="credit-detail-history"]', title: 'Historial', description: 'Muestra trazabilidad de acciones y pagos aplicados.' },
-      ];
-    },
+    default: [
+      guideStep('[data-tour="credit-detail-page"]', 'creditDetailPage'),
+      guideStep('[data-tour="credit-detail-header"]', 'creditDetailHeader'),
+      guideStep('[data-tour="credit-detail-primary-actions"]', 'creditDetailPrimaryActions'),
+      guideStep('[data-tour="credit-detail-metrics"]', 'creditDetailMetrics'),
+      guideStep('[data-tour="credit-detail-tabs"]', 'creditDetailTabs'),
+      guideStep('[data-tour="credit-detail-calendar"]', 'creditDetailCalendar'),
+      guideStep('[data-tour="credit-detail-history"]', 'creditDetailHistory'),
+    ],
   },
   'payment-schedule': {
     default: [
-      { selector: '[data-tour="payment-schedule-page"]', title: 'Plan de pagos', description: 'Desglosa el cronograma completo de amortización del crédito.' },
-      { selector: '[data-tour="payment-schedule-header"]', title: 'Resumen superior', description: 'Muestra cliente, exportación y acceso de regreso al detalle del crédito.' },
-      { selector: '[data-tour="payment-schedule-summary"]', title: 'Resumen financiero', description: 'Resume capital, interés, plazo y estado general del cronograma.' },
-      { selector: '[data-tour="payment-schedule-table"]', title: 'Tabla de amortización', description: 'Cada fila representa una cuota con capital, interés, pagado y saldo restante.' },
+      guideStep('[data-tour="payment-schedule-page"]', 'paymentSchedulePage'),
+      guideStep('[data-tour="payment-schedule-header"]', 'paymentScheduleHeader'),
+      guideStep('[data-tour="payment-schedule-summary"]', 'paymentScheduleSummary'),
+      guideStep('[data-tour="payment-schedule-table"]', 'paymentScheduleTable'),
     ],
   },
   associates: {
     default: [
-      { selector: '[data-tour="associates-page"]', title: 'Socios', description: 'Administra socios relacionados con cartera, aportes o seguimiento interno.' },
-      { selector: '[data-tour="associates-header"]', title: 'Acciones del módulo', description: 'Desde aquí creas socios o exportas la relación actual.' },
-      { selector: '[data-tour="associates-search"]', title: 'Búsqueda y filtros', description: 'Encuentra socios por nombre y acota la lista por estado.' },
-      { selector: '[data-tour="associates-table"]', title: 'Tabla de socios', description: 'Consulta participación, préstamos relacionados y acciones disponibles.' },
+      guideStep('[data-tour="associates-page"]', 'associatesPage'),
+      guideStep('[data-tour="associates-header"]', 'associatesHeader'),
+      guideStep('[data-tour="associates-search"]', 'associatesSearch'),
+      guideStep('[data-tour="associates-table"]', 'associatesTable'),
     ],
   },
   'associate-details': {
     default: [
-      { selector: '[data-tour="associate-details-page"]', title: 'Detalle del socio', description: 'Muestra aportes, distribuciones, cuotas y calendario asociado al socio.' },
-      { selector: '[data-tour="associate-details-header"]', title: 'Resumen del socio', description: 'Desde aquí accedes a historiales y, si eres admin, registras movimientos.' },
-      { selector: '[data-tour="associate-details-tabs"]', title: 'Pestañas del detalle', description: 'Separa resumen, cuotas y calendario para lectura clara.' },
-      { selector: '[data-tour="associate-details-content"]', title: 'Contenido principal', description: 'Aquí revisas saldos, eventos y actividad del socio.' },
+      guideStep('[data-tour="associate-details-page"]', 'associateDetailsPage'),
+      guideStep('[data-tour="associate-details-header"]', 'associateDetailsHeader'),
+      guideStep('[data-tour="associate-details-tabs"]', 'associateDetailsTabs'),
+      guideStep('[data-tour="associate-details-content"]', 'associateDetailsContent'),
     ],
   },
   'new-associate': {
     default: [
-      { selector: '[data-tour="new-associate-page"]', title: 'Alta de socio', description: 'Registra o edita un socio operativo dentro de la plataforma.' },
-      { selector: '[data-tour="new-associate-header"]', title: 'Guardar o cancelar', description: 'Estos controles crean o actualizan el socio, no afectan todavía créditos.' },
-      { selector: '[data-tour="new-associate-form"]', title: 'Formulario del socio', description: 'Captura nombre, contacto, estado y participación sobre utilidades.' },
+      guideStep('[data-tour="new-associate-page"]', 'newAssociatePage'),
+      guideStep('[data-tour="new-associate-header"]', 'newAssociateHeader'),
+      guideStep('[data-tour="new-associate-form"]', 'newAssociateForm'),
     ],
   },
   payouts: {
     default: [
-      { selector: '[data-tour="payouts-page"]', title: 'Pagos y cobranza', description: 'Reúne recibos, aplicación de pagos y consulta global por préstamo.' },
-      { selector: '[data-tour="payouts-header"]', title: 'Registrar pago', description: 'Abre el flujo de pago permitido según rol y estado operativo.' },
-      { selector: '[data-tour="payouts-search"]', title: 'Búsqueda', description: 'Localiza pagos por cliente o préstamo.' },
-      { selector: '[data-tour="payouts-table"]', title: 'Tabla de pagos', description: 'Revisa método, estado, comprobante y acciones por recibo.' },
+      guideStep('[data-tour="payouts-page"]', 'payoutsPage'),
+      guideStep('[data-tour="payouts-header"]', 'payoutsHeader'),
+      guideStep('[data-tour="payouts-search"]', 'payoutsSearch'),
+      guideStep('[data-tour="payouts-table"]', 'payoutsTable'),
     ],
   },
   notifications: {
     default: [
-      { selector: '[data-tour="notifications-page"]', title: 'Notificaciones', description: 'Reúne alertas, novedades y enlaces al origen de cada evento.' },
-      { selector: '[data-tour="notifications-header"]', title: 'Resumen del buzón', description: 'Muestra cantidad no leída y controles principales.' },
-      { selector: '[data-tour="notifications-actions"]', title: 'Acciones rápidas', description: 'Permite marcar leídas o limpiar el buzón actual.' },
-      { selector: '[data-tour="notifications-list"]', title: 'Lista de notificaciones', description: 'Cada tarjeta muestra mensaje, fecha y acceso a su origen cuando aplica.' },
+      guideStep('[data-tour="notifications-page"]', 'notificationsPage'),
+      guideStep('[data-tour="notifications-header"]', 'notificationsHeader'),
+      guideStep('[data-tour="notifications-actions"]', 'notificationsActions'),
+      guideStep('[data-tour="notifications-list"]', 'notificationsList'),
     ],
   },
   reports: {
     default: [
-      { selector: '[data-tour="reports-page"]', title: 'Reportes', description: 'Consulta indicadores, mora, rentabilidad y exportes operativos.' },
-      { selector: '[data-tour="reports-header"]', title: 'Exportes', description: 'Descarga reportes generales o contextuales según filtros aplicados.' },
-      { selector: '[data-tour="reports-tabs"]', title: 'Vistas del módulo', description: 'Alterna entre dashboard, mora, rentabilidad, pagos y calendario.' },
-      { selector: '[data-tour="reports-content"]', title: 'Contenido del reporte', description: 'Cada pestaña cambia el conjunto de gráficos, métricas o tablas visibles.' },
+      guideStep('[data-tour="reports-page"]', 'reportsPage'),
+      guideStep('[data-tour="reports-header"]', 'reportsHeader'),
+      guideStep('[data-tour="reports-tabs"]', 'reportsTabs'),
+      guideStep('[data-tour="reports-content"]', 'reportsContent'),
     ],
   },
   settings: {
     default: [
-      { selector: '[data-tour="settings-page"]', title: 'Configuración', description: 'Centraliza políticas de tasa, mora, métodos de pago y permisos.' },
-      { selector: '[data-tour="settings-header"]', title: 'Resumen del módulo', description: 'Aquí ajustas catálogos y reglas que alimentan el flujo real de créditos.' },
-      { selector: '[data-tour="settings-tabs"]', title: 'Pestañas de configuración', description: 'Cada pestaña administra un conjunto distinto de políticas operativas.' },
-      { selector: '[data-tour="settings-content"]', title: 'Formulario o tabla activa', description: 'Edita o crea la configuración seleccionada desde este panel.' },
+      guideStep('[data-tour="settings-page"]', 'settingsPage'),
+      guideStep('[data-tour="settings-header"]', 'settingsHeader'),
+      guideStep('[data-tour="settings-tabs"]', 'settingsTabs'),
+      guideStep('[data-tour="settings-content"]', 'settingsContent'),
     ],
   },
   profile: {
     default: [
-      { selector: '[data-tour="profile-page"]', title: 'Perfil', description: 'Administra tus datos personales y la seguridad de tu cuenta.' },
-      { selector: '[data-tour="profile-header"]', title: 'Identidad de cuenta', description: 'Muestra tu rol actual y el alcance general del perfil.' },
-      { selector: '[data-tour="profile-tabs"]', title: 'Información y seguridad', description: 'Separa datos de perfil y cambio de contraseña.' },
-      { selector: '[data-tour="profile-content"]', title: 'Formulario activo', description: 'Guarda cambios en tus datos o actualiza la contraseña según la pestaña.' },
+      guideStep('[data-tour="profile-page"]', 'profilePage'),
+      guideStep('[data-tour="profile-header"]', 'profileHeader'),
+      guideStep('[data-tour="profile-tabs"]', 'profileTabs'),
+      guideStep('[data-tour="profile-content"]', 'profileContent'),
     ],
   },
   'audit-log': {
     default: [
-      { selector: '[data-tour="audit-log-page"]', title: 'Auditoría operativa', description: 'Permite investigar quién hizo una acción, desde qué IP y sobre qué módulo.' },
-      { selector: '[data-tour="audit-log-header"]', title: 'Encabezado de auditoría', description: 'Resume el propósito del módulo y su uso para diagnóstico.' },
-      { selector: '[data-tour="audit-log-stats"]', title: 'Indicadores técnicos', description: 'Muestran volumen, IPs visibles, servicio más activo y patrón de acciones.' },
-      { selector: '[data-tour="audit-log-filters"]', title: 'Filtros', description: 'Acota por usuario, módulo, acción, IP o rango de fechas.' },
-      { selector: '[data-tour="audit-log-table"]', title: 'Tabla de eventos', description: 'Abre el detalle técnico y filtra toda la actividad vinculada a una IP.' },
+      guideStep('[data-tour="audit-log-page"]', 'auditLogPage'),
+      guideStep('[data-tour="audit-log-header"]', 'auditLogHeader'),
+      guideStep('[data-tour="audit-log-stats"]', 'auditLogStats'),
+      guideStep('[data-tour="audit-log-filters"]', 'auditLogFilters'),
+      guideStep('[data-tour="audit-log-table"]', 'auditLogTable'),
     ],
   },
   'credit-calculator': {
     default: [
-      { selector: '[data-tour="credit-calculator-page"]', title: 'Previsualizar crédito', description: 'Simula el crédito con la regla de cálculo activa antes de crear uno real.' },
-      { selector: '[data-tour="credit-calculator-header"]', title: 'Controles del simulador', description: 'Vuelve a créditos o pasa el escenario validado a originación.' },
-      { selector: '[data-tour="credit-calculator-simulation"]', title: 'Simulación', description: 'Aquí ajustas monto, tasa, plazo, mora y revisas el cronograma.' },
-      { selector: '[data-tour="credit-calculator-next"]', title: 'Continuar a registro', description: 'Cuando el escenario sirve, lo envías a Nuevo crédito sin rearmarlo.' },
+      guideStep('[data-tour="credit-calculator-page"]', 'creditCalculatorPage'),
+      guideStep('[data-tour="credit-calculator-header"]', 'creditCalculatorHeader'),
+      guideStep('[data-tour="credit-calculator-simulation"]', 'creditCalculatorSimulation'),
+      guideStep('[data-tour="credit-calculator-next"]', 'creditCalculatorNext'),
     ],
   },
 };
@@ -282,9 +390,9 @@ export const startViewGuide = (viewKey: GuideViewKey, context: GuideContext = {}
     smoothScroll: true,
     stagePadding: 6,
     popoverOffset: 12,
-    nextBtnText: 'Siguiente',
-    prevBtnText: 'Anterior',
-    doneBtnText: 'Terminar',
+    nextBtnText: tTerm('guidedTour.nav.next'),
+    prevBtnText: tTerm('guidedTour.nav.previous'),
+    doneBtnText: tTerm('guidedTour.nav.done'),
     steps,
   });
 

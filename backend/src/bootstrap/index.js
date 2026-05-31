@@ -14,6 +14,7 @@ const { createLoanViewService } = require('@/modules/credits/application/loanFin
 const { createOverdueAlertSyncService } = require('@/modules/credits/application/overdueAlertSyncService');
 const { createOverdueAlertScheduler } = require('@/modules/credits/application/overdueAlertScheduler');
 const { domainEventBus, wireEventLogger } = require('@/modules/shared/events');
+const { parseTcpPort } = require('./ports');
 
 const REQUIRED_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'JWT_SECRET'];
 const UNSAFE_JWT_SECRETS = new Set(['changeme', 'replace_me', 'default', 'secret', 'password', 'jwt_secret']);
@@ -30,6 +31,8 @@ const validateEnvironment = (env = process.env) => {
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
+
+  parseTcpPort('DB_PORT', env.DB_PORT);
 
   const jwtSecret = String(env.JWT_SECRET || '').trim();
   const normalizedSecret = jwtSecret.toLowerCase();

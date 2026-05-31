@@ -173,7 +173,7 @@ test('GET /:paymentId/voucher/pdf returns 404 when payment not found', async () 
   });
 
   assert.equal(response.statusCode, 404, `Expected 404, got ${response.statusCode}`);
-  assert.equal(response.body?.error?.message, 'Payment not found');
+  assert.equal(response.body?.error?.message, 'El pago no existe.');
 });
 
 const requestJson = (server, { method = 'GET', path = '/', headers = {}, body } = {}) => new Promise((resolve, reject) => {

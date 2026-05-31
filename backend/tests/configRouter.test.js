@@ -15,7 +15,7 @@ const listenForTest = async (t, app) => {
 const allowAdminOnly = (allowedRoles = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
   if (!allowedRoles.includes(role)) {
-    return res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    return res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
   }
 
   req.user = { id: 5, role };
@@ -209,12 +209,12 @@ test('createConfigRouter rejects malformed config resource identifiers before ex
   const activeServer = await listenForTest(t, app);
 
   const cases = [
-    { method: 'PUT', path: '/rate-policies/1e2', field: /policyId/i, body: { label: 'Tasa QA' } },
-    { method: 'DELETE', path: '/rate-policies/abc', field: /policyId/i },
-    { method: 'PUT', path: '/late-fee-policies/7.5', field: /policyId/i, body: { label: 'Mora QA' } },
-    { method: 'DELETE', path: '/late-fee-policies/1e2', field: /policyId/i },
-    { method: 'PUT', path: '/payment-methods/abc', field: /paymentMethodId/i, body: { label: 'Transferencia QA' } },
-    { method: 'DELETE', path: '/payment-methods/1.5', field: /paymentMethodId/i },
+    { method: 'PUT', path: '/rate-policies/1e2', field: /número de la política/i, body: { label: 'Tasa QA' } },
+    { method: 'DELETE', path: '/rate-policies/abc', field: /número de la política/i },
+    { method: 'PUT', path: '/late-fee-policies/7.5', field: /número de la política/i, body: { label: 'Mora QA' } },
+    { method: 'DELETE', path: '/late-fee-policies/1e2', field: /número de la política/i },
+    { method: 'PUT', path: '/payment-methods/abc', field: /número del método de pago/i, body: { label: 'Transferencia QA' } },
+    { method: 'DELETE', path: '/payment-methods/1.5', field: /número del método de pago/i },
   ];
 
   for (const routeCase of cases) {
@@ -357,7 +357,7 @@ test('createConfigRouter denies non-admin access to sensitive configuration with
     assert.deepEqual(response.body, {
       success: false,
       error: {
-        message: 'Access denied',
+        message: 'No tienes acceso a esta acción.',
         statusCode: 403,
       },
     });

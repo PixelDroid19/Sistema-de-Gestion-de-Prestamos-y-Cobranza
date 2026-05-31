@@ -8,15 +8,16 @@ const ACCESS_TOKEN_EXPIRY = '15m';
 
 // Refresh token expiry: 7 days
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
+const INVALID_REFRESH_TOKEN_MESSAGE = 'La sesión no es válida o expiró. Inicia sesión de nuevo.';
 
 const normalizeTokenPayload = (payload) => {
   if (!payload || typeof payload !== 'object') {
-    throw new AuthenticationError('Invalid token payload');
+    throw new AuthenticationError('La sesión no es válida. Inicia sesión de nuevo.');
   }
 
   const normalizedRole = normalizeApplicationRole(payload.role);
   if (!normalizedRole) {
-    throw new AuthenticationError('Token contains an unsupported application role');
+    throw new AuthenticationError('La sesión no es válida. Inicia sesión de nuevo.');
   }
 
   return {
@@ -91,17 +92,17 @@ const createJwtTokenService = ({
     const storedToken = await refreshTokenRepository.findByTokenHash(tokenHash);
 
     if (!storedToken) {
-      throw new AuthenticationError('Invalid or expired refresh token');
+      throw new AuthenticationError(INVALID_REFRESH_TOKEN_MESSAGE);
     }
 
     // Check if revoked
     if (storedToken.revokedAt) {
-      throw new AuthenticationError('Invalid or expired refresh token');
+      throw new AuthenticationError(INVALID_REFRESH_TOKEN_MESSAGE);
     }
 
     // Check if expired
     if (new Date(storedToken.expiresAt) < new Date()) {
-      throw new AuthenticationError('Invalid or expired refresh token');
+      throw new AuthenticationError(INVALID_REFRESH_TOKEN_MESSAGE);
     }
 
     return {

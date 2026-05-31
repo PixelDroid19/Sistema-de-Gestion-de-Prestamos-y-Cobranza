@@ -103,7 +103,7 @@ export function HistoryTab({
                             icon={<Edit2 size={16} />}
                             title={editGuard.executable ? tTerm('payouts.action.editPaymentMethod') : (editGuard.reason || tTerm('credits.action.unavailable'))}
                           >
-                            Método
+                            {tTerm('creditDetails.history.editPaymentMethodShort')}
                           </ActionButton>
                         );
                       })()}

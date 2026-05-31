@@ -19,7 +19,7 @@ const roleAwareAuth = (config = []) => (req, res, next) => {
   const roles = Array.isArray(config) ? config : [];
   const allowedRoles = permissions.length > 0 ? ['admin', 'employee'] : roles;
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
-    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
     return;
   }
 
@@ -303,16 +303,16 @@ test('createAssociatesRouter rejects malformed route identifiers before executin
   activeServer = await listen(app);
 
   const cases = [
-    { method: 'GET', path: '/5abc', field: /associateId/i },
-    { method: 'PATCH', path: '/1e2', field: /associateId/i, body: { status: 'inactive' } },
-    { method: 'DELETE', path: '/1.5', field: /associateId/i },
-    { method: 'GET', path: '/abc/financial-details', field: /associateId/i },
-    { method: 'POST', path: '/abc/contributions', field: /associateId/i, body: { amount: 100 } },
-    { method: 'POST', path: '/abc/distributions', field: /associateId/i, body: { amount: 100 } },
-    { method: 'POST', path: '/abc/reinvestments', field: /associateId/i, body: { amount: 100 } },
-    { method: 'GET', path: '/abc/installments', field: /associateId/i },
-    { method: 'POST', path: '/12/installments/1e2/pay', field: /installmentNumber/i, body: { paymentDate: '2026-02-15' } },
-    { method: 'GET', path: '/abc/calendar-events', field: /associateId/i },
+    { method: 'GET', path: '/5abc', field: /número del socio/i },
+    { method: 'PATCH', path: '/1e2', field: /número del socio/i, body: { status: 'inactive' } },
+    { method: 'DELETE', path: '/1.5', field: /número del socio/i },
+    { method: 'GET', path: '/abc/financial-details', field: /número del socio/i },
+    { method: 'POST', path: '/abc/contributions', field: /número del socio/i, body: { amount: 100 } },
+    { method: 'POST', path: '/abc/distributions', field: /número del socio/i, body: { amount: 100 } },
+    { method: 'POST', path: '/abc/reinvestments', field: /número del socio/i, body: { amount: 100 } },
+    { method: 'GET', path: '/abc/installments', field: /número del socio/i },
+    { method: 'POST', path: '/12/installments/1e2/pay', field: /número de la cuota/i, body: { paymentDate: '2026-02-15' } },
+    { method: 'GET', path: '/abc/calendar-events', field: /número del socio/i },
   ];
 
   for (const routeCase of cases) {
@@ -420,7 +420,7 @@ test('createAssociatesRouter surfaces missing-record errors', async () => {
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.body.error.message, 'Associate not found');
+  assert.equal(response.body.error.message, 'El socio no existe.');
 });
 
 test('createAssociatesRouter does not expose associate self-service portal routes', async () => {
