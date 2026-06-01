@@ -60,8 +60,6 @@ export default function ProfitabilityTab({
       />
 
       <ReportDataTableSection title={tTerm('reports.profitability.table.title')}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
             <thead>
               <tr>
                 <th>{tTerm('reports.profitability.customer')}</th>
@@ -87,8 +85,6 @@ export default function ProfitabilityTab({
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
       </ReportDataTableSection>
 
       <ReportMetricsSection

@@ -142,6 +142,7 @@ export const creditsEn = {
 'credits.table.loading': 'Loading loans…',
 'credits.table.error': 'Error loading loans.',
 'credits.table.none': 'No loans registered.',
+'credits.table.recordsLabel': 'loans',
 'credits.pagination.summary': 'Showing {from} to {to} of {total} loans',
 'credits.pagination.rowsPerPage': 'Rows per page',
 'credits.pagination.previous': 'Previous',

@@ -203,7 +203,7 @@ describe('Settings operational configuration', () => {
       });
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Desactiva el acceso administrativo/i }));
     await waitFor(() => {
       expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({
         title: 'Desactivar empleado',
@@ -211,7 +211,7 @@ describe('Settings operational configuration', () => {
       expect(mockDeactivateUser).toHaveBeenCalledWith(7);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reactivar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Reactiva el acceso administrativo/i }));
     await waitFor(() => {
       expect(mockReactivateUser).toHaveBeenCalledWith(8);
     });
@@ -231,7 +231,7 @@ describe('Settings operational configuration', () => {
 
     expect(screen.getByText('Empleado sin nombre')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Desactiva el acceso administrativo/i }));
 
     await waitFor(() => {
       expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({
@@ -650,7 +650,7 @@ describe('Settings operational configuration', () => {
     render(<Settings />);
 
     fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Edita la regla para créditos nuevos/i })[0]);
 
     expect(screen.getByRole('heading', { name: 'Editar rango de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Nombre de política de tasa' })).toHaveValue('Crédito básico');

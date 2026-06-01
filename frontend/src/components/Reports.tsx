@@ -705,8 +705,6 @@ export default function Reports() {
             subtitle={tTerm('reports.outstanding.subtitle')}
           />
           <ReportDataTableSection>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
               <thead>
                 <tr>
                   <th>{tTerm('reports.outstanding.customer')}</th>
@@ -730,8 +728,6 @@ export default function Reports() {
                   </tr>
                 )}
               </tbody>
-            </table>
-          </div>
           </ReportDataTableSection>
         </div>
       )}
@@ -804,6 +800,7 @@ export default function Reports() {
           expenseFilters={expenseFilters}
           onExpenseFiltersChange={setExpenseFilters}
           expensePage={expensePage}
+          expensePageSize={expensePageSize}
           onExpensePageChange={setExpensePage}
           expenses={expenses}
           pagination={expensePagination}

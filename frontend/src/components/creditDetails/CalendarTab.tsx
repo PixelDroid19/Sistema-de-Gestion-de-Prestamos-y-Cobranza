@@ -1,6 +1,17 @@
 import type { ReactNode } from 'react';
 import { Calendar } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
+import {
+  AppTable,
+  CREDIT_CALENDAR_COLUMN_WIDTHS,
+  CREDIT_INSTALLMENT_CALENDAR_TABLE_CLASS,
+  renderFinancialScheduleColgroup,
+  TableActionsCell,
+  TableActionsHeader,
+  TableSectionIntro,
+  TableStatusPill,
+  TABLE_EMBEDDED_SHELL_CLASS,
+} from '../shared/tables';
 import { TabEmptyState } from './CreditDetailsTabs';
 import { getInstallmentRowKey, getInstallmentStatusInfo } from './creditDetailsHelpers';
 
@@ -13,7 +24,7 @@ type CalendarTabProps = {
   calendarSnapshot: any;
   formatCurrency: (value: unknown) => string;
   formatDate: (value: unknown, withTime?: boolean) => string;
-  renderInstallmentActions: (row: any, options?: { alignClassName?: string; titlePrefix?: string }) => ReactNode;
+  renderInstallmentActions: (row: any, options?: { alignClassName?: string; titlePrefix?: string; compact?: boolean }) => ReactNode;
 };
 
 export function CalendarTab({
@@ -37,35 +48,34 @@ export function CalendarTab({
     );
   }
 
+  const calendarAside = (
+    <>
+      <span className="inline-flex items-center rounded-lg border border-border-subtle bg-bg-base px-2.5 py-1.5 text-text-secondary">
+        {tTerm('creditDetails.calendar.nextPayable', {
+          number: nextPayableInstallmentNumber ?? tTerm('creditDetails.calendar.noPending'),
+        })}
+      </span>
+      {calendarSnapshot ? (
+        <span className="inline-flex items-center rounded-lg border border-border-subtle bg-bg-base px-2.5 py-1.5 font-medium text-text-primary">
+          {tTerm('creditDetails.calendar.outstandingBalance', {
+            amount: formatCurrency(calendarSnapshot.outstandingBalance),
+          })}
+        </span>
+      ) : null}
+    </>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="border-b border-border-subtle pb-4">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-base font-semibold text-text-primary">{tTerm('creditDetails.calendar.title')}</p>
-            <p className="mt-1 text-sm leading-6 text-text-secondary">
-              {tTerm('creditDetails.calendar.description')}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs font-medium">
-            <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
-              {tTerm('creditDetails.calendar.nextPayable', {
-                number: nextPayableInstallmentNumber ?? tTerm('creditDetails.calendar.noPending'),
-              })}
-            </span>
-            {calendarSnapshot && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
-                {tTerm('creditDetails.calendar.outstandingBalance', {
-                  amount: formatCurrency(calendarSnapshot.outstandingBalance),
-                })}
-              </span>
-            )}
-          </div>
-        </div>
+      <div className="md:hidden">
+        <TableSectionIntro
+          title={tTerm('creditDetails.calendar.title')}
+          description={tTerm('creditDetails.calendar.description')}
+          aside={calendarAside}
+        />
       </div>
 
-      {/* Mobile cards */}
-      <div className="grid gap-4 lg:hidden">
+      <div className="grid gap-4 md:hidden">
         {installmentRows.map((row: any) => {
           const statusInfo = getInstallmentStatusInfo(row.status);
           return (
@@ -75,9 +85,7 @@ export function CalendarTab({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{tTerm('creditDetails.calendar.installment', { number: row.installmentNumber })}</p>
                   <p className="mt-2 text-xl font-bold text-text-primary">{formatCurrency(row.scheduledPayment)}</p>
                 </div>
-                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.className}`}>
-                  {statusInfo.label}
-                </span>
+                <TableStatusPill className={statusInfo.className}>{statusInfo.label}</TableStatusPill>
               </div>
               <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
@@ -111,97 +119,92 @@ export function CalendarTab({
         })}
       </div>
 
-      {/* Desktop table */}
-      <div className="data-table-surface hidden overflow-x-auto lg:block">
-        <table className="credit-installment-calendar-table min-w-0 w-full table-fixed text-sm text-left whitespace-nowrap">
-          <colgroup>
-            {showInstallmentActionColumn ? (
-              <>
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '17%' }} />
-              </>
-            ) : (
-              <>
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '12%' }} />
-              </>
+      <div className="data-table-surface hidden md:block scroll-mt-3">
+        <TableSectionIntro
+          embedded
+          title={tTerm('creditDetails.calendar.title')}
+          description={tTerm('creditDetails.calendar.description')}
+          aside={calendarAside}
+        />
+        <AppTable
+          variant="financial"
+          financialLayout="credit-calendar"
+          visibleFrom="always"
+          embeddedInSurface
+          className={TABLE_EMBEDDED_SHELL_CLASS}
+          surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
+          horizontalScroll={showInstallmentActionColumn}
+          minWidthClassName="min-w-[920px]"
+          tableClassName={CREDIT_INSTALLMENT_CALENDAR_TABLE_CLASS}
+          data-tour="credit-detail-calendar-table"
+        >
+        {renderFinancialScheduleColgroup(
+          showInstallmentActionColumn
+            ? CREDIT_CALENDAR_COLUMN_WIDTHS.withActions
+            : CREDIT_CALENDAR_COLUMN_WIDTHS.withoutActions,
+        )}
+        <thead>
+          <tr>
+            <th className="text-center">{tTerm('creditDetails.calendar.table.number')}</th>
+            <th>{tTerm('schedule.table.header.dueDate')}</th>
+            <th className="text-right">{tTerm('creditDetails.label.installment')}</th>
+            <th className="text-right">{tTerm('creditDetails.label.interest')}</th>
+            <th className="text-right">{tTerm('creditDetails.label.lateFee')}</th>
+            <th className="text-right">{tTerm('credits.modal.amortizedPrincipal')}</th>
+            <th className="text-right">{tTerm('creditDetails.label.remainingPrincipal')}</th>
+            <th className="text-center">{tTerm('credits.filter.status')}</th>
+            {showInstallmentActionColumn && (
+              <TableActionsHeader>{tTerm('credits.table.actions')}</TableActionsHeader>
             )}
-          </colgroup>
-          <thead>
-            <tr>
-              <th className="text-center">{tTerm('creditDetails.calendar.table.number')}</th>
-              <th>{tTerm('schedule.table.header.dueDate')}</th>
-              <th className="text-right">{tTerm('creditDetails.label.installment')}</th>
-              <th className="text-right">{tTerm('creditDetails.label.interest')}</th>
-              <th className="text-right">{tTerm('creditDetails.label.lateFee')}</th>
-              <th className="text-right">{tTerm('credits.modal.amortizedPrincipal')}</th>
-              <th className="text-right">{tTerm('creditDetails.label.remainingPrincipal')}</th>
-              <th className="text-center">{tTerm('credits.filter.status')}</th>
-              {showInstallmentActionColumn && <th className="text-right">{tTerm('credits.table.actions')}</th>}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="text-center text-text-secondary font-medium">0</td>
-              <td className="text-text-secondary">{tTerm('simulator.schedule.row.start')}</td>
-              <td className="text-right text-text-secondary">—</td>
-              <td className="text-right text-text-secondary">—</td>
-              <td className="text-right text-text-secondary">—</td>
-              <td className="text-right text-text-secondary">—</td>
-              <td className="text-right font-bold text-text-primary">{formatCurrency(loanAmount)}</td>
-              <td></td>
-              {showInstallmentActionColumn && <td></td>}
-            </tr>
-            {installmentRows.map((row: any, idx: number) => {
-              const statusInfo = getInstallmentStatusInfo(row.status);
-              return (
-                <tr key={getInstallmentRowKey(row)} data-tour={idx === 0 ? 'credit-detail-installment-row' : undefined} className="group">
-                  <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
-                  <td className="text-text-secondary">{formatDate(row.dueDate)}</td>
-                  <td className="text-right font-medium text-text-primary">{formatCurrency(row.scheduledPayment)}</td>
-                  <td className="text-right text-text-secondary">{formatCurrency(row.interestComponent)}</td>
-                  <td className="text-right text-red-600 dark:text-red-400">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</td>
-                  <td className="text-right text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(row.principalComponent)}</td>
-                  <td className="text-right font-medium text-text-primary">{formatCurrency(row.closingBalance)}</td>
-                  <td className="text-center">
-                    <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.className}`}>
-                      {statusInfo.label}
-                    </span>
-                  </td>
-                  {showInstallmentActionColumn && (
-                    <td className="text-right">{renderInstallmentActions(row)}</td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
-              <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.calendar.total')}</td>
-              <td></td>
-              <td className="text-right font-bold text-text-primary">{formatCurrency(installmentColumnTotals.scheduledPayment)}</td>
-              <td className="text-right font-bold text-text-secondary">{formatCurrency(installmentColumnTotals.interestComponent)}</td>
-              <td className="text-right font-bold text-red-600 dark:text-red-400">{installmentColumnTotals.lateFeeDue > 0 ? formatCurrency(installmentColumnTotals.lateFeeDue) : '—'}</td>
-              <td className="text-right font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(installmentColumnTotals.principalComponent)}</td>
-              <td className="text-right font-bold text-brand-primary text-base">{formatCurrency(installmentColumnTotals.closingBalance)}</td>
-              <td className="text-center text-xs text-text-secondary">—</td>
-              {showInstallmentActionColumn && <td></td>}
-            </tr>
-          </tfoot>
-        </table>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="text-center text-text-secondary font-medium">0</td>
+            <td className="text-text-secondary">{tTerm('simulator.schedule.row.start')}</td>
+            <td className="text-right text-text-secondary">—</td>
+            <td className="text-right text-text-secondary">—</td>
+            <td className="text-right text-text-secondary">—</td>
+            <td className="text-right text-text-secondary">—</td>
+            <td className="text-right font-bold text-text-primary">{formatCurrency(loanAmount)}</td>
+            <td></td>
+            {showInstallmentActionColumn && <TableActionsCell>{null}</TableActionsCell>}
+          </tr>
+          {installmentRows.map((row: any, idx: number) => {
+            const statusInfo = getInstallmentStatusInfo(row.status);
+            return (
+              <tr key={getInstallmentRowKey(row)} data-tour={idx === 0 ? 'credit-detail-installment-row' : undefined} className="group">
+                <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
+                <td className="text-text-secondary">{formatDate(row.dueDate)}</td>
+                <td className="text-right font-medium text-text-primary">{formatCurrency(row.scheduledPayment)}</td>
+                <td className="text-right text-text-secondary">{formatCurrency(row.interestComponent)}</td>
+                <td className="text-right text-red-600 dark:text-red-400">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</td>
+                <td className="text-right text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(row.principalComponent)}</td>
+                <td className="text-right font-medium text-text-primary">{formatCurrency(row.closingBalance)}</td>
+                <td className="text-center">
+                  <TableStatusPill className={statusInfo.className}>{statusInfo.label}</TableStatusPill>
+                </td>
+                {showInstallmentActionColumn && (
+                  <TableActionsCell>{renderInstallmentActions(row)}</TableActionsCell>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
+            <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.calendar.total')}</td>
+            <td></td>
+            <td className="text-right font-bold text-text-primary">{formatCurrency(installmentColumnTotals.scheduledPayment)}</td>
+            <td className="text-right font-bold text-text-secondary">{formatCurrency(installmentColumnTotals.interestComponent)}</td>
+            <td className="text-right font-bold text-red-600 dark:text-red-400">{installmentColumnTotals.lateFeeDue > 0 ? formatCurrency(installmentColumnTotals.lateFeeDue) : '—'}</td>
+            <td className="text-right font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(installmentColumnTotals.principalComponent)}</td>
+            <td className="text-right font-bold text-brand-primary text-base">{formatCurrency(installmentColumnTotals.closingBalance)}</td>
+            <td className="text-center text-xs text-text-secondary">—</td>
+            {showInstallmentActionColumn && <TableActionsCell>{null}</TableActionsCell>}
+          </tr>
+        </tfoot>
+        </AppTable>
       </div>
     </div>
   );

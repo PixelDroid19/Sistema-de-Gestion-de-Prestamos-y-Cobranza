@@ -214,6 +214,45 @@ Mounted APIs include:
 - `frontend/src/components/__tests__/bannedApis.test.ts` forbids `window.alert`, `window.confirm`, `window.prompt`, bare `confirm()/prompt()`, and `<dialog>`.
 - Use `frontend/src/lib/confirmModal.tsx` for confirmations.
 
+## Frontend Tables And Row Actions
+
+All backoffice tables must go through `frontend/src/components/shared/tables/`. **Do not add raw `<table>` markup in screens** (enforced by `tableMarkupContract.test.ts`).
+
+### Entry point: `AppTable`
+
+Use `AppTable` as the **only** import in screens when adding or touching a table (enforced by `tableMarkupContract.test.ts`).
+
+| Prop | Variants | Purpose |
+|------|----------|---------|
+| `variant` | `"financial"` \| `"operational"` | Dense schedule vs admin list |
+| `pagination` | optional `TablePaginationConfig` | Integrates `TableShell` footer; omit when not paginated |
+| `shell` | `"auto"` (default) \| `"on"` \| `"off"` | `auto`: shell when pagination or state slots exist; `off`: scroll + table only |
+| `statePresentation` | `"inline"` (default) \| `"shell"` | `shell`: loading/error/empty replace table; `inline`: tbody rows in parent |
+| `footer` | optional `ReactNode` | Content below the table (outside `<table>`), e.g. custom pagination |
+| `visibleFrom` | financial only: `lg` \| `md` \| `"always"` | Responsive visibility |
+
+`FinancialScheduleTable` / `OperationalTable` are internal; do not import them in `components/` screens.
+
+Shared types: `tableTypes.ts` (`TablePaginationConfig`, `TableShellMode`, `TableStatePresentation`, etc.).
+
+**Visual contract (all variants):** tables live inside `.data-table-surface` (outer border, radius, shadow). Rows use horizontal separators only — **no vertical grid lines** between columns. Financial/calendar tables share the same cell padding and header treatment as operational lists; they may use `table-layout: fixed` + `colgroup` and sticky `thead` when scrolling long schedules.
+
+### Row actions and presentation
+
+- **Actions column**: always use `TableActionsHeader` / `TableActionsCell` (applies `table-cell-actions`: centered header, narrow column, centered toolbar). Do not use loose `text-right` on action `th`/`td`.
+- **Default row actions**: `RowActionsWithOverflow` with `DEFAULT_MAX_INLINE_ACTIONS` (2). Shows up to two bordered icon buttons inline; additional actions go in the ⋯ menu with icon + Spanish label. Use `maxInline={2}` unless a screen needs a different split.
+- **Credit calendar / installment rows**: `variant="installment"` + `InstallmentActionButton` styling via `buttonClassName` / `installmentActionClass`.
+- **Operational list rows**: `variant="icon"` + `iconVariant` (`ghost` | `danger`).
+- **Single action only**: `RowActionsWithOverflow` with one item is fine (no ⋯ menu).
+- **Section headers**: `TableSectionIntro`.
+- **Status cells**: `TableStatusPill`.
+- **Do not** use fixed `position: fixed` row menus, `MoreVertical` one-offs, or four-plus icon buttons in a single table cell.
+- `RowActionToolbar` is internal to `RowActionsWithOverflow`; do not import it in screens.
+
+### Reports
+
+`ReportDataTableSection` wraps `AppTable` (default `operational`; pass `tableVariant="financial"` only for dense schedule grids). Supports operational props (`pagination`, `shell`, `footer`, loading/empty). Children must be `<thead>` / `<tbody>` only — never place pagination `<div>`s inside `children`.
+
 ## Frontend UX Rules
 
 - Avoid overloaded interfaces.

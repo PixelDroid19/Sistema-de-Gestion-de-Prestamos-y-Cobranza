@@ -1,5 +1,6 @@
 import { Activity, Bell, Clock, CreditCard } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
+import { TableSectionIntro } from '../shared/tables';
 import { TabEmptyState } from './CreditDetailsTabs';
 import { formatOperationalStatus, stableCreditKey } from './creditDetailsHelpers';
 
@@ -30,12 +31,10 @@ export function HistoryTab({
 
   return (
     <div className="space-y-4 max-w-5xl">
-      <div className="border-b border-border-subtle pb-4">
-        <p className="text-base font-semibold text-text-primary">{tTerm('creditDetails.history.title')}</p>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
-          {tTerm('creditDetails.history.description')}
-        </p>
-      </div>
+      <TableSectionIntro
+        title={tTerm('creditDetails.history.title')}
+        description={tTerm('creditDetails.history.description')}
+      />
 
       <div className="space-y-3">
         {operationalHistoryEntries.map((event: any) => {

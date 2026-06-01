@@ -11,8 +11,14 @@ import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import { normalizeVisibleName } from '../lib/displayNames';
 import { useResolvedPermissionNames } from '../services/permissionsService';
-import TableShell from './shared/TableShell';
-import { ActionButton, FormField, IconActionButton, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from './shared/tables';
+import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
@@ -189,7 +195,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           </div>
         </ToolbarSurface>
 
-        <TableShell
+        <AppTable variant="operational"
           data-tour="customers-table"
           isLoading={isLoading}
           isError={isError}
@@ -220,8 +226,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           }}
           className="data-table-surface"
         >
-            <table className="min-w-[760px] w-full text-sm text-left">
-              <thead className="text-xs text-text-secondary border-b border-border-subtle">
+            <thead>
                 <tr>
                   <th className="pb-3 font-medium">{tTerm('customers.table.name')}</th>
                   <th className="pb-3 font-medium">{tTerm('customers.table.contact')}</th>
@@ -232,10 +237,10 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                     />
                   </th>
                   <th className="pb-3 font-medium">{tTerm('customers.table.registered')}</th>
-                  <th className="pb-3 font-medium">{tTerm('customers.table.actions')}</th>
+                  <TableActionsHeader className="pb-3 font-medium">{tTerm('customers.table.actions')}</TableActionsHeader>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-subtle">
+              <tbody>
                 {customers.map((customer: any) => (
                   <tr key={customer.id} className="hover:bg-hover-bg transition-colors">
                     <td className="py-4 font-medium flex items-center gap-3">
@@ -259,45 +264,60 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                       </span>
                     </td>
                     <td className="py-4 align-middle text-text-secondary">{formatCreatedAt(customer?.createdAt)}</td>
-                    <td className="py-4 align-middle">
-                      <div className="flex items-center gap-2">
-                        <IconActionButton
-                          onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)}
-                          icon={<Eye size={16} />}
-                          variant="ghost"
-                          label={tTerm('customers.action.viewDetails')}
-                        />
-                        {canUpdateCustomers && (
-                          <>
-                            <IconActionButton
-                              onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}/edit`)}
-                              icon={<Edit size={16} />}
-                              variant="ghost"
-                              label={tTerm('customers.action.edit')}
-                            />
-                            <IconActionButton
-                              onClick={() => handleToggleStatus(customer)}
-                              icon={<RotateCcw size={16} />}
-                              variant="ghost"
-                              label={customer.status === 'active' ? tTerm('customers.action.deactivate') : customer.status === 'blacklisted' ? tTerm('customers.action.unblock') : tTerm('customers.cta.restore')}
-                            />
-                          </>
-                        )}
-                        {canDeleteCustomers && (
-                          <IconActionButton
-                            onClick={() => handleDelete(customer)}
-                            icon={<Trash2 size={16} />}
-                            variant="danger"
-                            label={tTerm('customers.action.delete')}
+                    <TableActionsCell className="py-4 align-middle">
+                      {(() => {
+                        const items: RowActionOverflowItem[] = [
+                          {
+                            id: 'view',
+                            label: tTerm('customers.action.viewDetails'),
+                            icon: <Eye size={16} />,
+                            onClick: () => setCurrentView && setCurrentView(`customers/${customer.id}`),
+                          },
+                        ];
+                        if (canUpdateCustomers) {
+                          items.push(
+                            {
+                              id: 'edit',
+                              label: tTerm('customers.action.edit'),
+                              icon: <Edit size={16} />,
+                              onClick: () => setCurrentView && setCurrentView(`customers/${customer.id}/edit`),
+                            },
+                            {
+                              id: 'status',
+                              label: customer.status === 'active'
+                                ? tTerm('customers.action.deactivate')
+                                : customer.status === 'blacklisted'
+                                  ? tTerm('customers.action.unblock')
+                                  : tTerm('customers.cta.restore'),
+                              icon: <RotateCcw size={16} />,
+                              onClick: () => { void handleToggleStatus(customer); },
+                            },
+                          );
+                        }
+                        if (canDeleteCustomers) {
+                          items.push({
+                            id: 'delete',
+                            label: tTerm('customers.action.delete'),
+                            icon: <Trash2 size={16} />,
+                            onClick: () => { void handleDelete(customer); },
+                            iconVariant: 'danger',
+                            menuTone: 'danger',
+                          });
+                        }
+                        return (
+                          <RowActionsWithOverflow
+                            variant="icon"
+                            align="center"
+                            items={items}
+                            ariaLabel={tTerm('customers.table.actions')}
                           />
-                        )}
-                      </div>
-                    </td>
+                        );
+                      })()}
+                    </TableActionsCell>
                   </tr>
                 ))}
               </tbody>
-            </table>
-        </TableShell>
+        </AppTable>
       </div>
     </PageShell>
   );

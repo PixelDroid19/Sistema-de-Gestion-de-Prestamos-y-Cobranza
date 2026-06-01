@@ -19,7 +19,6 @@ import type { CreditCalculationInput } from '../types/creditCalculation';
 import { QuickGuideButton } from './shared/HelpSupport';
 import {
   ActionButton,
-  DataTableSurface,
   FormField,
   IconActionButton,
   InsightStrip,
@@ -27,6 +26,7 @@ import {
   PageShell,
   StatusChip,
 } from './shared/Surfaces';
+import { AppTable } from './shared/tables';
 import { OperationalInput, OperationalSelect } from './shared/FormControls';
 import { getLocalDateInputValue } from '../lib/dateInput';
 
@@ -482,7 +482,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="pb-28"
+      className="pb-44"
       data-tour="new-credit-page"
     >
       <PageShell className="new-credit-page mx-auto max-w-[1280px] !gap-4">
@@ -606,53 +606,66 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                         </div>
                       </div>
                     </div>
-                    <DataTableSurface className="new-credit-schedule-table mt-4 overflow-x-auto">
-                        <table className="min-w-[780px] w-full text-left text-sm whitespace-nowrap">
-                          <thead className="bg-bg-base text-left text-[11px] uppercase tracking-[0.14em] text-text-secondary">
-                            <tr>
-                              <th className="w-16 px-4 py-3 text-center font-medium">{tTerm('simulator.schedule.header.number')}</th>
-                              <th className="px-4 py-3 font-medium">{tTerm('schedule.table.header.dueDate')}</th>
-                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.payment')}</th>
-                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.interest')}</th>
-                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.principal')}</th>
-                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.balance')}</th>
-                              <th className="w-32 px-4 py-3 text-center font-medium">{tTerm('schedule.table.header.status')}</th>
+                    <AppTable
+                      variant="financial"
+                      visibleFrom="always"
+                      horizontalScroll
+                      minWidthClassName="min-w-[880px]"
+                      surfaceClassName="new-credit-schedule-table mt-4"
+                    >
+                        <colgroup>
+                          <col style={{ width: '6%' }} />
+                          <col style={{ width: '20%' }} />
+                          <col style={{ width: '13%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '15%' }} />
+                          <col style={{ width: '22%' }} />
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th className="text-center">{tTerm('simulator.schedule.header.number')}</th>
+                            <th>{tTerm('schedule.table.header.dueDate')}</th>
+                            <th className="text-right">{tTerm('simulator.schedule.header.payment')}</th>
+                            <th className="text-right">{tTerm('simulator.schedule.header.interest')}</th>
+                            <th className="text-right">{tTerm('simulator.schedule.header.principal')}</th>
+                            <th className="text-right">{tTerm('simulator.schedule.header.balance')}</th>
+                            <th className="text-center">{tTerm('schedule.table.header.status')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.schedule.length > 0 ? result.schedule.map((row) => (
+                            <tr key={row.installmentNumber}>
+                              <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
+                              <td className="text-text-secondary">{formatDueDate(row.dueDate)}</td>
+                              <td className="text-right font-medium text-text-primary">{formatMoney(row.scheduledPayment)}</td>
+                              <td className="text-right text-text-secondary">{formatMoney(row.interestComponent)}</td>
+                              <td className="text-right font-medium text-emerald-600 dark:text-emerald-400">{formatMoney(row.principalComponent)}</td>
+                              <td className="text-right font-medium text-text-primary">{formatMoney(row.remainingBalance)}</td>
+                              <td className="text-center text-text-secondary">{formatScheduleStatusLabel(row.status)}</td>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border-subtle bg-bg-surface">
-                            {result.schedule.length > 0 ? result.schedule.map((row) => (
-                              <tr key={row.installmentNumber}>
-                                <td className="px-4 py-3 text-center font-medium text-text-primary">{row.installmentNumber}</td>
-                                <td className="px-4 py-3 text-text-secondary">{formatDueDate(row.dueDate)}</td>
-                                <td className="px-4 py-3 text-right text-text-primary">{formatMoney(row.scheduledPayment)}</td>
-                                <td className="px-4 py-3 text-right text-text-primary">{formatMoney(row.interestComponent)}</td>
-                                <td className="px-4 py-3 text-right text-text-primary">{formatMoney(row.principalComponent)}</td>
-                                <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(row.remainingBalance)}</td>
-                                <td className="px-4 py-3 text-center text-text-secondary">{formatScheduleStatusLabel(row.status)}</td>
-                              </tr>
-                            )) : (
-                              <tr>
-                                <td colSpan={7} className="px-4 py-10 text-center text-sm text-text-secondary">
-                                  {tTerm('newCredit.schedule.empty')}
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                          {scheduleTotals && (
-                            <tfoot>
-                              <tr>
-                                <td className="px-4 py-3 text-center font-semibold text-text-primary">{scheduleTotals.installmentCount}</td>
-                                <td className="px-4 py-3 font-semibold text-text-primary">{tTerm('newCredit.schedule.totals')}</td>
-                                <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalScheduledPayment)}</td>
-                                <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalInterest)}</td>
-                                <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalPrincipal)}</td>
-                                <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.finalBalance)}</td>
-                                <td className="px-4 py-3 text-center font-semibold text-text-primary">{tTerm('newCredit.schedule.pendingCount', { count: scheduleTotals.pendingCount })}</td>
-                              </tr>
-                            </tfoot>
+                          )) : (
+                            <tr>
+                              <td colSpan={7} className="table-empty-state">
+                                {tTerm('newCredit.schedule.empty')}
+                              </td>
+                            </tr>
                           )}
-                        </table>
-                    </DataTableSurface>
+                        </tbody>
+                        {scheduleTotals && (
+                          <tfoot>
+                            <tr>
+                              <td className="text-center font-semibold text-text-primary">{scheduleTotals.installmentCount}</td>
+                              <td className="font-semibold text-text-primary">{tTerm('newCredit.schedule.totals')}</td>
+                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalScheduledPayment)}</td>
+                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalInterest)}</td>
+                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalPrincipal)}</td>
+                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.finalBalance)}</td>
+                              <td className="text-center font-semibold text-text-primary">{tTerm('newCredit.schedule.pendingCount', { count: scheduleTotals.pendingCount })}</td>
+                            </tr>
+                          </tfoot>
+                        )}
+                    </AppTable>
                   </div>
                 </>
               ) : (

@@ -222,8 +222,6 @@ export default function CashflowTab({
         title={tTerm('reports.cashflow.table.title')}
         subtitle={tTerm('reports.cashflow.table.subtitle')}
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
             <thead>
               <tr>
                 <th>{tTerm('reports.cashflow.table.month')}</th>
@@ -268,8 +266,6 @@ export default function CashflowTab({
                 ))
               )}
             </tbody>
-          </table>
-        </div>
       </ReportDataTableSection>
 
       <ReportSubsectionHeading
@@ -332,8 +328,6 @@ export default function CashflowTab({
         title={tTerm('reports.cashflow.daily.table.title')}
         subtitle={tTerm('reports.cashflow.daily.table.subtitle')}
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
             <thead>
               <tr>
                 <th>{tTerm('reports.cashflow.daily.table.date')}</th>
@@ -372,8 +366,6 @@ export default function CashflowTab({
                 ))
               )}
             </tbody>
-          </table>
-        </div>
       </ReportDataTableSection>
     </div>
   );

@@ -16,6 +16,7 @@ import {
   SectionSurface,
   SelectInput,
 } from '../shared/Surfaces';
+import { AppTable, TableSectionIntro, TableStatusPill, TABLE_EMBEDDED_SHELL_CLASS } from '../shared/tables';
 import { ReportTabPanel } from './ReportTabPanel';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
@@ -209,11 +210,15 @@ export default function ScheduleTab({
           </SectionSurface>
 
           <DataTableSurface>
-            <div className="px-4 py-4 sm:px-5">
-              <h3 className="font-medium">{tTerm('reports.schedule.table.title')}</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+            <TableSectionIntro embedded title={tTerm('reports.schedule.table.title')} />
+            <AppTable
+              variant="financial"
+              visibleFrom="always"
+              className={TABLE_EMBEDDED_SHELL_CLASS}
+              surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
+              horizontalScroll
+              minWidthClassName="min-w-[960px]"
+            >
                 <thead>
                   <tr>
                     <th>{tTerm('schedule.table.header.period')}</th>
@@ -237,15 +242,14 @@ export default function ScheduleTab({
                       <td className="text-emerald-600">{formatMoney(entry.interestComponent)}</td>
                       <td>{formatMoney(entry.remainingBalance)}</td>
                       <td>
-                        <span className={`px-2 py-1 rounded text-xs ${getChipClassName(getScheduleEntryStatusTone(entry.status))}`}>
+                        <TableStatusPill className={getChipClassName(getScheduleEntryStatusTone(entry.status))}>
                           {getScheduleEntryStatusLabel(entry.status)}
-                        </span>
+                        </TableStatusPill>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </AppTable>
           </DataTableSurface>
         </>
       )}

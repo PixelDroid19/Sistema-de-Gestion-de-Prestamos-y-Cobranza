@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, MoreVertical, Eye, Edit, Download, DollarSign, TrendingUp, Users, Percent, History, CalendarClock, Power, PowerOff } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Search, Eye, Edit, Download, DollarSign, TrendingUp, Users, Percent, History, CalendarClock, Power, PowerOff } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
   formatNumber as formatNumberValue,
@@ -11,24 +11,24 @@ import { toast } from '../lib/toast';
 import { reportClientError } from '../lib/clientDiagnostics';
 import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
-import TableShell from './shared/TableShell';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from './shared/tables';
 import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import { useResolvedPermissionNames } from '../services/permissionsService';
-import { ActionButton, FormField, IconActionButton, InsightStrip, ModalShell, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, FormField, InsightStrip, ModalShell, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 import NewAssociate from './NewAssociate';
 
 const formatCurrency = (amount: number) => formatCurrencyValue(amount);
 
 const formatPercent = (value: number) => formatPercentValue(value, { maximumFractionDigits: 2 });
-
-type AssociateActionMenuState = {
-  associate: any;
-  top: number;
-  right: number;
-} | null;
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { user } = useSessionStore();
@@ -49,20 +49,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   });
   const [isExporting, setIsExporting] = useState(false);
   const [editingAssociateId, setEditingAssociateId] = useState<number | null>(null);
-  const [actionMenu, setActionMenu] = useState<AssociateActionMenuState>(null);
-
-  useEffect(() => {
-    if (!actionMenu) return undefined;
-
-    const closeMenu = () => setActionMenu(null);
-    window.addEventListener('scroll', closeMenu, true);
-    window.addEventListener('resize', closeMenu);
-
-    return () => {
-      window.removeEventListener('scroll', closeMenu, true);
-      window.removeEventListener('resize', closeMenu);
-    };
-  }, [actionMenu]);
 
   const handleExportAssociatesExcel = async () => {
     if (!canExportAssociates) {
@@ -149,7 +135,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   };
 
   const handleToggleStatus = async (associate: any) => {
-    setActionMenu(null);
     if (!canUpdateAssociates) {
       toast.apiErrorSafe(new Error(tTerm('associates.toast.status.permissionDenied')), { domain: 'associates' });
       return;
@@ -191,42 +176,64 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     }
   };
 
-  const toggleActionMenu = (associate: any, event: React.MouseEvent<HTMLButtonElement>) => {
-    const associateId = Number(associate?.id);
-    if (!Number.isFinite(associateId)) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const nextPosition = {
-      top: Math.min(rect.bottom + 8, window.innerHeight - 280),
-      right: Math.max(16, window.innerWidth - rect.right),
-    };
-
-    setActionMenu((current) => {
-      if (Number(current?.associate?.id) === associateId) {
-        return null;
-      }
-
-      return {
-        associate,
-        ...nextPosition,
-      };
-    });
-  };
-
   const openAssociateDetails = (associate: any, section?: 'history' | 'installments') => {
     const associateId = Number(associate?.id);
     if (!Number.isFinite(associateId)) return;
     if (section) {
       sessionStorage.setItem(`associate-detail-initial-tab:${associateId}`, section === 'installments' ? 'installments' : 'overview');
     }
-    setActionMenu(null);
     setCurrentView(`associates/${associateId}`);
   };
 
   const openEditModal = (associate: any) => {
     const associateId = Number(associate?.id);
     if (!Number.isFinite(associateId)) return;
-    setActionMenu(null);
     setEditingAssociateId(associateId);
+  };
+
+  const buildAssociateRowActions = (associate: any): RowActionOverflowItem[] => {
+    const items: RowActionOverflowItem[] = [
+      {
+        id: 'view',
+        label: tTerm('associates.actions.view'),
+        icon: <Eye size={16} />,
+        onClick: () => openAssociateDetails(associate),
+      },
+    ];
+
+    if (canUpdateAssociates) {
+      items.push({
+        id: 'edit',
+        label: tTerm('associates.actions.edit'),
+        icon: <Edit size={16} />,
+        onClick: () => openEditModal(associate),
+      });
+      items.push({
+        id: 'history',
+        label: tTerm('associates.actions.interestHistory'),
+        icon: <History size={16} />,
+        onClick: () => openAssociateDetails(associate, 'history'),
+      });
+      items.push({
+        id: 'schedule',
+        label: tTerm('associates.actions.interestSchedule'),
+        icon: <CalendarClock size={16} />,
+        onClick: () => openAssociateDetails(associate, 'installments'),
+      });
+      items.push({
+        id: 'status',
+        label: associate.status === 'active'
+          ? tTerm('associates.actions.deactivate')
+          : tTerm('associates.actions.reactivate'),
+        icon: associate.status === 'active'
+          ? <PowerOff size={16} />
+          : <Power size={16} />,
+        onClick: () => { void handleToggleStatus(associate); },
+        menuTone: associate.status === 'active' ? 'danger' : 'default',
+      });
+    }
+
+    return items;
   };
 
   return (
@@ -333,8 +340,9 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           </div>
         </ToolbarSurface>
 
-        <TableShell
+        <AppTable variant="operational"
           data-tour="associates-table"
+          minWidthClassName="min-w-[820px]"
           isLoading={isLoading}
           isError={isError}
           hasData={associates.length > 0}
@@ -356,8 +364,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           } : undefined}
           className="data-table-surface"
         >
-          <table className="min-w-[820px] w-full text-sm text-left">
-            <thead className="text-xs text-text-secondary border-b border-border-subtle">
+            <thead>
               <tr>
                 <th className="pb-3 font-medium">{tTerm('associates.table.name')}</th>
                 <th className="pb-3 font-medium">
@@ -369,10 +376,10 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 <th className="pb-3 font-medium">
                   <HelpLabel label={tTerm('associates.table.interest')} text={tTerm('associates.table.interestHelp')} />
                 </th>
-                <th className="pb-3 text-center font-medium">{tTerm('associates.table.actions')}</th>
+                <TableActionsHeader className="pb-3 font-medium">{tTerm('associates.table.actions')}</TableActionsHeader>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {associates.map((associate: any) => (
                 <tr key={associate.id} className="hover:bg-hover-bg transition-colors">
                   <td className="py-4 font-medium flex items-center gap-3">
@@ -390,38 +397,18 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                     {associate.participationPercentage ? formatPercent(associate.participationPercentage) : tTerm('common.notAvailable')}
                   </td>
                   <td className="py-4 text-text-secondary">{getInterestLabel(associate)}</td>
-                  <td className="py-4">
-                    <div className="flex items-center justify-center gap-2">
-                      <IconActionButton
-                        onClick={() => openAssociateDetails(associate)}
-                        icon={<Eye size={16} />}
-                        label={tTerm('associates.actions.view')}
-                        variant="ghost"
-                      />
-                      {canUpdateAssociates && (
-                        <>
-                          <IconActionButton
-                            onClick={() => openEditModal(associate)}
-                            icon={<Edit size={16} />}
-                            label={tTerm('associates.actions.edit')}
-                            variant="ghost"
-                          />
-                          <IconActionButton
-                            onClick={(event) => toggleActionMenu(associate, event)}
-                            icon={<MoreVertical size={16} />}
-                            label={tTerm('associates.actions.more')}
-                            variant="ghost"
-                            className={Number(actionMenu?.associate?.id) === Number(associate.id) ? 'bg-hover-bg' : ''}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </td>
+                  <TableActionsCell className="py-4">
+                    <RowActionsWithOverflow
+                      variant="icon"
+                      align="center"
+                      items={buildAssociateRowActions(associate)}
+                      ariaLabel={tTerm('associates.table.actions')}
+                    />
+                  </TableActionsCell>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </TableShell>
+        </AppTable>
       </div>
       {editingAssociateId !== null && (
         <ModalShell
@@ -436,47 +423,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
             onBack={() => setEditingAssociateId(null)}
           />
         </ModalShell>
-      )}
-      {canUpdateAssociates && actionMenu && (
-        <div
-          className="fixed z-50 w-72 overflow-hidden rounded-lg border border-border-subtle bg-bg-surface text-left shadow-xl"
-          style={{ top: actionMenu.top, right: actionMenu.right }}
-        >
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
-            onClick={() => openAssociateDetails(actionMenu.associate, 'history')}
-          >
-            <History size={16} className="text-text-secondary" />
-            <span>{tTerm('associates.actions.interestHistory')}</span>
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
-            onClick={() => openAssociateDetails(actionMenu.associate, 'installments')}
-          >
-            <CalendarClock size={16} className="text-text-secondary" />
-            <span>{tTerm('associates.actions.interestSchedule')}</span>
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
-            onClick={() => openEditModal(actionMenu.associate)}
-          >
-            <Edit size={16} className="text-text-secondary" />
-            <span>{tTerm('associates.actions.editTerms')}</span>
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 border-t border-border-subtle px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
-            onClick={() => handleToggleStatus(actionMenu.associate)}
-          >
-            {actionMenu.associate.status === 'active'
-              ? <PowerOff size={16} className="text-red-500" />
-              : <Power size={16} className="text-emerald-600" />}
-            <span>{actionMenu.associate.status === 'active' ? tTerm('associates.actions.deactivate') : tTerm('associates.actions.reactivate')}</span>
-          </button>
-        </div>
       )}
     </PageShell>
   );

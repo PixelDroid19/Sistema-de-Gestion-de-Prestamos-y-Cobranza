@@ -9,9 +9,7 @@ import type {
   OperatingExpensePayload,
 } from '../../services/reportService';
 import {
-  ActionButton,
   FormField,
-  IconActionButton,
   SelectInput,
   StatusChip,
   TextInput,
@@ -19,12 +17,14 @@ import {
 import OperatingExpenseCreateModal, { OperatingExpenseCreateTrigger } from './OperatingExpenseCreateModal';
 import ReportDownloadModal, { ReportDownloadTrigger } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
+import { RowActionsWithOverflow, TableActionsCell, TableActionsHeader } from '../shared/tables';
 import { ReportTabPanel } from './ReportTabPanel';
 
 type OperatingExpensesTabProps = {
   expenseFilters: OperatingExpenseFilters;
   onExpenseFiltersChange: (filters: OperatingExpenseFilters) => void;
   expensePage: number;
+  expensePageSize: number;
   onExpensePageChange: (page: number) => void;
   expenses: OperatingExpense[];
   pagination: { totalPages?: number; totalItems?: number } | null;
@@ -55,6 +55,7 @@ export default function OperatingExpensesTab({
   expenseFilters,
   onExpenseFiltersChange,
   expensePage,
+  expensePageSize,
   onExpensePageChange,
   expenses,
   pagination,
@@ -85,8 +86,6 @@ export default function OperatingExpensesTab({
 
   const totalPages = Math.max(Number(pagination?.totalPages || 1), 1);
   const totalItems = Number(pagination?.totalItems || expenses.length || 0);
-  const hasNextPage = expensePage < totalPages;
-  const hasPreviousPage = expensePage > 1;
 
   return (
     <div className="report-tab-layout">
@@ -158,9 +157,21 @@ export default function OperatingExpensesTab({
       <ReportDataTableSection
         title={tTerm('reports.expenses.table.title')}
         subtitle={tTerm('reports.expenses.pagination.summary', { total: totalItems })}
+        statePresentation="inline"
+        recordsLabel={tTerm('reports.expenses.table.recordsLabel')}
+        pagination={
+          totalPages > 1
+            ? {
+              page: expensePage,
+              pageSize: expensePageSize,
+              totalItems,
+              totalPages,
+              onPrev: () => onExpensePageChange(Math.max(1, expensePage - 1)),
+              onNext: () => onExpensePageChange(expensePage + 1),
+            }
+            : undefined
+        }
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
             <thead>
               <tr>
                 <th>{tTerm('reports.expenses.table.date')}</th>
@@ -170,7 +181,7 @@ export default function OperatingExpensesTab({
                 <th>{tTerm('reports.expenses.table.paymentMethod')}</th>
                 <th>{tTerm('reports.expenses.table.status')}</th>
                 <th>{tTerm('reports.expenses.table.createdBy')}</th>
-                <th>{tTerm('reports.expenses.table.actions')}</th>
+                <TableActionsHeader>{tTerm('reports.expenses.table.actions')}</TableActionsHeader>
               </tr>
             </thead>
             <tbody>
@@ -200,45 +211,33 @@ export default function OperatingExpensesTab({
                         </StatusChip>
                       </td>
                       <td>{expense.createdBy?.name || tTerm('common.notAvailable')}</td>
-                      <td>
+                      <TableActionsCell>
                         {canAnnul && !isAnnulled ? (
-                          <IconActionButton
-                            label={tTerm('reports.expenses.cta.annul')}
-                            icon={<Ban size={16} />}
-                            variant="danger"
-                            disabled={annullingExpenseId === expense.id}
-                            onClick={() => { void onAnnulExpense(expense); }}
+                          <RowActionsWithOverflow
+                            variant="icon"
+                            align="center"
+                            ariaLabel={tTerm('reports.expenses.table.actions')}
+                            items={[
+                              {
+                                id: 'annul',
+                                label: tTerm('reports.expenses.cta.annul'),
+                                icon: <Ban size={16} />,
+                                onClick: () => { void onAnnulExpense(expense); },
+                                disabled: annullingExpenseId === expense.id,
+                                iconVariant: 'danger',
+                                menuTone: 'danger',
+                              },
+                            ]}
                           />
                         ) : (
                           <span className="text-text-secondary">{tTerm('common.notAvailable')}</span>
                         )}
-                      </td>
+                      </TableActionsCell>
                     </tr>
                   );
                 })
               )}
             </tbody>
-          </table>
-        </div>
-        <div className="flex flex-col gap-3 border-t border-border-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <p className="text-sm text-text-secondary">
-            {tTerm('reports.expenses.pagination.page', { page: expensePage, totalPages })}
-          </p>
-          <div className="flex gap-2">
-            <ActionButton
-              onClick={() => onExpensePageChange(Math.max(1, expensePage - 1))}
-              disabled={!hasPreviousPage}
-            >
-              {tTerm('reports.payouts.pagination.previous')}
-            </ActionButton>
-            <ActionButton
-              onClick={() => onExpensePageChange(expensePage + 1)}
-              disabled={!hasNextPage}
-            >
-              {tTerm('reports.payouts.pagination.next')}
-            </ActionButton>
-          </div>
-        </div>
       </ReportDataTableSection>
     </div>
   );

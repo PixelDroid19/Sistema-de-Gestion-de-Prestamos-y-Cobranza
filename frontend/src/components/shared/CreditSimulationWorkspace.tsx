@@ -15,7 +15,8 @@ import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
 import { formatScheduleStatusLabel } from '../../lib/scheduleStatusLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
 import { OperationalInput, OperationalSelect } from './FormControls';
-import { ActionButton, DataTableSurface, FormField, InsightStrip } from './Surfaces';
+import { ActionButton, FormField, InsightStrip } from './Surfaces';
+import { AppTable } from './tables';
 
 type CreditSimulationWorkspaceProps = {
   title: string;
@@ -188,7 +189,7 @@ export default function CreditSimulationWorkspace({
 
   return (
     <section className={`flex flex-col ${compactChrome ? 'gap-4' : 'gap-6'}`} aria-labelledby={titleId}>
-      <div className={compactChrome ? 'overflow-hidden rounded-[1.35rem] border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]' : 'overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]'}>
+      <div className={compactChrome ? 'overflow-visible rounded-[1.35rem] border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]' : 'overflow-visible rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]'}>
         <div className={`${compactChrome ? 'border-b border-border-subtle px-6 py-6 sm:px-8' : 'border-b border-border-subtle px-6 py-6 sm:px-8'}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className={`max-w-3xl ${compactChrome ? 'space-y-1' : 'space-y-3'}`}>
@@ -423,7 +424,7 @@ export default function CreditSimulationWorkspace({
               )}
             </section>
 
-            <section className={`${compactChrome ? 'space-y-3' : 'space-y-5'}`} aria-label={tTerm('simulator.schedule.title')}>
+            <section className={`${compactChrome ? 'space-y-3 pb-4' : 'space-y-5 pb-6'}`} aria-label={tTerm('simulator.schedule.title')}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -445,17 +446,15 @@ export default function CreditSimulationWorkspace({
                 )}
               </div>
 
-               <DataTableSurface>
-                <div className="overflow-x-auto">
-                  <table className="credit-installment-calendar-table min-w-0 w-full table-fixed text-sm text-left">
+               <AppTable variant="financial" visibleFrom="always" horizontalScroll minWidthClassName="min-w-[880px]">
                     <colgroup>
-                      <col style={{ width: '7%' }} />
-                      <col style={{ width: '17%' }} />
-                      <col style={{ width: '14%' }} />
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '6%' }} />
                       <col style={{ width: '20%' }} />
+                      <col style={{ width: '13%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '22%' }} />
                     </colgroup>
                     <thead>
                       <tr>
@@ -512,9 +511,7 @@ export default function CreditSimulationWorkspace({
                         </tr>
                       )}
                     </tbody>
-                  </table>
-                </div>
-              </DataTableSurface>
+              </AppTable>
             </section>
           </div>
         </div>

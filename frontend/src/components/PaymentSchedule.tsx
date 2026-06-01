@@ -7,7 +7,8 @@ import { formatCurrency, formatDate } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { formatScheduleStatusLabel } from '../lib/scheduleStatusLabels';
 import { getLoanStatusLabel } from './credits/creditsHelpers';
-import { ActionButton, DataTableSurface, EmptyState, InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
+import { ActionButton, EmptyState, InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
+import { AppTable, TableStatusPill } from './shared/tables';
 import { QuickGuideButton } from './shared/HelpSupport';
 
 /**
@@ -21,25 +22,16 @@ export default function PaymentSchedule() {
   const { loan, summary, schedule, isLoading, isError, error } = usePaymentSchedule(loanId);
   const [isExporting, setIsExporting] = useState(false);
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      paid: { label: tTerm('schedule.status.paid'), className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
-      pending: { label: tTerm('schedule.status.pending'), className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-      overdue: { label: tTerm('schedule.status.overdue'), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
-      defaulted: { label: formatScheduleStatusLabel('defaulted'), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
-      annulled: { label: tTerm('schedule.status.annulled'), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
+  const getStatusBadgeClassName = (status: string) => {
+    const statusMap: Record<string, string> = {
+      paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+      pending: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+      overdue: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+      defaulted: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+      annulled: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
     };
 
-    const config = statusMap[status.toLowerCase()] || {
-      label: formatScheduleStatusLabel(status),
-      className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400',
-    };
-
-    return (
-      <span className={`px-2 py-1 rounded-md text-xs font-medium ${config.className}`}>
-        {config.label}
-      </span>
-    );
+    return statusMap[status.toLowerCase()] || 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300';
   };
 
   const handleExport = async () => {
@@ -157,61 +149,61 @@ export default function PaymentSchedule() {
         />
       )}
 
-      <DataTableSurface data-tour="payment-schedule-table">
-        <div className="overflow-x-auto">
-          <table className="min-w-[980px] w-full text-sm">
-            <thead>
-              <tr>
-                <th className="text-left">{tTerm('schedule.table.header.period')}</th>
-                <th className="text-left">{tTerm('schedule.table.header.dueDate')}</th>
-                <th className="text-right">{tTerm('schedule.table.header.openingBalance')}</th>
-                <th className="text-right">{tTerm('schedule.table.header.scheduledPayment')}</th>
-                <th className="text-right">{tTerm('schedule.table.header.principal')}</th>
-                <th className="text-right">{tTerm('schedule.table.header.interest')}</th>
-                <th className="text-right">{tTerm('schedule.table.header.paid')}</th>
-                <th className="text-right">{tTerm('schedule.table.header.remaining')}</th>
-                <th className="text-center">{tTerm('schedule.table.header.status')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {schedule.map((entry) => (
-                <tr
-                  key={entry.installmentNumber}
-                  className="transition-colors hover:bg-slate-50/80 dark:hover:bg-hover-bg/60"
-                >
-                  <td className="font-medium text-text-primary">
-                    {entry.installmentNumber}
-                  </td>
-                  <td className="whitespace-nowrap text-text-secondary">
-                    {formatDate(entry.dueDate, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) || '-'}
-                  </td>
-                  <td className="whitespace-nowrap text-right text-text-primary">
-                    {formatCurrency(entry.openingBalance)}
-                  </td>
-                  <td className="whitespace-nowrap text-right font-medium text-text-primary">
-                    {formatCurrency(entry.scheduledPayment)}
-                  </td>
-                  <td className="whitespace-nowrap text-right text-emerald-600 dark:text-emerald-400">
-                    {formatCurrency(entry.principalComponent)}
-                  </td>
-                  <td className="whitespace-nowrap text-right text-amber-600 dark:text-amber-400">
-                    {formatCurrency(entry.interestComponent)}
-                  </td>
-                  <td className="whitespace-nowrap text-right font-medium text-text-primary">
-                    {entry.paidTotal > 0 ? formatCurrency(entry.paidTotal) : '-'}
-                  </td>
-                  <td className="whitespace-nowrap text-right font-medium text-text-primary">
-                    {formatCurrency(entry.remainingBalance)}
-                  </td>
-                  <td className="text-center">
-                    {getStatusBadge(entry.status)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </DataTableSurface>
+      <AppTable
+        variant="financial"
+        data-tour="payment-schedule-table"
+        visibleFrom="always"
+        horizontalScroll
+        minWidthClassName="min-w-[1040px]"
+      >
+        <colgroup>
+          <col style={{ width: '6%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '14%' }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th className="text-center">{tTerm('schedule.table.header.period')}</th>
+            <th>{tTerm('schedule.table.header.dueDate')}</th>
+            <th className="text-right">{tTerm('schedule.table.header.openingBalance')}</th>
+            <th className="text-right">{tTerm('schedule.table.header.scheduledPayment')}</th>
+            <th className="text-right">{tTerm('schedule.table.header.principal')}</th>
+            <th className="text-right">{tTerm('schedule.table.header.interest')}</th>
+            <th className="text-right">{tTerm('schedule.table.header.paid')}</th>
+            <th className="text-right">{tTerm('schedule.table.header.remaining')}</th>
+            <th className="text-center">{tTerm('schedule.table.header.status')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((entry) => (
+            <tr key={entry.installmentNumber} className="group">
+              <td className="text-center font-medium text-text-secondary">{entry.installmentNumber}</td>
+              <td className="text-text-secondary">
+                {formatDate(entry.dueDate, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) || '-'}
+              </td>
+              <td className="text-right text-text-primary">{formatCurrency(entry.openingBalance)}</td>
+              <td className="text-right font-medium text-text-primary">{formatCurrency(entry.scheduledPayment)}</td>
+              <td className="text-right font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.principalComponent)}</td>
+              <td className="text-right text-text-secondary">{formatCurrency(entry.interestComponent)}</td>
+              <td className="text-right font-medium text-text-primary">
+                {entry.paidTotal > 0 ? formatCurrency(entry.paidTotal) : '-'}
+              </td>
+              <td className="text-right font-medium text-text-primary">{formatCurrency(entry.remainingBalance)}</td>
+              <td className="text-center">
+                <TableStatusPill className={getStatusBadgeClassName(entry.status)}>
+                  {formatScheduleStatusLabel(entry.status)}
+                </TableStatusPill>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </AppTable>
     </PageShell>
   );
 }

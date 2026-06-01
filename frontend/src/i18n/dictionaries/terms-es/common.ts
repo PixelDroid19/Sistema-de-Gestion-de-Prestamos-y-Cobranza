@@ -145,6 +145,7 @@ export const commonEs = {
 'common.cta.cancel': 'Cancelar',
 'common.cta.open': 'Abrir',
 'common.cta.close': 'Cerrar',
+'common.tableActions.more': 'Más acciones',
 'common.cta.processing': 'Procesando...',
 'common.quickGuide': 'Guía rápida',
 'common.confirm.action.title': 'Confirmar acción',

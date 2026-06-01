@@ -136,6 +136,7 @@ export const commonEn = {
 'common.cta.cancel': 'Cancel',
 'common.cta.open': 'Open',
 'common.cta.close': 'Close',
+'common.tableActions.more': 'More actions',
 'common.cta.processing': 'Processing...',
 'common.quickGuide': 'Quick guide',
 'common.confirm.action.title': 'Confirm action',

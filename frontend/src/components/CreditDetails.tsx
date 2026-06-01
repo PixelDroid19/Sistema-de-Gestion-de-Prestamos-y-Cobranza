@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Bell, Clock, DollarSign, ShieldAlert, Activity, AlertCircle, FileText } from 'lucide-react';
+import { Bell, Clock, DollarSign, Edit2, ShieldAlert, Activity, AlertCircle, FileText } from 'lucide-react';
 import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useConfig } from '../services/configService';
 import { exportCreditExcel, useCreditReports } from '../services/reportService';
@@ -30,8 +30,12 @@ import { resolveOperationalGuard } from '../services/operationalGuards';
 import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
 import { CreditDetailsTabs, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
-import { InstallmentActionButton } from './creditDetails/InstallmentActionButton';
 import { ActionButton, EmptyState } from './shared/Surfaces';
+import {
+  installmentActionClass,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+} from './shared/tables';
 import {
   formatPayoffDenialReason,
   formatCapitalPaymentDenialReason,
@@ -688,9 +692,9 @@ export default function CreditDetails() {
   // -------------------------------------------------------------------------
   // Installment action renderer (passed to CalendarTab)
   // -------------------------------------------------------------------------
-  const renderInstallmentActions = (row: any, options?: { alignClassName?: string; titlePrefix?: string }) => {
+  const renderInstallmentActions = (row: any, options?: { alignClassName?: string; titlePrefix?: string; compact?: boolean }) => {
     if (!['pending', 'overdue', 'partial'].includes(String(row?.status || '').toLowerCase())) return null;
-    const align = options?.alignClassName ?? 'justify-end';
+    const align = options?.alignClassName ?? 'justify-center';
     const prefix = options?.titlePrefix ?? '';
     const isNext = row.installmentNumber === nextPayableInstallmentNumber;
     const payG = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status, installmentStatus: row.status });
@@ -701,39 +705,123 @@ export default function CreditDetails() {
     const payReason = payG.executable ? instReason : (payG.reason || instReason);
     const annReason = annG.executable ? instReason : (annG.reason || instReason);
 
+    const toolbarAlign = align === 'justify-start'
+      ? 'start'
+      : align === 'justify-center'
+        ? 'center'
+        : 'end';
+
+    const actionItems: RowActionOverflowItem[] = [];
+
+    if (payG.visible) {
+      actionItems.push({
+        id: 'pay',
+        label: isNext && payG.executable ? `${prefix}${tTerm('credits.action.registerPayment')}` : payReason,
+        icon: <DollarSign size={16} />,
+        onClick: () => openInstallmentPayment(row),
+        disabled: !isNext || !payG.executable,
+        buttonClassName: installmentActionClass('blue'),
+      });
+    }
+    if (proG.visible) {
+      actionItems.push({
+        id: 'promise',
+        label: isNext && proG.executable ? `${prefix}${tTerm('credits.action.createPromise')}` : (proG.reason || instReason),
+        icon: <Clock size={16} />,
+        onClick: () => openPromiseFromInstallment(row),
+        disabled: !isNext || !proG.executable,
+        buttonClassName: installmentActionClass('amber'),
+      });
+    }
+    if (folG.visible) {
+      actionItems.push({
+        id: 'followUp',
+        label: isNext && folG.executable ? `${prefix}${tTerm('credits.action.createFollowUp')}` : (folG.reason || instReason),
+        icon: <Bell size={16} />,
+        onClick: () => openFollowUpFromInstallment(row),
+        disabled: !isNext || !folG.executable,
+        buttonClassName: installmentActionClass('slate'),
+      });
+    }
+    if (annG.visible) {
+      actionItems.push({
+        id: 'annul',
+        label: isNext && annG.executable ? `${prefix}${tTerm('credits.action.annulInstallment')}` : annReason,
+        icon: <ShieldAlert size={16} />,
+        onClick: () => openAnnulModal(row.installmentNumber),
+        disabled: !isNext || !annG.executable,
+        buttonClassName: installmentActionClass('rose'),
+        menuTone: 'danger',
+      });
+    }
+
     return (
-      <div className={`credit-installment-actions inline-flex flex-nowrap items-center gap-1.5 ${align}`} role="toolbar" aria-label={tTerm('creditDetails.installmentActions.aria', { number: row.installmentNumber })}>
-        {payG.visible && (
-          <InstallmentActionButton onClick={() => openInstallmentPayment(row)} disabled={!isNext || !payG.executable}
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
-            label={isNext && payG.executable ? `${prefix}${tTerm('credits.action.registerPayment')}` : payReason}>
-            <DollarSign size={16} />
-          </InstallmentActionButton>
-        )}
-        {(proG.visible || folG.visible || annG.visible) && (<>
-          {proG.visible && (
-            <InstallmentActionButton onClick={() => openPromiseFromInstallment(row)} disabled={!isNext || !proG.executable}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
-              label={isNext && proG.executable ? `${prefix}${tTerm('credits.action.createPromise')}` : (proG.reason || instReason)}>
-              <Clock size={16} />
-            </InstallmentActionButton>
-          )}
-          {folG.visible && (
-            <InstallmentActionButton onClick={() => openFollowUpFromInstallment(row)} disabled={!isNext || !folG.executable}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
-              label={isNext && folG.executable ? `${prefix}${tTerm('credits.action.createFollowUp')}` : (folG.reason || instReason)}>
-              <Bell size={16} />
-            </InstallmentActionButton>
-          )}
-          {annG.visible && (
-            <InstallmentActionButton onClick={() => openAnnulModal(row.installmentNumber)} disabled={!isNext || !annG.executable}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
-              label={isNext && annG.executable ? `${prefix}${tTerm('credits.action.annulInstallment')}` : annReason}>
-              <ShieldAlert size={16} />
-            </InstallmentActionButton>
-          )}
-        </>)}
-      </div>
+      <RowActionsWithOverflow
+        variant="installment"
+        align={toolbarAlign}
+        maxInline={2}
+        items={actionItems}
+        ariaLabel={tTerm('creditDetails.installmentActions.aria', { number: row.installmentNumber })}
+        menuAriaLabel={tTerm('common.tableActions.more')}
+      />
+    );
+  };
+
+  const renderPaymentRowActions = (entry: any, options?: { align?: 'start' | 'end' | 'center' }) => {
+    const paymentId = Number(entry.paymentId ?? entry.id);
+    const hasVoucher = Number.isFinite(paymentId) && paymentId > 0;
+    const isPayoff = entry.type === 'payoff';
+    const downloadLabel = tTerm('payouts.action.downloadVoucher');
+    const voucherUnavailable = tTerm('creditDetails.payouts.voucherUnavailable');
+    const editGuard = !isPayoff
+      ? resolveOperationalGuard('installment.editPaymentMethod', {
+        role: user?.role,
+        permissions: resolvedPermissions,
+        loanStatus: loan?.status,
+        paymentStatus: entry.paymentStatus,
+        paymentReconciled: Boolean(entry.paymentReconciled),
+      })
+      : null;
+    const showVoucher = !isPayoff;
+    const showEdit = isBackofficeUser && Boolean(editGuard?.visible);
+
+    if (!showVoucher && !showEdit) {
+      return null;
+    }
+
+    const editLabel = editGuard?.executable
+      ? tTerm('payouts.action.editPaymentMethodTitle')
+      : (editGuard?.reason || tTerm('credits.action.unavailable'));
+
+    const items: RowActionOverflowItem[] = [];
+    if (showVoucher) {
+      items.push({
+        id: 'voucher',
+        label: hasVoucher ? downloadLabel : voucherUnavailable,
+        icon: <FileText size={16} />,
+        onClick: () => runDownloadVoucher(paymentId),
+        disabled: !hasVoucher,
+        buttonClassName: installmentActionClass('emerald'),
+      });
+    }
+    if (showEdit && editGuard) {
+      items.push({
+        id: 'edit',
+        label: editLabel,
+        icon: <Edit2 size={16} />,
+        onClick: () => openEditPaymentMethodModal(entry),
+        disabled: !editGuard.executable,
+        buttonClassName: installmentActionClass('slate'),
+      });
+    }
+
+    return (
+      <RowActionsWithOverflow
+        variant="installment"
+        align={options?.align ?? 'center'}
+        items={items}
+        ariaLabel={tTerm('creditDetails.payouts.actions.aria')}
+      />
     );
   };
 
@@ -741,7 +829,7 @@ export default function CreditDetails() {
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 overflow-x-hidden px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
+    <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
       <CreditDetailHeader
         loanId={loan.id} statusInfo={statusInfo} subtitle={creditDetailSubtitle}
         customerLabel={customerLabel} calculationProfileSummary={calculationProfileSummary}
@@ -826,12 +914,7 @@ export default function CreditDetails() {
                 formatCurrency={formatCurrency}
                 formatDate={formatDate}
                 formatPaymentMethod={formatPaymentMethodLabel}
-                isBackofficeUser={isBackofficeUser}
-                loanStatus={loan?.status}
-                userRole={user?.role}
-                userPermissions={resolvedPermissions}
-                onDownloadVoucher={(pid) => runDownloadVoucher(pid)}
-                onOpenEditPaymentMethod={openEditPaymentMethodModal}
+                renderPaymentRowActions={renderPaymentRowActions}
               />
             </div>
           )}

@@ -18,16 +18,21 @@ import { resolveOperationalGuard } from '../../services/operationalGuards';
 import {
   ActionButton,
   CheckboxInput,
-  DataTableSurface,
   EmptyState,
   FormField,
-  IconActionButton,
   InsightStrip,
   SectionSurface,
   SelectInput,
   TextInput,
   ToolbarSurface,
 } from '../shared/Surfaces';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from '../shared/tables';
 import { ExplainedChip, HelpLabel } from '../shared/HelpSupport';
 import {
   getCreditLabel,
@@ -372,9 +377,38 @@ export default function CreditsListView({
       </div>
 
       {/* Desktop table */}
-      <DataTableSurface className="hidden md:block">
-        <table data-tour="credits-list-table" className="min-w-[760px] w-full text-left text-sm 2xl:min-w-[1100px]">
-          <thead className="border-b border-border-subtle text-xs uppercase tracking-wide text-text-secondary">
+      <AppTable
+        variant="operational"
+        className="data-table-surface hidden md:block"
+        data-tour="credits-list-table"
+        minWidthClassName="min-w-[760px] 2xl:min-w-[1100px]"
+        tableClassName="w-full text-left text-sm"
+        statePresentation="shell"
+        isLoading={isLoading}
+        isError={isError}
+        hasData={creditsList.length > 0}
+        loadingContent={<div className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.loading')}</div>}
+        errorContent={<div className="px-4 py-8 text-center text-red-600">{tTerm('credits.table.error')}</div>}
+        emptyContent={<div className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.none')}</div>}
+        recordsLabel={tTerm('credits.table.recordsLabel')}
+        pagination={
+          pagination
+            ? {
+              page,
+              pageSize,
+              totalItems: pagination?.totalItems ?? pagination?.total ?? 0,
+              totalPages: pagination?.totalPages ?? 1,
+              onPrev: () => onPageChange(page - 1),
+              onNext: () => onPageChange(page + 1),
+              onPageSizeChange: (nextPageSize) => {
+                onPageSizeChange(nextPageSize);
+                onPageChange(1);
+              },
+            }
+            : undefined
+        }
+      >
+          <thead>
             <tr>
               <th className="w-10 px-3 py-3 font-semibold">
                 <CheckboxInput
@@ -397,18 +431,11 @@ export default function CreditsListView({
                 <HelpLabel label={tTerm('credits.table.recovery')} text={getRecoveryColumnHelp()} />
               </th>
               <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">{tTerm('credits.table.start')}</th>
-              <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.actions')}</th>
+              <TableActionsHeader className="px-3 py-3 font-semibold">{tTerm('credits.table.actions')}</TableActionsHeader>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {isLoading ? (
-              <tr><td colSpan={11} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.loading')}</td></tr>
-            ) : isError ? (
-              <tr><td colSpan={11} className="px-4 py-8 text-center text-red-600">{tTerm('credits.table.error')}</td></tr>
-            ) : creditsList.length === 0 ? (
-              <tr><td colSpan={11} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.none')}</td></tr>
-            ) : (
-              creditsList.map((credit: any, index: number) => {
+          <tbody>
+            {creditsList.map((credit: any, index: number) => {
                 const principalOutstanding = Number(credit.principalOutstanding) || 0;
                 const interestOutstanding = Number(credit.interestOutstanding) || 0;
                 const outstandingAmount = principalOutstanding + interestOutstanding;
@@ -486,126 +513,90 @@ export default function CreditsListView({
                       />
                     </td>
                     <td className="hidden whitespace-nowrap px-3 py-4 text-xs text-text-secondary 2xl:table-cell">{creationDate}</td>
-                    <td className="px-3 py-4">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {(() => {
-                          const viewGuard = resolveOperationalGuard('credit.view', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
-                          const paymentGuard = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
-                          const promiseGuard = resolveOperationalGuard('installment.promise', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
-                          const followUpGuard = resolveOperationalGuard('installment.followUp', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
-                          const annulGuard = resolveOperationalGuard('installment.annul', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                    <TableActionsCell className="px-3 py-4">
+                      {(() => {
+                        const viewGuard = resolveOperationalGuard('credit.view', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                        const paymentGuard = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                        const promiseGuard = resolveOperationalGuard('installment.promise', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                        const followUpGuard = resolveOperationalGuard('installment.followUp', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                        const annulGuard = resolveOperationalGuard('installment.annul', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
 
-                          const getActionTitle = (guard: { executable: boolean; reason?: string }, actionKey: string) => {
-                            if (!guard.executable) return guard.reason || tTerm('credits.action.unavailable' as any);
-                            const keyMap: Record<string, any> = {
-                              'credit.view': 'credits.action.viewDetails',
-                              'installment.pay': 'credits.action.registerPayment',
-                              'installment.promise': 'credits.action.createPromise',
-                              'installment.followUp': 'credits.action.createFollowUp',
-                              'installment.annul': 'credits.action.annulInstallment',
-                            };
-                            return tTerm(keyMap[actionKey] as any);
+                        const getActionTitle = (guard: { executable: boolean; reason?: string }, actionKey: string) => {
+                          if (!guard.executable) return guard.reason || tTerm('credits.action.unavailable' as any);
+                          const keyMap: Record<string, any> = {
+                            'credit.view': 'credits.action.viewDetails',
+                            'installment.pay': 'credits.action.registerPayment',
+                            'installment.promise': 'credits.action.createPromise',
+                            'installment.followUp': 'credits.action.createFollowUp',
+                            'installment.annul': 'credits.action.annulInstallment',
                           };
+                          return tTerm(keyMap[actionKey] as any);
+                        };
 
-                          return (
-                            <>
-                              {viewGuard.visible && (
-                                <IconActionButton
-                                  onClick={() => onViewCredit(credit)}
-                                  disabled={!viewGuard.executable}
-                                  label={getActionTitle(viewGuard, 'credit.view')}
-                                  icon={<Eye size={16} />}
-                                />
-                              )}
-                              {paymentGuard.visible && (
-                                <IconActionButton
-                                  onClick={() => onViewCredit(credit)}
-                                  disabled={!paymentGuard.executable}
-                                  label={getActionTitle(paymentGuard, 'installment.pay')}
-                                  icon={<DollarSign size={16} />}
-                                />
-                              )}
-                              {promiseGuard.visible && (
-                                <IconActionButton
-                                  onClick={() => onViewCredit(credit)}
-                                  disabled={!promiseGuard.executable}
-                                  label={getActionTitle(promiseGuard, 'installment.promise')}
-                                  icon={<Clock size={16} />}
-                                />
-                              )}
-                              {followUpGuard.visible && (
-                                <IconActionButton
-                                  onClick={() => onViewCredit(credit)}
-                                  disabled={!followUpGuard.executable}
-                                  label={getActionTitle(followUpGuard, 'installment.followUp')}
-                                  icon={<CalendarIcon size={16} />}
-                                />
-                              )}
-                              {annulGuard.visible && (
-                                <IconActionButton
-                                  onClick={() => onViewCredit(credit)}
-                                  disabled={!annulGuard.executable}
-                                  label={getActionTitle(annulGuard, 'installment.annul')}
-                                  icon={<X size={16} />}
-                                  variant="danger"
-                                />
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </td>
+                        const actionItems: RowActionOverflowItem[] = [];
+                        if (viewGuard.visible) {
+                          actionItems.push({
+                            id: 'view',
+                            label: getActionTitle(viewGuard, 'credit.view'),
+                            icon: <Eye size={16} />,
+                            onClick: () => onViewCredit(credit),
+                            disabled: !viewGuard.executable,
+                          });
+                        }
+                        if (paymentGuard.visible) {
+                          actionItems.push({
+                            id: 'pay',
+                            label: getActionTitle(paymentGuard, 'installment.pay'),
+                            icon: <DollarSign size={16} />,
+                            onClick: () => onViewCredit(credit),
+                            disabled: !paymentGuard.executable,
+                          });
+                        }
+                        if (promiseGuard.visible) {
+                          actionItems.push({
+                            id: 'promise',
+                            label: getActionTitle(promiseGuard, 'installment.promise'),
+                            icon: <Clock size={16} />,
+                            onClick: () => onViewCredit(credit),
+                            disabled: !promiseGuard.executable,
+                          });
+                        }
+                        if (followUpGuard.visible) {
+                          actionItems.push({
+                            id: 'followUp',
+                            label: getActionTitle(followUpGuard, 'installment.followUp'),
+                            icon: <CalendarIcon size={16} />,
+                            onClick: () => onViewCredit(credit),
+                            disabled: !followUpGuard.executable,
+                          });
+                        }
+                        if (annulGuard.visible) {
+                          actionItems.push({
+                            id: 'annul',
+                            label: getActionTitle(annulGuard, 'installment.annul'),
+                            icon: <X size={16} />,
+                            onClick: () => onViewCredit(credit),
+                            disabled: !annulGuard.executable,
+                            iconVariant: 'danger',
+                            menuTone: 'danger',
+                          });
+                        }
+
+                        return (
+                          <RowActionsWithOverflow
+                            variant="icon"
+                            align="center"
+                            items={actionItems}
+                            ariaLabel={tTerm('credits.table.actions')}
+                          />
+                        );
+                      })()}
+                    </TableActionsCell>
                   </tr>
                 );
-              })
-            )}
+              })}
           </tbody>
-        </table>
-      </DataTableSurface>
-
-      {/* Pagination Controls */}
-      {pagination && (
-        <div className="flex flex-col gap-3 rounded-xl bg-white px-4 py-3 text-sm text-text-secondary shadow-sm ring-1 ring-border-subtle dark:bg-bg-surface lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            {tTerm('credits.pagination.summary', {
-              from: ((page - 1) * pageSize) + 1,
-              to: Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0),
-              total: pagination?.totalItems ?? pagination?.total ?? 0,
-            })}
-            <label className="flex items-center gap-2">
-              <span>{tTerm('credits.pagination.rowsPerPage')}</span>
-              <SelectInput
-                value={pageSize}
-                onChange={(event) => {
-                  onPageSizeChange(Number(event.target.value));
-                  onPageChange(1);
-                }}
-                className="!min-h-0 !py-1"
-              >
-                {[10, 25, 50, 100].map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </SelectInput>
-            </label>
-          </div>
-          <div className="flex gap-2">
-            <ActionButton
-              disabled={page === 1}
-              onClick={() => onPageChange(page - 1)}
-              className="!min-h-0 !px-3 !py-1"
-            >
-              {tTerm('credits.pagination.previous')}
-            </ActionButton>
-            <ActionButton
-              disabled={page === (pagination?.totalPages || 1)}
-              onClick={() => onPageChange(page + 1)}
-              className="!min-h-0 !px-3 !py-1"
-            >
-              {tTerm('credits.pagination.next')}
-            </ActionButton>
-          </div>
-        </div>
-      )}
+      </AppTable>
     </div>
   );
 }

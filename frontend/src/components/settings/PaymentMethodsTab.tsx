@@ -6,13 +6,19 @@ import { confirmDanger } from '../../lib/confirmModal';
 import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
-  DataTableSurface,
   FormField,
   ModalShell,
   SectionSurface,
   SelectInput,
   TextInput,
 } from '../shared/Surfaces';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from '../shared/tables';
 import { StatusBadge } from './StatusBadge';
 import {
   type PaymentMethodDraft,
@@ -146,16 +152,14 @@ export default function PaymentMethodsTab({
         <p className="text-sm leading-6 text-text-secondary">{tTerm('settings.paymentMethods.note')}</p>
       </SectionSurface>
 
-      <DataTableSurface>
-        <div className="overflow-x-auto">
-          <table className="min-w-[760px]" aria-label={tTerm('settings.paymentMethods.table.aria')}>
+      <AppTable variant="operational" shell="off" minWidthClassName="min-w-[760px]" aria-label={tTerm('settings.paymentMethods.table.aria')}>
             <thead>
               <tr>
                 <th>{tTerm('settings.paymentMethods.table.method')}</th>
                 <th>{tTerm('settings.paymentMethods.table.type')}</th>
                 <th>{tTerm('settings.paymentMethods.table.reference')}</th>
                 <th>{tTerm('settings.paymentMethods.table.state')}</th>
-                <th className="text-right">{tTerm('settings.paymentMethods.table.actions')}</th>
+                <TableActionsHeader>{tTerm('settings.paymentMethods.table.actions')}</TableActionsHeader>
               </tr>
             </thead>
             <tbody>
@@ -168,38 +172,49 @@ export default function PaymentMethodsTab({
                   <td className="text-text-secondary">{getMethodTypeLabel(method.type)}</td>
                   <td className="text-text-secondary">{method.requiresReference ? tTerm('settings.paymentMethods.table.referenceRequired') : tTerm('settings.paymentMethods.table.referenceOptional')}</td>
                   <td><StatusBadge active={method.isActive !== false} /></td>
-                  <td>
-                    <div className="flex justify-end gap-2">
-                      <ActionButton
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            await updatePaymentMethod.mutateAsync({ id: method.id, isActive: method.isActive === false, type: method.type });
-                            toast.success({ description: method.isActive === false ? tTerm('settings.paymentMethods.toast.activated') : tTerm('settings.paymentMethods.toast.deactivated') });
-                          } catch (error) {
-                            reportClientError('settings.paymentMethod.update', error);
-                            toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
-                          }
-                        }}
-                        disabled={updatePaymentMethod.isPending}
-                        variant="ghost"
-                        icon={method.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
-                        className="min-h-8 px-3 py-1.5 text-xs"
-                      >
-                        {method.isActive === false ? tTerm('settings.paymentMethods.cta.activate') : tTerm('settings.paymentMethods.cta.deactivate')}
-                      </ActionButton>
-                      <ActionButton
-                        type="button"
-                        onClick={() => handleDelete(method)}
-                        disabled={deletePaymentMethod.isPending}
-                        variant="danger"
-                        icon={<Trash2 size={14} />}
-                        className="min-h-8 px-3 py-1.5 text-xs"
-                      >
-                        {tTerm('settings.paymentMethods.cta.delete')}
-                      </ActionButton>
-                    </div>
-                  </td>
+                  <TableActionsCell>
+                    <RowActionsWithOverflow
+                      variant="icon"
+                      align="center"
+                      ariaLabel={tTerm('settings.paymentMethods.table.actions')}
+                      items={[
+                        {
+                          id: 'toggle',
+                          label: method.isActive === false
+                            ? tTerm('settings.paymentMethods.cta.activate')
+                            : tTerm('settings.paymentMethods.cta.deactivate'),
+                          icon: method.isActive === false ? <CheckCircle2 size={16} /> : <CircleOff size={16} />,
+                          onClick: async () => {
+                            try {
+                              await updatePaymentMethod.mutateAsync({
+                                id: method.id,
+                                isActive: method.isActive === false,
+                                type: method.type,
+                              });
+                              toast.success({
+                                description: method.isActive === false
+                                  ? tTerm('settings.paymentMethods.toast.activated')
+                                  : tTerm('settings.paymentMethods.toast.deactivated'),
+                              });
+                            } catch (error) {
+                              reportClientError('settings.paymentMethod.update', error);
+                              toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                            }
+                          },
+                          disabled: updatePaymentMethod.isPending,
+                        },
+                        {
+                          id: 'delete',
+                          label: tTerm('settings.paymentMethods.cta.delete'),
+                          icon: <Trash2 size={16} />,
+                          onClick: () => handleDelete(method),
+                          disabled: deletePaymentMethod.isPending,
+                          iconVariant: 'danger',
+                          menuTone: 'danger',
+                        },
+                      ] as RowActionOverflowItem[]}
+                    />
+                  </TableActionsCell>
                 </tr>
               ))}
               {paymentMethods.length === 0 && (
@@ -208,9 +223,7 @@ export default function PaymentMethodsTab({
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
-      </DataTableSurface>
+      </AppTable>
 
       {isPaymentMethodModalOpen && (
         <ModalShell

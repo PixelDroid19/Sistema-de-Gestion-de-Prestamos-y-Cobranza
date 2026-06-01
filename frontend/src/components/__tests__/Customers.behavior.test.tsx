@@ -108,7 +108,8 @@ describe('Customers behavior', () => {
   it('reactivates inactive customers through status update instead of restore route', async () => {
     render(<Customers setCurrentView={vi.fn()} />);
 
-    fireEvent.click(screen.getByTitle('Reactivar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reactivar' }));
 
     await waitFor(() => {
       expect(updateCustomerMutateAsync).toHaveBeenCalledWith({ id: 2, status: 'active' });

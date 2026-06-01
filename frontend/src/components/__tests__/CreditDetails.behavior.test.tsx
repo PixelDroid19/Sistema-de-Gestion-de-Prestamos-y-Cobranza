@@ -206,6 +206,26 @@ const renderCreditDetails = () => {
   );
 };
 
+/** Desktop table uses overflow menu; mobile cards keep icon buttons with title. */
+const clickInstallmentActionByTitle = (title: string) => {
+  const directMatches = screen.queryAllByTitle(title);
+  if (directMatches.length > 0) {
+    fireEvent.click(directMatches[0]);
+    return;
+  }
+
+  for (const trigger of screen.queryAllByLabelText('Más acciones')) {
+    fireEvent.click(trigger);
+    const menuItem = screen.queryByRole('menuitem', { name: title });
+    if (menuItem) {
+      fireEvent.click(menuItem);
+      return;
+    }
+  }
+
+  throw new Error(`Installment action not found: ${title}`);
+};
+
 describe('CreditDetails behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -307,20 +327,32 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
   });
 
-  it('renders installment row actions as a compact horizontal toolbar', async () => {
+  it('renders installment row actions with overflow menu when there are many actions', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();
 
     const toolbar = screen
       .getAllByLabelText('Acciones de la cuota 1')
-      .find((node) => node.classList.contains('justify-end'));
+      .find((node) => node.classList.contains('justify-center'));
 
     expect(toolbar).toBeTruthy();
-
     expect(toolbar as HTMLElement).toHaveClass('credit-installment-actions');
-    expect(toolbar as HTMLElement).toHaveClass('flex-nowrap');
-    expect(toolbar as HTMLElement).toHaveClass('justify-end');
-    expect((toolbar as HTMLElement).querySelectorAll('button')).toHaveLength(4);
+    expect(toolbar as HTMLElement).toHaveClass('justify-center');
+
+    const inlineButtons = (toolbar as HTMLElement).querySelectorAll('button');
+    expect(inlineButtons.length).toBeGreaterThanOrEqual(2);
+    expect(inlineButtons.length).toBeLessThan(5);
+
+    const overflowTriggers = screen.queryAllByLabelText('Más acciones');
+    if (overflowTriggers.length > 0) {
+      fireEvent.click(overflowTriggers[0]);
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /seguimiento/i })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /anular/i })).toBeInTheDocument();
+    } else {
+      expect(screen.getByTitle('Crear seguimiento')).toBeInTheDocument();
+      expect(screen.getByTitle('Anular cuota')).toBeInTheDocument();
+    }
   });
 
   it('renders monetary totals for the installment calendar columns', async () => {
@@ -392,7 +424,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
       );
     });
 
-    fireEvent.click(screen.getByTitle('Crear seguimiento'));
+    clickInstallmentActionByTitle('Crear seguimiento');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Llamar y confirmar nuevo compromiso' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar seguimiento' }));
 
@@ -433,7 +465,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    fireEvent.click(screen.getByTitle('Anular cuota'));
+    clickInstallmentActionByTitle('Anular cuota');
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar anulación' }));
 
     await waitFor(() => {

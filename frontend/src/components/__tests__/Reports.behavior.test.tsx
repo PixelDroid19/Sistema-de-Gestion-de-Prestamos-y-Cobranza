@@ -1179,6 +1179,40 @@ describe('Reports behavioral parity scenarios', () => {
     });
   });
 
+  it('paginates operating expenses through the shared table shell', () => {
+    currentUser = {
+      id: 8,
+      name: 'Empleado finanzas',
+      email: 'finance@test.com',
+      role: 'employee',
+      permissions: ['REPORTS_VIEW_ALL', 'FINANCE_VIEW_ALL'],
+    };
+    operatingExpensesState = {
+      expenses: [{
+        id: 11,
+        amount: 850000,
+        expenseDate: '2026-05-10T00:00:00.000Z',
+        category: 'Arriendo',
+        description: 'Arriendo oficina',
+        paymentMethod: 'Transferencia',
+        status: 'completed',
+        createdBy: { name: 'Empleado finanzas' },
+      }],
+      pagination: {
+        totalPages: 3,
+        totalItems: 45,
+      },
+      isLoading: false,
+    };
+
+    renderReports();
+    fireEvent.click(screen.getByRole('tab', { name: 'Gastos operativos' }));
+
+    expect(screen.getByRole('button', { name: 'Anterior' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeInTheDocument();
+    expect(screen.queryByText('reports.payouts.pagination.previous')).not.toBeInTheDocument();
+  });
+
   it('keeps the current operating expense amount when the operator types exponent-like text', async () => {
     currentUser = {
       id: 8,

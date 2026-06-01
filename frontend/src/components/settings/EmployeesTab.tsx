@@ -8,13 +8,19 @@ import { confirmDanger } from '../../lib/confirmModal';
 import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
-  DataTableSurface,
   FormField,
   InsightStrip,
   ModalShell,
   SectionSurface,
   TextInput,
 } from '../shared/Surfaces';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from '../shared/tables';
 import EmployeeEditModal from '../EmployeeEditModal';
 import { StatusBadge } from './StatusBadge';
 import type { EmployeeDraft } from './settingsHelpers';
@@ -207,16 +213,18 @@ export default function EmployeesTab() {
         </p>
       </SectionSurface>
 
-      <DataTableSurface aria-label={t('settings.employees.table.title')}>
-        <div className="overflow-x-auto">
-          <table className="min-w-[760px]" aria-label={t('settings.employees.table.title')}>
+      <AppTable variant="operational" shell="off"
+        minWidthClassName="min-w-[760px]"
+        data-tour="settings-employees-table"
+        aria-label={t('settings.employees.table.title')}
+      >
             <thead>
               <tr>
                 <th>{t('settings.employees.table.empleadoCol')}</th>
                 <th>{t('settings.employees.table.emailCol')}</th>
                 <th>{t('settings.employees.table.statusCol')}</th>
                 <th>{t('settings.employees.table.createdAtCol')}</th>
-                <th className="text-right">{t('settings.employees.table.actionsCol')}</th>
+                <TableActionsHeader>{t('settings.employees.table.actionsCol')}</TableActionsHeader>
               </tr>
             </thead>
             <tbody>
@@ -233,33 +241,33 @@ export default function EmployeesTab() {
                       ? formatDateValue(employee.createdAt, { day: '2-digit', month: 'short', year: 'numeric' }) || '—'
                       : '—'}
                   </td>
-                  <td>
-                    <div className="flex justify-end gap-2">
-                      <ActionButton
-                        type="button"
-                        onClick={() => setEditingEmployee(employee)}
-                        variant="secondary"
-                        icon={<PencilLine size={14} />}
-                        className="min-h-8 px-3 py-1.5 text-xs"
-                        title={t('settings.employees.actions.editTitle')}
-                      >
-                        {t('settings.employees.actions.edit')}
-                      </ActionButton>
-                      <ActionButton
-                        type="button"
-                        onClick={() => handleToggleEmployeeStatus(employee)}
-                        disabled={deactivateUser.isPending || reactivateUser.isPending}
-                        variant={employee.isActive === false ? 'secondary' : 'danger'}
-                        icon={employee.isActive === false ? <UserCheck size={14} /> : <UserX size={14} />}
-                        className="min-h-8 px-3 py-1.5 text-xs"
-                        title={employee.isActive === false
-                          ? t('settings.employees.actions.reactivateTitle')
-                          : t('settings.employees.actions.deactivateTitle')}
-                      >
-                        {employee.isActive === false ? t('common.activate') : t('common.deactivate')}
-                      </ActionButton>
-                    </div>
-                  </td>
+                  <TableActionsCell>
+                    <RowActionsWithOverflow
+                      variant="icon"
+                      align="center"
+                      ariaLabel={t('settings.employees.table.actionsCol')}
+                      items={[
+                        {
+                          id: 'edit',
+                          label: t('settings.employees.actions.editTitle'),
+                          icon: <PencilLine size={16} />,
+                          onClick: () => setEditingEmployee(employee),
+                          iconVariant: 'secondary',
+                        },
+                        {
+                          id: 'status',
+                          label: employee.isActive === false
+                            ? t('settings.employees.actions.reactivateTitle')
+                            : t('settings.employees.actions.deactivateTitle'),
+                          icon: employee.isActive === false ? <UserCheck size={16} /> : <UserX size={16} />,
+                          onClick: () => { void handleToggleEmployeeStatus(employee); },
+                          disabled: deactivateUser.isPending || reactivateUser.isPending,
+                          iconVariant: employee.isActive === false ? 'secondary' : 'danger',
+                          menuTone: employee.isActive === false ? 'default' : 'danger',
+                        },
+                      ] as RowActionOverflowItem[]}
+                    />
+                  </TableActionsCell>
                 </tr>
               ))}
               {employees.length === 0 && (
@@ -268,9 +276,7 @@ export default function EmployeesTab() {
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
-      </DataTableSurface>
+      </AppTable>
 
       {editingEmployee && (
         <EmployeeEditModal

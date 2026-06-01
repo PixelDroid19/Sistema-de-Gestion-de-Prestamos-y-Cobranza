@@ -27,7 +27,14 @@ import {
   ToolbarSurface,
   ViewTabs,
 } from './shared/Surfaces';
-import TableShell from './shared/TableShell';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  TableActionsCell,
+  TableActionsHeader,
+  TableSectionIntro,
+  TABLE_EMBEDDED_SHELL_CLASS,
+} from './shared/tables';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 type AssociateMoneyActionType = 'contribution' | 'distribution' | 'reinvestment';
@@ -408,23 +415,19 @@ export default function AssociateDetails() {
       )}
 
       <DataTableSurface>
-        <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">{tTerm('associateDetails.paymentHistory.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('associateDetails.paymentHistory.description')}
-          </p>
-        </div>
-        <TableShell
-          isLoading={false}
-          isError={false}
+        <TableSectionIntro
+          embedded
+          title={tTerm('associateDetails.paymentHistory.title')}
+          description={tTerm('associateDetails.paymentHistory.description')}
+        />
+        <AppTable variant="operational"
           hasData={paymentHistory.length > 0}
-          loadingContent={null}
-          errorContent={null}
           emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.paymentHistory.empty')}</div>}
           recordsLabel={tTerm('associateDetails.paymentHistory.recordsLabel')}
+          className={TABLE_EMBEDDED_SHELL_CLASS}
+          surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         >
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-text-secondary border-b border-border-subtle">
+            <thead>
               <tr>
                 <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.installment')}</th>
                 <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.amount')}</th>
@@ -433,9 +436,9 @@ export default function AssociateDetails() {
                 <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.method')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {paymentHistory.map((entry: any) => (
-                <tr key={`associate-payment-history-${entry.id}-${entry.installmentNumber}`} className="hover:bg-hover-bg transition-colors">
+                <tr key={`associate-payment-history-${entry.id}-${entry.installmentNumber}`}>
                   <td className="font-medium">{entry.installmentNumber}</td>
                   <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
                   <td>{formatAssociateDate(entry.dueDate)}</td>
@@ -444,8 +447,7 @@ export default function AssociateDetails() {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </TableShell>
+        </AppTable>
       </DataTableSurface>
     </div>
   );
@@ -492,37 +494,33 @@ export default function AssociateDetails() {
 
       {/* Installments Table */}
       <DataTableSurface>
-        <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">{tTerm('associateDetails.installments.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('associateDetails.installments.description')}
-          </p>
-        </div>
-        <TableShell
-          isLoading={false}
-          isError={false}
+        <TableSectionIntro
+          embedded
+          title={tTerm('associateDetails.installments.title')}
+          description={tTerm('associateDetails.installments.description')}
+        />
+        <AppTable variant="operational"
           hasData={installmentsData.installments.length > 0}
-          loadingContent={null}
-          errorContent={null}
           emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.installments.empty')}</div>}
           recordsLabel={tTerm('associateDetails.installments.recordsLabel')}
+          className={TABLE_EMBEDDED_SHELL_CLASS}
+          surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         >
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-text-secondary border-b border-border-subtle">
+            <thead>
               <tr>
                 <th className="font-medium">{tTerm('associateDetails.installments.header.number')}</th>
                 <th className="font-medium">{tTerm('associateDetails.installments.header.amount')}</th>
                 <th className="font-medium">{tTerm('associateDetails.installments.header.dueDate')}</th>
                 <th className="font-medium">{tTerm('associateDetails.installments.header.status')}</th>
-                <th className="font-medium">{tTerm('associateDetails.installments.header.actions')}</th>
+                <TableActionsHeader className="font-medium">{tTerm('associateDetails.installments.header.actions')}</TableActionsHeader>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {installmentsData.installments.map((inst: any) => {
                 const status = getInstallmentStatusPresentation(inst);
 
                 return (
-                <tr key={`associate-installment-${inst.id}-${inst.installmentNumber}`} className="hover:bg-hover-bg transition-colors">
+                <tr key={`associate-installment-${inst.id}-${inst.installmentNumber}`}>
                   <td className="font-medium">{inst.installmentNumber}</td>
                   <td className="font-medium">{formatAssociateCurrency(inst.amount)}</td>
                   <td>{formatAssociateDate(inst.dueDate)}</td>
@@ -531,25 +529,29 @@ export default function AssociateDetails() {
                       {status.label}
                     </span>
                   </td>
-                  <td>
-                    {isAdmin && ['pending', 'overdue'].includes(String(inst.status || '').toLowerCase()) && (
-                      <ActionButton
-                        onClick={() => handleOpenPayInstallmentModal(inst.installmentNumber)}
-                        disabled={payInstallment.isPending}
-                        isLoading={payInstallment.isPending}
-                        icon={<CheckCircle size={14} />}
-                        className="min-h-8 px-2.5 py-1.5 text-xs"
-                      >
-                        {tTerm('associateDetails.installments.cta.markAsPaid')}
-                      </ActionButton>
-                    )}
-                  </td>
+                  <TableActionsCell>
+                    {isAdmin && ['pending', 'overdue'].includes(String(inst.status || '').toLowerCase()) ? (
+                      <RowActionsWithOverflow
+                        variant="icon"
+                        align="center"
+                        ariaLabel={tTerm('associateDetails.installments.header.actions')}
+                        items={[
+                          {
+                            id: 'pay',
+                            label: tTerm('associateDetails.installments.cta.markAsPaid'),
+                            icon: <CheckCircle size={16} />,
+                            onClick: () => handleOpenPayInstallmentModal(inst.installmentNumber),
+                            disabled: payInstallment.isPending,
+                          },
+                        ]}
+                      />
+                    ) : null}
+                  </TableActionsCell>
                 </tr>
               );
               })}
             </tbody>
-          </table>
-        </TableShell>
+        </AppTable>
       </DataTableSurface>
     </div>
   );
@@ -596,12 +598,13 @@ export default function AssociateDetails() {
 
       {/* Calendar Events */}
       <DataTableSurface>
-        <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">{tTerm('associateDetails.calendar.title')}</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {tTerm('associateDetails.calendar.description')}
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <TableSectionIntro
+          embedded
+          title={tTerm('associateDetails.calendar.title')}
+          description={tTerm('associateDetails.calendar.description')}
+        />
+        <div className="border-b border-border-subtle px-4 py-4 sm:px-5">
+          <div className="grid gap-3 sm:grid-cols-2">
             <FormField label={tTerm('associateDetails.calendar.filter.from')} htmlFor="associate-calendar-start-date">
               <TextInput
                 id="associate-calendar-start-date"
@@ -620,17 +623,14 @@ export default function AssociateDetails() {
             </FormField>
           </div>
         </div>
-        <TableShell
-          isLoading={false}
-          isError={false}
+        <AppTable variant="operational"
           hasData={calendarData.events.length > 0}
-          loadingContent={null}
-          errorContent={null}
           emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.calendar.empty')}</div>}
           recordsLabel={tTerm('associateDetails.calendar.recordsLabel')}
+          className={TABLE_EMBEDDED_SHELL_CLASS}
+          surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         >
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-text-secondary border-b border-border-subtle">
+            <thead>
               <tr>
                 <th className="font-medium">{tTerm('associateDetails.calendar.header.date')}</th>
                 <th className="font-medium">{tTerm('associateDetails.calendar.header.type')}</th>
@@ -638,9 +638,9 @@ export default function AssociateDetails() {
                 <th className="font-medium">{tTerm('associateDetails.calendar.header.notes')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {calendarData.events.map((event: any) => (
-                <tr key={`${event.type}-${event.id ?? 'no-id'}-${event.date}-${event.displayAmount ?? event.amount}-${event.notes ?? ''}`} className="hover:bg-hover-bg transition-colors">
+                <tr key={`${event.type}-${event.id ?? 'no-id'}-${event.date}-${event.displayAmount ?? event.amount}-${event.notes ?? ''}`}>
                   <td>{formatAssociateDate(event.date)}</td>
                   <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${
@@ -660,8 +660,7 @@ export default function AssociateDetails() {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </TableShell>
+        </AppTable>
       </DataTableSurface>
     </div>
   );

@@ -346,7 +346,10 @@ describe('Payouts behavioral parity scenarios', () => {
   it('keeps out-of-scope payout deletion explicitly blocked without regression', async () => {
     renderPayouts();
 
-    const deleteButton = screen.getByTitle('La eliminación directa de pagos no está disponible. Use anulación de cuota desde el detalle del crédito.');
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    const deleteButton = screen.getByRole('menuitem', {
+      name: 'La eliminación directa de pagos no está disponible. Use anulación de cuota desde el detalle del crédito.',
+    });
 
     expect(deleteButton).toBeDisabled();
     expect(mockCreatePayment).not.toHaveBeenCalled();
@@ -357,7 +360,8 @@ describe('Payouts behavioral parity scenarios', () => {
   it('edits payment method with confirmation modal flow', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByTitle('Editar método de pago real'));
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Editar método de pago real' }));
     fireEvent.change(screen.getByPlaceholderText('Ej: REF-123'), { target: { value: 'REF-123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
 
@@ -379,7 +383,8 @@ describe('Payouts behavioral parity scenarios', () => {
   it('closes the payment method edit modal with Escape', () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByTitle('Editar método de pago real'));
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Editar método de pago real' }));
     const dialog = screen.getByRole('dialog', { name: 'Editar método de pago' });
 
     fireEvent.keyDown(dialog, { key: 'Escape' });

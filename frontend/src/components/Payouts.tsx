@@ -12,7 +12,13 @@ import { useNavigate } from 'react-router-dom';
 import { formatCurrency as formatCurrencyValue, formatDateTime as formatDateTimeValue, isValidOperationalDateOnly } from '../i18n/format';
 import { useTranslation } from '../i18n';
 import { tTerm } from '../i18n/terminology';
-import TableShell from './shared/TableShell';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from './shared/tables';
 import { getChipClassName } from '../constants/uiChips';
 import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type CapitalStrategy, type PaymentMethod } from '../services/loanService';
@@ -21,7 +27,6 @@ import {
   ActionButton,
   CheckboxInput,
   FormField,
-  IconActionButton,
   ModalShell,
   NormalizedInput,
   PageHeader,
@@ -465,7 +470,7 @@ export default function Payouts() {
           </div>
         </ToolbarSurface>
 
-        <TableShell
+        <AppTable variant="operational"
           data-tour="payouts-table"
           isLoading={isLoading}
           isError={isError}
@@ -487,9 +492,9 @@ export default function Payouts() {
             },
           } : undefined}
           className="data-table-surface"
+          minWidthClassName="min-w-[760px]"
         >
-          <table className="min-w-[760px] w-full text-sm text-left">
-            <thead className="text-xs text-text-secondary border-b border-border-subtle">
+            <thead>
               <tr>
                 <th className="pb-3 font-medium w-10">
                   <CheckboxInput
@@ -507,10 +512,10 @@ export default function Payouts() {
                 <th className="pb-3 font-medium">
                   <HelpLabel label={tTerm('payouts.table.status')} text={tTerm('payouts.table.statusHelp')} />
                 </th>
-                <th className="pb-3 font-medium">{tTerm('payouts.table.actions')}</th>
+                <TableActionsHeader className="pb-3 font-medium">{tTerm('payouts.table.actions')}</TableActionsHeader>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody>
               {payments.map((payment: any) => {
                 const viewGuard = resolveOperationalGuard('payout.credit.view', { role, permissions });
                 const viewCreditTitle = viewGuard.executable
@@ -554,68 +559,75 @@ export default function Payouts() {
                       );
                     })()}
                   </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-2">
-                      <IconActionButton
-                        label={tTerm('payouts.action.downloadVoucher')}
-                        title={tTerm('payouts.action.downloadVoucher')}
-                        onClick={() => handleDownloadVoucher(payment.id)}
-                        icon={<FileText size={16} />}
-                      />
-                      {(() => {
-                        const editGuard = resolveOperationalGuard('payout.metadata.edit', {
-                          role,
-                          permissions,
-                          paymentStatus: payment?.status,
-                          paymentReconciled: Boolean(payment?.reconciled || payment?.isReconciled || payment?.paymentMetadata?.reconciled),
+                  <TableActionsCell className="py-4">
+                    {(() => {
+                      const editGuard = resolveOperationalGuard('payout.metadata.edit', {
+                        role,
+                        permissions,
+                        paymentStatus: payment?.status,
+                        paymentReconciled: Boolean(payment?.reconciled || payment?.isReconciled || payment?.paymentMetadata?.reconciled),
+                      });
+                      const deleteGuard = resolveOperationalGuard('payout.delete', {
+                        role,
+                        permissions,
+                        paymentStatus: payment?.status,
+                      });
+                      const items: RowActionOverflowItem[] = [
+                        {
+                          id: 'voucher',
+                          label: tTerm('payouts.action.downloadVoucher'),
+                          icon: <FileText size={16} />,
+                          onClick: () => handleDownloadVoucher(payment.id),
+                        },
+                      ];
+                      if (viewGuard.visible) {
+                        items.push({
+                          id: 'view',
+                          label: viewGuard.executable
+                            ? tTerm('payouts.action.viewCredit')
+                            : (viewGuard.reason || tTerm('credits.action.unavailable')),
+                          icon: <Eye size={16} />,
+                          onClick: () => handleViewCredit(Number(payment.loanId)),
+                          disabled: !viewGuard.executable,
                         });
-                        const deleteGuard = resolveOperationalGuard('payout.delete', {
-                          role,
-                          permissions,
-                          paymentStatus: payment?.status,
+                      }
+                      if (editGuard.visible) {
+                        items.push({
+                          id: 'edit',
+                          label: editGuard.executable
+                            ? tTerm('payouts.action.editPaymentMethodTitle')
+                            : (editGuard.reason || tTerm('credits.action.unavailable')),
+                          icon: <Edit size={16} />,
+                          onClick: () => handleEditPayment(payment),
+                          disabled: !editGuard.executable,
                         });
-
-                        return (
-                          <>
-                            {viewGuard.visible && (
-                              <IconActionButton
-                                label={tTerm('payouts.action.viewCredit')}
-                                title={viewGuard.executable ? tTerm('payouts.action.viewCredit') : (viewGuard.reason || tTerm('credits.action.unavailable'))}
-                                onClick={() => handleViewCredit(Number(payment.loanId))}
-                                disabled={!viewGuard.executable}
-                                icon={<Eye size={16} />}
-                              />
-                            )}
-                            {editGuard.visible && (
-                              <IconActionButton
-                                label={tTerm('payouts.action.editPaymentMethod')}
-                                title={editGuard.executable ? tTerm('payouts.action.editPaymentMethodTitle') : (editGuard.reason || tTerm('credits.action.unavailable'))}
-                                onClick={() => handleEditPayment(payment)}
-                                disabled={!editGuard.executable}
-                                icon={<Edit size={16} />}
-                              />
-                            )}
-                            {deleteGuard.visible && (
-                              <IconActionButton
-                                label={tTerm('payouts.action.delete')}
-                                variant="danger"
-                                title={deleteGuard.reason || tTerm('payouts.action.deleteTitle')}
-                                onClick={() => toast.error({ title: deleteGuard.reason || tTerm('credits.action.unavailable') })}
-                                disabled={!deleteGuard.executable}
-                                icon={<Trash2 size={16} />}
-                              />
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </td>
+                      }
+                      if (deleteGuard.visible) {
+                        items.push({
+                          id: 'delete',
+                          label: deleteGuard.reason || tTerm('payouts.action.deleteTitle'),
+                          icon: <Trash2 size={16} />,
+                          onClick: () => toast.error({ title: deleteGuard.reason || tTerm('credits.action.unavailable') }),
+                          disabled: !deleteGuard.executable,
+                          iconVariant: 'danger',
+                          menuTone: 'danger',
+                        });
+                      }
+                      return (
+                        <RowActionsWithOverflow
+                          variant="icon"
+                          align="center"
+                          items={items}
+                          ariaLabel={tTerm('payouts.table.actions')}
+                        />
+                      );
+                    })()}
+                  </TableActionsCell>
                 </tr>
                 );
               })}
             </tbody>
-          </table>
-        </TableShell>
+        </AppTable>
       </div>
 
       {showPaymentModal && (

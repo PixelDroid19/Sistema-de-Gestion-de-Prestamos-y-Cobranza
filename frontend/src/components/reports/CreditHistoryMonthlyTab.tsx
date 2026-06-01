@@ -198,8 +198,6 @@ export default function CreditHistoryMonthlyTab({
         title={tTerm('reports.creditHistory.table.title')}
         subtitle={tTerm('reports.creditHistory.table.subtitle')}
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
             <thead>
               <tr>
                 <th>{tTerm('reports.creditHistory.table.month')}</th>
@@ -240,8 +238,6 @@ export default function CreditHistoryMonthlyTab({
                 ))
               )}
             </tbody>
-          </table>
-        </div>
       </ReportDataTableSection>
     </div>
   );

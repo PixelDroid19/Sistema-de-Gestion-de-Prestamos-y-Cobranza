@@ -353,7 +353,7 @@ export function StatusChip({
 
 export function DataTableSurface({ children, className = '', ...rest }: DataTableSurfaceProps) {
   return (
-    <section className={`data-table-surface ${className}`} {...rest}>
+    <section className={`data-table-surface ${className}`.trim()} {...rest}>
       {children}
     </section>
   );

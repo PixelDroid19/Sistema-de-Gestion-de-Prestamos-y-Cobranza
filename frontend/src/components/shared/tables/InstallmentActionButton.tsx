@@ -7,6 +7,9 @@ type InstallmentActionButtonProps = {
   onClick: () => void;
   className: string;
   children: React.ReactNode;
+  ariaExpanded?: boolean;
+  ariaControls?: string;
+  ariaHaspopup?: 'menu' | boolean;
 };
 
 export function InstallmentActionButton({
@@ -15,6 +18,9 @@ export function InstallmentActionButton({
   onClick,
   className,
   children,
+  ariaExpanded,
+  ariaControls,
+  ariaHaspopup,
 }: InstallmentActionButtonProps) {
   const anchorRef = useRef<HTMLSpanElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -72,8 +78,13 @@ export function InstallmentActionButton({
         className={className}
         title={label}
         aria-label={label}
+        aria-expanded={ariaExpanded}
+        aria-controls={ariaControls}
+        aria-haspopup={ariaHaspopup}
       >
-        {children}
+        <span className="action-button-icon" aria-hidden="true">
+          {children}
+        </span>
       </button>
       {visible && position && typeof document !== 'undefined' && createPortal(
         <span

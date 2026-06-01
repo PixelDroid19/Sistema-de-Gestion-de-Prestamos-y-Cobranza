@@ -7,7 +7,6 @@ import { confirmDanger } from '../../lib/confirmModal';
 import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
-  DataTableSurface,
   FormField,
   ModalShell,
   NormalizedInput,
@@ -15,6 +14,13 @@ import {
   StatusChip,
   TextInput,
 } from '../shared/Surfaces';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from '../shared/tables';
 import { HelpLabel } from '../shared/HelpSupport';
 import { OperationalInput } from '../shared/FormControls';
 import { StatusBadge } from './StatusBadge';
@@ -268,16 +274,18 @@ export default function RatePoliciesTab({
           </p>
         </SectionSurface>
 
-        <DataTableSurface>
-          <div className="overflow-x-auto">
-            <table className="min-w-[860px]" aria-label={tTerm('settings.rate.table.aria')}>
+        <AppTable variant="operational" shell="off"
+          minWidthClassName="min-w-[860px]"
+          data-tour="settings-rate-policies-table"
+          aria-label={tTerm('settings.rate.table.aria')}
+        >
               <thead>
                 <tr>
                   <th><HelpLabel label={tTerm('settings.rate.table.rule')} text={tTerm('settings.rate.table.ruleTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.range')} text={tTerm('settings.rate.table.rangeTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.annualRate')} text={tTerm('settings.rate.table.annualRateTooltip')} /></th>
                   <th>{tTerm('settings.rate.table.state')}</th>
-                  <th className="text-right">{tTerm('settings.rate.table.actions')}</th>
+                  <TableActionsHeader>{tTerm('settings.rate.table.actions')}</TableActionsHeader>
                 </tr>
               </thead>
               <tbody>
@@ -306,49 +314,52 @@ export default function RatePoliciesTab({
                     <td className="text-text-secondary">{formatRange(policy.minAmount, policy.maxAmount)}</td>
                     <td className="font-semibold">{formatRate(policy.annualEffectiveRate)}</td>
                     <td><StatusBadge active={policy.isActive !== false} /></td>
-                    <td>
-                      <div className="flex justify-end gap-2">
-                        <ActionButton
-                          type="button"
-                          onClick={() => startEditingRatePolicy(policy)}
-                          disabled={createRatePolicy.isPending || updateRatePolicy.isPending}
-                          variant="ghost"
-                          icon={<PencilLine size={14} />}
-                          className="min-h-8 px-3 py-1.5 text-xs"
-                          title={tTerm('settings.rate.table.editTitle')}
-                        >
-                          {tTerm('settings.rate.table.edit')}
-                        </ActionButton>
-                        <ActionButton
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await updateRatePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
-                              toast.success({ description: policy.isActive === false ? tTerm('settings.rate.toast.activated') : tTerm('settings.rate.toast.deactivated') });
-                            } catch (error) {
-                              reportClientError('settings.ratePolicy.update', error);
-                              toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
-                            }
-                          }}
-                          disabled={updateRatePolicy.isPending}
-                          variant="ghost"
-                          icon={policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
-                          className="min-h-8 px-3 py-1.5 text-xs"
-                        >
-                          {policy.isActive === false ? tTerm('settings.rate.table.activate') : tTerm('settings.rate.table.deactivate')}
-                        </ActionButton>
-                        <ActionButton
-                          type="button"
-                          onClick={() => handleDelete(policy)}
-                          disabled={deleteRatePolicy.isPending}
-                          variant="danger"
-                          icon={<Trash2 size={14} />}
-                          className="min-h-8 px-3 py-1.5 text-xs"
-                        >
-                          {tTerm('settings.rate.table.delete')}
-                        </ActionButton>
-                      </div>
-                    </td>
+                    <TableActionsCell>
+                      <RowActionsWithOverflow
+                        variant="icon"
+                        align="center"
+                        ariaLabel={tTerm('settings.rate.table.actions')}
+                        items={[
+                          {
+                            id: 'edit',
+                            label: tTerm('settings.rate.table.editTitle'),
+                            icon: <PencilLine size={16} />,
+                            onClick: () => startEditingRatePolicy(policy),
+                            disabled: createRatePolicy.isPending || updateRatePolicy.isPending,
+                          },
+                          {
+                            id: 'toggle',
+                            label: policy.isActive === false
+                              ? tTerm('settings.rate.table.activate')
+                              : tTerm('settings.rate.table.deactivate'),
+                            icon: policy.isActive === false ? <CheckCircle2 size={16} /> : <CircleOff size={16} />,
+                            onClick: async () => {
+                              try {
+                                await updateRatePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
+                                toast.success({
+                                  description: policy.isActive === false
+                                    ? tTerm('settings.rate.toast.activated')
+                                    : tTerm('settings.rate.toast.deactivated'),
+                                });
+                              } catch (error) {
+                                reportClientError('settings.ratePolicy.update', error);
+                                toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                              }
+                            },
+                            disabled: updateRatePolicy.isPending,
+                          },
+                          {
+                            id: 'delete',
+                            label: tTerm('settings.rate.table.delete'),
+                            icon: <Trash2 size={16} />,
+                            onClick: () => handleDelete(policy),
+                            disabled: deleteRatePolicy.isPending,
+                            iconVariant: 'danger',
+                            menuTone: 'danger',
+                          },
+                        ] as RowActionOverflowItem[]}
+                      />
+                    </TableActionsCell>
                   </tr>
                 ))}
                 {visibleRatePolicies.length === 0 && (
@@ -357,9 +368,7 @@ export default function RatePoliciesTab({
                   </tr>
                 )}
               </tbody>
-            </table>
-          </div>
-        </DataTableSurface>
+        </AppTable>
       </div>
 
       <SectionSurface

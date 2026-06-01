@@ -2,6 +2,7 @@ import { Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { ActionButton, DataTableSurface, EmptyState, InsightStrip, ModalShell } from './shared/Surfaces';
+import { AppTable, TableStatusPill, TABLE_EMBEDDED_SHELL_CLASS } from './shared/tables';
 
 interface Installment {
   id: number;
@@ -67,8 +68,12 @@ export default function InstallmentsModal({
             </DataTableSurface>
           ) : installmentsData.installments.length > 0 ? (
             <DataTableSurface>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+            <AppTable
+              variant="operational"
+              shell="off"
+              className={TABLE_EMBEDDED_SHELL_CLASS}
+              surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
+            >
                 <thead>
                   <tr>
                     <th>{tTerm('associateDetails.installments.header.number')}</th>
@@ -87,16 +92,13 @@ export default function InstallmentsModal({
                       <td className="font-medium">{formatCurrencyValue(inst.amount)}</td>
                       <td>{formatInstallmentDate(inst.dueDate)}</td>
                       <td>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.className}`}>
-                          {status.label}
-                        </span>
+                        <TableStatusPill className={status.className}>{status.label}</TableStatusPill>
                       </td>
                     </tr>
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+            </AppTable>
             </DataTableSurface>
           ) : (
             <DataTableSurface>

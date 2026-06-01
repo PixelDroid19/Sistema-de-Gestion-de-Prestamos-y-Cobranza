@@ -6,7 +6,6 @@ import { confirmDanger } from '../../lib/confirmModal';
 import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
-  DataTableSurface,
   FormField,
   ModalShell,
   NormalizedInput,
@@ -14,6 +13,13 @@ import {
   SelectInput,
   TextInput,
 } from '../shared/Surfaces';
+import {
+  AppTable,
+  RowActionsWithOverflow,
+  type RowActionOverflowItem,
+  TableActionsCell,
+  TableActionsHeader,
+} from '../shared/tables';
 import { StatusBadge } from './StatusBadge';
 import {
   type LateFeePolicyDraft,
@@ -150,16 +156,14 @@ export default function LateFeePoliciesTab({
         <p className="text-sm leading-6 text-text-secondary">{tTerm('settings.lateFee.note')}</p>
       </SectionSurface>
 
-      <DataTableSurface>
-        <div className="overflow-x-auto">
-          <table className="min-w-[760px]" aria-label={tTerm('settings.lateFee.table.aria')}>
+      <AppTable variant="operational" shell="off" minWidthClassName="min-w-[760px]" aria-label={tTerm('settings.lateFee.table.aria')}>
             <thead>
               <tr>
                 <th>{tTerm('settings.lateFee.table.policy')}</th>
                 <th>{tTerm('settings.lateFee.table.rate')}</th>
                 <th>{tTerm('settings.lateFee.table.calculation')}</th>
                 <th>{tTerm('settings.lateFee.table.state')}</th>
-                <th className="text-right">{tTerm('settings.lateFee.table.actions')}</th>
+                <TableActionsHeader>{tTerm('settings.lateFee.table.actions')}</TableActionsHeader>
               </tr>
             </thead>
             <tbody>
@@ -169,38 +173,45 @@ export default function LateFeePoliciesTab({
                   <td className="font-semibold">{policy.annualEffectiveRate}%</td>
                   <td className="text-text-secondary">{getLateFeeModeLabel(policy.lateFeeMode)}</td>
                   <td><StatusBadge active={policy.isActive !== false} /></td>
-                  <td>
-                    <div className="flex justify-end gap-2">
-                      <ActionButton
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            await updateLateFeePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
-                            toast.success({ description: policy.isActive === false ? tTerm('settings.lateFee.toast.activated') : tTerm('settings.lateFee.toast.deactivated') });
-                          } catch (error) {
-                            reportClientError('settings.lateFee.update', error);
-                            toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
-                          }
-                        }}
-                        disabled={updateLateFeePolicy.isPending}
-                        variant="ghost"
-                        icon={policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
-                        className="min-h-8 px-3 py-1.5 text-xs"
-                      >
-                        {policy.isActive === false ? tTerm('settings.lateFee.table.activate') : tTerm('settings.lateFee.table.deactivate')}
-                      </ActionButton>
-                      <ActionButton
-                        type="button"
-                        onClick={() => handleDelete(policy)}
-                        disabled={deleteLateFeePolicy.isPending}
-                        variant="danger"
-                        icon={<Trash2 size={14} />}
-                        className="min-h-8 px-3 py-1.5 text-xs"
-                      >
-                        {tTerm('settings.lateFee.table.delete')}
-                      </ActionButton>
-                    </div>
-                  </td>
+                  <TableActionsCell>
+                    <RowActionsWithOverflow
+                      variant="icon"
+                      align="center"
+                      ariaLabel={tTerm('settings.lateFee.table.actions')}
+                      items={[
+                        {
+                          id: 'toggle',
+                          label: policy.isActive === false
+                            ? tTerm('settings.lateFee.table.activate')
+                            : tTerm('settings.lateFee.table.deactivate'),
+                          icon: policy.isActive === false ? <CheckCircle2 size={16} /> : <CircleOff size={16} />,
+                          onClick: async () => {
+                            try {
+                              await updateLateFeePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
+                              toast.success({
+                                description: policy.isActive === false
+                                  ? tTerm('settings.lateFee.toast.activated')
+                                  : tTerm('settings.lateFee.toast.deactivated'),
+                              });
+                            } catch (error) {
+                              reportClientError('settings.lateFee.update', error);
+                              toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                            }
+                          },
+                          disabled: updateLateFeePolicy.isPending,
+                        },
+                        {
+                          id: 'delete',
+                          label: tTerm('settings.lateFee.table.delete'),
+                          icon: <Trash2 size={16} />,
+                          onClick: () => handleDelete(policy),
+                          disabled: deleteLateFeePolicy.isPending,
+                          iconVariant: 'danger',
+                          menuTone: 'danger',
+                        },
+                      ] as RowActionOverflowItem[]}
+                    />
+                  </TableActionsCell>
                 </tr>
               ))}
               {lateFeePolicies.length === 0 && (
@@ -209,9 +220,7 @@ export default function LateFeePoliciesTab({
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
-      </DataTableSurface>
+      </AppTable>
       {isLateFeeModalOpen && (
         <ModalShell
           title={tTerm('settings.lateFee.modal.title')}

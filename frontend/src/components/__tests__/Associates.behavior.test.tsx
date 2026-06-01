@@ -164,8 +164,8 @@ describe('Associates behavior', () => {
   it('reactivates inactive associates through the active status patch flow', async () => {
     render(<Associates setCurrentView={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Más acciones del socio' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reactivar socio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reactivar socio' }));
 
     await waitFor(() => {
       expect(restoreAssociateMutateAsync).toHaveBeenCalledWith(2);
@@ -175,11 +175,11 @@ describe('Associates behavior', () => {
   it('does not expose a physical delete action for associate history', () => {
     render(<Associates setCurrentView={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Más acciones del socio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
 
-    expect(screen.getByRole('button', { name: 'Reactivar socio' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Historial de intereses pagados' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Fechas de pago de intereses' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Reactivar socio' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Historial de intereses pagados' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Fechas de pago de intereses' })).toBeInTheDocument();
     expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 
@@ -192,7 +192,7 @@ describe('Associates behavior', () => {
     expect(screen.queryByRole('button', { name: /exportar/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /nuevo socio/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar socio' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Más acciones del socio' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Más acciones' })).not.toBeInTheDocument();
     expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 });

@@ -73,6 +73,7 @@ export const auditEs = {
 'audit.filters.dateRange.to': 'Fecha hasta',
 'audit.filters.action.reset': 'Limpiar',
 'audit.filters.action.apply': 'Aplicar filtros',
+'audit.table.recordsLabel': 'eventos',
 'audit.table.empty.title': 'Sin eventos para revisar',
 'audit.table.empty.description': 'Ajusta filtros por IP, servicio o fecha para ampliar la búsqueda.',
 'audit.table.header.date': 'Fecha',

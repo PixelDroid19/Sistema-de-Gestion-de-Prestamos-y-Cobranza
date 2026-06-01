@@ -143,6 +143,7 @@ export const creditsEs = {
 'credits.table.loading': 'Cargando créditos…',
 'credits.table.error': 'Error al cargar créditos.',
 'credits.table.none': 'No hay créditos registrados.',
+'credits.table.recordsLabel': 'créditos',
 'credits.pagination.summary': 'Mostrando {from} a {to} de {total} créditos',
 'credits.pagination.rowsPerPage': 'Filas por página',
 'credits.pagination.previous': 'Anterior',

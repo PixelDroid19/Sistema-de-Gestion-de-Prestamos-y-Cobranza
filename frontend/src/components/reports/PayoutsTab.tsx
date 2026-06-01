@@ -180,9 +180,24 @@ export default function PayoutsTab({
         />
       )}
 
-      <ReportDataTableSection title={tTerm('reports.payouts.table.title')}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+      <ReportDataTableSection
+        title={tTerm('reports.payouts.table.title')}
+        statePresentation="inline"
+        pagination={
+          payoutPagination && payoutPagination.totalPages > 1
+            ? {
+              page: payoutPage,
+              pageSize: payoutPageSize,
+              totalItems: payoutPagination.totalItems,
+              totalPages: payoutPagination.totalPages,
+              onPrev: () => onPayoutPageChange(payoutPage - 1),
+              onNext: () => onPayoutPageChange(payoutPage + 1),
+              onPageSizeChange: onPayoutPageSizeChange,
+            }
+            : undefined
+        }
+        recordsLabel={tTerm('payouts.recordsLabel')}
+      >
             <thead>
               <tr>
                 <th>{tTerm('payouts.table.date')}</th>
@@ -221,38 +236,6 @@ export default function PayoutsTab({
                 ))
               )}
             </tbody>
-          </table>
-        </div>
-
-        {payoutPagination && payoutPagination.totalPages > 1 && (
-          <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <div>
-              {tTerm('reports.payouts.pagination.summary', {
-                from: (payoutPage - 1) * payoutPageSize + 1,
-                to: Math.min(payoutPage * payoutPageSize, payoutPagination.totalItems),
-                total: payoutPagination.totalItems,
-              })}
-            </div>
-            <div className="flex gap-2">
-              <ActionButton
-                disabled={payoutPage === 1}
-                onClick={() => onPayoutPageChange(payoutPage - 1)}
-                variant="ghost"
-                className="min-h-8 px-3 py-1.5 text-xs"
-              >
-                {tTerm('reports.payouts.pagination.previous')}
-              </ActionButton>
-              <ActionButton
-                disabled={payoutPage === payoutPagination.totalPages}
-                onClick={() => onPayoutPageChange(payoutPage + 1)}
-                variant="ghost"
-                className="min-h-8 px-3 py-1.5 text-xs"
-              >
-                {tTerm('reports.payouts.pagination.next')}
-              </ActionButton>
-            </div>
-          </div>
-        )}
       </ReportDataTableSection>
     </div>
   );
