@@ -173,6 +173,196 @@
     padding: 0.875rem 1rem;
   }
 
+  .credit-detail-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .credit-detail-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .credit-detail-header__top {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .credit-detail-header__top {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1.5rem;
+    }
+  }
+
+  .credit-detail-header-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem 0.35rem;
+    flex-shrink: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .credit-detail-header-toolbar {
+      justify-content: flex-end;
+      max-width: 36rem;
+    }
+  }
+
+  .credit-detail-header-toolbar__divider {
+    align-self: stretch;
+    width: 1px;
+    min-height: 1.35rem;
+    margin: 0 0.35rem;
+    background: var(--border-subtle);
+  }
+
+  .credit-detail-header-toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.55rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    color: var(--text-primary);
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .credit-detail-header-toolbar-btn:hover:not(:disabled) {
+    background: var(--hover-bg);
+    color: var(--brand-primary);
+  }
+
+  .credit-detail-header-toolbar-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .credit-detail-header-toolbar-btn__icon {
+    display: inline-flex;
+    color: var(--text-secondary);
+  }
+
+  .credit-detail-header-toolbar-btn:hover:not(:disabled) .credit-detail-header-toolbar-btn__icon {
+    color: var(--brand-primary);
+  }
+
+  .credit-detail-header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.75rem 1.25rem;
+    min-width: 0;
+  }
+
+  .credit-detail-header-meta__divider {
+    width: 1px;
+    align-self: stretch;
+    min-height: 2.5rem;
+    background: var(--border-subtle);
+  }
+
+  @media (max-width: 639px) {
+    .credit-detail-header-meta__divider {
+      display: none;
+    }
+  }
+
+  .credit-detail-header-meta-block {
+    display: flex;
+    min-width: min(100%, 14rem);
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .credit-detail-header-meta-block__icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--brand-primary) 10%, var(--bg-surface));
+    color: var(--brand-primary);
+  }
+
+  .credit-detail-header-meta-block__label {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--text-secondary);
+  }
+
+  .credit-detail-header-meta-block__value {
+    margin-top: 0.1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.35rem;
+    color: var(--text-primary);
+    word-break: break-word;
+  }
+
+  @media (min-width: 900px) {
+    .credit-detail-summary-strip.insight-strip--count-4 {
+      grid-template-columns: repeat(4, minmax(12.5rem, 1fr));
+    }
+  }
+
+  .credit-detail-summary-strip .insight-strip-item {
+    min-width: 0;
+  }
+
+  .credit-detail-summary-strip .insight-strip-value span {
+    display: block;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .credit-detail-tab-panel {
+    min-width: 0;
+  }
+
+  .credit-detail-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--bg-base) 55%, var(--bg-surface));
+    padding: 0.3rem 0.7rem;
+    font-size: 0.75rem;
+    line-height: 1.2rem;
+    color: var(--text-secondary);
+  }
+
+  .credit-detail-chip--emphasis {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .credit-detail-mobile-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.9rem;
+    background: var(--bg-surface);
+    padding: 1rem;
+  }
+
+  .table-panel-intro--compact.table-panel-intro {
+    padding-top: 0.85rem;
+    padding-bottom: 0.75rem;
+  }
+
   .settings-page {
     gap: 1.25rem;
   }

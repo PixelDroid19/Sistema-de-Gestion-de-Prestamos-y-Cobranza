@@ -28,6 +28,7 @@ import { getLocalDateInputValue } from '../lib/dateInput';
 import { normalizeVisibleName } from '../lib/displayNames';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
+import { CreditDetailPaymentActions } from './creditDetails/CreditDetailPaymentActions';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
 import { CreditDetailsTabs, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
 import { ActionButton, EmptyState } from './shared/Surfaces';
@@ -829,27 +830,38 @@ export default function CreditDetails() {
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
+    <div className="credit-detail-page mx-auto w-full max-w-[88rem] min-w-0 px-4 pb-32 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
       <CreditDetailHeader
         loanId={loan.id} statusInfo={statusInfo} subtitle={creditDetailSubtitle}
         customerLabel={customerLabel} calculationProfileSummary={calculationProfileSummary}
-        registerPaymentLabel={tTerm('creditDetails.cta.recordPayment')}
-        capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
         canAccessBackofficeActions={isBackofficeUser} canExportCreditExcel={user?.role === 'admin' || creditReportDownloadGuard.visible}
         isExportingCreditExcel={isExportingCreditExcel}
-        installmentPaymentGuard={installmentPaymentGuard} capitalPaymentGuard={capitalPaymentGuard}
-        payoffPaymentGuard={payoffPaymentGuard} lateFeeUpdateGuard={lateFeeUpdateGuard}
-        creditStatusUpdateGuard={creditStatusUpdateGuard}
-        onBack={() => navigate('/credits')} onRegisterPayment={openNextInstallmentPayment}
-        onOpenCapitalPayment={() => setShowCapitalModal(true)}
-        onPayoff={handlePayoff}
+        lateFeeUpdateGuard={lateFeeUpdateGuard} creditStatusUpdateGuard={creditStatusUpdateGuard}
+        onBack={() => navigate('/credits')}
         onOpenLateFeeRate={() => { setLateFeeRate(String(loan.annualLateFeeRate || '')); setShowLateFeeModal(true); }}
         onOpenStatus={() => setShowStatusModal(true)}
         onExportCreditExcel={handleExportCreditExcel}
         onOpenSchedule={() => navigate(`/credits/${loanId}/schedule`)}
       />
 
-      <CreditSummaryMetrics loan={loan} paymentSnapshot={calendarSnapshot ?? paymentSnapshot} formatCurrency={formatCurrency} formatMetricCurrency={formatMetricCurrency} />
+      <CreditSummaryMetrics
+        loan={loan}
+        paymentSnapshot={calendarSnapshot ?? paymentSnapshot}
+        formatCurrency={formatCurrency}
+        formatMetricCurrency={formatMetricCurrency}
+      />
+
+      <CreditDetailPaymentActions
+        registerPaymentLabel={tTerm('creditDetails.cta.recordPayment')}
+        capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
+        canAccessBackofficeActions={isBackofficeUser}
+        installmentPaymentGuard={installmentPaymentGuard}
+        capitalPaymentGuard={capitalPaymentGuard}
+        payoffPaymentGuard={payoffPaymentGuard}
+        onRegisterPayment={openNextInstallmentPayment}
+        onOpenCapitalPayment={() => setShowCapitalModal(true)}
+        onPayoff={handlePayoff}
+      />
 
       <section className="min-w-0">
         <CreditDetailsTabs

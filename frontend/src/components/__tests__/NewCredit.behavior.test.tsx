@@ -202,7 +202,7 @@ describe('NewCredit behavior', () => {
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
     expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
     expect(screen.queryByRole('spinbutton', { name: 'Tasa configurada' })).not.toBeInTheDocument();
-    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('fixed');
+    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('floating-action-dock');
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
     expect(screen.queryByLabelText('Socio asignado')).not.toBeInTheDocument();
 

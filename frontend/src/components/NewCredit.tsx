@@ -18,6 +18,11 @@ import {
 import type { CreditCalculationInput } from '../types/creditCalculation';
 import { QuickGuideButton } from './shared/HelpSupport';
 import {
+  FloatingActionDock,
+  floatingActionDockButtonClass,
+  floatingActionDockIconButtonClass,
+} from './shared/FloatingActionDock';
+import {
   ActionButton,
   FormField,
   IconActionButton,
@@ -429,10 +434,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   };
 
   const actionDock = (
-    <div
-      className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-2xl border border-border-strong bg-bg-surface/95 p-2 shadow-xl backdrop-blur sm:left-auto sm:right-6 sm:w-[31rem]"
+    <FloatingActionDock
+      layout="new-credit"
+      ariaLabel={tTerm('newCredit.aria.actionDock')}
       data-tour="new-credit-action-dock"
-      aria-label={tTerm('newCredit.aria.actionDock')}
     >
       <IconActionButton
         onClick={resetCalculation}
@@ -440,7 +445,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         label={tTerm('newCredit.action.reset')}
         title={tTerm('newCredit.action.reset')}
         icon={<RotateCcw size={16} />}
-        className="h-10 w-10 rounded-full"
+        className={floatingActionDockIconButtonClass}
       />
       <ActionButton
         data-tour="new-credit-validate"
@@ -457,7 +462,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             : tTerm('newCredit.action.validate.title.missing')}
         icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
         fullWidth
-        className="h-10 min-w-0 rounded-full px-3"
+        className={floatingActionDockButtonClass}
       >
         {tTerm('newCredit.action.validate')}
       </ActionButton>
@@ -471,12 +476,12 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         icon={isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         variant="primary"
         fullWidth
-        className="h-10 min-w-0 rounded-full px-3"
+        className={floatingActionDockButtonClass}
       >
         <span className="hidden sm:inline">{tTerm('newCredit.action.register')}</span>
         <span className="sm:hidden">{tTerm('newCredit.action.register.short')}</span>
       </ActionButton>
-    </div>
+    </FloatingActionDock>
   );
 
   return (

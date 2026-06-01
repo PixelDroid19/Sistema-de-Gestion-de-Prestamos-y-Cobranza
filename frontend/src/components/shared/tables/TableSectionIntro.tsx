@@ -6,6 +6,8 @@ type TableSectionIntroProps = {
   aside?: ReactNode;
   /** Renders inside a shared `.data-table-surface` panel (no extra outer border). */
   embedded?: boolean;
+  /** Tighter intro for dense operational panels (e.g. credit calendar). */
+  compact?: boolean;
   className?: string;
 };
 
@@ -14,20 +16,22 @@ export function TableSectionIntro({
   description,
   aside,
   embedded = false,
+  compact = false,
   className = '',
 }: TableSectionIntroProps) {
   return (
     <div
       className={[
         embedded ? 'table-panel-intro' : 'border-b border-border-subtle pb-4',
+        compact ? 'table-panel-intro--compact' : '',
         className,
       ].filter(Boolean).join(' ')}
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <h3 className="m-0 text-base font-semibold text-text-primary">{title}</h3>
+          <h3 className={`m-0 font-semibold text-text-primary ${compact ? 'text-sm' : 'text-base'}`}>{title}</h3>
           {description ? (
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">{description}</p>
+            <p className={`mt-1 max-w-3xl text-text-secondary ${compact ? 'text-xs leading-5' : 'text-sm leading-6'}`}>{description}</p>
           ) : null}
         </div>
         {aside ? (

@@ -13,20 +13,12 @@ describe('CreditDetailHeader behavior', () => {
         subtitle="Cliente QA"
         customerLabel="Cliente QA"
         calculationProfileSummary="Regla vigente"
-        registerPaymentLabel="Registrar pago"
-        capitalContributionLabel="Abono a capital"
         canAccessBackofficeActions
         canExportCreditExcel
         isExportingCreditExcel={false}
-        installmentPaymentGuard={executableGuard}
-        capitalPaymentGuard={executableGuard}
-        payoffPaymentGuard={executableGuard}
         lateFeeUpdateGuard={executableGuard}
         creditStatusUpdateGuard={executableGuard}
         onBack={vi.fn()}
-        onRegisterPayment={vi.fn()}
-        onOpenCapitalPayment={vi.fn()}
-        onPayoff={vi.fn()}
         onOpenLateFeeRate={vi.fn()}
         onOpenStatus={vi.fn()}
         onExportCreditExcel={vi.fn()}

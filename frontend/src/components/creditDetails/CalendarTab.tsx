@@ -50,13 +50,13 @@ export function CalendarTab({
 
   const calendarAside = (
     <>
-      <span className="inline-flex items-center rounded-lg border border-border-subtle bg-bg-base px-2.5 py-1.5 text-text-secondary">
+      <span className="credit-detail-chip">
         {tTerm('creditDetails.calendar.nextPayable', {
           number: nextPayableInstallmentNumber ?? tTerm('creditDetails.calendar.noPending'),
         })}
       </span>
       {calendarSnapshot ? (
-        <span className="inline-flex items-center rounded-lg border border-border-subtle bg-bg-base px-2.5 py-1.5 font-medium text-text-primary">
+        <span className="credit-detail-chip credit-detail-chip--emphasis">
           {tTerm('creditDetails.calendar.outstandingBalance', {
             amount: formatCurrency(calendarSnapshot.outstandingBalance),
           })}
@@ -66,9 +66,10 @@ export function CalendarTab({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="credit-detail-tab-panel space-y-4">
       <div className="md:hidden">
         <TableSectionIntro
+          compact
           title={tTerm('creditDetails.calendar.title')}
           description={tTerm('creditDetails.calendar.description')}
           aside={calendarAside}
@@ -79,7 +80,7 @@ export function CalendarTab({
         {installmentRows.map((row: any) => {
           const statusInfo = getInstallmentStatusInfo(row.status);
           return (
-            <div key={getInstallmentRowKey(row)} className="rounded-2xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
+            <div key={getInstallmentRowKey(row)} className="credit-detail-mobile-card">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{tTerm('creditDetails.calendar.installment', { number: row.installmentNumber })}</p>
@@ -122,6 +123,7 @@ export function CalendarTab({
       <div className="data-table-surface hidden md:block scroll-mt-3">
         <TableSectionIntro
           embedded
+          compact
           title={tTerm('creditDetails.calendar.title')}
           description={tTerm('creditDetails.calendar.description')}
           aside={calendarAside}

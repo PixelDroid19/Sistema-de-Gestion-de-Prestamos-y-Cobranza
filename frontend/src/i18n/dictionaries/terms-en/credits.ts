@@ -208,6 +208,8 @@ export const creditsEn = {
 'loanAlerts.type.followUp': 'Collection follow-up',
 'loanAlerts.type.promiseBroken': 'Broken promise',
 'loanAlerts.type.fallback': 'Loan alert',
+'creditDetails.aria.floatingActions': 'Loan payment actions',
+'creditDetails.header.utilitiesAria': 'Loan informational actions',
 'creditDetails.header.back': 'Back to loans',
 'creditDetails.header.title': 'Loan details',
 'creditDetails.header.customer': 'Customer',

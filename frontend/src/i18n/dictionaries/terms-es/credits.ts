@@ -210,6 +210,8 @@ export const creditsEs = {
 'loanAlerts.type.promiseBroken': 'Compromiso incumplido',
 'loanAlerts.type.fallback': 'Alerta de crédito',
 // Credit details
+'creditDetails.aria.floatingActions': 'Acciones de pago del crédito',
+'creditDetails.header.utilitiesAria': 'Acciones informativas del crédito',
 'creditDetails.header.back': 'Volver a créditos',
 'creditDetails.header.title': 'Detalle del crédito',
 'creditDetails.header.customer': 'Cliente',

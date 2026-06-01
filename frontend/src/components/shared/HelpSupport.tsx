@@ -31,6 +31,8 @@ type QuickGuideButtonProps = {
   guideKey: GuideViewKey;
   guideContext?: Omit<GuideContext, 'role'>;
   className?: string;
+  /** `plain` — text link style for page toolbars (no bordered chip). */
+  appearance?: 'default' | 'plain';
 };
 
 type TooltipPosition = {
@@ -178,20 +180,29 @@ export function ExplainedChip({ label, description, className, align = 'left' }:
   );
 }
 
-export function QuickGuideButton({ guideKey, guideContext, className = '' }: QuickGuideButtonProps) {
+export function QuickGuideButton({
+  guideKey,
+  guideContext,
+  className = '',
+  appearance = 'default',
+}: QuickGuideButtonProps) {
   const { user } = useSessionStore();
 
   if (!hasGuideDefinition(guideKey, user?.role)) {
     return null;
   }
 
+  const appearanceClassName = appearance === 'plain'
+    ? 'credit-detail-header-toolbar-btn'
+    : 'inline-flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg active:scale-[0.98]';
+
   return (
     <button
       type="button"
       onClick={() => startViewGuide(guideKey, { role: user?.role, ...guideContext })}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg active:scale-[0.98] ${className}`}
+      className={`${appearanceClassName} ${className}`.trim()}
     >
-      <CircleHelp size={16} />
+      <CircleHelp size={16} className="shrink-0" />
       {tTerm('common.quickGuide')}
     </button>
   );
