@@ -85,7 +85,7 @@ export function PromisesTab({
             {promise.statusHistory && promise.statusHistory.length > 0 && (
               <details className="group">
                 <summary className="text-sm text-brand-primary cursor-pointer hover:underline list-none flex items-center gap-1">
-                  <ChevronRight size={14} className="group-open:rotate-90 transition-transform" /> {tTerm('creditDetails.tab.history')}
+                  <ChevronRight size={14} className="group-open:rotate-90 transition-transform" /> {tTerm('creditDetails.promises.statusHistory')}
                 </summary>
                 <div className="mt-3 pl-4 border-l-2 border-border-subtle space-y-3">
                   {promise.statusHistory.slice().reverse().map((entry: any) => (

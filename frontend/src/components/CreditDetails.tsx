@@ -224,7 +224,7 @@ export default function CreditDetails() {
     reason: payoffEligibility?.allowed ? tTerm('creditDetails.payoff.state.preparingQuote') : payoffUnavailableDescription,
   };
 
-  const operationalHistoryEntries = useMemo(() => {
+  const operationalTimelineEntries = useMemo(() => {
     const alertEvents = alertEntries.flatMap((alert: any) => {
       const pres = getAlertPresentation(alert, formatCurrency);
       const events = [{ id: `alert-created-${alert.id}`, action: alert.status === 'resolved' ? tTerm('creditDetails.history.action.alertResolved') : tTerm('creditDetails.history.action.alertActive'), description: `${pres.typeLabel} · ${pres.summary}`, date: alert.resolvedAt || alert.createdAt || alert.dueDate, type: 'alert', status: alert.status }];
@@ -236,15 +236,16 @@ export default function CreditDetails() {
       const statusEvts = Array.isArray(p.statusHistory) ? p.statusHistory.map((e: any, i: number) => ({ id: `promise-status-${p.id}-${i}`, action: tTerm('creditDetails.history.action.promiseStatusUpdated'), description: `${formatOperationalStatus(e.status)}${e.note ? ` · ${e.note}` : ''}`, date: e.changedAt || p.updatedAt || p.promisedDate, type: 'promise', status: e.status })) : [];
       return [...base, ...statusEvts];
     });
-    return [...paymentHistoryEntries, ...alertEvents, ...promiseEvents].filter((e) => e.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [alertEntries, paymentHistoryEntries, promiseEntries, locale]);
+    return [...alertEvents, ...promiseEvents].filter((e) => e.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [alertEntries, promiseEntries, locale]);
 
   const visibleTabs = useMemo(() => {
     const tabs: CreditDetailsTab[] = ['calendar'];
     if (isBackofficeUser) tabs.push('alerts', 'promises');
-    tabs.push('payouts', 'history');
+    tabs.push('payouts');
+    if (operationalTimelineEntries.length > 0) tabs.push('history');
     return tabs;
-  }, [isBackofficeUser]);
+  }, [isBackofficeUser, operationalTimelineEntries.length]);
 
   // -------------------------------------------------------------------------
   // Modal state
@@ -773,7 +774,7 @@ export default function CreditDetails() {
             alerts: tTerm('creditDetails.tab.alerts'),
             promises: tTerm('creditDetails.tab.promises'),
             payouts: tTerm('creditDetails.tab.payoutsHistory'),
-            history: tTerm('creditDetails.tab.history'),
+            history: tTerm('creditDetails.tab.operations'),
             aria: tTerm('creditDetails.tabs.aria'),
           }}
           onSelect={setActiveTab}
@@ -825,7 +826,12 @@ export default function CreditDetails() {
                 formatCurrency={formatCurrency}
                 formatDate={formatDate}
                 formatPaymentMethod={formatPaymentMethodLabel}
+                isBackofficeUser={isBackofficeUser}
+                loanStatus={loan?.status}
+                userRole={user?.role}
+                userPermissions={resolvedPermissions}
                 onDownloadVoucher={(pid) => runDownloadVoucher(pid)}
+                onOpenEditPaymentMethod={openEditPaymentMethodModal}
               />
             </div>
           )}
@@ -833,12 +839,9 @@ export default function CreditDetails() {
           {activeTab === 'history' && (
             <div className="animate-in fade-in duration-300 max-w-5xl" data-tour="credit-detail-history">
               <HistoryTab
-                operationalHistoryEntries={operationalHistoryEntries} isLoadingHistory={isLoadingHistory}
-                isBackofficeUser={isBackofficeUser} loanStatus={loan?.status}
-                userRole={user?.role} userPermissions={resolvedPermissions}
+                operationalHistoryEntries={operationalTimelineEntries}
+                isLoadingHistory={isLoadingHistory}
                 formatDate={formatDate}
-                onDownloadVoucher={(pid) => runDownloadVoucher(pid)}
-                onOpenEditPaymentMethod={openEditPaymentMethodModal}
               />
             </div>
           )}

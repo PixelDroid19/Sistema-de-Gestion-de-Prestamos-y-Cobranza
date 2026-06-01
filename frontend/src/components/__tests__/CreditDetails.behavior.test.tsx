@@ -456,8 +456,8 @@ describe('CreditDetails behavioral parity scenarios', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Historial' }));
-    fireEvent.click(screen.getByRole('button', { name: /Método/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Historial de pagos/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Método/i })[0]);
     fireEvent.change(screen.getByLabelText('Nuevo método'), { target: { value: 'cash' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
 
@@ -555,7 +555,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByText('prueba')).toBeInTheDocument();
     expect(screen.queryByText(/REMINDER|actor:3|status:active/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Historial' }));
+    fireEvent.click(screen.getByRole('tab', { name: /Seguimiento operativo/ }));
 
     expect(screen.getByText('Alerta activa')).toBeInTheDocument();
     expect(screen.getByText('Recordatorio de pago · Cuota n.º 1 · Sin saldo pendiente')).toBeInTheDocument();

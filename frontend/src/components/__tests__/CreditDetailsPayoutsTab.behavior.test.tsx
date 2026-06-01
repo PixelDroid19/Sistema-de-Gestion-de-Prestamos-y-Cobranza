@@ -24,7 +24,12 @@ const renderPayoutsTab = (onDownloadVoucher = vi.fn()) => {
       formatCurrency={(value) => `$${value}`}
       formatDate={() => '27/04/2026'}
       formatPaymentMethod={() => 'Transferencia'}
+      isBackofficeUser
+      loanStatus="active"
+      userRole="admin"
+      userPermissions={['*']}
       onDownloadVoucher={onDownloadVoucher}
+      onOpenEditPaymentMethod={vi.fn()}
     />,
   );
 };
