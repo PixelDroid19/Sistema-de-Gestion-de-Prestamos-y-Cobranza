@@ -46,7 +46,7 @@ describe('CreditDetails payouts tab', () => {
     const onDownloadVoucher = vi.fn();
     renderPayoutsTab(onDownloadVoucher);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Descargar comprobante' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Descargar comprobante' })[0]);
 
     expect(onDownloadVoucher).toHaveBeenCalledWith(9001);
   });

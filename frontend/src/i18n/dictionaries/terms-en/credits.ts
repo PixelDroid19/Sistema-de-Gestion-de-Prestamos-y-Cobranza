@@ -301,6 +301,7 @@ export const creditsEn = {
 'creditDetails.payouts.table.actions': 'Actions',
 'creditDetails.payouts.table.voucher': 'Receipt',
 'creditDetails.payouts.action.voucher': 'Receipt',
+'creditDetails.payouts.actions.aria': 'Collection actions',
 'creditDetails.payouts.voucherUnavailableShort': 'Unavailable',
 'creditDetails.payouts.type.payoff': 'Payoff',
 'creditDetails.payouts.voucherUnavailable': 'This payment does not have an available voucher.',

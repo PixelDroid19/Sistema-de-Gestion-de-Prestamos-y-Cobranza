@@ -2,9 +2,11 @@ import { DollarSign, Edit2, FileText } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { getPaymentTypeLabel } from '../../constants/paymentTypes';
 import { resolveOperationalGuard } from '../../services/operationalGuards';
-import { ActionButton, DataTableSurface } from '../shared/Surfaces';
 import { TabEmptyState } from './CreditDetailsTabs';
+import { InstallmentActionButton } from './InstallmentActionButton';
 import { formatOperationalStatus, stableCreditKey } from './creditDetailsHelpers';
+
+const paymentActionButtonBase = 'inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent';
 
 type PayoutsTabProps = {
   paymentHistoryEntries: any[];
@@ -48,7 +50,7 @@ function PaymentTypeBadge({ entry }: { entry: any }) {
     : getPaymentTypeLabel(entry.paymentType);
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${paymentTypeBadgeClass(entry)}`}>
+    <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${paymentTypeBadgeClass(entry)}`}>
       {label}
     </span>
   );
@@ -56,51 +58,9 @@ function PaymentTypeBadge({ entry }: { entry: any }) {
 
 function PaymentStatusBadge({ entry }: { entry: any }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusBadgeClass(entry)}`}>
+    <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${paymentStatusBadgeClass(entry)}`}>
       {formatOperationalStatus(entry.status || entry.paymentStatus || 'pending')}
     </span>
-  );
-}
-
-function VoucherAction({
-  hasVoucher,
-  paymentId,
-  onDownloadVoucher,
-  layout = 'table',
-}: {
-  hasVoucher: boolean;
-  paymentId: number;
-  onDownloadVoucher: (paymentId: number) => void;
-  layout?: 'table' | 'card';
-}) {
-  const downloadLabel = tTerm('payouts.action.downloadVoucher');
-  const shortLabel = tTerm('creditDetails.payouts.action.voucher');
-  const unavailableReason = tTerm('creditDetails.payouts.voucherUnavailable');
-
-  if (!hasVoucher) {
-    return (
-      <span
-        className="inline-flex items-center text-xs font-medium text-text-secondary"
-        title={unavailableReason}
-      >
-        {tTerm('creditDetails.payouts.voucherUnavailableShort')}
-      </span>
-    );
-  }
-
-  return (
-    <ActionButton
-      type="button"
-      variant={layout === 'card' ? 'secondary' : 'ghost'}
-      onClick={() => onDownloadVoucher(paymentId)}
-      icon={<FileText size={layout === 'card' ? 16 : 14} />}
-      className={layout === 'card'
-        ? 'w-full sm:w-auto'
-        : '!min-h-8 !px-2.5 !py-1 text-xs whitespace-nowrap'}
-      title={downloadLabel}
-    >
-      {layout === 'card' ? downloadLabel : shortLabel}
-    </ActionButton>
   );
 }
 
@@ -114,7 +74,6 @@ function PaymentRowActions({
   userPermissions,
   onDownloadVoucher,
   onOpenEditPaymentMethod,
-  layout,
 }: {
   entry: any;
   hasVoucher: boolean;
@@ -125,9 +84,10 @@ function PaymentRowActions({
   userPermissions?: unknown;
   onDownloadVoucher: (paymentId: number) => void;
   onOpenEditPaymentMethod: (entry: any) => void;
-  layout: 'table' | 'card';
 }) {
   const isPayoff = entry.type === 'payoff';
+  const downloadLabel = tTerm('payouts.action.downloadVoucher');
+  const voucherUnavailable = tTerm('creditDetails.payouts.voucherUnavailable');
   const editGuard = !isPayoff
     ? resolveOperationalGuard('installment.editPaymentMethod', {
       role: userRole,
@@ -137,31 +97,42 @@ function PaymentRowActions({
       paymentReconciled: Boolean(entry.paymentReconciled),
     })
     : null;
+  const showVoucher = !isPayoff;
+  const showEdit = isBackofficeUser && Boolean(editGuard?.visible);
+
+  if (!showVoucher && !showEdit) {
+    return null;
+  }
+
+  const editLabel = editGuard?.executable
+    ? tTerm('payouts.action.editPaymentMethodTitle')
+    : (editGuard?.reason || tTerm('credits.action.unavailable'));
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${layout === 'table' ? 'justify-center' : 'sm:justify-end'}`}>
-      <VoucherAction
-        hasVoucher={hasVoucher && !isPayoff}
-        paymentId={paymentId}
-        onDownloadVoucher={onDownloadVoucher}
-        layout={layout}
-      />
-      {isBackofficeUser && editGuard?.visible && (
-        <ActionButton
-          type="button"
-          variant={layout === 'card' ? 'ghost' : 'ghost'}
+    <div
+      className="credit-installment-actions inline-flex flex-nowrap items-center justify-end gap-1.5"
+      role="toolbar"
+      aria-label={tTerm('creditDetails.payouts.actions.aria')}
+    >
+      {showVoucher && (
+        <InstallmentActionButton
+          label={hasVoucher ? downloadLabel : voucherUnavailable}
+          onClick={() => onDownloadVoucher(paymentId)}
+          disabled={!hasVoucher}
+          className={`${paymentActionButtonBase} hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200`}
+        >
+          <FileText size={16} />
+        </InstallmentActionButton>
+      )}
+      {showEdit && editGuard && (
+        <InstallmentActionButton
+          label={editLabel}
           onClick={() => onOpenEditPaymentMethod(entry)}
           disabled={!editGuard.executable}
-          icon={<Edit2 size={layout === 'card' ? 16 : 14} />}
-          className={layout === 'card'
-            ? '!min-h-9 !px-3 !py-1.5'
-            : '!min-h-8 !px-2.5 !py-1 text-xs whitespace-nowrap'}
-          title={editGuard.executable
-            ? tTerm('payouts.action.editPaymentMethod')
-            : (editGuard.reason || tTerm('credits.action.unavailable'))}
+          className={`${paymentActionButtonBase} hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200`}
         >
-          {tTerm('creditDetails.history.editPaymentMethodShort')}
-        </ActionButton>
+          <Edit2 size={16} />
+        </InstallmentActionButton>
       )}
     </div>
   );
@@ -269,7 +240,6 @@ export function PayoutsTab({
                   userPermissions={userPermissions}
                   onDownloadVoucher={onDownloadVoucher}
                   onOpenEditPaymentMethod={onOpenEditPaymentMethod}
-                  layout="card"
                 />
               </div>
             </article>
@@ -277,20 +247,20 @@ export function PayoutsTab({
         })}
       </div>
 
-      <DataTableSurface className="hidden overflow-x-auto lg:block">
-        <table className="credit-installment-calendar-table min-w-0 w-full table-fixed text-sm text-left">
+      <div className="data-table-surface hidden overflow-x-auto lg:block">
+        <table className="credit-installment-calendar-table min-w-0 w-full table-fixed text-sm text-left whitespace-nowrap">
           <colgroup>
-            <col style={{ width: '9%' }} />
+            <col style={{ width: '8%' }} />
             <col style={{ width: '5%' }} />
             <col style={{ width: '10%' }} />
             <col style={{ width: '9%' }} />
             <col style={{ width: '8%' }} />
             <col style={{ width: '7%' }} />
             <col style={{ width: '9%' }} />
-            <col style={{ width: '11%' }} />
+            <col style={{ width: '10%' }} />
             <col style={{ width: '9%' }} />
-            <col style={{ width: '9%' }} />
-            <col style={{ width: '14%' }} />
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '17%' }} />
           </colgroup>
           <thead>
             <tr>
@@ -304,7 +274,7 @@ export function PayoutsTab({
               <th>{tTerm('creditDetails.payouts.table.createdBy')}</th>
               <th>{tTerm('creditDetails.payouts.table.paymentDate')}</th>
               <th className="text-center">{tTerm('creditDetails.payouts.table.status')}</th>
-              <th className="text-center">{tTerm('creditDetails.payouts.table.actions')}</th>
+              <th className="text-right">{tTerm('creditDetails.payouts.table.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -313,32 +283,28 @@ export function PayoutsTab({
               const hasVoucher = Number.isFinite(paymentId) && paymentId > 0;
 
               return (
-                <tr key={stableCreditKey('payment-row', entry.id, entry.date, entry.amount, entry.installmentNumber)}>
+                <tr key={stableCreditKey('payment-row', entry.id, entry.date, entry.amount, entry.installmentNumber)} className="group">
                   <td>
                     <PaymentTypeBadge entry={entry} />
                   </td>
-                  <td className="text-center text-text-secondary">{entry.installmentNumber || '—'}</td>
-                  <td className="text-right font-semibold text-text-primary">{formatCurrency(entry.amount)}</td>
-                  <td className="text-right text-emerald-600 dark:text-emerald-400">
+                  <td className="text-center font-medium text-text-secondary">{entry.installmentNumber || '—'}</td>
+                  <td className="text-right font-medium text-text-primary">{formatCurrency(entry.amount)}</td>
+                  <td className="text-right font-medium text-emerald-600 dark:text-emerald-400">
                     {entry.principalApplied ? formatCurrency(entry.principalApplied) : '—'}
                   </td>
-                  <td className="text-right text-amber-600 dark:text-amber-400">
+                  <td className="text-right text-text-secondary">
                     {entry.interestApplied ? formatCurrency(entry.interestApplied) : '—'}
                   </td>
-                  <td className="text-right text-rose-600 dark:text-rose-400">
+                  <td className="text-right text-red-600 dark:text-red-400">
                     {entry.penaltyApplied ? formatCurrency(entry.penaltyApplied) : '—'}
                   </td>
-                  <td className="truncate text-text-secondary" title={formatPaymentMethod(entry.paymentMethod)}>
-                    {formatPaymentMethod(entry.paymentMethod)}
-                  </td>
-                  <td className="truncate text-text-secondary" title={entry.createdBy?.name || tTerm('common.notAvailable')}>
-                    {entry.createdBy?.name || tTerm('common.notAvailable')}
-                  </td>
+                  <td className="text-text-secondary">{formatPaymentMethod(entry.paymentMethod)}</td>
+                  <td className="text-text-secondary">{entry.createdBy?.name || tTerm('common.notAvailable')}</td>
                   <td className="text-text-secondary">{formatDate(entry.date || entry.paymentDate)}</td>
                   <td className="text-center">
                     <PaymentStatusBadge entry={entry} />
                   </td>
-                  <td className="text-center">
+                  <td className="text-right">
                     <PaymentRowActions
                       entry={entry}
                       hasVoucher={hasVoucher}
@@ -349,7 +315,6 @@ export function PayoutsTab({
                       userPermissions={userPermissions}
                       onDownloadVoucher={onDownloadVoucher}
                       onOpenEditPaymentMethod={onOpenEditPaymentMethod}
-                      layout="table"
                     />
                   </td>
                 </tr>
@@ -357,7 +322,7 @@ export function PayoutsTab({
             })}
           </tbody>
         </table>
-      </DataTableSurface>
+      </div>
     </div>
   );
 }

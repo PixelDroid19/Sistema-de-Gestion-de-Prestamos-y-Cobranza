@@ -287,7 +287,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Historial de pagos/ }));
 
     expect(screen.getByRole('cell', { name: 'Transferencia' })).toBeInTheDocument();
-    const voucherButton = screen.getByRole('button', { name: 'Descargar comprobante' });
+    const voucherButton = screen.getAllByRole('button', { name: 'Descargar comprobante' })[0];
     fireEvent.click(voucherButton);
 
     await waitFor(() => {
@@ -457,7 +457,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     renderCreditDetails();
 
     fireEvent.click(screen.getByRole('tab', { name: /Historial de pagos/ }));
-    fireEvent.click(screen.getAllByRole('button', { name: /Método/i })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Editar método de pago/i })[0]);
     fireEvent.change(screen.getByLabelText('Nuevo método'), { target: { value: 'cash' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
 

@@ -303,6 +303,7 @@ export const creditsEs = {
 'creditDetails.payouts.table.actions': 'Acciones',
 'creditDetails.payouts.table.voucher': 'Comprobante',
 'creditDetails.payouts.action.voucher': 'Comprobante',
+'creditDetails.payouts.actions.aria': 'Acciones del recaudo',
 'creditDetails.payouts.voucherUnavailableShort': 'No disponible',
 'creditDetails.payouts.type.payoff': 'Pago total',
 'creditDetails.payouts.voucherUnavailable': 'Este pago no tiene comprobante disponible.',
