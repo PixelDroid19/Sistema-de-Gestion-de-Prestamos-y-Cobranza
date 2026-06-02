@@ -256,15 +256,17 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
                 />
               </FormField>
               <FormField label={tTerm('newCustomer.field.address')} className="md:col-span-2">
-                <div className="relative">
-                  <MapPin size={16} className="absolute left-3 top-3 text-text-secondary" />
+                <div className="operational-control operational-control--textarea">
+                  <span className="operational-control-icon mt-1" aria-hidden="true">
+                    <MapPin size={16} />
+                  </span>
                   <textarea
                     id="new-customer-address"
                     name="address"
                     value={formData.address}
                     onChange={handleChange}
                     rows={3}
-                    className="operational-control-input w-full min-h-[72px] resize-y pl-10"
+                    className="operational-control-textarea"
                     placeholder={tTerm('newCustomer.placeholder.address')}
                   />
                 </div>

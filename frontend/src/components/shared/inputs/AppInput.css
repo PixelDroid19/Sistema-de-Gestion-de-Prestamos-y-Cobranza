@@ -12,6 +12,12 @@
   transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
+.operational-control--textarea {
+  align-items: flex-start;
+  min-height: 7.5rem;
+  padding: 0.85rem 0.95rem;
+}
+
 .operational-control:focus-within {
   border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-subtle));
   background: var(--bg-surface);
@@ -101,7 +107,28 @@
   outline: none;
 }
 
+.operational-control-textarea {
+  min-width: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 5.75rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
 .operational-control-input::placeholder {
+  color: color-mix(in srgb, var(--text-secondary) 58%, transparent);
+}
+
+.operational-control-textarea::placeholder {
   color: color-mix(in srgb, var(--text-secondary) 58%, transparent);
 }
 
