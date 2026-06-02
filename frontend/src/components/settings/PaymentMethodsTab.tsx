@@ -7,10 +7,10 @@ import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
   FormField,
+  AppInput,
   ModalShell,
+  OperationalSelect,
   SectionSurface,
-  SelectInput,
-  TextInput,
 } from '../shared/Surfaces';
 import {
   AppTable,
@@ -97,11 +97,12 @@ export default function PaymentMethodsTab({
           label={tTerm('settings.paymentMethods.field.name')}
           tooltip={tTerm('settings.paymentMethods.field.nameTooltip')}
         >
-          <TextInput
+          <AppInput
             aria-label={tTerm('settings.paymentMethods.field.name')}
+            variant="text"
             required
             value={newPaymentMethod.name}
-            onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, name: event.target.value }))}
+            onValueChange={(v, _detail, e) => setNewPaymentMethod((prev) => ({ ...prev, name: v }))}
             placeholder={tTerm('settings.paymentMethods.field.namePlaceholder')}
           />
         </FormField>
@@ -110,7 +111,7 @@ export default function PaymentMethodsTab({
           label={tTerm('settings.paymentMethods.field.type')}
           tooltip={tTerm('settings.paymentMethods.field.typeTooltip')}
         >
-          <SelectInput
+          <OperationalSelect
             aria-label={tTerm('settings.paymentMethods.field.type')}
             value={newPaymentMethod.type}
             onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, type: event.target.value as PaymentMethodDraft['type'] }))}
@@ -119,14 +120,15 @@ export default function PaymentMethodsTab({
             <option value="cash">{tTerm('settings.paymentMethods.type.cash')}</option>
             <option value="card">{tTerm('settings.paymentMethods.type.card')}</option>
             <option value="other">{tTerm('settings.paymentMethods.type.other')}</option>
-          </SelectInput>
+          </OperationalSelect>
         </FormField>
       </div>
       <FormField label={tTerm('settings.paymentMethods.field.description')}>
-        <TextInput
+        <AppInput
           aria-label={tTerm('settings.paymentMethods.field.description')}
+          variant="text"
           value={newPaymentMethod.description}
-          onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, description: event.target.value }))}
+          onValueChange={(v, _detail, e) => setNewPaymentMethod((prev) => ({ ...prev, description: v }))}
           placeholder={tTerm('settings.paymentMethods.field.descriptionPlaceholder')}
         />
       </FormField>

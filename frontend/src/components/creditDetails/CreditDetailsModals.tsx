@@ -2,7 +2,7 @@ import { tTerm } from '../../i18n/terminology';
 import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../../constants/loanStates';
 import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
 import { CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../../services/loanService';
-import { ActionButton, FormField, ModalShell, NormalizedInput, SelectInput, TextAreaInput, TextInput } from '../shared/Surfaces';
+import { ActionButton, AppInput, CurrencyInput, FormField, ModalShell, OperationalSelect } from '../shared/Surfaces';
 import type { CapitalPreview } from './creditDetailsHelpers';
 
 // ---------------------------------------------------------------------------
@@ -123,12 +123,12 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
           </>}
         >
           <FormField label={tTerm('creditDetails.modal.status.field')}>
-            <SelectInput id="credit-status-select" value={props.newStatus} onChange={(e) => props.onNewStatusChange(e.target.value)}>
+            <OperationalSelect id="credit-status-select" value={props.newStatus} onChange={(e) => props.onNewStatusChange(e.target.value)}>
               <option value="">{tTerm('creditDetails.modal.status.placeholder')}</option>
               {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
                 <option key={status} value={status}>{LOAN_STATUS_LABELS[status]}</option>
               ))}
-            </SelectInput>
+            </OperationalSelect>
           </FormField>
         </ModalShell>
       )}
@@ -193,27 +193,21 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
               </div>
             )}
             <FormField label={tTerm('creditDetails.modal.payment.amount')}>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                <NormalizedInput
-                  id="credit-payment-amount"
-                  variant="decimal"
-                  value={props.paymentAmount}
-                  onValueChange={props.onPaymentAmountChange}
-                  className="pl-8"
-                  placeholder="0.00"
-                  maxDecimals={2}
-                />
-              </div>
+              <CurrencyInput
+                id="credit-payment-amount"
+                allowCents
+                value={props.paymentAmount}
+                onValueChange={(value) => props.onPaymentAmountChange(value)}
+              />
             </FormField>
             <div className="grid grid-cols-2 gap-4">
               <FormField label={tTerm('creditDetails.modal.payment.date')}>
-                <TextInput id="credit-payment-date" type="date" value={props.paymentDate} onChange={(e) => props.onPaymentDateChange(e.target.value)} />
+                <AppInput id="credit-payment-date" variant="date" value={props.paymentDate} onValueChange={(value) => props.onPaymentDateChange(value)} />
               </FormField>
               <FormField label={tTerm('creditDetails.modal.payment.method')}>
-                <SelectInput id="credit-payment-method" value={props.paymentMethod} onChange={(e) => props.onPaymentMethodChange(e.target.value as PaymentMethod)}>
+                <OperationalSelect id="credit-payment-method" value={props.paymentMethod} onChange={(e) => props.onPaymentMethodChange(e.target.value as PaymentMethod)}>
                   {props.paymentMethodOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
             </div>
           </div>
@@ -232,20 +226,24 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
         >
           <div className="space-y-4">
             <FormField label={tTerm('creditDetails.modal.promise.amount')}>
-              <NormalizedInput
+              <CurrencyInput
                 id="credit-promise-amount"
-                variant="decimal"
+                allowCents
                 value={props.promiseAmount}
-                onValueChange={props.onPromiseAmountChange}
-                placeholder="0.00"
-                maxDecimals={2}
+                onValueChange={(value) => props.onPromiseAmountChange(value)}
               />
             </FormField>
             <FormField label={tTerm('creditDetails.modal.promise.date')}>
-              <TextInput id="credit-promise-date" type="date" value={props.promiseDateInput} onChange={(e) => props.onPromiseDateChange(e.target.value)} />
+              <AppInput id="credit-promise-date" variant="date" value={props.promiseDateInput} onValueChange={(value) => props.onPromiseDateChange(value)} />
             </FormField>
             <FormField label={tTerm('creditDetails.modal.promise.notes')}>
-              <TextAreaInput id="credit-promise-notes" value={props.promiseNotes} onChange={(e) => props.onPromiseNotesChange(e.target.value)} rows={3} />
+              <textarea
+                id="credit-promise-notes"
+                className="operational-control-input w-full min-h-[80px] resize-y"
+                value={props.promiseNotes}
+                onChange={(e) => props.onPromiseNotesChange(e.target.value)}
+                rows={3}
+              />
             </FormField>
           </div>
         </ModalShell>
@@ -263,7 +261,13 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
         >
           <div className="space-y-4">
             <FormField label={tTerm('creditDetails.modal.followUp.detail')}>
-              <TextAreaInput id="credit-follow-up-notes" value={props.followUpNotes} onChange={(e) => props.onFollowUpNotesChange(e.target.value)} rows={4} />
+              <textarea
+                id="credit-follow-up-notes"
+                className="operational-control-input w-full min-h-[100px] resize-y"
+                value={props.followUpNotes}
+                onChange={(e) => props.onFollowUpNotesChange(e.target.value)}
+                rows={4}
+              />
             </FormField>
           </div>
         </ModalShell>
@@ -281,7 +285,13 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
           </>}
         >
           <FormField label={tTerm('creditDetails.modal.annul.reason')}>
-            <TextAreaInput id="credit-annul-reason" value={props.annulReason} onChange={(e) => props.onAnnulReasonChange(e.target.value)} rows={3} />
+            <textarea
+              id="credit-annul-reason"
+              className="operational-control-input w-full min-h-[80px] resize-y"
+              value={props.annulReason}
+              onChange={(e) => props.onAnnulReasonChange(e.target.value)}
+              rows={3}
+            />
           </FormField>
         </ModalShell>
       )}
@@ -313,33 +323,27 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <FormField label={tTerm('creditDetails.modal.capital.amount')}>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                  <NormalizedInput
-                    id="credit-capital-amount"
-                    variant="decimal"
-                    value={props.capitalAmount}
-                    onValueChange={props.onCapitalAmountChange}
-                    className="pl-8"
-                    placeholder="0.00"
-                    maxDecimals={2}
-                  />
-                </div>
+                <CurrencyInput
+                  id="credit-capital-amount"
+                  allowCents
+                  value={props.capitalAmount}
+                  onValueChange={(value) => props.onCapitalAmountChange(value)}
+                />
               </FormField>
               <FormField label={tTerm('creditDetails.modal.capital.date')}>
-                <TextInput id="credit-capital-date" type="date" value={props.capitalPaymentDate} onChange={(e) => props.onCapitalDateChange(e.target.value)} />
+                <AppInput id="credit-capital-date" variant="date" value={props.capitalPaymentDate} onValueChange={(value) => props.onCapitalDateChange(value)} />
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <FormField label={tTerm('creditDetails.modal.capital.method')}>
-                <SelectInput id="credit-capital-method" value={props.capitalMethod} onChange={(e) => props.onCapitalMethodChange(e.target.value as PaymentMethod)}>
+                <OperationalSelect id="credit-capital-method" value={props.capitalMethod} onChange={(e) => props.onCapitalMethodChange(e.target.value as PaymentMethod)}>
                   {props.paymentMethodOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
               <FormField label={tTerm('creditDetails.modal.capital.strategy')}>
-                <SelectInput id="credit-capital-strategy" value={props.capitalStrategy} onChange={(e) => props.onCapitalStrategyChange(e.target.value as CapitalStrategy)}>
+                <OperationalSelect id="credit-capital-strategy" value={props.capitalStrategy} onChange={(e) => props.onCapitalStrategyChange(e.target.value as CapitalStrategy)}>
                   {CAPITAL_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
             </div>
             {props.capitalStrategy === 'reduce_payment' && (
@@ -347,7 +351,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
                 label={tTerm('creditDetails.modal.capital.newTermMonths')}
                 tooltip={tTerm('creditDetails.modal.capital.newTermMonthsTooltip')}
               >
-                <NormalizedInput
+                <AppInput
                   id="credit-capital-new-term"
                   variant="integer"
                   value={props.capitalNewTermMonths}
@@ -422,9 +426,9 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
               </div>
             )}
             <FormField label={tTerm('creditDetails.modal.editMethod.field')}>
-              <SelectInput id="credit-payment-method-select" value={props.newPaymentMethod} onChange={(e) => props.onNewPaymentMethodChange(e.target.value as PaymentMethod)} disabled={props.editingPaymentReconciled}>
+              <OperationalSelect id="credit-payment-method-select" value={props.newPaymentMethod} onChange={(e) => props.onNewPaymentMethodChange(e.target.value as PaymentMethod)} disabled={props.editingPaymentReconciled}>
                 {props.paymentMethodOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
           </div>
         </ModalShell>
@@ -441,18 +445,15 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
           </>}
         >
           <FormField label={tTerm('creditDetails.modal.lateFee.field')}>
-            <div className="relative">
-              <NormalizedInput
-                id="credit-late-fee-rate"
-                variant="percent"
-                value={props.lateFeeRate}
-                onValueChange={props.onLateFeeRateChange}
-                className="pr-8"
-                placeholder="0.00"
-                maxDecimals={2}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
-            </div>
+            <AppInput
+              id="credit-late-fee-rate"
+              variant="percent"
+              suffix="%"
+              value={props.lateFeeRate}
+              onValueChange={props.onLateFeeRateChange}
+              placeholder="0.00"
+              maxDecimals={2}
+            />
           </FormField>
         </ModalShell>
       )}

@@ -23,7 +23,7 @@ import {
   ModalShell,
   SectionSurface,
 } from '../shared/Surfaces';
-import { OperationalInput, OperationalSelect } from '../shared/FormControls';
+import { AppInput, OperationalSelect } from '../shared/Surfaces';
 import {
   type CalendarOverviewAgendaItem,
   type CalendarOverviewResponse,
@@ -231,7 +231,7 @@ export default function CreditsCalendarView({
         <div className="grid gap-3 lg:grid-cols-[minmax(220px,1.3fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_auto]">
           <label className="space-y-1">
             <span className="text-xs font-semibold text-text-secondary">{tTerm('credits.calendar.filter.search')}</span>
-            <OperationalInput
+            <AppInput
               value={filters.search}
               onValueChange={(value) => onFiltersChange((current) => ({ ...current, search: String(value) }))}
               icon={<Search size={16} />}
@@ -253,7 +253,7 @@ export default function CreditsCalendarView({
           </label>
           <label className="space-y-1">
             <span className="text-xs font-semibold text-text-secondary">{tTerm('credits.calendar.filter.from')}</span>
-            <OperationalInput
+            <AppInput
               value={filters.startDate}
               variant="date"
               onValueChange={(value) => onFiltersChange((current) => ({ ...current, startDate: String(value) }))}
@@ -261,7 +261,7 @@ export default function CreditsCalendarView({
           </label>
           <label className="space-y-1">
             <span className="text-xs font-semibold text-text-secondary">{tTerm('credits.calendar.filter.to')}</span>
-            <OperationalInput
+            <AppInput
               value={filters.endDate}
               variant="date"
               onValueChange={(value) => onFiltersChange((current) => ({ ...current, endDate: String(value) }))}

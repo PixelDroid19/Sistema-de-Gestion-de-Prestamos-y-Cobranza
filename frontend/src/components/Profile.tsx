@@ -6,7 +6,7 @@ import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
 import { toast } from '../lib/toast';
 import { reportClientError } from '../lib/clientDiagnostics';
-import { ActionButton, FormField, PageHeader, PageShell, SectionSurface, TextInput, ViewTabs } from './shared/Surfaces';
+import { ActionButton, AppInput, FormField, PageHeader, PageShell, SectionSurface, ViewTabs } from './shared/Surfaces';
 
 export default function Profile() {
   const { profile, updateProfile, changePassword } = useAuth();
@@ -105,22 +105,21 @@ export default function Profile() {
         {activeTab === 'info' && (
           <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-lg">
             <FormField label={t('profile.fields.name')}>
-              <TextInput
+              <AppInput
                 id="profile-name"
-                type="text"
+                variant="text"
                 required
                 value={formData.name}
-                onChange={e => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                onValueChange={v => setFormData((prev) => ({ ...prev, name: v }))}
               />
             </FormField>
             <FormField label={t('profile.fields.email')}>
-              <TextInput
+              <AppInput
                 id="profile-email"
-                type="text"
-                inputMode="email"
+                variant="email"
                 required
                 value={formData.email}
-                onChange={e => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                onValueChange={v => setFormData((prev) => ({ ...prev, email: v }))}
               />
             </FormField>
             <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-secondary">
@@ -137,30 +136,33 @@ export default function Profile() {
         {activeTab === 'security' && (
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
             <FormField label={t('profile.fields.currentPassword')}>
-              <TextInput
+              <AppInput
                 id="profile-current-password"
                 type="password"
+                variant="password"
                 required
                 value={passwordData.currentPassword}
-                onChange={e => setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                onValueChange={v => setPasswordData((prev) => ({ ...prev, currentPassword: v }))}
               />
             </FormField>
             <FormField label={t('profile.fields.newPassword')}>
-              <TextInput
+              <AppInput
                 id="profile-new-password"
                 type="password"
+                variant="password"
                 required
                 value={passwordData.newPassword}
-                onChange={e => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
+                onValueChange={v => setPasswordData((prev) => ({ ...prev, newPassword: v }))}
               />
             </FormField>
             <FormField label={t('profile.fields.confirmPassword')}>
-              <TextInput
+              <AppInput
                 id="profile-confirm-password"
                 type="password"
+                variant="password"
                 required
                 value={passwordData.confirmPassword}
-                onChange={e => setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                onValueChange={v => setPasswordData((prev) => ({ ...prev, confirmPassword: v }))}
               />
             </FormField>
             <div className="pt-4">

@@ -16,7 +16,7 @@ import {
   EmptyState,
   FormField,
   InsightStrip,
-  SelectInput,
+  OperationalSelect,
   SectionSurface,
   ViewTabs,
 } from './shared/Surfaces';
@@ -274,7 +274,7 @@ export default function PermissionsTab() {
           <SectionSurface bodyClassName="space-y-3">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <FormField label={t('settings.employees.modal.permissions.userLabel')}>
-                <SelectInput
+                <OperationalSelect
                   id="permissions-user-select"
                   value={selectedUserId}
                   onChange={(event) => setSelectedUserId(event.target.value)}
@@ -285,10 +285,10 @@ export default function PermissionsTab() {
                       {user.name || user.email} ({t('settings.employees.modal.permissions.employeeSuffix')})
                     </option>
                   ))}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
               <FormField label={t('settings.employees.modal.permissions.moduleLabel')}>
-                <SelectInput
+                <OperationalSelect
                   id="permissions-module-filter"
                   value={moduleFilter}
                   onChange={(event) => setModuleFilter(event.target.value)}
@@ -297,7 +297,7 @@ export default function PermissionsTab() {
                   {groupedPermissions.map((group) => (
                     <option key={group.module} value={group.module}>{getPermissionModuleLabel(group.module)}</option>
                   ))}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
               <div className="flex items-end">
                 <ActionButton

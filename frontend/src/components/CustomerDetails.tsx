@@ -22,8 +22,8 @@ import {
   InsightStrip,
   PageHeader,
   PageShell,
+  OperationalSelect,
   SectionSurface,
-  SelectInput,
   ViewTabs,
 } from './shared/Surfaces';
 
@@ -363,11 +363,11 @@ export default function CustomerDetails() {
               bodyClassName="grid gap-4 lg:grid-cols-[minmax(12rem,1fr)_minmax(18rem,1.25fr)_auto_auto] lg:items-start"
             >
               <FormField label={tTerm('customerDetails.documents.field.type')} htmlFor="customer-document-type">
-                <SelectInput id="customer-document-type" value={docType} onChange={(e) => setDocType(e.target.value)}>
+                <OperationalSelect id="customer-document-type" value={docType} onChange={(e) => setDocType(e.target.value)}>
                   {customerDocumentOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
               <FormField label={tTerm('customerDetails.documents.field.file')} htmlFor="customer-document-file" helper={tTerm('customerDetails.documents.field.fileHelper')}>
                 <input

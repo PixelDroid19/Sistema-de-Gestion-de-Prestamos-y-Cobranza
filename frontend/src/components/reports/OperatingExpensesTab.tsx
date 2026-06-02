@@ -9,10 +9,10 @@ import type {
   OperatingExpensePayload,
 } from '../../services/reportService';
 import {
+  AppInput,
   FormField,
-  SelectInput,
+  OperationalSelect,
   StatusChip,
-  TextInput,
 } from '../shared/Surfaces';
 import OperatingExpenseCreateModal, { OperatingExpenseCreateTrigger } from './OperatingExpenseCreateModal';
 import ReportDownloadModal, { ReportDownloadTrigger } from './ReportDownloadModal';
@@ -96,21 +96,21 @@ export default function OperatingExpensesTab({
         filters={(
           <>
             <FormField label={tTerm('reports.expenses.filter.from')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={expenseFilters.fromDate || ''}
-                onChange={(event) => updateExpenseDateFilter('fromDate', event.target.value)}
+                onValueChange={(v, _d, e) => updateExpenseDateFilter('fromDate', v)}
               />
             </FormField>
             <FormField label={tTerm('reports.expenses.filter.to')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={expenseFilters.toDate || ''}
-                onChange={(event) => updateExpenseDateFilter('toDate', event.target.value)}
+                onValueChange={(v, _d, e) => updateExpenseDateFilter('toDate', v)}
               />
             </FormField>
             <FormField label={tTerm('reports.expenses.filter.status')}>
-              <SelectInput
+              <OperationalSelect
                 value={expenseFilters.status || ''}
                 onChange={(event) => {
                   onExpensePageChange(1);
@@ -120,7 +120,7 @@ export default function OperatingExpensesTab({
                 <option value="">{tTerm('credits.filter.all')}</option>
                 <option value="completed">{tTerm('reports.expenses.status.completed')}</option>
                 <option value="annulled">{tTerm('reports.expenses.status.annulled')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
           </>
         )}

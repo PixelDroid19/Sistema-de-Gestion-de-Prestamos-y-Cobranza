@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calculator, CalendarDays, CheckCircle2, Clock3, DollarSign, Loader2, RotateCcw, Save, User, Wallet } from 'lucide-react';
+import { ArrowLeft, Calculator, CalendarDays, CheckCircle2, Clock3, DollarSign, Loader2, RotateCcw, Save, Wallet } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../i18n';
 import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, isValidOperationalDateOnly } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useLoans } from '../services/loanService';
-import { useCustomers } from '../services/customerService';
 import { toast } from '../lib/toast';
 import { extractValidationErrors } from '../services/apiErrors';
 import { formatScheduleStatusLabel } from '../lib/scheduleStatusLabels';
@@ -30,10 +29,12 @@ import {
   PageHeader,
   PageShell,
   StatusChip,
+  CustomerSearchSelect,
 } from './shared/Surfaces';
 import { AppTable } from './shared/tables';
-import { OperationalInput, OperationalSelect } from './shared/FormControls';
+import { AppInput, CurrencyInput } from './shared/Surfaces';
 import { getLocalDateInputValue } from '../lib/dateInput';
+import { sanitizeNumericInputNumber, formatNumericInputValue } from '../lib/numericInputState';
 
 const formatMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0);
 const getSafeCreditCreationFieldError = (field: unknown): { field: string; message: string } | null => {
@@ -109,17 +110,6 @@ type NewCreditLocationState = {
   source?: 'credit-calculator';
 };
 
-const getDisplayName = (entity: any) => {
-  if (entity?.name) return entity.name;
-
-  const composedName = [entity?.firstName, entity?.lastName]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-
-  return composedName || entity?.email || tTerm('credits.label.customerFallback');
-};
-
 export default function NewCredit({ onBack }: { onBack: () => void }) {
   const { locale } = useTranslation();
   const navigate = useNavigate();
@@ -128,19 +118,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const { user } = useSessionStore();
   const canReadFinancialConfig = user?.role === 'admin';
   const { createLoan } = useLoans();
-  const { data: customersData } = useCustomers({ pageSize: 100 });
   const { ratePolicies, lateFeePolicies, isLoading: isConfigLoading } = useConfig({ enabled: canReadFinancialConfig });
-
-  const customers = Array.isArray(customersData?.data?.customers)
-    ? customersData.data.customers
-    : Array.isArray(customersData?.data)
-      ? customersData.data
-      : [];
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [borrowerErrors, setBorrowerErrors] = useState<Record<string, string>>({});
   const [borrower, setBorrower] = useState({
     customerId: '',
   });
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const initialCalculationInput = useMemo<CreditCalculationInput>(() => ({
     ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
     ...routeState?.calculationInput,
@@ -192,20 +176,30 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     const nextInput: Partial<CreditCalculationInput> = {};
 
     if (resolvedRatePolicy?.annualEffectiveRate != null) {
-      nextInput.interestRate = Number(resolvedRatePolicy.annualEffectiveRate);
-      nextInput.rateSource = 'policy';
+      const nextRate = Number(resolvedRatePolicy.annualEffectiveRate);
+      if (nextRate !== input.interestRate) {
+        nextInput.interestRate = nextRate;
+        nextInput.rateSource = 'policy';
+      }
     }
 
     if (resolvedLateFeePolicy?.lateFeeMode) {
-      nextInput.lateFeeMode = String(resolvedLateFeePolicy.lateFeeMode) as CreditCalculationInput['lateFeeMode'];
-      nextInput.annualLateFeeRate = Number(resolvedLateFeePolicy.annualEffectiveRate || 0);
-      nextInput.lateFeeSource = 'policy';
+      const nextLateMode = String(resolvedLateFeePolicy.lateFeeMode) as CreditCalculationInput['lateFeeMode'];
+      const nextLateRate = Number(resolvedLateFeePolicy.annualEffectiveRate || 0);
+      if (
+        nextLateMode !== (input.lateFeeMode || 'SIMPLE')
+        || nextLateRate !== (input.annualLateFeeRate ?? 0)
+      ) {
+        nextInput.lateFeeMode = nextLateMode;
+        nextInput.annualLateFeeRate = nextLateRate;
+        nextInput.lateFeeSource = 'policy';
+      }
     }
 
     if (Object.keys(nextInput).length > 0) {
       setInput(nextInput);
     }
-  }, [resolvedLateFeePolicy, resolvedRatePolicy, setInput]);
+  }, [resolvedLateFeePolicy, resolvedRatePolicy, setInput, input.interestRate, input.lateFeeMode, input.annualLateFeeRate]);
 
   const calculationPolicySnapshot = result?.policySnapshot as Record<string, unknown> | null | undefined;
   const calculationRateSource = String(calculationPolicySnapshot?.rateSource || '');
@@ -263,12 +257,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       pendingCount: 0,
     });
   }, [result, isResultStale]);
-  const handleBorrowerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const { name, value } = event.target;
-    setBorrower((current) => ({ ...current, [name]: value }));
+  const handleBorrowerCustomerIdChange = (customerId: string) => {
+    setBorrower((current) => ({ ...current, customerId }));
     setBorrowerErrors((current) => {
       const next = { ...current };
-      delete next[name];
+      delete next.customerId;
       return next;
     });
   };
@@ -284,8 +277,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const resetCalculation = () => {
     setInput({
       ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
-      rateSource: 'policy',
-      lateFeeSource: 'policy',
+      rateSource: 'policy' as const,
+      lateFeeSource: 'policy' as const,
       startDate: getLocalDateInputValue(),
     });
   };
@@ -534,47 +527,40 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               </div>
 
               <FormField label={tTerm('newCredit.field.customer')} error={borrowerErrors.customerId}>
-                <OperationalSelect
+                <CustomerSearchSelect
                   id="customerId"
-                  name="customerId"
-                  aria-label={tTerm('newCredit.field.customer')}
-                  data-tour="new-credit-customer-select"
-                  value={borrower.customerId}
-                  onChange={handleBorrowerChange}
+                  selectedCustomerId={borrower.customerId}
+                  searchValue={customerSearchQuery}
+                  onSearchValueChange={setCustomerSearchQuery}
+                  onSelectedCustomerIdChange={handleBorrowerCustomerIdChange}
+                  placeholder={tTerm('newCredit.placeholder.customer')}
+                  listboxLabel={tTerm('newCredit.field.customer')}
                   invalid={!!borrowerErrors.customerId}
-                  icon={<User size={18} />}
-                >
-                  <option value="">{tTerm('newCredit.placeholder.customer')}</option>
-                  {customers.map((customer: any) => (
-                    <option key={customer.id} value={customer.id}>
-                      {getDisplayName(customer)} · CUS-{String(customer.id).padStart(4, '0')}
-                    </option>
-                  ))}
-                </OperationalSelect>
+                  data-tour="new-credit-customer-select"
+                />
               </FormField>
 
-              <FormField label={tTerm('simulator.form.amount')}>
-                <OperationalInput
-                  variant="money"
-                  value={input.amount}
-                  onValueChange={(value) => handleCalculationInputChange({ amount: Number(value) || 0 })}
+                <FormField label={tTerm('simulator.form.amount')}>
+                  <CurrencyInput
+                  value={formatNumericInputValue(input.amount)}
+                  onValueChange={(value, detail) => handleCalculationInputChange({ amount: sanitizeNumericInputNumber(detail.numericValue) })}
                   icon={<DollarSign size={18} />}
                 />
               </FormField>
 
               <div className="new-credit-field-grid">
                 <FormField label={tTerm('simulator.field.termMonths')}>
-                  <OperationalInput
-                    variant="number"
+                  <AppInput
+                    variant="integer"
                     min="1"
-                    value={input.termMonths}
-                    onValueChange={(value) => handleCalculationInputChange({ termMonths: Number(value) || 0 })}
+                    value={formatNumericInputValue(input.termMonths)}
+                    onValueChange={(value, detail) => handleCalculationInputChange({ termMonths: sanitizeNumericInputNumber(detail.numericValue) })}
                     placeholder={tTerm('newCredit.placeholder.term')}
                   />
                 </FormField>
 
                 <FormField label={tTerm('simulator.form.firstPaymentDate')}>
-                  <OperationalInput
+                  <AppInput
                     variant="date"
                     value={input.startDate || ''}
                     onValueChange={(value) => handleCalculationInputChange({ startDate: String(value || '') || undefined })}

@@ -333,7 +333,7 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Reinvertir intereses' }));
-    fireEvent.change(screen.getByLabelText('Monto'), { target: { value: '100e2' } });
+    fireEvent.change(screen.getByLabelText('Monto', { selector: '#associate-action-reinvestment-amount' }), { target: { value: '100e2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(detailsResponse.createReinvestment.mutateAsync).not.toHaveBeenCalled();

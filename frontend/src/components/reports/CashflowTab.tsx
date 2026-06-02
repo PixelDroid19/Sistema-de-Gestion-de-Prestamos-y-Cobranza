@@ -4,8 +4,8 @@ import { formatCurrency as formatCurrencyValue, formatNumber as formatNumberValu
 import { tTerm } from '../../i18n/terminology';
 import { parseReportYearInput } from '../../lib/reportYearInput';
 import {
+  AppInput,
   FormField,
-  TextInput,
 } from '../shared/Surfaces';
 import ReportDownloadModal, { ReportDownloadTrigger } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
@@ -77,33 +77,31 @@ export default function CashflowTab({
         filters={(
           <>
             <FormField label={tTerm('reports.cashflow.year')}>
-              <TextInput
-                type="number"
-                value={cashFlowYear}
-                min={2000}
-                max={2100}
-                onChange={(event) => handleYearChange(event.target.value)}
+              <AppInput
+                variant="integer"
+                value={String(cashFlowYear)}
+                onValueChange={(v) => handleYearChange(v)}
               />
             </FormField>
             <FormField label={tTerm('reports.cashflow.fromDate')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={cashFlowRange.fromDate}
-                onChange={(event) => updateCashFlowRange('fromDate', event.target.value)}
+                onValueChange={(v) => updateCashFlowRange('fromDate', v)}
               />
             </FormField>
             <FormField label={tTerm('reports.cashflow.toDate')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={cashFlowRange.toDate}
-                onChange={(event) => updateCashFlowRange('toDate', event.target.value)}
+                onValueChange={(v) => updateCashFlowRange('toDate', v)}
               />
             </FormField>
             <FormField label={tTerm('reports.cashflow.daily.date')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={dailyCashFlowDate}
-                onChange={(event) => onDailyCashFlowDateChange(event.target.value)}
+                onValueChange={(v) => onDailyCashFlowDateChange(v)}
               />
             </FormField>
           </>

@@ -404,11 +404,11 @@ describe('CreditDetails behavioral parity scenarios', () => {
     fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
 
     const paymentAmountInput = container.querySelector('#credit-payment-amount') as HTMLInputElement;
-    expect(paymentAmountInput).toHaveValue('250000.00');
+    expect(paymentAmountInput).toHaveValue('250.000,00');
 
     fireEvent.change(paymentAmountInput, { target: { value: '1e2' } });
 
-    expect(paymentAmountInput).toHaveValue('250000.00');
+    expect(paymentAmountInput).toHaveValue('250.000,00');
   });
 
   it('triggers promise and follow-up mutations from installment row actions', async () => {

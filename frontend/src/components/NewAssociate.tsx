@@ -9,15 +9,14 @@ import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
 import {
   ActionButton,
+  AppInput,
+  CurrencyInput,
   EmptyState,
   FormField,
-  MoneyInput,
-  NormalizedInput,
+  OperationalSelect,
   PageHeader,
   PageShell,
   SectionSurface,
-  SelectInput,
-  TextInput,
 } from './shared/Surfaces';
 
 interface AssociateFormData {
@@ -189,22 +188,21 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
     <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form" className={embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}>
         <div className="space-y-4">
           <FormField label={tTerm('newAssociate.field.name')}>
-            <NormalizedInput
+            <AppInput
               id="new-associate-name"
-              required
               variant="text"
               trimText
               maxLength={120}
               value={formData.name}
               onValueChange={(value) => setFormData((prev) => ({ ...prev, name: value }))}
               placeholder={tTerm('newAssociate.placeholder.name')}
+              required
             />
           </FormField>
 
           <FormField label={tTerm('newAssociate.field.email')}>
-            <NormalizedInput
+            <AppInput
               id="new-associate-email"
-              required
               variant="text"
               inputMode="email"
               trimText
@@ -212,38 +210,39 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
               value={formData.email}
               onValueChange={(value) => setFormData((prev) => ({ ...prev, email: value }))}
               placeholder={tTerm('newAssociate.placeholder.email')}
+              required
             />
           </FormField>
 
           <FormField label={tTerm('newAssociate.field.phone')}>
-            <NormalizedInput
+            <AppInput
               id="new-associate-phone"
-              required
               variant="text"
               inputMode="tel"
               maxLength={40}
               value={formData.phone}
               onValueChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
               placeholder={tTerm('newAssociate.placeholder.phone')}
+              required
             />
           </FormField>
 
           <FormField label={tTerm('newAssociate.field.status')}>
-            <SelectInput
+            <OperationalSelect
               id="new-associate-status"
               value={formData.status}
               onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
             >
               <option value="active">{tTerm('common.status.active')}</option>
               <option value="inactive">{tTerm('common.status.inactive')}</option>
-            </SelectInput>
+            </OperationalSelect>
           </FormField>
 
           <FormField
             label={tTerm('newAssociate.field.participation')}
             helper={tTerm('newAssociate.helper.participation')}
           >
-            <NormalizedInput
+            <AppInput
               id="new-associate-participation"
               variant="percent"
               allowZero
@@ -260,7 +259,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                 label={tTerm('newAssociate.field.initialCapital')}
                 helper={tTerm('newAssociate.helper.initialCapital')}
               >
-                <MoneyInput
+                <CurrencyInput
                   id="new-associate-initial-capital"
                   value={formData.initialCapital}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, initialCapital: value }))}
@@ -273,21 +272,21 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
               label={tTerm('newAssociate.field.interestType')}
               helper={tTerm('newAssociate.helper.interestType')}
             >
-              <SelectInput
+              <OperationalSelect
                 id="new-associate-interest-type"
                 value={formData.interestType}
                 onChange={(e) => setFormData((prev) => ({ ...prev, interestType: e.target.value }))}
               >
                 <option value="monthly">{tTerm('common.interestType.monthly')}</option>
                 <option value="annual">{tTerm('common.interestType.annual')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
 
             <FormField
               label={formData.interestType === 'annual' ? tTerm('newAssociate.field.interestRate.annual') : tTerm('newAssociate.field.interestRate.monthly')}
               helper={tTerm('newAssociate.helper.interestRate')}
             >
-              <NormalizedInput
+              <AppInput
                 id="new-associate-interest-rate"
                 variant="percent"
                 allowZero
@@ -300,7 +299,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
             {formData.interestType === 'annual' && (
               <FormField label={tTerm('newAssociate.field.interestMonth')} helper={tTerm('newAssociate.helper.interestMonth')}>
-                <SelectInput
+                <OperationalSelect
                   id="new-associate-interest-month"
                   value={formData.interestPaymentMonth}
                   onChange={(e) => setFormData((prev) => ({ ...prev, interestPaymentMonth: e.target.value }))}
@@ -308,12 +307,12 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                   {monthOptions.map((month) => (
                     <option key={month.value} value={month.value}>{month.label}</option>
                   ))}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
             )}
 
             <FormField label={tTerm('newAssociate.field.interestDay')} helper={tTerm('newAssociate.helper.interestDay')}>
-              <NormalizedInput
+              <AppInput
                 id="new-associate-interest-day"
                 variant="integer"
                 minValue={1}
@@ -324,11 +323,11 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
             </FormField>
 
             <FormField label={tTerm('newAssociate.field.interestStartDate')} helper={tTerm('newAssociate.helper.interestStartDate')}>
-              <TextInput
+              <AppInput
                 id="new-associate-interest-start-date"
-                type="date"
+                variant="date"
                 value={formData.interestStartDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, interestStartDate: e.target.value }))}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, interestStartDate: value }))}
               />
             </FormField>
           </div>

@@ -13,8 +13,8 @@ import {
   EmptyState,
   FormField,
   InsightStrip,
+  OperationalSelect,
   SectionSurface,
-  SelectInput,
 } from '../shared/Surfaces';
 import { AppTable, TableSectionIntro, TableStatusPill, TABLE_EMBEDDED_SHELL_CLASS } from '../shared/tables';
 import { ReportTabPanel } from './ReportTabPanel';
@@ -93,7 +93,7 @@ export default function ScheduleTab({
             label={tTerm('reports.schedule.selectLabel')}
             helper={tTerm('reports.schedule.selectHelper')}
           >
-            <SelectInput
+            <OperationalSelect
               value={selectedLoanId ?? ''}
               onChange={(event) => onLoanIdChange(event.target.value ? Number(event.target.value) : null)}
               disabled={loanOptions.length === 0}
@@ -109,7 +109,7 @@ export default function ScheduleTab({
                   {loan.label}
                 </option>
               ))}
-            </SelectInput>
+            </OperationalSelect>
           </FormField>
         )}
         headerActions={(

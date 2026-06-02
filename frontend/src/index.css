@@ -253,7 +253,22 @@
 
   .credit-detail-header-toolbar-btn__icon {
     display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
     color: var(--text-secondary);
+  }
+
+  .credit-detail-header-toolbar-btn__icon svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  .credit-detail-header-meta-block__icon svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
   }
 
   .credit-detail-header-toolbar-btn:hover:not(:disabled) .credit-detail-header-toolbar-btn__icon {
@@ -532,6 +547,12 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 8%, transparent);
   }
 
+  .view-tab svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
   .action-button {
     display: inline-flex;
     min-height: 2.5rem;
@@ -601,23 +622,6 @@
     color: #fda4af;
   }
 
-  .form-field {
-    display: block;
-    min-width: 0;
-  }
-
-  .form-field-label {
-    margin-bottom: 0.35rem;
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.75rem;
-    font-weight: 650;
-    line-height: 1.2;
-    color: var(--text-secondary);
-  }
-
   .form-control {
     width: 100%;
     min-height: 2.5rem;
@@ -646,75 +650,6 @@
     opacity: 0.6;
   }
 
-  .operational-control {
-    display: flex;
-    min-height: 3.05rem;
-    align-items: center;
-    gap: 0.65rem;
-    border: 1px solid var(--border-subtle);
-    border-radius: 0.85rem;
-    background: color-mix(in srgb, var(--bg-surface) 78%, var(--bg-base) 22%);
-    padding: 0 0.95rem;
-    box-shadow: none;
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-  }
-
-  .operational-control:focus-within {
-    border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-subtle));
-    background: var(--bg-surface);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 11%, transparent);
-  }
-
-  .operational-control--invalid {
-    border-color: color-mix(in srgb, #ef4444 70%, var(--border-subtle));
-  }
-
-  .operational-control--invalid:focus-within {
-    border-color: color-mix(in srgb, #ef4444 80%, var(--border-subtle));
-    box-shadow: 0 0 0 4px color-mix(in srgb, #ef4444 14%, transparent);
-  }
-
-  .operational-control-icon,
-  .operational-control-suffix {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-  }
-
-  .operational-control-input,
-  .operational-control-select {
-    min-width: 0;
-    flex: 1 1 auto;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    box-shadow: none;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    font-weight: 500;
-    outline: none;
-  }
-
-  .operational-control-input::placeholder {
-    color: color-mix(in srgb, var(--text-secondary) 58%, transparent);
-  }
-
-  .operational-control-input[type="date"] {
-    color-scheme: light;
-  }
-
-  .dark .operational-control-input[type="date"] {
-    color-scheme: dark;
-  }
-
-  .operational-control-input:disabled,
-  .operational-control-select:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
-  }
-
   .form-checkbox {
     height: 1rem;
     width: 1rem;
@@ -728,22 +663,6 @@
   .form-checkbox:focus {
     outline: 2px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
     outline-offset: 2px;
-  }
-
-  .form-field-helper,
-  .form-field-error {
-    margin-top: 0.35rem;
-    display: block;
-    font-size: 0.75rem;
-    line-height: 1.35;
-  }
-
-  .form-field-helper {
-    color: var(--text-secondary);
-  }
-
-  .form-field-error {
-    color: #be123c;
   }
 
   .empty-state {
@@ -1582,8 +1501,9 @@
   }
 
   .insight-strip-icon svg {
-    width: 1rem;
-    height: 1rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
   }
 
   .insight-strip-label {
@@ -2508,37 +2428,8 @@
   color: #fda4af;
 }
 
-.login-field {
-  position: relative;
-}
-
-.login-field__icon {
-  position: absolute;
-  top: 50%;
-  left: 0.85rem;
-  width: 1rem;
-  height: 1rem;
-  transform: translateY(-50%);
-  color: var(--text-secondary);
-  pointer-events: none;
-}
-
-.login-page .login-field__input.form-control {
-  padding-left: 2.5rem;
+.login-page .login-control {
   background: var(--bg-elevated);
-}
-
-.login-page .login-field__input--password {
-  padding-right: 2.75rem;
-}
-
-.login-field__toggle {
-  position: absolute !important;
-  right: 0.35rem;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 0 !important;
-  background: transparent !important;
 }
 
 .login-page .login-submit.action-button--primary {

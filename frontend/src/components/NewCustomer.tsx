@@ -11,9 +11,8 @@ import {
   PageHeader,
   PageShell,
   SectionSurface,
-  SelectInput,
-  TextAreaInput,
-  TextInput,
+  AppInput,
+  OperationalSelect,
 } from './shared/Surfaces';
 
 type CustomerFormData = {
@@ -187,29 +186,44 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
           >
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <FormField label={tTerm('newCustomer.field.firstName')}>
-                <div className="relative">
-                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-first-name" type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.firstName')} />
-                </div>
+                <AppInput
+                  id="new-customer-first-name"
+                  variant="text"
+                  value={formData.firstName}
+                  onValueChange={(v) => setFormData((prev) => ({ ...prev, firstName: v }))}
+                  required
+                  icon={<User size={16} />}
+                  placeholder={tTerm('newCustomer.placeholder.firstName')}
+                />
               </FormField>
               <FormField label={tTerm('newCustomer.field.lastName')}>
-                <div className="relative">
-                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-last-name" type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.lastName')} />
-                </div>
+                <AppInput
+                  id="new-customer-last-name"
+                  variant="text"
+                  value={formData.lastName}
+                  onValueChange={(v) => setFormData((prev) => ({ ...prev, lastName: v }))}
+                  required
+                  icon={<User size={16} />}
+                  placeholder={tTerm('newCustomer.placeholder.lastName')}
+                />
               </FormField>
               <FormField label={tTerm('newCustomer.field.documentId')}>
-                <div className="relative">
-                  <CreditCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-document-id" type="text" name="documentId" value={formData.documentId} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.documentId')} />
-                </div>
+                <AppInput
+                  id="new-customer-document-id"
+                  variant="text"
+                  value={formData.documentId}
+                  onValueChange={(v) => setFormData((prev) => ({ ...prev, documentId: v }))}
+                  required
+                  icon={<CreditCard size={16} />}
+                  placeholder={tTerm('newCustomer.placeholder.documentId')}
+                />
               </FormField>
               <FormField label={tTerm('newCustomer.field.status')}>
-                <SelectInput id="new-customer-status" name="status" value={formData.status} onChange={handleChange}>
+                <OperationalSelect id="new-customer-status" name="status" value={formData.status} onChange={handleChange}>
                   <option value="active">{tTerm('common.status.active')}</option>
                   <option value="inactive">{tTerm('common.status.inactive')}</option>
                   <option value="blacklisted">{tTerm('common.status.blacklisted')}</option>
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
             </div>
           </SectionSurface>
@@ -220,21 +234,39 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
           >
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <FormField label={tTerm('newCustomer.field.phone')}>
-                <div className="relative">
-                  <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-phone" type="tel" name="phone" value={formData.phone} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.phone')} />
-                </div>
+                <AppInput
+                  id="new-customer-phone"
+                  variant="tel"
+                  value={formData.phone}
+                  onValueChange={(v) => setFormData((prev) => ({ ...prev, phone: v }))}
+                  required
+                  icon={<Phone size={16} />}
+                  placeholder={tTerm('newCustomer.placeholder.phone')}
+                />
               </FormField>
               <FormField label={tTerm('newCustomer.field.email')}>
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-email" type="text" inputMode="email" name="email" value={formData.email} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.email')} />
-                </div>
+                <AppInput
+                  id="new-customer-email"
+                  variant="email"
+                  value={formData.email}
+                  onValueChange={(v) => setFormData((prev) => ({ ...prev, email: v }))}
+                  required
+                  icon={<Mail size={16} />}
+                  placeholder={tTerm('newCustomer.placeholder.email')}
+                />
               </FormField>
               <FormField label={tTerm('newCustomer.field.address')} className="md:col-span-2">
                 <div className="relative">
                   <MapPin size={16} className="absolute left-3 top-3 text-text-secondary" />
-                  <TextAreaInput id="new-customer-address" name="address" value={formData.address} onChange={handleChange} rows={3} className="pl-10" placeholder={tTerm('newCustomer.placeholder.address')} />
+                  <textarea
+                    id="new-customer-address"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    rows={3}
+                    className="operational-control-input w-full min-h-[72px] resize-y pl-10"
+                    placeholder={tTerm('newCustomer.placeholder.address')}
+                  />
                 </div>
               </FormField>
             </div>

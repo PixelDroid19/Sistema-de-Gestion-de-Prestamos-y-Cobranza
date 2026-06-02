@@ -1,7 +1,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { Download } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
-import { ActionButton, FormField, ModalShell, SelectInput, TextInput } from '../shared/Surfaces';
+import { ActionButton, AppInput, FormField, ModalShell, OperationalSelect } from '../shared/Surfaces';
 import type { ReportExportFormat } from './reportsExportHelpers';
 
 type ReportTabExportModalProps = {
@@ -109,17 +109,17 @@ export default function ReportTabExportModal({
         {showRangeFields && range && onRangeChange ? (
           <div className="reports-tab-export-modal__range">
             <FormField label={tTerm('reports.export.from')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={range.fromDate}
-                onChange={(event) => onRangeChange('fromDate', event.target.value)}
+                onValueChange={(v, _detail, e) => onRangeChange('fromDate', v)}
               />
             </FormField>
             <FormField label={tTerm('reports.export.to')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={range.toDate}
-                onChange={(event) => onRangeChange('toDate', event.target.value)}
+                onValueChange={(v, _detail, e) => onRangeChange('toDate', v)}
               />
             </FormField>
           </div>
@@ -127,13 +127,13 @@ export default function ReportTabExportModal({
 
         {showFormat && (
           <FormField label={tTerm('reports.export.format')}>
-            <SelectInput
+            <OperationalSelect
               value={format}
               onChange={(event) => onFormatChange(event.target.value as ReportExportFormat)}
             >
               <option value="xlsx">{tTerm('reports.export.format.xlsx')}</option>
               <option value="pdf">{tTerm('reports.export.format.pdf')}</option>
-            </SelectInput>
+            </OperationalSelect>
           </FormField>
         )}
       </form>

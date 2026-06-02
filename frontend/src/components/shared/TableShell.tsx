@@ -1,4 +1,5 @@
 import React from 'react';
+import { OperationalSelect } from './inputs/OperationalSelect';
 import { tTerm } from '../../i18n/terminology';
 
 type PaginationState = {
@@ -64,15 +65,17 @@ export default function TableShell(props: TableShellProps) {
             {pagination.onPageSizeChange && (
               <label className="flex items-center gap-2">
                 <span className="text-text-primary/70">{tTerm('common.pagination.rowsPerPage')}</span>
-                <select
+                <OperationalSelect
+                  aria-label={tTerm('common.pagination.rowsPerPage')}
                   value={pagination.pageSize}
                   onChange={(event) => pagination.onPageSizeChange?.(Number(event.target.value))}
-                  className="min-h-9 rounded-lg border border-border-strong bg-bg-base px-2.5 py-1.5 text-sm text-text-primary outline-none transition focus-visible:ring-2 focus-visible:ring-brand-primary/35"
+                  className="w-28 min-h-9 overflow-hidden rounded-lg border border-border-strong bg-bg-base text-sm"
+                  selectClassName="min-h-9 px-2.5 py-1.5 text-sm text-text-primary outline-none"
                 >
                   {(pagination.pageSizeOptions ?? [10, 25, 50, 100]).map((size) => (
                     <option key={size} value={size}>{size}</option>
                   ))}
-                </select>
+                </OperationalSelect>
               </label>
             )}
           </div>

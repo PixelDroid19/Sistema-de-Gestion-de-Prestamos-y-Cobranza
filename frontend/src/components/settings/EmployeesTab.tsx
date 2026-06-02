@@ -10,9 +10,9 @@ import {
   ActionButton,
   FormField,
   InsightStrip,
+  AppInput,
   ModalShell,
   SectionSurface,
-  TextInput,
 } from '../shared/Surfaces';
 import {
   AppTable,
@@ -123,11 +123,12 @@ export default function EmployeesTab() {
         label={t('settings.employees.create.nameLabel')}
         tooltip={t('settings.employees.create.nameTooltip')}
       >
-        <TextInput
+        <AppInput
           aria-label={t('settings.employees.create.nameLabel')}
+          variant="text"
           required
           value={employeeDraft.name}
-          onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, name: event.target.value }))}
+          onValueChange={(v, _detail, e) => setEmployeeDraft((previous) => ({ ...previous, name: v }))}
           placeholder={t('settings.employees.create.namePlaceholder')}
         />
       </FormField>
@@ -135,13 +136,12 @@ export default function EmployeesTab() {
         label={t('settings.employees.create.emailLabel')}
         tooltip={t('settings.employees.create.emailTooltip')}
       >
-        <TextInput
+        <AppInput
           aria-label={t('settings.employees.create.emailLabel')}
+          variant="email"
           required
-          type="text"
-          inputMode="email"
           value={employeeDraft.email}
-          onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, email: event.target.value }))}
+          onValueChange={(v, _detail, e) => setEmployeeDraft((previous) => ({ ...previous, email: v }))}
           placeholder={t('settings.employees.create.emailPlaceholder')}
         />
       </FormField>
@@ -149,13 +149,13 @@ export default function EmployeesTab() {
         label={t('settings.employees.create.passwordLabel')}
         tooltip={t('settings.employees.create.passwordTooltip')}
       >
-        <TextInput
+        <AppInput
           aria-label={t('settings.employees.create.passwordLabel')}
-          required
+          variant="text"
           type="password"
           minLength={8}
           value={employeeDraft.password}
-          onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, password: event.target.value }))}
+          onValueChange={(v, _detail, e) => setEmployeeDraft((previous) => ({ ...previous, password: v }))}
           placeholder={t('settings.employees.create.passwordPlaceholder')}
         />
       </FormField>

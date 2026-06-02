@@ -2,8 +2,42 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import CreditHistoryMonthlyTab from '../reports/CreditHistoryMonthlyTab';
 
+vi.mock('../../services/loanService', () => ({
+  useLoans: () => ({
+    data: {
+      data: {
+        loans: [{
+          id: 15,
+          customerName: 'Cliente Historial',
+          amount: 1800000,
+          status: 'active',
+        }],
+      },
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+vi.mock('../../services/customerService', () => ({
+  useCustomers: () => ({
+    data: {
+      data: {
+        customers: [{
+          id: 7,
+          name: 'Cliente Historial',
+          documentNumber: 'CC-7',
+          status: 'active',
+        }],
+      },
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 describe('CreditHistoryMonthlyTab behavior', () => {
-  it('uses operational placeholders instead of ID terminology for numeric filters', () => {
+  it('uses searchable customer and credit options instead of asking for internal ids', () => {
     render(
       <CreditHistoryMonthlyTab
         filters={{ startDate: '', endDate: '', status: '', customerId: '', loanId: '' }}
@@ -16,7 +50,11 @@ describe('CreditHistoryMonthlyTab behavior', () => {
 
     expect(screen.queryByPlaceholderText('ID cliente')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('ID crédito')).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Número de cliente')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Número de crédito')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Número de cliente')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Número de crédito')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Clientes para filtrar' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Créditos para filtrar' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Cliente Historial · CC-7/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Cliente Historial · Crédito/i })).toBeInTheDocument();
   });
 });

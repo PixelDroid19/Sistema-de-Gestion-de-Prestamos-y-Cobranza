@@ -4,7 +4,7 @@ import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue, f
 import { tTerm } from '../i18n/terminology';
 import { parseFormattedPositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
-import { ActionButton, EmptyState, FormField, ModalShell, MoneyInput, SectionSurface } from './shared/Surfaces';
+import { ActionButton, CurrencyInput, EmptyState, FormField, ModalShell, SectionSurface } from './shared/Surfaces';
 
 interface Contribution {
   id: number;
@@ -112,11 +112,11 @@ export default function ContributionModal({
             htmlFor="new-contribution-amount"
             tooltip={tTerm('contributionModal.form.amountTooltip')}
           >
-            <MoneyInput
+            <CurrencyInput
               id="new-contribution-amount"
               required
               value={amount}
-              onValueChange={setAmount}
+              onValueChange={(value) => setAmount(value)}
               placeholder="0"
             />
           </FormField>

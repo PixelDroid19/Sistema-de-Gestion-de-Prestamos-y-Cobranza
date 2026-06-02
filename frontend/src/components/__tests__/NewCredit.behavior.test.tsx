@@ -250,7 +250,7 @@ describe('NewCredit behavior', () => {
 
     render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getByRole('option', { name: 'Cliente · CUS-0010' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Cliente sin nombre · N/A · Número 10 · Estado No especificado' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /#10/ })).not.toBeInTheDocument();
   });
 

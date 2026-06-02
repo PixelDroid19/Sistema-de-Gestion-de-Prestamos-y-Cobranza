@@ -10,9 +10,9 @@ import { getPaymentMethodLabel, getPaymentTypeLabel } from '../../constants/paym
 import { getChipClassName } from '../../constants/uiChips';
 import {
   ActionButton,
+  AppInput,
   FormField,
-  SelectInput,
-  TextInput,
+  OperationalSelect,
 } from '../shared/Surfaces';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportMetricsSection } from './ReportMetricsSection';
@@ -78,21 +78,21 @@ export default function PayoutsTab({
         filters={(
           <>
             <FormField label={tTerm('reports.payouts.filter.from')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={payoutFilters.fromDate || ''}
-                onChange={(event) => updateFilters({ fromDate: event.target.value })}
+                onValueChange={(v, _d, e) => updateFilters({ fromDate: v })}
               />
             </FormField>
             <FormField label={tTerm('reports.payouts.filter.to')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={payoutFilters.toDate || ''}
-                onChange={(event) => updateFilters({ toDate: event.target.value })}
+                onValueChange={(v, _d, e) => updateFilters({ toDate: v })}
               />
             </FormField>
             <FormField label={tTerm('reports.payouts.filter.paymentType')}>
-              <SelectInput
+              <OperationalSelect
                 value={payoutFilters.paymentType || ''}
                 onChange={(event) => updateFilters({ paymentType: event.target.value })}
               >
@@ -101,19 +101,19 @@ export default function PayoutsTab({
                 <option value="partial">{getPaymentTypeLabel('partial')}</option>
                 <option value="capital">{getPaymentTypeLabel('capital')}</option>
                 <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
             <FormField label={tTerm('reports.payouts.filter.status')}>
-              <SelectInput
+              <OperationalSelect
                 value={payoutFilters.status || ''}
                 onChange={(event) => updateFilters({ status: event.target.value })}
               >
                 <option value="">{tTerm('common.status.completed')}</option>
                 <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
             <FormField label={tTerm('reports.payouts.table.rows')}>
-              <SelectInput
+              <OperationalSelect
                 value={payoutPageSize}
                 onChange={(event) => {
                   onPayoutPageSizeChange(Number(event.target.value));
@@ -123,7 +123,7 @@ export default function PayoutsTab({
                 {[10, 20, 50, 100].map((size) => (
                   <option key={size} value={size}>{size}</option>
                 ))}
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
           </>
         )}

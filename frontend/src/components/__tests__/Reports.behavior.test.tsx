@@ -83,10 +83,45 @@ let loansState = {
           amount: 1200000,
           status: 'active',
         },
+        {
+          id: 15,
+          customerName: 'Cliente Historial',
+          amount: 4000000,
+          status: 'active',
+        },
+        {
+          id: 18,
+          customerName: 'Cliente Exportación',
+          amount: 2500000,
+          status: 'active',
+        },
       ],
     },
   },
   isLoading: false,
+};
+
+let customersState = {
+  data: {
+    data: {
+      customers: [
+        {
+          id: 7,
+          name: 'Cliente Exportación',
+          documentNumber: 'CC-7',
+          status: 'active',
+        },
+        {
+          id: 9,
+          name: 'Cliente Historial',
+          documentNumber: 'CC-9',
+          status: 'active',
+        },
+      ],
+    },
+  },
+  isLoading: false,
+  isError: false,
 };
 
 vi.mock('../../services/reportService', () => ({
@@ -232,6 +267,10 @@ vi.mock('../../services/loanService', () => ({
   useLoans: () => loansState,
 }));
 
+vi.mock('../../services/customerService', () => ({
+  useCustomers: () => customersState,
+}));
+
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => ({ user: currentUser }),
 }));
@@ -287,6 +326,18 @@ const renderReports = () => {
   );
 };
 
+const selectCustomerOption = (value: string) => {
+  fireEvent.change(screen.getByRole('combobox', { name: 'Clientes para filtrar' }), {
+    target: { value },
+  });
+};
+
+const selectCreditOption = (value: string) => {
+  fireEvent.change(screen.getByRole('combobox', { name: 'Créditos para filtrar' }), {
+    target: { value },
+  });
+};
+
 describe('Reports behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -335,10 +386,44 @@ describe('Reports behavioral parity scenarios', () => {
               amount: 1200000,
               status: 'active',
             },
+            {
+              id: 15,
+              customerName: 'Cliente Historial',
+              amount: 4000000,
+              status: 'active',
+            },
+            {
+              id: 18,
+              customerName: 'Cliente Exportación',
+              amount: 2500000,
+              status: 'active',
+            },
           ],
         },
       },
       isLoading: false,
+    };
+    customersState = {
+      data: {
+        data: {
+          customers: [
+            {
+              id: 7,
+              name: 'Cliente Exportación',
+              documentNumber: 'CC-7',
+              status: 'active',
+            },
+            {
+              id: 9,
+              name: 'Cliente Historial',
+              documentNumber: 'CC-9',
+              status: 'active',
+            },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
     };
     mockUsePaymentSchedule.mockImplementation(() => ({
       schedule: [] as any[],
@@ -428,8 +513,8 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-01-31' } });
     fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'payouts' } });
     fireEvent.change(screen.getByLabelText('Formato'), { target: { value: 'pdf' } });
-    fireEvent.change(document.getElementById('report-customer')!, { target: { value: '7' } });
-    fireEvent.change(document.getElementById('report-loan')!, { target: { value: '15' } });
+    selectCustomerOption('7');
+    selectCreditOption('15');
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'capital' } });
     fireEvent.change(screen.getByLabelText('Estado de pago'), { target: { value: 'annulled' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar pagos' }));
@@ -456,8 +541,8 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.change(screen.getByLabelText('Hasta historial'), { target: { value: '2026-02-28' } });
     fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
     fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
-    fireEvent.change(screen.getByPlaceholderText('Número de cliente'), { target: { value: '9' } });
-    fireEvent.change(screen.getByPlaceholderText('Número de crédito'), { target: { value: '18' } });
+    selectCustomerOption('9');
+    selectCreditOption('18');
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     fireEvent.change(screen.getByLabelText('Formato'), { target: { value: 'pdf' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar historial' }));
@@ -503,31 +588,30 @@ describe('Reports behavioral parity scenarios', () => {
     }));
   });
 
-  it('keeps contextual export customer, credit, and associate IDs unchanged when exponent notation is typed', async () => {
+  it('clears contextual customer and credit selection when the operator clears the selectors', async () => {
     renderReports();
 
     fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
 
-    const customerInput = document.getElementById('report-customer')!;
-    const creditInput = document.getElementById('report-loan')!;
+    const customerSelect = document.getElementById('report-customer')!;
+    const creditSelect = document.getElementById('report-loan')!;
 
-    fireEvent.change(customerInput, { target: { value: '9' } });
-    fireEvent.change(creditInput, { target: { value: '18' } });
-    fireEvent.change(customerInput, { target: { value: '2e3' } });
-    fireEvent.change(creditInput, { target: { value: '1e5' } });
+    selectCustomerOption('7');
+    selectCreditOption('18');
+    fireEvent.change(customerSelect, { target: { value: '' } });
+    fireEvent.change(creditSelect, { target: { value: '' } });
 
-    expect(customerInput).toHaveDisplayValue('9');
-    expect(creditInput).toHaveDisplayValue('18');
+    expect(customerSelect).toHaveValue('');
+    expect(creditSelect).toHaveValue('');
 
-    fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'associates' } });
-    const associateInput = screen.getByLabelText('Socio');
-    expect(screen.queryByPlaceholderText('ID socio')).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Número de socio')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar historial' }));
 
-    fireEvent.change(associateInput, { target: { value: '8' } });
-    fireEvent.change(associateInput, { target: { value: '4e2' } });
-
-    expect(associateInput).toHaveDisplayValue('8');
+    await waitFor(() => {
+      expect(mockExportContextualReport).toHaveBeenCalled();
+    });
+    const [, payload] = mockExportContextualReport.mock.calls.at(-1) || [];
+    expect(payload).not.toHaveProperty('customerId');
+    expect(payload).not.toHaveProperty('loanId');
   });
 
   it('exports associates report with selected PDF format', async () => {
@@ -675,8 +759,8 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.change(screen.getByLabelText('Hasta historial'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
     fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
-    fireEvent.change(screen.getByPlaceholderText('Número de cliente'), { target: { value: '7' } });
-    fireEvent.change(screen.getByPlaceholderText('Número de crédito'), { target: { value: '15' } });
+    selectCustomerOption('7');
+    selectCreditOption('15');
 
     expect(screen.getByRole('heading', { name: 'Historial mensual de créditos' })).toBeInTheDocument();
     expect(screen.getAllByText('Capital prestado').length).toBeGreaterThan(0);
@@ -702,16 +786,16 @@ describe('Reports behavioral parity scenarios', () => {
     });
   });
 
-  it('keeps monthly credit history customer and credit filters unchanged when exponent notation is typed', async () => {
+  it('requires selecting a credit in monthly credit history instead of typing exponent-like text', async () => {
     renderReports();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Historial mensual' }));
     fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
-    const customerInput = screen.getByPlaceholderText('Número de cliente');
-    const creditInput = screen.getByPlaceholderText('Número de crédito');
+    const customerSelect = screen.getByRole('combobox', { name: 'Clientes para filtrar' });
+    const creditSelect = screen.getByRole('combobox', { name: 'Créditos para filtrar' });
 
-    fireEvent.change(customerInput, { target: { value: '7' } });
-    fireEvent.change(creditInput, { target: { value: '15' } });
+    selectCustomerOption('7');
+    selectCreditOption('15');
 
     await waitFor(() => {
       expect(mockUseCreditHistoryMonthly).toHaveBeenCalledWith(expect.objectContaining({
@@ -721,12 +805,11 @@ describe('Reports behavioral parity scenarios', () => {
     });
 
     mockUseCreditHistoryMonthly.mockClear();
-    fireEvent.change(customerInput, { target: { value: '2e3' } });
-    fireEvent.change(creditInput, { target: { value: '1e5' } });
+    fireEvent.change(customerSelect, { target: { value: '' } });
+    fireEvent.change(creditSelect, { target: { value: '' } });
 
-    expect(customerInput).toHaveDisplayValue('7');
-    expect(creditInput).toHaveDisplayValue('15');
-    expect(mockUseCreditHistoryMonthly).not.toHaveBeenCalledWith({});
+    expect(customerSelect).toHaveValue('');
+    expect(creditSelect).toHaveValue('');
     expect(mockUseCreditHistoryMonthly).not.toHaveBeenCalledWith({ customerId: 2000, loanId: 100000 });
   });
 
@@ -1147,7 +1230,7 @@ describe('Reports behavioral parity scenarios', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
-    fireEvent.change(await screen.findByLabelText('Monto'), { target: { value: '1250000' } });
+    fireEvent.change(await screen.findByLabelText('Monto', { selector: '#operating-expense-amount' }), { target: { value: '1250000' } });
     fireEvent.change(screen.getByLabelText('Fecha del gasto'), { target: { value: '2026-05-13' } });
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'Servicios' } });
     fireEvent.change(screen.getByLabelText('Descripción'), { target: { value: 'Internet oficina' } });
@@ -1213,7 +1296,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.queryByText('reports.payouts.pagination.previous')).not.toBeInTheDocument();
   });
 
-  it('keeps the current operating expense amount when the operator types exponent-like text', async () => {
+  it('rejects exponent-like text in operating expense amounts without restoring a stale value', async () => {
     currentUser = {
       id: 8,
       name: 'Empleado finanzas',
@@ -1227,7 +1310,7 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Gastos operativos' }));
     fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
 
-    const amountInput = await screen.findByLabelText('Monto');
+    const amountInput = await screen.findByLabelText('Monto', { selector: '#operating-expense-amount' });
     (amountInput as HTMLInputElement).focus();
     fireEvent.change(amountInput, { target: { value: '1250000' } });
     fireEvent.keyDown(amountInput, { key: 'a', metaKey: true });
@@ -1235,9 +1318,14 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.select(amountInput);
     fireEvent.change(amountInput, { target: { value: '1' } });
     fireEvent.keyDown(amountInput, { key: 'e' });
-    fireEvent.change(amountInput, { target: { value: '5' } });
 
-    expect(amountInput).toHaveDisplayValue('1250000');
+    await waitFor(() => {
+      expect(amountInput).toHaveDisplayValue('1');
+    });
+
+    fireEvent.change(amountInput, { target: { value: '15' } });
+
+    expect(amountInput).toHaveDisplayValue('15');
 
     fireEvent.change(screen.getByLabelText('Fecha del gasto'), { target: { value: '2026-05-13' } });
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'Servicios' } });
@@ -1246,7 +1334,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     await waitFor(() => {
       expect(mockCreateOperatingExpense).toHaveBeenCalledWith(expect.objectContaining({
-        amount: 1250000,
+        amount: 15,
       }));
     });
   });

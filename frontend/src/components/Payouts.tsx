@@ -25,14 +25,15 @@ import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type C
 import { useConfig } from '../services/configService';
 import {
   ActionButton,
+  AppInput,
   CheckboxInput,
+  CurrencyInput,
   FormField,
+  LoanSearchSelect,
   ModalShell,
-  NormalizedInput,
+  OperationalSelect,
   PageHeader,
   PageShell,
-  SelectInput,
-  TextInput,
   ToolbarSurface,
 } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
@@ -59,6 +60,7 @@ export default function Payouts() {
   const [paymentType, setPaymentType] = useState<'regular' | 'partial' | 'capital'>('regular');
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
   const [capitalNewTermMonths, setCapitalNewTermMonths] = useState('');
+  const [loanSearchQuery, setLoanSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     loanId: '',
     amount: '',
@@ -129,7 +131,6 @@ export default function Payouts() {
       ? paymentsData.data
       : [];
   const pagination = paymentsData?.data?.pagination ?? paymentsData?.pagination ?? paymentsData?.meta;
-
   useEffect(() => {
     if (previousNormalizedSearchQuery.current === normalizedSearchQuery) {
       return;
@@ -385,6 +386,7 @@ export default function Payouts() {
       onSuccess: () => {
         setShowPaymentModal(false);
         setFormData({ loanId: '', amount: '', paymentDate: getLocalDateInputValue(), paymentMethod: defaultPaymentMethod });
+        setLoanSearchQuery('');
         setCapitalNewTermMonths('');
       },
       successMessage: tTerm('payouts.toast.register.success'),
@@ -409,6 +411,7 @@ export default function Payouts() {
     }
 
     setFormData((current) => ({ ...current, paymentMethod: defaultPaymentMethod }));
+    setLoanSearchQuery('');
     setShowPaymentModal(true);
   };
 
@@ -458,14 +461,13 @@ export default function Payouts() {
         )}
 
         <ToolbarSurface data-tour="payouts-search">
-          <div className="relative w-full sm:w-72">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <TextInput
-              type="text" 
+          <div className="w-full sm:w-72">
+            <AppInput
+              variant="text"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onValueChange={(v, _detail, e) => setSearchQuery(v)}
               placeholder={tTerm('payouts.search.placeholder')}
-              className="pl-10"
+              icon={<Search size={16} />}
             />
           </div>
         </ToolbarSurface>
@@ -638,7 +640,7 @@ export default function Payouts() {
                 tooltip={tTerm('payouts.form.paymentTypeTooltip')}
                 helper={payoutTypeOptions.find((option) => option.value === paymentType)?.description || selectedPayoutTypeGuard.reason}
               >
-                <SelectInput
+                <OperationalSelect
                   id="payout-type"
                   value={paymentType}
                   onChange={(e) => setPaymentType(e.target.value as any)}
@@ -648,46 +650,49 @@ export default function Payouts() {
                       {option.label}
                     </option>
                   ))}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
 
-              <FormField label={tTerm('payouts.form.loanId')}>
-                <NormalizedInput
-                  id="payout-loan-id"
-                  variant="integer"
-                  required
-                  value={formData.loanId}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, loanId: value }))}
-                  placeholder={tTerm('payouts.form.loanIdPlaceholder')}
-                  minValue={1}
+              <FormField
+                label={tTerm('payouts.form.loanId')}
+                helper={formData.loanId ? tTerm('payouts.form.loanSearch.selected') : tTerm('payouts.form.loanSearch.helper')}
+              >
+                <LoanSearchSelect
+                  id="payout-loan-search"
+                  selectedLoanId={formData.loanId}
+                  searchValue={loanSearchQuery}
+                  onSearchValueChange={setLoanSearchQuery}
+                  onSelectedLoanIdChange={(value) => setFormData((prev) => ({ ...prev, loanId: value }))}
+                  pageSize={12}
+                  includeOutstanding
+                  enabled={showPaymentModal}
                 />
               </FormField>
 
               <FormField label={tTerm('payouts.form.amount')}>
-                <NormalizedInput
+                <CurrencyInput
                   id="payout-amount"
-                  variant="decimal"
+                  allowCents
                   required
                   value={formData.amount}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, amount: value }))}
-                  placeholder="0.00"
                   minValue={0}
-                  maxDecimals={2}
+                  allowZero
                 />
               </FormField>
 
               <FormField label={tTerm('payouts.form.date')}>
-                <TextInput
+                <AppInput
                   id="payout-date"
-                  type="date"
+                  variant="date"
                   required
                   value={formData.paymentDate}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, paymentDate: e.target.value }))}
+                  onValueChange={(v, _detail, e) => setFormData((prev) => ({ ...prev, paymentDate: v }))}
                 />
               </FormField>
 
               <FormField label={tTerm('payouts.form.paymentMethod')}>
-                <SelectInput
+                <OperationalSelect
                   id="payout-method"
                   value={formData.paymentMethod}
                   onChange={(e) => setFormData((prev) => ({ ...prev, paymentMethod: e.target.value }))}
@@ -695,13 +700,13 @@ export default function Payouts() {
                   {paymentMethodOptions.map((method) => (
                     <option key={method.value} value={method.value}>{method.label}</option>
                   ))}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
 
               {paymentType === 'capital' && (
                 <>
                   <FormField label={tTerm('payouts.form.capitalStrategy')}>
-                    <SelectInput
+                    <OperationalSelect
                       id="payout-capital-strategy"
                       value={capitalStrategy}
                       onChange={(event) => setCapitalStrategy(event.target.value as CapitalStrategy)}
@@ -709,11 +714,11 @@ export default function Payouts() {
                       {CAPITAL_STRATEGIES.map((strategy) => (
                         <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
                       ))}
-                    </SelectInput>
+                    </OperationalSelect>
                   </FormField>
                   {capitalStrategy === 'reduce_payment' && (
                     <FormField label={tTerm('creditDetails.modal.capital.newTermMonths')}>
-                      <NormalizedInput
+                      <AppInput
                         id="payout-capital-new-term"
                         variant="integer"
                         value={capitalNewTermMonths}
@@ -764,7 +769,7 @@ export default function Payouts() {
             )}
             <div className="space-y-4">
               <FormField label={tTerm('payouts.edit.method')}>
-                <SelectInput
+                <OperationalSelect
                   id="edit-payment-method"
                   value={editedMethod}
                   onChange={(event) => setEditedMethod(event.target.value as PaymentMethod)}
@@ -773,13 +778,14 @@ export default function Payouts() {
                   {paymentMethodOptions.map((method) => (
                     <option key={method.value} value={method.value}>{method.label}</option>
                   ))}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
               <FormField label={tTerm('payouts.edit.reference')}>
-                <TextInput
+                <AppInput
                   id="edit-payment-reference"
+                  variant="text"
                   value={editedReference}
-                  onChange={(event) => setEditedReference(event.target.value)}
+                  onValueChange={(v, _detail, e) => setEditedReference(v)}
                   placeholder={tTerm('payouts.edit.referencePlaceholder')}
                   disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
                 />

@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { MoreHorizontal } from 'lucide-react';
 import { tTerm } from '../../../i18n/terminology';
 import { IconActionButton } from '../Surfaces';
@@ -44,6 +53,9 @@ export function RowActionsWithOverflow({
   const visibleItems = items;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const menuId = useId();
   const moreLabel = menuAriaLabel ?? tTerm('common.tableActions.more');
 
@@ -51,13 +63,78 @@ export function RowActionsWithOverflow({
   const overflowItems = visibleItems.length <= maxInline ? [] : visibleItems.slice(maxInline);
   const hasOverflowMenu = overflowItems.length > 0;
 
+  const updateMenuPosition = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const trigger = triggerRef.current;
+    if (!trigger) {
+      return;
+    }
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuWidth = menuRef.current?.offsetWidth ?? 200;
+    const menuHeight = menuRef.current?.offsetHeight ?? 0;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const gap = 6;
+    const edgePadding = 12;
+
+    let left = triggerRect.right - menuWidth;
+    if (left + menuWidth > viewportWidth - edgePadding) {
+      left = viewportWidth - menuWidth - edgePadding;
+    }
+    left = Math.max(edgePadding, left);
+
+    const spaceBelow = viewportHeight - triggerRect.bottom - edgePadding;
+    const spaceAbove = triggerRect.top - edgePadding;
+    const openUpwards = menuHeight > 0 && spaceBelow < menuHeight && spaceAbove > spaceBelow;
+    const top = openUpwards
+      ? Math.max(edgePadding, triggerRect.top - menuHeight - gap)
+      : triggerRect.bottom + gap;
+    const maxHeight = Math.max(160, openUpwards ? spaceAbove - gap : spaceBelow - gap);
+
+    setMenuStyle({
+      position: 'fixed',
+      top,
+      left,
+      zIndex: 1200,
+      minWidth: '12.5rem',
+      maxWidth: `min(18rem, calc(100vw - ${edgePadding * 2}px))`,
+      maxHeight,
+      overflowY: 'auto',
+      transformOrigin: openUpwards ? 'bottom right' : 'top right',
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    updateMenuPosition();
+    const rafId = window.requestAnimationFrame(() => {
+      updateMenuPosition();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) {
       return undefined;
     }
 
     const closeMenu = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        rootRef.current
+        && !rootRef.current.contains(target)
+        && !(menuRef.current && menuRef.current.contains(target))
+      ) {
         setOpen(false);
       }
     };
@@ -68,12 +145,20 @@ export function RowActionsWithOverflow({
       }
     };
 
+    const syncMenuPosition = () => {
+      updateMenuPosition();
+    };
+
     document.addEventListener('mousedown', closeMenu);
     document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', syncMenuPosition);
+    window.addEventListener('scroll', syncMenuPosition, true);
 
     return () => {
       document.removeEventListener('mousedown', closeMenu);
       document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', syncMenuPosition);
+      window.removeEventListener('scroll', syncMenuPosition, true);
     };
   }, [open]);
 
@@ -148,47 +233,50 @@ export function RowActionsWithOverflow({
       >
         {inlineItems.map(renderInlineItem)}
         {hasOverflowMenu && (
-          <div className="relative shrink-0">
+          <div ref={triggerRef} className="relative shrink-0">
             {renderOverflowTrigger()}
-            {open && (
-              <div
-                id={menuId}
-                role="menu"
-                aria-label={moreLabel}
-                className="absolute right-0 top-[calc(100%+0.35rem)] z-[60] min-w-[12.5rem] overflow-hidden rounded-lg border border-border-subtle bg-bg-surface py-1 text-left shadow-xl"
-              >
-                {overflowItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="menuitem"
-                    disabled={item.disabled}
-                    className={[
-                      'flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50',
-                      item.menuTone === 'danger'
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-text-primary',
-                    ].join(' ')}
-                    onClick={() => {
-                      if (item.disabled) {
-                        return;
-                      }
-                      item.onClick();
-                      setOpen(false);
-                    }}
-                    title={item.label}
-                  >
-                    <span className="shrink-0 text-text-secondary" aria-hidden="true">
-                      {item.icon}
-                    </span>
-                    <span className="min-w-0 text-left leading-snug">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </RowActionToolbar>
+      {open && typeof document !== 'undefined' && document.body && createPortal(
+        <div
+          ref={menuRef}
+          id={menuId}
+          role="menu"
+          aria-label={moreLabel}
+          style={menuStyle ?? undefined}
+          className="overflow-hidden rounded-lg border border-border-subtle bg-bg-surface py-1 text-left shadow-xl"
+        >
+          {overflowItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              className={[
+                'flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50',
+                item.menuTone === 'danger'
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-text-primary',
+              ].join(' ')}
+              onClick={() => {
+                if (item.disabled) {
+                  return;
+                }
+                item.onClick();
+                setOpen(false);
+              }}
+              title={item.label}
+            >
+              <span className="shrink-0 text-text-secondary" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span className="min-w-0 text-left leading-snug">{item.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

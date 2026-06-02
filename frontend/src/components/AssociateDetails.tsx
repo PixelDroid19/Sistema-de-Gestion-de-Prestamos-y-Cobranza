@@ -18,12 +18,11 @@ import {
   FormField,
   InsightStrip,
   ModalShell,
-  MoneyInput,
+  CurrencyInput,
   PageHeader,
   PageShell,
   SectionSurface,
-  TextAreaInput,
-  TextInput,
+  AppInput,
   ToolbarSurface,
   ViewTabs,
 } from './shared/Surfaces';
@@ -606,19 +605,19 @@ export default function AssociateDetails() {
         <div className="border-b border-border-subtle px-4 py-4 sm:px-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField label={tTerm('associateDetails.calendar.filter.from')} htmlFor="associate-calendar-start-date">
-              <TextInput
+              <AppInput
                 id="associate-calendar-start-date"
-                type="date"
+                variant="date"
                 value={calendarFilters.startDate}
-                onChange={(event) => updateCalendarFilter('startDate', event.target.value)}
+                onValueChange={(v, _d, e) => updateCalendarFilter('startDate', v)}
               />
             </FormField>
             <FormField label={tTerm('associateDetails.calendar.filter.to')} htmlFor="associate-calendar-end-date">
-              <TextInput
+              <AppInput
                 id="associate-calendar-end-date"
-                type="date"
+                variant="date"
                 value={calendarFilters.endDate}
-                onChange={(event) => updateCalendarFilter('endDate', event.target.value)}
+                onValueChange={(v, _d, e) => updateCalendarFilter('endDate', v)}
               />
             </FormField>
           </div>
@@ -766,9 +765,10 @@ export default function AssociateDetails() {
                 htmlFor={`associate-action-${showModal}-amount`}
                 error={actionErrors[showModal]}
               >
-                <MoneyInput
+                <CurrencyInput
                   key={showModal}
                   id={`associate-action-${showModal}-amount`}
+                  aria-label={tTerm('associateDetails.modal.field.amount')}
                   value={actionAmounts[showModal]}
                   onValueChange={(value) => {
                     setActionAmounts((current) => ({ ...current, [showModal]: value }));
@@ -811,11 +811,11 @@ export default function AssociateDetails() {
               label={tTerm('associateDetails.installmentPayment.field.paymentDate')}
               error={installmentPaymentErrors.paymentDate}
             >
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={installmentPaymentForm.paymentDate}
-                onChange={(event) => {
-                  setInstallmentPaymentForm((prev) => ({ ...prev, paymentDate: event.target.value }));
+                onValueChange={(v, _d, e) => {
+                  setInstallmentPaymentForm((prev) => ({ ...prev, paymentDate: v }));
                   if (installmentPaymentErrors.paymentDate) {
                     setInstallmentPaymentErrors({ paymentDate: '' });
                   }
@@ -823,18 +823,20 @@ export default function AssociateDetails() {
               />
             </FormField>
             <FormField label={tTerm('associateDetails.installmentPayment.field.paymentMethod')}>
-              <TextInput
+              <AppInput
+                variant="text"
                 value={installmentPaymentForm.paymentMethod}
-                onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, paymentMethod: event.target.value }))}
+                onValueChange={(v, _d, e) => setInstallmentPaymentForm((prev) => ({ ...prev, paymentMethod: v }))}
                 placeholder={tTerm('associateDetails.installmentPayment.placeholder.paymentMethod')}
               />
             </FormField>
             <FormField label={tTerm('associateDetails.installmentPayment.field.notes')}>
-              <TextAreaInput
+              <textarea
                 value={installmentPaymentForm.notes}
                 onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
                 placeholder={tTerm('associateDetails.installmentPayment.placeholder.notes')}
                 rows={3}
+                className="operational-control-input w-full min-h-[72px] resize-y"
               />
             </FormField>
             <div className="flex gap-3 pt-2">

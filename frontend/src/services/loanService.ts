@@ -38,7 +38,8 @@ export const useLoans = (
   const getLoans = useQuery({
     queryKey: queryKeys.loans.list(params),
     queryFn: async () => {
-      const { data } = await apiClient.get('/loans', { params });
+      const hasSearchFilters = Boolean(params?.search || params?.status);
+      const { data } = await apiClient.get(hasSearchFilters ? '/loans/search' : '/loans', { params });
       return data;
     },
     enabled: options?.enabled ?? true,

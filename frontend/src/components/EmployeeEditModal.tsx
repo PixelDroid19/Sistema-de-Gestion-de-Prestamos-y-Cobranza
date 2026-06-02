@@ -15,9 +15,9 @@ import {
   ClickableSurface,
   FormField,
   InsightStrip,
-  SelectInput,
+  AppInput,
+  OperationalSelect,
   SectionSurface,
-  TextInput,
   ViewTabs,
 } from './shared/Surfaces';
 
@@ -206,10 +206,10 @@ function ProfileTab({ employee }: { employee: Employee }) {
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <FormField label={t('settings.employees.modal.profile.nameLabel')}>
-        <TextInput value={name} onChange={(event) => setName(event.target.value)} required />
+        <AppInput variant="text" value={name} onValueChange={(v, _detail, e) => setName(v)} required />
       </FormField>
       <FormField label={t('settings.employees.modal.profile.emailLabel')}>
-        <TextInput type="text" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+        <AppInput variant="email" value={email} onValueChange={(v, _detail, e) => setEmail(v)} required />
       </FormField>
       <div className="flex justify-end">
         <ActionButton
@@ -255,20 +255,22 @@ function PasswordTab({ employee }: { employee: Employee }) {
     <form className="space-y-4" onSubmit={handleSubmit}>
       <p className="text-sm text-text-secondary">{t('settings.employees.modal.password.intro')}</p>
       <FormField label={t('settings.employees.modal.password.newLabel')}>
-        <TextInput
+        <AppInput
           type="password"
+          variant="text"
           minLength={8}
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onValueChange={(v, _detail, e) => setPassword(v)}
           required
         />
       </FormField>
       <FormField label={t('settings.employees.modal.password.confirmLabel')}>
-        <TextInput
+        <AppInput
           type="password"
+          variant="text"
           minLength={8}
           value={confirmation}
-          onChange={(event) => setConfirmation(event.target.value)}
+          onValueChange={(v, _detail, e) => setConfirmation(v)}
           required
         />
       </FormField>
@@ -410,12 +412,12 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
       />
 
       <FormField label={t('settings.employees.modal.permissions.moduleLabel')}>
-        <SelectInput value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
+        <OperationalSelect value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
           <option value="all">{t('settings.employees.modal.permissions.moduleAll')}</option>
           {groupedPermissions.map((group) => (
             <option key={group.module} value={group.module}>{getPermissionModuleLabel(group.module)}</option>
           ))}
-        </SelectInput>
+        </OperationalSelect>
       </FormField>
 
       <div className="space-y-3">

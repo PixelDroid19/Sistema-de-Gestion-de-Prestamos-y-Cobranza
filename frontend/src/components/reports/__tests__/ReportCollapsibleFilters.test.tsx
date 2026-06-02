@@ -1,14 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ReportCollapsibleFilters } from '../ReportCollapsibleFilters';
-import { FormField, TextInput } from '../../shared/Surfaces';
+import { AppInput, FormField } from '../../shared/Surfaces';
 
 describe('ReportCollapsibleFilters', () => {
   it('toggles advanced filters and exposes aria-expanded', () => {
     render(
       <ReportCollapsibleFilters>
         <FormField label="Cliente">
-          <TextInput aria-label="Cliente" />
+          <AppInput aria-label="Cliente" value="" onValueChange={() => {}} />
         </FormField>
       </ReportCollapsibleFilters>,
     );
@@ -27,7 +27,7 @@ describe('ReportCollapsibleFilters', () => {
     render(
       <ReportCollapsibleFilters activeCount={2}>
         <FormField label="Crédito">
-          <TextInput aria-label="Crédito" />
+          <AppInput aria-label="Crédito" value="" onValueChange={() => {}} />
         </FormField>
       </ReportCollapsibleFilters>,
     );

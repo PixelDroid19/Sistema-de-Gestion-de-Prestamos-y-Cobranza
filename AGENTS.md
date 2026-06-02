@@ -259,7 +259,9 @@ Shared types: `tableTypes.ts` (`TablePaginationConfig`, `TableShellMode`, `Table
 - Do not put cards inside cards or containers inside containers without a real layout reason.
 - Use shared inputs, buttons, tables, modals, surfaces and formatting helpers.
 - Do not create one-off input styles for each screen.
-- Money inputs must display normalized amounts in a user-readable way.
+- Use `CurrencyInput` + `FormField` from `frontend/src/components/shared/inputs/` for money fields. `allowCents` for payments/payouts (display `120.554,50`, canonical `120554.50`); whole pesos without cents for policy ranges and capital contributions.
+- Use `AppInput` directly only when `CurrencyInput` is not enough. Prefer canonical string state + `onValueChange`; avoid ad-hoc `replace(/\D/g)` handlers.
+- Money inputs must display normalized amounts in a user-readable way through `moneyInput.ts` (`formatDecimalMoneyInput`, `formatWholeMoneyInput`), not manual formatting in screens.
 - Date fields must use consistent formatting and avoid off-by-one timezone bugs.
 - Buttons in shared action rows must be aligned, equal-height and icon-centered.
 - Tooltip behavior must not block normal input interactions.

@@ -1,0 +1,171 @@
+.operational-control {
+  position: relative;
+  display: flex;
+  min-height: 3.05rem;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--bg-surface) 78%, var(--bg-base) 22%);
+  padding: 0 0.95rem;
+  box-shadow: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.operational-control:focus-within {
+  border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-subtle));
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 11%, transparent);
+}
+
+.operational-control--invalid {
+  border-color: color-mix(in srgb, #ef4444 70%, var(--border-subtle));
+}
+
+.operational-control--invalid:focus-within {
+  border-color: color-mix(in srgb, #ef4444 80%, var(--border-subtle));
+  box-shadow: 0 0 0 4px color-mix(in srgb, #ef4444 14%, transparent);
+}
+
+.operational-control-icon,
+.operational-control-prefix,
+.operational-control-suffix {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.operational-control-icon {
+  width: 1rem;
+  flex: 0 0 1rem;
+}
+
+.operational-control-icon svg,
+.operational-control-suffix svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.operational-control-affordance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0 -0.35rem 0 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.operational-control-affordance:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+}
+
+.operational-control-affordance:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.operational-control-suffix--interactive {
+  margin-left: 0.15rem;
+}
+
+.operational-control-prefix {
+  font-weight: 600;
+  margin-right: 0.15rem;
+}
+
+.operational-control-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+  direction: ltr;
+  outline: none;
+}
+
+.operational-control-input::placeholder {
+  color: color-mix(in srgb, var(--text-secondary) 58%, transparent);
+}
+
+.operational-control-input[type='date'] {
+  color-scheme: light;
+}
+
+.dark .operational-control-input[type='date'] {
+  color-scheme: dark;
+}
+
+.operational-control-input:disabled,
+.operational-control-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.operational-control-select {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  padding: 0 1.9rem 0 0;
+  box-shadow: none;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  outline: none;
+}
+
+.operational-control-select-arrow {
+  position: absolute;
+  right: 0.98rem;
+  top: 50%;
+  width: 0.58rem;
+  height: 0.58rem;
+  border: solid var(--text-secondary);
+  border-width: 0 0 1.75px 1.75px;
+  transform: translateY(-55%) rotate(-45deg);
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.operational-control-select:disabled + .operational-control-select-arrow {
+  opacity: 0.55;
+}
+
+.operational-control--invalid .operational-control-select-arrow {
+  border-color: #ef4444;
+}
+
+.operational-control-select::-ms-expand {
+  display: none;
+}
+
+.operational-control--header-search .operational-control-select {
+  font-weight: 500;
+}
+
+.operational-control--header-search {
+  min-height: 2.5rem;
+  border-radius: 9999px;
+  padding-right: 2.5rem;
+}

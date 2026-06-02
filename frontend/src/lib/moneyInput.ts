@@ -56,6 +56,12 @@ export const normalizeDecimalInput = (value: unknown, options: DecimalOptions = 
   if (!rawValue) return '';
   if (!Number.isSafeInteger(maxDecimals) || maxDecimals < 0) return null;
 
+  if (/^\d+\.$/.test(rawValue)) {
+    const normalizedWhole = rawValue.slice(0, -1).replace(/^0+(?=\d)/, '');
+    if (options.maxDigits && normalizedWhole.length > options.maxDigits) return null;
+    return `${normalizedWhole}.`;
+  }
+
   const decimalPattern = maxDecimals === 0
     ? /^\d+$/
     : new RegExp(`^(?:\\d+|\\d+\\.\\d{0,${maxDecimals}}|\\.\\d{0,${maxDecimals}})$`);
@@ -119,6 +125,280 @@ export const formatWholeMoneyInput = (value: unknown): string => {
     return '';
   }
   return formatDigitGroups(normalizedValue);
+};
+
+const stripCurrencyDecorators = (value: string) => value.trim().replace(/[$\s]/g, '');
+
+/**
+ * Converts operator-facing decimal money text (es-CO grouping) into a canonical
+ * decimal string with `.` as the separator.
+ *
+ * Rules while editing:
+ * - `,` is always the decimal separator when present.
+ * - `.` characters are thousand separators unless there is no comma and the
+ *   value ends with `.` (in-progress decimal, e.g. `120.`).
+ */
+export const stripDecimalMoneyFormatting = (value: unknown, maxDecimals = 2): string => {
+  const rawValue = stripCurrencyDecorators(String(value ?? ''));
+  if (!rawValue) {
+    return '';
+  }
+
+  if (FORMATTED_WHOLE_MONEY_FORBIDDEN_PATTERN.test(rawValue)) {
+    return rawValue;
+  }
+
+  const commaIndex = rawValue.lastIndexOf(',');
+  if (commaIndex >= 0) {
+    const wholeDigits = rawValue.slice(0, commaIndex).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    const decimalDigits = rawValue.slice(commaIndex + 1).replace(/\D/g, '').slice(0, maxDecimals);
+
+    if (decimalDigits.length > 0) {
+      return `${wholeDigits || '0'}.${decimalDigits}`;
+    }
+
+    if (commaIndex === rawValue.length - 1) {
+      return wholeDigits ? `${wholeDigits}.` : '0.';
+    }
+
+    return wholeDigits;
+  }
+
+  if (rawValue.endsWith('.') && rawValue.includes('.')) {
+    const wholeDigits = rawValue.slice(0, -1).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    return wholeDigits ? `${wholeDigits}.` : '0.';
+  }
+
+  const groupedWholePattern = /^(\d{1,3})(\.\d{3})*$/;
+  if (groupedWholePattern.test(rawValue)) {
+    return rawValue.replace(/\./g, '').replace(/^0+(?=\d)/, '');
+  }
+
+  return rawValue.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+};
+
+export const countCanonicalMoneyDigits = (canonical: string): number => (
+  canonical.replace(/\D/g, '').length
+);
+
+/** Digits strictly before the caret in a formatted money display string. */
+export const countDigitsBeforeCursor = (display: string, cursor: number): number => {
+  const limit = Math.max(0, Math.min(cursor, display.length));
+  let count = 0;
+
+  for (let index = 0; index < limit; index += 1) {
+    if (/\d/.test(display[index])) {
+      count += 1;
+    }
+  }
+
+  return count;
+};
+
+/** Caret index in `display` immediately after `digitOffset` digits. */
+export const cursorAfterDigitOffset = (display: string, digitOffset: number): number => {
+  if (digitOffset <= 0) {
+    return 0;
+  }
+
+  let seen = 0;
+  for (let index = 0; index < display.length; index += 1) {
+    if (/\d/.test(display[index])) {
+      seen += 1;
+      if (seen === digitOffset) {
+        return index + 1;
+      }
+    }
+  }
+
+  return display.length;
+};
+
+export const resolveGroupedMoneyCursorAfterDelete = (
+  previousDisplay: string,
+  nextFormattedDisplay: string,
+  selectionStart: number,
+  selectionEnd: number,
+  key: 'Backspace' | 'Delete',
+): number => {
+  if (selectionStart !== selectionEnd) {
+    return cursorAfterDigitOffset(
+      nextFormattedDisplay,
+      countDigitsBeforeCursor(previousDisplay, selectionStart),
+    );
+  }
+
+  const anchorDigits = countDigitsBeforeCursor(previousDisplay, selectionStart);
+
+  if (key === 'Backspace' && selectionStart > 0) {
+    const removed = previousDisplay[selectionStart - 1] ?? '';
+    if (/\d/.test(removed)) {
+      return cursorAfterDigitOffset(nextFormattedDisplay, anchorDigits - 1);
+    }
+
+    return cursorAfterDigitOffset(nextFormattedDisplay, anchorDigits);
+  }
+
+  if (key === 'Delete' && selectionStart < previousDisplay.length) {
+    const removed = previousDisplay[selectionStart] ?? '';
+    if (/\d/.test(removed)) {
+      return cursorAfterDigitOffset(nextFormattedDisplay, anchorDigits);
+    }
+
+    return cursorAfterDigitOffset(nextFormattedDisplay, anchorDigits);
+  }
+
+  return cursorAfterDigitOffset(nextFormattedDisplay, anchorDigits);
+};
+
+export const countOperatorMoneyDigits = (display: string, maxDecimals = 2): number => {
+  const stripped = stripDecimalMoneyFormatting(display, maxDecimals);
+  return stripped.replace(/\D/g, '').length;
+};
+
+export const canonicalAfterOneMoneyBackspace = (canonical: string): string => {
+  if (!canonical) {
+    return '';
+  }
+
+  const dotIndex = canonical.indexOf('.');
+  if (dotIndex === -1) {
+    return canonical.slice(0, -1);
+  }
+
+  const whole = canonical.slice(0, dotIndex);
+  const decimal = canonical.slice(dotIndex + 1);
+
+  if (decimal.length > 0) {
+    const nextDecimal = decimal.slice(0, -1);
+    return nextDecimal.length > 0 ? `${whole}.${nextDecimal}` : `${whole}.`;
+  }
+
+  if (canonical.endsWith('.')) {
+    return whole;
+  }
+
+  return whole.slice(0, -1) || '';
+};
+
+export const removeTrailingDigitsFromCanonical = (canonical: string, count: number): string => {
+  if (count <= 0 || !canonical) {
+    return canonical;
+  }
+
+  let result = canonical;
+  for (let index = 0; index < count; index += 1) {
+    result = canonicalAfterOneMoneyBackspace(result);
+    if (!result) {
+      break;
+    }
+  }
+
+  return result;
+};
+
+/**
+ * Helper to detect if a deletion in the formatted display string is contiguous
+ * with the previous display (used by some normalization helpers and tests).
+ */
+export const isContiguousDisplayDeletion = (previousDisplay: string, nextDisplay: string): boolean => {
+  const previous = stripCurrencyDecorators(previousDisplay);
+  const next = stripCurrencyDecorators(nextDisplay);
+
+  if (!previous || next.length >= previous.length) {
+    return false;
+  }
+
+  if (!next) {
+    return true;
+  }
+
+  let nextIndex = 0;
+  for (let previousIndex = 0; previousIndex < previous.length; previousIndex += 1) {
+    if (previous[previousIndex] === next[nextIndex]) {
+      nextIndex += 1;
+      if (nextIndex === next.length) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+export const normalizeGroupedDecimalMoneyEdit = (
+  _previousCanonical: string,
+  _previousDisplay: string,
+  nextDisplay: string,
+  options: DecimalOptions = {},
+): string | null => {
+  return normalizeDecimalMoneyInput(nextDisplay, options);
+};
+
+export const normalizeGroupedWholeMoneyEdit = (
+  _previousCanonical: string,
+  _previousDisplay: string,
+  nextDisplay: string,
+): string | null => {
+  return normalizeWholeMoneyInput(nextDisplay);
+};
+
+export const normalizeDecimalMoneyInput = (value: unknown, options: DecimalOptions = {}): string | null => {
+  const maxDecimals = options.maxDecimals ?? 2;
+  const strippedValue = stripDecimalMoneyFormatting(value, maxDecimals);
+  if (!strippedValue) {
+    return '';
+  }
+
+  const normalized = normalizeDecimalInput(strippedValue, options);
+  if (normalized !== null) {
+    return normalized;
+  }
+
+  const partialPattern = maxDecimals === 0
+    ? /^\d+$/
+    : new RegExp(`^(?:\\d+|\\d+\\.\\d{0,${maxDecimals}})$`);
+  return partialPattern.test(strippedValue) ? strippedValue : null;
+};
+
+const CANONICAL_DECIMAL_MONEY_PATTERN = /^\d+(?:\.\d*)?$/;
+
+const formatCanonicalDecimalMoneyDisplay = (canonicalValue: string): string => {
+  if (!canonicalValue.includes('.')) {
+    return formatDigitGroups(canonicalValue);
+  }
+
+  const [wholePart, decimalPart = ''] = canonicalValue.split('.');
+  const groupedWhole = formatDigitGroups(wholePart);
+  if (!decimalPart) {
+    return `${groupedWhole},`;
+  }
+
+  return `${groupedWhole},${decimalPart}`;
+};
+
+export const formatDecimalMoneyInput = (value: unknown, options: { maxDecimals?: number } = {}): string => {
+  const maxDecimals = options.maxDecimals ?? 2;
+  const rawValue = stripCurrencyDecorators(String(value ?? ''));
+  if (!rawValue) {
+    return '';
+  }
+
+  if (CANONICAL_DECIMAL_MONEY_PATTERN.test(rawValue)) {
+    const normalizedValue = normalizeDecimalInput(rawValue, { maxDecimals });
+    if (normalizedValue === null || normalizedValue === '') {
+      return '';
+    }
+
+    return formatCanonicalDecimalMoneyDisplay(normalizedValue);
+  }
+
+  const normalizedValue = normalizeDecimalMoneyInput(value, { maxDecimals });
+  if (normalizedValue === null || normalizedValue === '') {
+    return '';
+  }
+
+  return formatCanonicalDecimalMoneyDisplay(normalizedValue);
 };
 
 export const parseFormattedPositiveMoneyInput = (value: unknown): number | null => {

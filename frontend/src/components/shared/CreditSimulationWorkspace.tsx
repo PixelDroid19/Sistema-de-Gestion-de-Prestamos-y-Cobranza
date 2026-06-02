@@ -12,9 +12,10 @@ import { useTranslation } from '../../i18n';
 import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
+import { sanitizeNumericInputNumber, formatNumericInputValue } from '../../lib/numericInputState';
 import { formatScheduleStatusLabel } from '../../lib/scheduleStatusLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
-import { OperationalInput, OperationalSelect } from './FormControls';
+import { AppInput, CurrencyInput, OperationalSelect } from './Surfaces';
 import { ActionButton, FormField, InsightStrip } from './Surfaces';
 import { AppTable } from './tables';
 
@@ -260,10 +261,9 @@ export default function CreditSimulationWorkspace({
 
               <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'}`}>
                 <FormField label={tTerm('simulator.form.amount')} tooltip={fieldHelp.amount} error={fieldErrors.amount}>
-                  <OperationalInput
-                    variant="money"
-                    value={input.amount}
-                    onValueChange={(value) => onInputChange({ amount: Number(value) || 0 })}
+                  <CurrencyInput
+                    value={formatNumericInputValue(input.amount)}
+                    onValueChange={(value, detail) => onInputChange({ amount: sanitizeNumericInputNumber(detail.numericValue) })}
                     disabled={disabled}
                     invalid={!!fieldErrors.amount}
                     autoComplete="off"
@@ -278,12 +278,12 @@ export default function CreditSimulationWorkspace({
                     helper={rateControl?.badge || rateControl?.helper}
                     error={fieldErrors.interestRate}
                   >
-                    <OperationalInput
+                    <AppInput
                       variant="percent"
                       min="0"
                       step="0.01"
-                      value={displayInterestRate}
-                      onValueChange={(value) => onInputChange({ interestRate: Number(value) || 0 })}
+                      value={formatNumericInputValue(displayInterestRate)}
+                      onValueChange={(value, detail) => onInputChange({ interestRate: sanitizeNumericInputNumber(detail.numericValue) })}
                       disabled={disabled || rateControl?.readOnly}
                       invalid={!!fieldErrors.interestRate}
                       suffix="%"
@@ -291,11 +291,11 @@ export default function CreditSimulationWorkspace({
                   </FormField>
 
                   <FormField label={tTerm('simulator.field.termMonths')} tooltip={fieldHelp.term} error={fieldErrors.termMonths}>
-                    <OperationalInput
-                      variant="number"
+                    <AppInput
+                      variant="integer"
                       min="1"
-                      value={input.termMonths}
-                      onValueChange={(value) => onInputChange({ termMonths: Number(value) || 0 })}
+                      value={formatNumericInputValue(input.termMonths)}
+                      onValueChange={(value, detail) => onInputChange({ termMonths: sanitizeNumericInputNumber(detail.numericValue) })}
                       disabled={disabled}
                       invalid={!!fieldErrors.termMonths}
                     />
@@ -304,7 +304,7 @@ export default function CreditSimulationWorkspace({
 
                 <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4 sm:grid-cols-2'}`}>
                   <FormField label={tTerm('simulator.form.firstPaymentDate')} tooltip={fieldHelp.startDate}>
-                    <OperationalInput
+                    <AppInput
                       variant="date"
                       value={input.startDate || ''}
                       onValueChange={(value) => onInputChange({ startDate: String(value || '') || undefined })}

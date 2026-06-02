@@ -7,7 +7,7 @@ import { getDefaultRouteForUser } from '../constants/appAccess';
 import { APP_BRAND } from '../constants/appShell';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { tTerm } from '../i18n/terminology';
-import { ActionButton, FormField, IconActionButton, TextInput } from './shared/Surfaces';
+import { ActionButton, AppInput, FormField } from './shared/Surfaces';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -73,47 +73,47 @@ export default function Login() {
             )}
 
             <FormField label={tTerm('login.emailLabel')}>
-              <div className="login-field">
-                <Mail className="login-field__icon" aria-hidden="true" />
-                <TextInput
-                  id="email"
-                  name="email"
-                  type="text"
-                  inputMode="email"
-                  autoComplete="email"
-                  required
-                  disabled={isLoading}
-                  placeholder={tTerm('login.emailPlaceholder')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="login-field__input"
-                />
-              </div>
+              <AppInput
+                id="email"
+                name="email"
+                variant="email"
+                autoComplete="email"
+                required
+                disabled={isLoading}
+                placeholder={tTerm('login.emailPlaceholder')}
+                value={email}
+                onValueChange={(v, _detail, e) => setEmail(v)}
+                icon={<Mail size={16} aria-hidden="true" />}
+                shellClassName="login-control"
+              />
             </FormField>
 
             <FormField label={tTerm('login.passwordLabel')}>
-              <div className="login-field">
-                <Lock className="login-field__icon" aria-hidden="true" />
-                <TextInput
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  disabled={isLoading}
-                  placeholder={tTerm('login.passwordPlaceholder')}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="login-field__input login-field__input--password"
-                />
-                <IconActionButton
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
-                  className="login-field__toggle"
-                  label={showPassword ? tTerm('login.password.hide') : tTerm('login.password.show')}
-                  icon={showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
-                />
-              </div>
+              <AppInput
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                variant={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                disabled={isLoading}
+                placeholder={tTerm('login.passwordPlaceholder')}
+                value={password}
+                onValueChange={(v) => setPassword(v)}
+                icon={<Lock size={16} aria-hidden="true" />}
+                suffix={(
+                  <button
+                    type="button"
+                    className="operational-control-affordance"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    disabled={isLoading}
+                    aria-label={showPassword ? tTerm('login.password.hide') : tTerm('login.password.show')}
+                  >
+                    {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                  </button>
+                )}
+                shellClassName="login-control"
+              />
             </FormField>
 
             <ActionButton

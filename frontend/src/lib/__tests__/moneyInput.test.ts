@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canonicalAfterOneMoneyBackspace,
+  countDigitsBeforeCursor,
+  cursorAfterDigitOffset,
+  formatDecimalMoneyInput,
   formatDigitGroups,
   formatWholeMoneyInput,
   normalizeDecimalInput,
+  normalizeDecimalMoneyInput,
+  normalizeGroupedDecimalMoneyEdit,
   normalizeIntegerInput,
   normalizePercentInput,
   normalizeTextInput,
@@ -13,6 +19,8 @@ import {
   parsePercentageRateInput,
   parsePositiveIntegerInput,
   parsePositiveMoneyInput,
+  removeTrailingDigitsFromCanonical,
+  resolveGroupedMoneyCursorAfterDelete,
 } from '../moneyInput';
 
 describe('parsePositiveMoneyInput', () => {
@@ -27,6 +35,91 @@ describe('parsePositiveMoneyInput', () => {
     expect(parsePositiveMoneyInput('0')).toBeNull();
     expect(parsePositiveMoneyInput('-10')).toBeNull();
     expect(parsePositiveMoneyInput('')).toBeNull();
+  });
+});
+
+describe('grouped money cursor helpers', () => {
+  it('keeps the caret on the same digit when separators are reformatted', () => {
+    const previousDisplay = '120.554';
+    const nextFormatted = '12.055';
+
+    expect(
+      resolveGroupedMoneyCursorAfterDelete(
+        previousDisplay,
+        nextFormatted,
+        previousDisplay.length,
+        previousDisplay.length,
+        'Backspace',
+      ),
+    ).toBe(nextFormatted.length);
+
+    expect(countDigitsBeforeCursor('120.554,50', '120.554,50'.length)).toBe(8);
+    expect(cursorAfterDigitOffset('120.554,5', 7)).toBe('120.554,5'.length);
+  });
+});
+
+describe('formatted decimal money input', () => {
+  it('normalizes es-CO grouped decimals into canonical dot values', () => {
+    expect(normalizeDecimalMoneyInput('120.554,50')).toBe('120554.50');
+    expect(normalizeDecimalMoneyInput('$ 120.554,50')).toBe('120554.50');
+    expect(formatDecimalMoneyInput('120554.50')).toBe('120.554,50');
+    expect(parsePositiveMoneyInput('120554.50')).toBe(120554.5);
+  });
+
+  it('formats whole peso groups while typing decimals', () => {
+    expect(formatDecimalMoneyInput('120554')).toBe('120.554');
+    expect(formatDecimalMoneyInput('120554.')).toBe('120.554,');
+    expect(formatDecimalMoneyInput('120554.5')).toBe('120.554,5');
+  });
+
+  it('normalizes empty and partial grouped decimal edits', () => {
+    expect(normalizeDecimalMoneyInput('')).toBe('');
+    expect(normalizeDecimalMoneyInput('120.554,5')).toBe('120554.5');
+    expect(normalizeDecimalMoneyInput('120554.')).toBe('120554.');
+    expect(normalizeDecimalMoneyInput('120.554,')).toBe('120554.');
+    expect(normalizeDecimalMoneyInput('120.554')).toBe('120554');
+    expect(normalizeDecimalMoneyInput('120.55')).toBe('12055');
+    expect(normalizeDecimalMoneyInput('120.')).toBe('120.');
+  });
+
+  it('treats grouped whole amounts without comma as thousand separators', () => {
+    expect(normalizeDecimalMoneyInput('120.554')).toBe('120554');
+    expect(formatDecimalMoneyInput('120554')).toBe('120.554');
+  });
+
+  it('resolves ambiguous delete states using the previous canonical value', () => {
+    expect(normalizeGroupedDecimalMoneyEdit('120554', '120.554', '120.55')).toBe('12055');
+    expect(normalizeGroupedDecimalMoneyEdit('120554.50', '120.554,50', '120.554,5')).toBe('120554.5');
+    expect(normalizeGroupedDecimalMoneyEdit('120554.50', '120.554,50', '')).toBe('');
+    expect(normalizeGroupedDecimalMoneyEdit('250000.00', '250.000,00', '1e2')).toBeNull();
+  });
+
+  it('removes trailing canonical digits one step at a time', () => {
+    expect(canonicalAfterOneMoneyBackspace('120554.50')).toBe('120554.5');
+    expect(canonicalAfterOneMoneyBackspace('120554.')).toBe('120554');
+    expect(canonicalAfterOneMoneyBackspace('120554')).toBe('12055');
+    expect(removeTrailingDigitsFromCanonical('120554.50', 3)).toBe('120554');
+  });
+
+  it('keeps canonical values stable while deleting grouped decimals step by step', () => {
+    const displaySteps = [
+      { display: '120.554,50', canonical: '120554.50' },
+      { display: '120.554,5', canonical: '120554.5' },
+      { display: '120.554,', canonical: '120554.' },
+      { display: '120.554', canonical: '120554' },
+      { display: '12.055', canonical: '12055' },
+      { display: '1.205', canonical: '1205' },
+      { display: '120,', canonical: '120.' },
+      { display: '120', canonical: '120' },
+      { display: '12', canonical: '12' },
+      { display: '1', canonical: '1' },
+      { display: '', canonical: '' },
+    ];
+
+    displaySteps.forEach(({ display, canonical }) => {
+      expect(normalizeDecimalMoneyInput(display)).toBe(canonical);
+      expect(formatDecimalMoneyInput(canonical)).toBe(display || '');
+    });
   });
 });
 

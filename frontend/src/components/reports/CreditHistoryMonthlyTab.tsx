@@ -1,11 +1,13 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { CreditCard, DollarSign, HandCoins, ReceiptText, TrendingUp, Wallet } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import {
+  AppInput,
+  CustomerSearchSelect,
   FormField,
-  SelectInput,
-  TextInput,
+  LoanSearchSelect,
+  OperationalSelect,
 } from '../shared/Surfaces';
 import { ReportCollapsibleFilters } from './ReportCollapsibleFilters';
 import { ReportDataTableSection } from './ReportDataTableSection';
@@ -57,6 +59,8 @@ export default function CreditHistoryMonthlyTab({
 }: CreditHistoryMonthlyTabProps) {
   const summary = data?.summary || {};
   const months = data?.months || [];
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [loanSearchQuery, setLoanSearchQuery] = useState('');
   const advancedFilterCount = [filters.customerId, filters.loanId].filter((value) => value.trim().length > 0).length;
   const updateFilter = (key: keyof CreditHistoryMonthlyFilters, value: string) => {
     if ((key === 'customerId' || key === 'loanId') && !/^\d*$/.test(value.trim())) {
@@ -82,28 +86,28 @@ export default function CreditHistoryMonthlyTab({
         filters={(
           <>
             <FormField label={tTerm('reports.creditHistory.fromDate')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={filters.startDate}
-                onChange={(event) => updateFilter('startDate', event.target.value)}
+                onValueChange={(v, _d, e) => updateFilter('startDate', v)}
               />
             </FormField>
             <FormField label={tTerm('reports.creditHistory.toDate')}>
-              <TextInput
-                type="date"
+              <AppInput
+                variant="date"
                 value={filters.endDate}
-                onChange={(event) => updateFilter('endDate', event.target.value)}
+                onValueChange={(v, _d, e) => updateFilter('endDate', v)}
               />
             </FormField>
             <FormField label={tTerm('reports.creditHistory.status')}>
-              <SelectInput
+              <OperationalSelect
                 value={filters.status}
                 onChange={(event) => updateFilter('status', event.target.value)}
               >
                 {statusOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
           </>
         )}
@@ -114,23 +118,25 @@ export default function CreditHistoryMonthlyTab({
             filterColumns={2}
           >
             <FormField label={tTerm('reports.creditHistory.customerId')}>
-              <TextInput
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={filters.customerId}
-                onChange={(event) => updateFilter('customerId', event.target.value)}
-                placeholder={tTerm('reports.creditHistory.customerId.placeholder')}
+              <CustomerSearchSelect
+                id="credit-history-customer"
+                selectedCustomerId={filters.customerId}
+                searchValue={customerSearchQuery}
+                onSearchValueChange={setCustomerSearchQuery}
+                onSelectedCustomerIdChange={(value) => updateFilter('customerId', value)}
+                placeholder={tTerm('reports.creditHistory.customerSearch.placeholder')}
+                listboxLabel={tTerm('reports.creditHistory.customerSearch.results')}
               />
             </FormField>
             <FormField label={tTerm('reports.creditHistory.loanId')}>
-              <TextInput
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={filters.loanId}
-                onChange={(event) => updateFilter('loanId', event.target.value)}
-                placeholder={tTerm('reports.creditHistory.loanId.placeholder')}
+              <LoanSearchSelect
+                id="credit-history-loan"
+                selectedLoanId={filters.loanId}
+                searchValue={loanSearchQuery}
+                onSearchValueChange={setLoanSearchQuery}
+                onSelectedLoanIdChange={(value) => updateFilter('loanId', value)}
+                placeholder={tTerm('reports.creditHistory.loanSearch.placeholder')}
+                listboxLabel={tTerm('reports.creditHistory.loanSearch.results')}
               />
             </FormField>
           </ReportCollapsibleFilters>

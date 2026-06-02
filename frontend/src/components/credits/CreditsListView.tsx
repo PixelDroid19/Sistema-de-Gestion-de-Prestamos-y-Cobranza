@@ -21,9 +21,9 @@ import {
   EmptyState,
   FormField,
   InsightStrip,
+  AppInput,
+  OperationalSelect,
   SectionSurface,
-  SelectInput,
-  TextInput,
   ToolbarSurface,
 } from '../shared/Surfaces';
 import {
@@ -172,21 +172,20 @@ export default function CreditsListView({
 
       <ToolbarSurface>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative w-full sm:w-80">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <TextInput
-              type="text"
+          <div className="w-full sm:w-80">
+            <AppInput
+              variant="text"
               data-tour="credits-search"
               placeholder={searchPlaceholder}
               value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              onValueChange={(v, _d, e) => onSearchChange(v)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
                   onApplyFilters();
                 }
               }}
-              className="pl-10"
+              icon={<Search size={16} />}
             />
           </div>
           <ActionButton
@@ -232,7 +231,7 @@ export default function CreditsListView({
         <SectionSurface bodyClassName="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <FormField label={tTerm('credits.filter.status')}>
-              <SelectInput
+              <OperationalSelect
                 id="credits-filter-status"
                 value={filters.status}
                 onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
@@ -246,40 +245,40 @@ export default function CreditsListView({
                 <option value="paid">{tTerm('schedule.status.paid')}</option>
                 <option value="closed">{tTerm('common.status.closed')}</option>
                 <option value="cancelled">{tTerm('credits.status.cancelled')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
             <FormField label={tTerm('credits.filter.minAmount')}>
-              <TextInput
+              <AppInput
                 id="credits-filter-min-amount"
-                type="number"
+                variant="text"
                 value={filters.minAmount}
-                onChange={(e) => onFiltersChange({ ...filters, minAmount: e.target.value })}
+                onValueChange={(v, _d, e) => onFiltersChange({ ...filters, minAmount: v })}
                 placeholder="0"
               />
             </FormField>
             <FormField label={tTerm('credits.filter.maxAmount')}>
-              <TextInput
+              <AppInput
                 id="credits-filter-max-amount"
-                type="number"
+                variant="text"
                 value={filters.maxAmount}
-                onChange={(e) => onFiltersChange({ ...filters, maxAmount: e.target.value })}
+                onValueChange={(v, _d, e) => onFiltersChange({ ...filters, maxAmount: v })}
                 placeholder={tTerm('credits.filter.noLimit')}
               />
             </FormField>
             <FormField label={tTerm('credits.filter.startDate')}>
-              <TextInput
+              <AppInput
                 id="credits-filter-start-date"
-                type="date"
+                variant="date"
                 value={filters.startDate}
-                onChange={(e) => onFiltersChange({ ...filters, startDate: e.target.value })}
+                onValueChange={(v, _d, e) => onFiltersChange({ ...filters, startDate: v })}
               />
             </FormField>
             <FormField label={tTerm('credits.filter.endDate')}>
-              <TextInput
+              <AppInput
                 id="credits-filter-end-date"
-                type="date"
+                variant="date"
                 value={filters.endDate}
-                onChange={(e) => onFiltersChange({ ...filters, endDate: e.target.value })}
+                onValueChange={(v, _d, e) => onFiltersChange({ ...filters, endDate: v })}
               />
             </FormField>
           </div>

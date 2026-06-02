@@ -7,9 +7,9 @@ import { parseReportYearInput } from '../../lib/reportYearInput';
 import MeasuredChart from '../shared/MeasuredChart';
 import {
   EmptyState,
+  AppInput,
   FormField,
   SectionSurface,
-  TextInput,
 } from '../shared/Surfaces';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportMetricsSection } from './ReportMetricsSection';
@@ -50,10 +50,10 @@ export default function ProfitabilityTab({
         filterColumns={2}
         filters={(
           <FormField label={tTerm('reports.profitability.year')}>
-            <TextInput
-              type="number"
-              value={analyticsYear}
-              onChange={(event) => handleYearChange(event.target.value)}
+            <AppInput
+              variant="integer"
+              value={String(analyticsYear)}
+              onValueChange={(v) => handleYearChange(v)}
             />
           </FormField>
         )}

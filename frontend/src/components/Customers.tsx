@@ -18,7 +18,7 @@ import {
   TableActionsCell,
   TableActionsHeader,
 } from './shared/tables';
-import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, AppInput, FormField, OperationalSelect, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
@@ -158,19 +158,16 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
         <ToolbarSurface data-tour="customers-filters">
           <div className="grid items-start gap-3 lg:grid-cols-[minmax(18rem,26rem)_14rem_14rem]">
             <FormField label={tTerm('customers.filter.search.label')} data-tour="customers-search">
-              <div className="relative">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                <TextInput
-                  type="text"
-                  placeholder={tTerm('customers.filter.search.placeholder')}
-                  value={searchTerm}
-                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                  className="pl-10"
-                />
-              </div>
+              <AppInput
+                variant="text"
+                placeholder={tTerm('customers.filter.search.placeholder')}
+                value={searchTerm}
+                onValueChange={(v, _detail, e) => { setSearchTerm(v); setPage(1); }}
+                icon={<Search size={16} />}
+              />
             </FormField>
             <FormField label={tTerm('customers.filter.status.label')} tooltip={tTerm('customers.filter.status.tooltip')}>
-              <SelectInput
+              <OperationalSelect
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               >
@@ -178,10 +175,10 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                 <option value="active">{tTerm('common.status.active')}</option>
                 <option value="inactive">{tTerm('common.status.inactive')}</option>
                 <option value="blacklisted">{tTerm('common.status.blacklisted')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
             <FormField label={tTerm('customers.filter.registered.label')} tooltip={tTerm('customers.filter.registered.tooltip')}>
-              <SelectInput
+              <OperationalSelect
                 value={dateFilter}
                 onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
               >
@@ -190,7 +187,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                 <option value="week">{tTerm('customers.filter.registered.week')}</option>
                 <option value="month">{tTerm('customers.filter.registered.month')}</option>
                 <option value="year">{tTerm('customers.filter.registered.year')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
           </div>
         </ToolbarSurface>

@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { getPaymentTypeLabel } from '../../constants/paymentTypes';
 import { tTerm } from '../../i18n/terminology';
-import { FormField, SelectInput, TextInput } from '../shared/Surfaces';
+import { AppInput, CustomerSearchSelect, FormField, LoanSearchSelect, OperationalSelect } from '../shared/Surfaces';
 import type { ReportExportFormat, ReportExportType } from './reportsExportHelpers';
 
 export type ReportsExportFormProps = {
@@ -64,6 +64,8 @@ export default function ReportsExportForm({
   onSubmit,
 }: ReportsExportFormProps) {
   const [filtersExpanded, setFiltersExpanded] = useState(layout === 'modal');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [loanSearchQuery, setLoanSearchQuery] = useState('');
 
   const showFormat = reportType === 'credits' || reportType === 'associates' || reportType === 'payouts';
   const showStatus = reportType === 'credits' || reportType === 'associates' || reportType === 'payouts';
@@ -96,6 +98,8 @@ export default function ReportsExportForm({
     onReportAssociateIdFilterChange('');
     onReportCustomerIdFilterChange('');
     onReportLoanIdFilterChange('');
+    setCustomerSearchQuery('');
+    setLoanSearchQuery('');
     setFiltersExpanded(layout === 'modal');
   };
 
@@ -109,7 +113,7 @@ export default function ReportsExportForm({
     >
       <div className="reports-export-form__core">
         <FormField label={tTerm('reports.export.type')}>
-          <SelectInput
+          <OperationalSelect
             id="report-type"
             value={reportType}
             onChange={(event) => handleTypeChange(event.target.value)}
@@ -118,37 +122,37 @@ export default function ReportsExportForm({
             <option value="profitability">{tTerm('reports.export.type.profitability')}</option>
             <option value="associates">{tTerm('reports.export.type.associates')}</option>
             <option value="payouts">{tTerm('reports.export.type.payouts')}</option>
-          </SelectInput>
+          </OperationalSelect>
         </FormField>
 
         <FormField label={tTerm('reports.export.from')}>
-          <TextInput
+          <AppInput
             id="report-from"
-            type="date"
+            variant="date"
             value={reportRange.fromDate}
-            onChange={(event) => onReportRangeChange('fromDate', event.target.value)}
+            onValueChange={(v, _detail, e) => onReportRangeChange('fromDate', v)}
           />
         </FormField>
 
         <FormField label={tTerm('reports.export.to')}>
-          <TextInput
+          <AppInput
             id="report-to"
-            type="date"
+            variant="date"
             value={reportRange.toDate}
-            onChange={(event) => onReportRangeChange('toDate', event.target.value)}
+            onValueChange={(v, _detail, e) => onReportRangeChange('toDate', v)}
           />
         </FormField>
 
         {showFormat && (
           <FormField label={tTerm('reports.export.format')}>
-            <SelectInput
+            <OperationalSelect
               id="report-format"
               value={reportFormat}
               onChange={(event) => onReportFormatChange(event.target.value as ReportExportFormat)}
             >
               <option value="xlsx">{tTerm('reports.export.format.xlsx')}</option>
               <option value="pdf">{tTerm('reports.export.format.pdf')}</option>
-            </SelectInput>
+            </OperationalSelect>
           </FormField>
         )}
       </div>
@@ -179,7 +183,7 @@ export default function ReportsExportForm({
           <div className="reports-export-form__advanced-grid">
             {showStatus && reportType !== 'payouts' && (
               <FormField label={tTerm('reports.export.status')}>
-                <SelectInput
+                <OperationalSelect
                   id="report-status"
                   value={reportStatusFilter}
                   onChange={(event) => onReportStatusFilterChange(event.target.value)}
@@ -200,19 +204,18 @@ export default function ReportsExportForm({
                       <option value="inactive">{tTerm('common.status.inactive')}</option>
                     </>
                   )}
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
             )}
 
             {showAssociateId && (
               <FormField label={tTerm('reports.export.associate')}>
-                <TextInput
+                <AppInput
                   id="report-associate"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  variant="integer"
                   placeholder={tTerm('reports.export.associate.placeholder')}
                   value={reportAssociateIdFilter}
-                  onChange={(event) => acceptNumericFilter(event.target.value, onReportAssociateIdFilterChange)}
+                  onValueChange={(v, _detail, e) => acceptNumericFilter(v, onReportAssociateIdFilterChange)}
                 />
               </FormField>
             )}
@@ -220,23 +223,25 @@ export default function ReportsExportForm({
             {showCustomerLoan && (
               <>
                 <FormField label={tTerm('reports.export.customer')}>
-                  <TextInput
+                  <CustomerSearchSelect
                     id="report-customer"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder={tTerm('reports.export.idPlaceholder')}
-                    value={reportCustomerIdFilter}
-                    onChange={(event) => acceptNumericFilter(event.target.value, onReportCustomerIdFilterChange)}
+                    selectedCustomerId={reportCustomerIdFilter}
+                    searchValue={customerSearchQuery}
+                    onSearchValueChange={setCustomerSearchQuery}
+                    onSelectedCustomerIdChange={onReportCustomerIdFilterChange}
+                    placeholder={tTerm('reports.export.customerSearch.placeholder')}
+                    listboxLabel={tTerm('reports.export.customerSearch.results')}
                   />
                 </FormField>
                 <FormField label={tTerm('reports.export.loan')}>
-                  <TextInput
+                  <LoanSearchSelect
                     id="report-loan"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder={tTerm('reports.export.idPlaceholder')}
-                    value={reportLoanIdFilter}
-                    onChange={(event) => acceptNumericFilter(event.target.value, onReportLoanIdFilterChange)}
+                    selectedLoanId={reportLoanIdFilter}
+                    searchValue={loanSearchQuery}
+                    onSearchValueChange={setLoanSearchQuery}
+                    onSelectedLoanIdChange={onReportLoanIdFilterChange}
+                    placeholder={tTerm('reports.export.loanSearch.placeholder')}
+                    listboxLabel={tTerm('reports.export.loanSearch.results')}
                   />
                 </FormField>
               </>
@@ -244,7 +249,7 @@ export default function ReportsExportForm({
 
             {showPaymentType && (
               <FormField label={tTerm('reports.payouts.filter.paymentType')}>
-                <SelectInput
+                <OperationalSelect
                   id="report-payment-type"
                   value={reportPaymentTypeFilter}
                   onChange={(event) => onReportPaymentTypeFilterChange(event.target.value)}
@@ -254,20 +259,20 @@ export default function ReportsExportForm({
                   <option value="partial">{getPaymentTypeLabel('partial')}</option>
                   <option value="capital">{getPaymentTypeLabel('capital')}</option>
                   <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
             )}
 
             {showStatus && reportType === 'payouts' && (
               <FormField label={tTerm('reports.payouts.filter.status')}>
-                <SelectInput
+                <OperationalSelect
                   id="report-payout-status"
                   value={reportStatusFilter}
                   onChange={(event) => onReportStatusFilterChange(event.target.value)}
                 >
                   <option value="">{tTerm('common.status.completed')}</option>
                   <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
-                </SelectInput>
+                </OperationalSelect>
               </FormField>
             )}
           </div>

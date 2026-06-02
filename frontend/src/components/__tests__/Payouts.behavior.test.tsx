@@ -27,8 +27,27 @@ const defaultPaymentsFixture = [
     },
   },
 ];
+const defaultLoansFixture = [
+  {
+    id: 100,
+    amount: 2000000,
+    status: 'active',
+    principalOutstanding: 1800000,
+    interestOutstanding: 50000,
+    Customer: { name: 'Cliente Pago Uno', email: 'cliente-pago@test.local' },
+  },
+  {
+    id: 200,
+    amount: 3500000,
+    status: 'approved',
+    principalOutstanding: 3500000,
+    interestOutstanding: 0,
+    Customer: { name: 'Cliente Pago Dos', email: 'cliente-dos@test.local' },
+  },
+];
 let paymentMethodsFixture: any[] = [...defaultPaymentMethodsFixture];
 let paymentsFixture = [...defaultPaymentsFixture];
+let loansFixture = [...defaultLoansFixture];
 
 let currentUser = {
   id: 1,
@@ -78,6 +97,23 @@ vi.mock('../../services/paymentService', () => ({
   downloadVoucher: vi.fn(),
 }));
 
+vi.mock('../../services/loanService', async () => {
+  const actual = await vi.importActual<typeof import('../../services/loanService')>('../../services/loanService');
+  return {
+    ...actual,
+    useLoans: vi.fn(() => ({
+      data: {
+        data: {
+          loans: loansFixture,
+          pagination: { totalItems: loansFixture.length, totalPages: 1 },
+        },
+      },
+      isLoading: false,
+      isError: false,
+    })),
+  };
+});
+
 const mockToastError = vi.fn();
 
 vi.mock('../../lib/toast', () => ({
@@ -100,12 +136,19 @@ const renderPayouts = () => {
   );
 };
 
+const selectFirstLoanOption = () => {
+  fireEvent.change(screen.getByRole('combobox', { name: 'Créditos disponibles' }), {
+    target: { value: '100' },
+  });
+};
+
 describe('Payouts behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfirmDanger.mockResolvedValue(true);
     paymentMethodsFixture = [...defaultPaymentMethodsFixture];
     paymentsFixture = [...defaultPaymentsFixture];
+    loansFixture = [...defaultLoansFixture];
     currentUser = {
       id: 1,
       name: 'Admin',
@@ -126,8 +169,8 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(screen.queryByRole('option', { name: 'Pago regular (cuota)' })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Pago parcial' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
+    selectFirstLoanOption();
+    fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '250000' } });
     fireEvent.change(screen.getByLabelText('Método de pago'), { target: { value: 'wallet_mobile' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
 
@@ -210,8 +253,8 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(screen.queryByRole('option', { name: 'Pago regular (cuota)' })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Pago parcial' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
+    selectFirstLoanOption();
+    fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '250000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
 
     await waitFor(() => {
@@ -227,8 +270,8 @@ describe('Payouts behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
     fireEvent.change(container.querySelector('#payout-type') as HTMLSelectElement, { target: { value: 'capital' } });
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '300000' } });
+    selectFirstLoanOption();
+    fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '300000' } });
     fireEvent.change(container.querySelector('#payout-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
     fireEvent.change(container.querySelector('#payout-capital-new-term') as HTMLInputElement, { target: { value: '10' } });
 
@@ -249,8 +292,8 @@ describe('Payouts behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
     fireEvent.change(container.querySelector('#payout-type') as HTMLSelectElement, { target: { value: 'capital' } });
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '300000' } });
+    selectFirstLoanOption();
+    fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '300000' } });
     fireEvent.change(container.querySelector('#payout-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
     fireEvent.change(container.querySelector('#payout-capital-new-term') as HTMLInputElement, { target: { value: '1e2' } });
 
@@ -260,17 +303,20 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(mockToastError).toHaveBeenCalledWith({ title: 'Indica cuántas cuotas tendrá el saldo restante.' });
   });
 
-  it('keeps the current loan id when the operator types exponent-like text', () => {
+  it('requires selecting an existing credit instead of typing a raw credit number', () => {
     renderPayouts();
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
 
-    const loanIdInput = screen.getByPlaceholderText('Ej: 1') as HTMLInputElement;
-    fireEvent.change(loanIdInput, { target: { value: '100' } });
-    expect(loanIdInput.value).toBe('100');
+    expect(screen.queryByPlaceholderText('Ej: 1')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Créditos disponibles' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Cliente Pago Uno/i })).toBeInTheDocument();
 
-    fireEvent.change(loanIdInput, { target: { value: '1e2' } });
-    expect(loanIdInput.value).toBe('100');
+    fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '250000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
+
+    expect(mockCreatePartialPayment).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith({ title: 'Ingrese un crédito válido.' });
   });
 
   it('keeps the current payout amount when the operator types exponent-like text', () => {
@@ -278,12 +324,12 @@ describe('Payouts behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
 
-    const amountInput = screen.getByPlaceholderText('0.00') as HTMLInputElement;
+    const amountInput = screen.getByPlaceholderText('0,00') as HTMLInputElement;
     fireEvent.change(amountInput, { target: { value: '250000' } });
-    expect(amountInput.value).toBe('250000');
+    expect(amountInput.value).toBe('250.000');
 
     fireEvent.change(amountInput, { target: { value: '2e5' } });
-    expect(amountInput.value).toBe('250000');
+    expect(amountInput.value).toBe('250.000');
   });
 
   it('shows the specific capital-payment backend denial when a payout capital payment is rejected', async () => {
@@ -303,8 +349,8 @@ describe('Payouts behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
     fireEvent.change(container.querySelector('#payout-type') as HTMLSelectElement, { target: { value: 'capital' } });
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '900000' } });
+    selectFirstLoanOption();
+    fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '900000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
 
     await waitFor(() => {
@@ -315,18 +361,21 @@ describe('Payouts behavioral parity scenarios', () => {
     });
   });
 
-  it('keeps exponent-like credit identifiers out of the payout form before submit', () => {
+  it('clears the selected credit when the operator clears the selector', () => {
     renderPayouts();
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
-    const loanIdInput = screen.getByPlaceholderText('Ej: 1') as HTMLInputElement;
-    fireEvent.change(loanIdInput, { target: { value: '1e2' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
+    selectFirstLoanOption();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Créditos disponibles' }), {
+      target: { value: '' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '250000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
 
-    expect(loanIdInput.value).toBe('');
     expect(mockCreatePartialPayment).not.toHaveBeenCalled();
     expect(mockCreatePayment).not.toHaveBeenCalled();
     expect(mockCreateCapitalPayment).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith({ title: 'Ingrese un crédito válido.' });
   });
 
   it('keeps payout registration unavailable for socios', () => {

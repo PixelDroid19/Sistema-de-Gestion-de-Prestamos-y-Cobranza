@@ -21,8 +21,8 @@ describe('terminology canonical dictionary', () => {
 
     expect(messages.join(' ')).not.toMatch(/\bID\b/i);
     expect(tTerm('reports.export.invalidAssociate')).toBe('El socio debe tener un número válido.');
-    expect(tTerm('reports.export.invalidCustomer')).toBe('El cliente debe tener un número válido.');
-    expect(tTerm('reports.export.invalidLoan')).toBe('El crédito debe tener un número válido.');
+    expect(tTerm('reports.export.invalidCustomer')).toBe('Selecciona un cliente válido.');
+    expect(tTerm('reports.export.invalidLoan')).toBe('Selecciona un crédito válido.');
   });
 
   it('does not expose English loan-id errors from report services', () => {

@@ -7,9 +7,8 @@ import {
   ActionButton,
   FormField,
   ModalShell,
-  NormalizedInput,
-  TextAreaInput,
-  TextInput,
+  AppInput,
+  CurrencyInput,
 } from '../shared/Surfaces';
 
 const initialForm = {
@@ -103,53 +102,59 @@ export default function OperatingExpenseCreateModal({
       >
         <div className="reports-expense-form__grid">
           <FormField label={tTerm('reports.expenses.form.amount')}>
-            <NormalizedInput
-              variant="decimal"
+            <CurrencyInput
+              id="operating-expense-amount"
+              aria-label={tTerm('reports.expenses.form.amount')}
+              allowCents
               value={form.amount}
               onValueChange={(value) => handleFormChange('amount', value)}
               minValue={0.01}
-              maxDecimals={2}
               required
             />
           </FormField>
           <FormField label={tTerm('reports.expenses.form.date')}>
-            <TextInput
-              type="date"
+            <AppInput
+              variant="date"
               value={form.expenseDate}
-              onChange={(event) => handleFormChange('expenseDate', event.target.value)}
+              onValueChange={(v) => handleFormChange('expenseDate', v)}
               required
             />
           </FormField>
           <FormField label={tTerm('reports.expenses.form.category')}>
-            <TextInput
+            <AppInput
+              variant="text"
               value={form.category}
-              onChange={(event) => handleFormChange('category', event.target.value)}
+              onValueChange={(v) => handleFormChange('category', v)}
               required
             />
           </FormField>
           <FormField label={tTerm('reports.expenses.form.paymentMethod')}>
-            <TextInput
+            <AppInput
+              variant="text"
               value={form.paymentMethod}
-              onChange={(event) => handleFormChange('paymentMethod', event.target.value)}
+              onValueChange={(v) => handleFormChange('paymentMethod', v)}
             />
           </FormField>
           <FormField label={tTerm('reports.expenses.form.description')} className="sm:col-span-2">
-            <TextInput
+            <AppInput
+              variant="text"
               value={form.description}
-              onChange={(event) => handleFormChange('description', event.target.value)}
+              onValueChange={(v) => handleFormChange('description', v)}
               required
             />
           </FormField>
           <FormField label={tTerm('reports.expenses.form.reference')}>
-            <TextInput
+            <AppInput
+              variant="text"
               value={form.reference}
-              onChange={(event) => handleFormChange('reference', event.target.value)}
+              onValueChange={(v) => handleFormChange('reference', v)}
             />
           </FormField>
           <FormField label={tTerm('reports.expenses.form.notes')} className="sm:col-span-2">
-            <TextAreaInput
+            <textarea
               value={form.notes}
               onChange={(event) => handleFormChange('notes', event.target.value)}
+              className="operational-control-input w-full min-h-[72px] resize-y"
             />
           </FormField>
         </div>

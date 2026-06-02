@@ -9,8 +9,8 @@ import MeasuredChart from '../shared/MeasuredChart';
 import {
   EmptyState,
   InsightStrip,
+  OperationalSelect,
   SectionSurface,
-  SelectInput,
 } from '../shared/Surfaces';
 import { HelpTooltip } from '../shared/HelpSupport';
 import { getLoanStatusLabel } from '../credits/creditsHelpers';
@@ -118,7 +118,7 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
               <HelpTooltip text={tTerm('reports.chart.disbursementRecovery.help')} align="right" />
             </div>
             <div className="min-w-44">
-              <SelectInput
+              <OperationalSelect
                 aria-label={tTerm('reports.chart.range.aria')}
                 value={chartRange}
                 onChange={(event) => setChartRange(event.target.value as 'last6' | 'year' | 'historical')}
@@ -126,7 +126,7 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
                 <option value="last6">{tTerm('reports.chart.disbursementRecovery.range.last6')}</option>
                 <option value="year">{tTerm('reports.chart.disbursementRecovery.range.year')}</option>
                 <option value="historical">{tTerm('reports.chart.disbursementRecovery.range.historical')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </div>
           </div>
           <p className="text-xs text-text-secondary mb-4">

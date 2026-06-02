@@ -9,10 +9,11 @@ import {
   ActionButton,
   FormField,
   ModalShell,
-  NormalizedInput,
+  AppInput,
+  CurrencyInput,
+  OperationalSelect,
   SectionSurface,
   StatusChip,
-  TextInput,
 } from '../shared/Surfaces';
 import {
   AppTable,
@@ -22,7 +23,6 @@ import {
   TableActionsHeader,
 } from '../shared/tables';
 import { HelpLabel } from '../shared/HelpSupport';
-import { OperationalInput } from '../shared/FormControls';
 import { StatusBadge } from './StatusBadge';
 import {
   type RatePolicyDraft,
@@ -172,11 +172,6 @@ export default function RatePoliciesTab({
     }
   };
 
-  const handleMoneyDraftChange = (field: 'minAmount' | 'maxAmount') => (event: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = event.target.value.replace(/\D/g, '');
-    setNewRatePolicy((prev) => ({ ...prev, [field]: rawValue }));
-  };
-
   const handleDelete = async (policy: any) => {
     const confirmed = await confirmDanger({
       title: tTerm('settings.rate.delete.title'),
@@ -198,11 +193,12 @@ export default function RatePoliciesTab({
     <form onSubmit={handleCreateRatePolicy} aria-label={tTerm('settings.rate.section.aria')} className="space-y-4">
       <div className="grid min-w-0 gap-3 md:grid-cols-2">
         <FormField label={tTerm('settings.rate.field.name')}>
-          <TextInput
+          <AppInput
             aria-label={tTerm('settings.rate.field.name')}
+            variant="text"
             required
             value={newRatePolicy.label}
-            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, label: event.target.value }))}
+            onValueChange={(v, _detail, e) => setNewRatePolicy((prev) => ({ ...prev, label: v }))}
             placeholder={tTerm('settings.rate.field.namePlaceholderDefault')}
           />
         </FormField>
@@ -210,11 +206,10 @@ export default function RatePoliciesTab({
           label={tTerm('settings.rate.field.min')}
           tooltip={tTerm('settings.rate.field.minTooltip')}
         >
-          <OperationalInput
+          <CurrencyInput
             aria-label={tTerm('settings.rate.field.min')}
-            variant="money"
             value={newRatePolicy.minAmount}
-            onChange={handleMoneyDraftChange('minAmount')}
+            onValueChange={(value) => setNewRatePolicy((prev) => ({ ...prev, minAmount: value }))}
             placeholder="0"
           />
         </FormField>
@@ -222,11 +217,10 @@ export default function RatePoliciesTab({
           label={tTerm('settings.rate.field.max')}
           tooltip={tTerm('settings.rate.field.maxTooltip')}
         >
-          <OperationalInput
+          <CurrencyInput
             aria-label={tTerm('settings.rate.field.max')}
-            variant="money"
             value={newRatePolicy.maxAmount}
-            onChange={handleMoneyDraftChange('maxAmount')}
+            onValueChange={(value) => setNewRatePolicy((prev) => ({ ...prev, maxAmount: value }))}
             placeholder={tTerm('settings.range.noCap')}
           />
         </FormField>
@@ -234,7 +228,7 @@ export default function RatePoliciesTab({
           label={tTerm('settings.rate.field.annualRate')}
           tooltip={tTerm('settings.rate.field.annualRateTooltip')}
         >
-          <NormalizedInput
+          <AppInput
             aria-label={tTerm('settings.rate.field.annualRate')}
             required
             variant="percent"
@@ -435,11 +429,10 @@ export default function RatePoliciesTab({
           )}
         </div>
         <FormField label={tTerm('settings.coverage.field.amount')}>
-          <OperationalInput
+          <CurrencyInput
             aria-label={tTerm('settings.coverage.field.amount')}
-            variant="money"
             value={ratePreviewAmount}
-            onChange={(event) => setRatePreviewAmount(event.target.value.replace(/\D/g, ''))}
+            onValueChange={setRatePreviewAmount}
             placeholder="2000000"
           />
         </FormField>

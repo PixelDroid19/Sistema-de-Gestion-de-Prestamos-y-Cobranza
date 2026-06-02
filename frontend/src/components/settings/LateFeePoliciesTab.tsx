@@ -6,12 +6,11 @@ import { confirmDanger } from '../../lib/confirmModal';
 import { reportClientError } from '../../lib/clientDiagnostics';
 import {
   ActionButton,
+  AppInput,
   FormField,
   ModalShell,
-  NormalizedInput,
+  OperationalSelect,
   SectionSurface,
-  SelectInput,
-  TextInput,
 } from '../shared/Surfaces';
 import {
   AppTable,
@@ -97,11 +96,12 @@ export default function LateFeePoliciesTab({
           label={tTerm('settings.lateFee.field.name')}
           tooltip={tTerm('settings.lateFee.field.nameTooltip')}
         >
-          <TextInput
+          <AppInput
             aria-label={tTerm('settings.lateFee.field.name')}
+            variant="text"
             required
             value={newLateFeePolicy.label}
-            onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, label: event.target.value }))}
+            onValueChange={(v, _detail, e) => setNewLateFeePolicy((prev) => ({ ...prev, label: v }))}
             placeholder={tTerm('settings.lateFee.field.namePlaceholder')}
           />
         </FormField>
@@ -109,7 +109,7 @@ export default function LateFeePoliciesTab({
           label={tTerm('settings.lateFee.field.rate')}
           tooltip={tTerm('settings.lateFee.field.rateTooltip')}
         >
-          <NormalizedInput
+          <AppInput
             aria-label={tTerm('settings.lateFee.field.rate')}
             required
             variant="percent"
@@ -123,7 +123,7 @@ export default function LateFeePoliciesTab({
           label={tTerm('settings.lateFee.field.mode')}
           tooltip={tTerm('settings.lateFee.field.modeTooltip')}
         >
-          <SelectInput
+          <OperationalSelect
             aria-label={tTerm('settings.lateFee.field.mode')}
             value={newLateFeePolicy.lateFeeMode}
             onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] }))}
@@ -131,7 +131,7 @@ export default function LateFeePoliciesTab({
             <option value="SIMPLE">{tTerm('settings.lateFee.type.simple')}</option>
             <option value="COMPOUND">{tTerm('settings.lateFee.type.compound')}</option>
             <option value="NONE">{tTerm('settings.lateFee.type.none')}</option>
-          </SelectInput>
+          </OperationalSelect>
         </FormField>
       </div>
     </form>

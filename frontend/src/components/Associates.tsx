@@ -22,7 +22,7 @@ import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import { useResolvedPermissionNames } from '../services/permissionsService';
-import { ActionButton, FormField, InsightStrip, ModalShell, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, AppInput, FormField, InsightStrip, ModalShell, OperationalSelect, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 import NewAssociate from './NewAssociate';
 
@@ -310,22 +310,19 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
         <ToolbarSurface data-tour="associates-search">
           <div className="grid items-start gap-3 lg:grid-cols-[minmax(18rem,26rem)_14rem]">
             <FormField label={tTerm('associates.search.label')}>
-              <div className="relative">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                <TextInput
-                  type="text"
-                  placeholder={tTerm('associates.search.placeholder')}
-                  value={searchTerm}
-                  onChange={(event) => {
-                    setSearchTerm(event.target.value);
-                    setPage(1);
-                  }}
-                  className="pl-10"
-                />
-              </div>
+              <AppInput
+                variant="text"
+                placeholder={tTerm('associates.search.placeholder')}
+                value={searchTerm}
+                onValueChange={(v, _detail, e) => {
+                  setSearchTerm(v);
+                  setPage(1);
+                }}
+                icon={<Search size={16} />}
+              />
             </FormField>
             <FormField label={tTerm('associates.filter.status')} tooltip={tTerm('associates.filter.statusTooltip')}>
-              <SelectInput
+              <OperationalSelect
                 value={statusFilter}
                 onChange={(event) => {
                   setStatusFilter(event.target.value);
@@ -335,7 +332,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 <option value="all">{tTerm('associates.filter.allStatuses')}</option>
                 <option value="active">{tTerm('common.status.active')}</option>
                 <option value="inactive">{tTerm('common.status.inactive')}</option>
-              </SelectInput>
+              </OperationalSelect>
             </FormField>
           </div>
         </ToolbarSurface>

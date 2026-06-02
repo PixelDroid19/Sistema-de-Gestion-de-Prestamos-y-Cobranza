@@ -8,7 +8,7 @@ import { formatDate as formatDateValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { useSessionStore } from '../store/sessionStore';
-import { ClickableSurface, IconActionButton, TextInput } from './shared/Surfaces';
+import { AppInput, ClickableSurface, IconActionButton } from './shared/Surfaces';
 import { useTranslation } from '../i18n';
 
 type HeaderProps = {
@@ -143,14 +143,13 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
 
         <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
           <div ref={searchRef} className="relative hidden lg:block">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <TextInput
-              type="text"
+            <AppInput
+              variant="text"
               value={searchQuery}
               placeholder={t('header.searchModule')}
               onFocus={() => setIsSearchOpen(true)}
-              onChange={(event) => {
-                setSearchQuery(event.target.value);
+              onValueChange={(v, _detail, e) => {
+                setSearchQuery(v);
                 setIsSearchOpen(true);
               }}
               onKeyDown={(event) => {
@@ -163,11 +162,13 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                   setIsSearchOpen(false);
                 }
               }}
-              className="w-[min(22rem,30vw)] rounded-full py-2 pl-10 pr-12"
+              icon={<Search size={16} />}
+              shellClassName="operational-control--header-search"
+              className="w-[min(22rem,30vw)]"
               aria-expanded={isSearchOpen}
               aria-label={t('header.searchAriaLabel')}
             />
-            <div className="pointer-events-none absolute right-3 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded bg-hover-bg text-[10px] text-text-secondary">
+            <div className="pointer-events-none absolute right-3 top-1/2 z-10 flex size-5 -translate-y-1/2 items-center justify-center rounded bg-hover-bg text-[10px] text-text-secondary">
               ↵
             </div>
 
