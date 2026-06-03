@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { Calculator, CheckCircle2, CircleOff, PencilLine, Plus, Save, Trash2 } from 'lucide-react';
-import { useTranslation } from '../../i18n';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
@@ -26,12 +25,7 @@ import { HelpLabel } from '../shared/HelpSupport';
 import { StatusBadge } from './StatusBadge';
 import {
   type RatePolicyDraft,
-  DEFAULT_HIGH_AMOUNT_START,
-  DEFAULT_LOW_AMOUNT_LIMIT,
-  DEFAULT_MID_AMOUNT_LIMIT,
-  DEFAULT_TOP_AMOUNT_START,
   EMPTY_RATE_POLICY,
-  buildRateCoverageCheck,
   buildRatePayload,
   findRatePolicyMatchesForAmount,
   formatCurrency,
@@ -60,7 +54,6 @@ export default function RatePoliciesTab({
   updateRatePolicy,
   deleteRatePolicy,
 }: Props) {
-  const { locale } = useTranslation();
   const [editingRatePolicyId, setEditingRatePolicyId] = useState<string | null>(null);
   const [newRatePolicy, setNewRatePolicy] = useState<RatePolicyDraft>(EMPTY_RATE_POLICY);
   const [ratePreviewAmount, setRatePreviewAmount] = useState('2000000');
@@ -100,27 +93,6 @@ export default function RatePoliciesTab({
     () => (previewRateConflicts.length > 1 ? null : sortRatePoliciesForApplication(previewRateMatches)[0] || null),
     [previewRateConflicts, previewRateMatches],
   );
-  const rateCoverageChecks = useMemo(() => [
-    buildRateCoverageCheck(
-      tTerm('settings.coverage.bucket.low', { amount: formatCurrency(DEFAULT_LOW_AMOUNT_LIMIT) }),
-      0,
-      DEFAULT_LOW_AMOUNT_LIMIT,
-      activeRatePolicies,
-    ),
-    buildRateCoverageCheck(
-      tTerm('settings.coverage.bucket.middle', { from: formatCurrency(DEFAULT_HIGH_AMOUNT_START), to: formatCurrency(DEFAULT_MID_AMOUNT_LIMIT) }),
-      DEFAULT_HIGH_AMOUNT_START,
-      DEFAULT_MID_AMOUNT_LIMIT,
-      activeRatePolicies,
-    ),
-    buildRateCoverageCheck(
-      tTerm('settings.coverage.bucket.high', { amount: formatCurrency(DEFAULT_TOP_AMOUNT_START) }),
-      DEFAULT_TOP_AMOUNT_START,
-      Number.POSITIVE_INFINITY,
-      activeRatePolicies,
-    ),
-  ], [activeRatePolicies, locale]);
-  const hasMissingStandardRateCoverage = hasRatePolicyCoverageGaps || rateCoverageChecks.some((check) => !check.isCovered);
   const previewAmountNumber = Number(ratePreviewAmount);
   const hasValidPreviewAmount = Number.isFinite(previewAmountNumber) && previewAmountNumber >= 0;
   const isEditingRatePolicy = Boolean(editingRatePolicyId);
@@ -405,32 +377,6 @@ export default function RatePoliciesTab({
             </ul>
           </div>
         )}
-        <div className="grid gap-2">
-          {rateCoverageChecks.map((check) => (
-            <div key={check.label} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border-subtle px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-text-primary">{check.label}</p>
-                <p className="truncate text-xs text-text-secondary">
-                  {check.hasConflict
-                    ? tTerm('settings.coverage.check.conflict', { labels: check.conflicts.map((policy) => policy.label).join(' y ') })
-                    : check.isCovered
-                      ? check.policy
-                        ? tTerm('settings.coverage.check.covered', { label: check.policy.label })
-                        : tTerm('settings.coverage.check.coveredMultiple')
-                      : tTerm('settings.coverage.check.missing')}
-                </p>
-              </div>
-              <StatusChip tone={check.hasConflict ? 'danger' : check.isCovered ? 'success' : 'warning'} size="sm">
-                {check.status}
-              </StatusChip>
-            </div>
-          ))}
-          {hasMissingStandardRateCoverage && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {tTerm('settings.coverage.missingNote')}
-            </p>
-          )}
-        </div>
         <FormField label={tTerm('settings.coverage.field.amount')}>
           <CurrencyInput
             aria-label={tTerm('settings.coverage.field.amount')}
@@ -439,24 +385,11 @@ export default function RatePoliciesTab({
             placeholder="2000000"
           />
         </FormField>
-        <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">{tTerm('settings.coverage.resultEyebrow')}</p>
-              <p className="mt-1 truncate text-lg font-bold text-text-primary">
-                {previewRatePolicy ? formatRate(previewRatePolicy.annualEffectiveRate) : tTerm('settings.coverage.result.noApplicableRate')}
-              </p>
-              {previewRatePolicy ? (
-                <p className="mt-1 truncate text-sm font-semibold text-text-primary">
-                  {tTerm('settings.coverage.result.monthlyRate', {
-                    rate: formatMonthlyRate(previewRatePolicy.annualEffectiveRate),
-                  })}
-                </p>
-              ) : null}
-              <p className="mt-1 truncate text-sm font-medium text-text-secondary">
-                {previewRatePolicy ? previewRatePolicy.label : tTerm('settings.coverage.result.noActiveRule')}
-              </p>
-            </div>
+        <div className="rounded-xl border border-border-subtle bg-bg-base p-4" aria-live="polite">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+              {tTerm('settings.coverage.resultEyebrow')}
+            </p>
             <StatusChip
               tone={previewRateConflicts.length > 1 ? 'danger' : previewRatePolicy ? 'success' : 'warning'}
               size="sm"
@@ -468,15 +401,55 @@ export default function RatePoliciesTab({
               {previewRateConflicts.length > 1 ? tTerm('settings.coverage.status.conflict') : previewRatePolicy ? tTerm('settings.coverage.status.covered') : tTerm('settings.coverage.status.noRule')}
             </StatusChip>
           </div>
-          <p className="mt-2 text-sm leading-5 text-text-secondary">
-            {previewRateConflicts.length > 1
-              ? tTerm('settings.coverage.preview.conflict', { labels: previewRateConflicts.map((policy) => policy.label).join(' y ') })
-              : previewRatePolicy
-              ? tTerm('settings.coverage.preview.covered', { label: previewRatePolicy.label, range: formatRange(previewRatePolicy.minAmount, previewRatePolicy.maxAmount) })
-              : hasValidPreviewAmount
+
+          {previewRateConflicts.length > 1 ? (
+            <p className="mt-3 text-sm leading-5 text-rose-700 dark:text-rose-200">
+              {tTerm('settings.coverage.preview.conflict', { labels: previewRateConflicts.map((policy) => policy.label).join(' y ') })}
+            </p>
+          ) : previewRatePolicy ? (
+            <dl className="mt-4 grid gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                    {tTerm('settings.coverage.result.annualRate')}
+                  </dt>
+                  <dd className="mt-1 text-xl font-bold text-text-primary">
+                    {formatRate(previewRatePolicy.annualEffectiveRate)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                    {tTerm('settings.coverage.result.monthlyLabel')}
+                  </dt>
+                  <dd className="mt-1 text-lg font-bold text-text-primary">
+                    {formatMonthlyRate(previewRatePolicy.annualEffectiveRate)}
+                  </dd>
+                </div>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                  {tTerm('settings.coverage.result.rule')}
+                </dt>
+                <dd className="mt-1 break-words text-sm font-semibold text-text-primary">
+                  {previewRatePolicy.label}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                  {tTerm('settings.coverage.result.range')}
+                </dt>
+                <dd className="mt-1 text-sm leading-5 text-text-secondary">
+                  {formatRange(previewRatePolicy.minAmount, previewRatePolicy.maxAmount)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-3 text-sm leading-5 text-text-secondary">
+              {hasValidPreviewAmount
                 ? tTerm('settings.coverage.preview.createRule')
                 : tTerm('settings.coverage.preview.invalidAmount')}
-          </p>
+            </p>
+          )}
         </div>
       </SectionSurface>
       {isRatePolicyModalOpen && (

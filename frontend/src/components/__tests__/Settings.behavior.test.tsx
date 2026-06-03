@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import Settings from '../Settings';
 
 const mockCreatePaymentMethod = vi.fn().mockResolvedValue(undefined);
@@ -530,16 +530,25 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('heading', { name: 'Nuevo rango de tasa' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(screen.getByRole('heading', { name: 'Prueba de tasa' })).toBeInTheDocument();
-    expect(screen.getAllByText(/1\.000\.000/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/1\.000\.001.*5\.000\.000/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Desde.*5\.000\.001/).length).toBeGreaterThan(0);
-    expect(getTextboxByAriaLabel('Monto para probar tasa')).toHaveValue('2.000.000');
+    const ratePreviewSection = screen.getByRole('heading', { name: 'Tasa por monto' }).closest('section') as HTMLElement;
+    expect(ratePreviewSection).toBeInTheDocument();
+    const ratePreview = within(ratePreviewSection);
+    const previewAmountInput = ratePreview.getByRole('textbox', { name: 'Monto para probar tasa' });
+    expect(previewAmountInput).toHaveValue('2.000.000');
+    expect(ratePreview.queryByText(/Desde.*5\.000\.001/)).not.toBeInTheDocument();
     expect(screen.getAllByText('48% EA').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('4% mensual').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Mensual: 4% mensual')).toBeInTheDocument();
-    expect(screen.getByText(/Crédito medio aplica a/)).toBeInTheDocument();
+    expect(ratePreview.getByText('Tasa anual')).toBeInTheDocument();
+    expect(ratePreview.getByText('Tasa mensual')).toBeInTheDocument();
+    expect(ratePreview.getByText('Regla')).toBeInTheDocument();
+    expect(ratePreview.getByText('Rango aplicable')).toBeInTheDocument();
     expect(screen.getAllByText('Crédito medio').length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.change(previewAmountInput, { target: { value: '6000000' } });
+    expect(previewAmountInput).toHaveValue('6.000.000');
+    expect(ratePreview.getByText('60% EA')).toBeInTheDocument();
+    expect(ratePreview.getByText('5% mensual')).toBeInTheDocument();
+    expect(ratePreview.getByText('Crédito alto')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Políticas de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Tasa anual/ })).toBeInTheDocument();
@@ -611,8 +620,13 @@ describe('Settings operational configuration', () => {
     render(<Settings />);
     fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
 
-    expect(screen.getAllByText('Crea una regla activa para este tramo.')).toHaveLength(2);
-    expect(screen.getByText(/Usa Crédito operativo/)).toBeInTheDocument();
+    expect(screen.getByText('Hay montos sin tasa configurada.')).toBeInTheDocument();
+    expect(screen.getByText(/Falta cubrir:.*\$ 0.*\$ 999\.999/)).toBeInTheDocument();
+    expect(screen.getByText(/Falta cubrir:.*Desde.*\$ 5\.000\.001/)).toBeInTheDocument();
+    expect(screen.getAllByText('61% EA').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('5,08% mensual').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Crédito operativo').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Crea una regla activa para este tramo.')).not.toBeInTheDocument();
   });
 
   it('hides archived seeded catch-all replacements from the operational rate table', () => {
