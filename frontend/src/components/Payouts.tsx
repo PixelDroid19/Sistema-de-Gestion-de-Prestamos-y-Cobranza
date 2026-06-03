@@ -415,6 +415,66 @@ export default function Payouts() {
     setShowPaymentModal(true);
   };
 
+  const buildPaymentActions = (payment: any, viewGuard: ReturnType<typeof resolveOperationalGuard>): RowActionOverflowItem[] => {
+    const editGuard = resolveOperationalGuard('payout.metadata.edit', {
+      role,
+      permissions,
+      paymentStatus: payment?.status,
+      paymentReconciled: Boolean(payment?.reconciled || payment?.isReconciled || payment?.paymentMetadata?.reconciled),
+    });
+    const deleteGuard = resolveOperationalGuard('payout.delete', {
+      role,
+      permissions,
+      paymentStatus: payment?.status,
+    });
+    const items: RowActionOverflowItem[] = [
+      {
+        id: 'voucher',
+        label: tTerm('payouts.action.downloadVoucher'),
+        icon: <FileText size={16} />,
+        onClick: () => handleDownloadVoucher(payment.id),
+      },
+    ];
+
+    if (viewGuard.visible) {
+      items.push({
+        id: 'view',
+        label: viewGuard.executable
+          ? tTerm('payouts.action.viewCredit')
+          : (viewGuard.reason || tTerm('credits.action.unavailable')),
+        icon: <Eye size={16} />,
+        onClick: () => handleViewCredit(Number(payment.loanId)),
+        disabled: !viewGuard.executable,
+      });
+    }
+
+    if (editGuard.visible) {
+      items.push({
+        id: 'edit',
+        label: editGuard.executable
+          ? tTerm('payouts.action.editPaymentMethodTitle')
+          : (editGuard.reason || tTerm('credits.action.unavailable')),
+        icon: <Edit size={16} />,
+        onClick: () => handleEditPayment(payment),
+        disabled: !editGuard.executable,
+      });
+    }
+
+    if (deleteGuard.visible) {
+      items.push({
+        id: 'delete',
+        label: deleteGuard.reason || tTerm('payouts.action.deleteTitle'),
+        icon: <Trash2 size={16} />,
+        onClick: () => toast.error({ title: deleteGuard.reason || tTerm('credits.action.unavailable') }),
+        disabled: !deleteGuard.executable,
+        iconVariant: 'danger',
+        menuTone: 'danger',
+      });
+    }
+
+    return items;
+  };
+
   return (
     <PageShell className="h-full" data-tour="payouts-page">
       <PageHeader
@@ -472,6 +532,84 @@ export default function Payouts() {
           </div>
         </ToolbarSurface>
 
+        <div className="space-y-3 md:hidden" data-tour="payouts-mobile-list">
+          {isLoading ? (
+            <div className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-6 text-center text-sm text-text-secondary shadow-sm">
+              {tTerm('payouts.state.loading')}
+            </div>
+          ) : isError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700 shadow-sm dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+              {tTerm('payouts.state.error')}
+            </div>
+          ) : payments.length === 0 ? (
+            <div className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-6 text-center text-sm text-text-secondary shadow-sm">
+              {tTerm('payouts.state.empty')}
+            </div>
+          ) : (
+            payments.map((payment: any) => {
+              const viewGuard = resolveOperationalGuard('payout.credit.view', { role, permissions });
+              const viewCreditTitle = viewGuard.executable
+                ? tTerm('payouts.action.viewCredit')
+                : (viewGuard.reason || tTerm('credits.action.unavailable'));
+              const status = getPaymentStatusPresentation(payment);
+              const paymentId = Number(payment.id);
+
+              return (
+                <article key={`mobile-payout-${payment.id}`} className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <CheckboxInput
+                        aria-label={tTerm('payouts.table.selectOne')}
+                        checked={selectedPaymentIds.includes(paymentId)}
+                        onChange={(event) => handleToggleSelection(paymentId, event.target.checked)}
+                      />
+                      <div className="min-w-0">
+                        {viewGuard.visible ? (
+                          <button
+                            type="button"
+                            className="text-left font-semibold text-brand-primary transition hover:underline disabled:cursor-not-allowed disabled:text-text-secondary disabled:no-underline"
+                            onClick={() => handleViewCredit(Number(payment.loanId))}
+                            disabled={!viewGuard.executable}
+                            title={viewCreditTitle}
+                          >
+                            {tTerm('payouts.table.linkedLoan')}
+                          </button>
+                        ) : (
+                          <p className="font-semibold text-text-primary">{tTerm('payouts.table.linkedLoan')}</p>
+                        )}
+                        <p className="mt-1 text-sm text-text-secondary">{formatPaymentDate(payment)}</p>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded px-2 py-1 text-xs ${getChipClassName(status.tone)}`}>
+                      {status.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('payouts.table.amount')}</p>
+                      <p className="mt-1 font-semibold text-text-primary">{formatCurrencyValue(payment.amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('payouts.table.method')}</p>
+                      <p className="mt-1 text-text-primary">{formatPaymentMethod(payment)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <RowActionsWithOverflow
+                      variant="icon"
+                      align="center"
+                      items={buildPaymentActions(payment, viewGuard)}
+                      ariaLabel={tTerm('payouts.table.actions')}
+                    />
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+
         <AppTable variant="operational"
           data-tour="payouts-table"
           isLoading={isLoading}
@@ -493,7 +631,7 @@ export default function Payouts() {
               setPage(1);
             },
           } : undefined}
-          className="data-table-surface"
+          className="data-table-surface hidden md:block"
           minWidthClassName="min-w-[760px]"
         >
             <thead>
@@ -563,63 +701,11 @@ export default function Payouts() {
                   </td>
                   <TableActionsCell className="py-4">
                     {(() => {
-                      const editGuard = resolveOperationalGuard('payout.metadata.edit', {
-                        role,
-                        permissions,
-                        paymentStatus: payment?.status,
-                        paymentReconciled: Boolean(payment?.reconciled || payment?.isReconciled || payment?.paymentMetadata?.reconciled),
-                      });
-                      const deleteGuard = resolveOperationalGuard('payout.delete', {
-                        role,
-                        permissions,
-                        paymentStatus: payment?.status,
-                      });
-                      const items: RowActionOverflowItem[] = [
-                        {
-                          id: 'voucher',
-                          label: tTerm('payouts.action.downloadVoucher'),
-                          icon: <FileText size={16} />,
-                          onClick: () => handleDownloadVoucher(payment.id),
-                        },
-                      ];
-                      if (viewGuard.visible) {
-                        items.push({
-                          id: 'view',
-                          label: viewGuard.executable
-                            ? tTerm('payouts.action.viewCredit')
-                            : (viewGuard.reason || tTerm('credits.action.unavailable')),
-                          icon: <Eye size={16} />,
-                          onClick: () => handleViewCredit(Number(payment.loanId)),
-                          disabled: !viewGuard.executable,
-                        });
-                      }
-                      if (editGuard.visible) {
-                        items.push({
-                          id: 'edit',
-                          label: editGuard.executable
-                            ? tTerm('payouts.action.editPaymentMethodTitle')
-                            : (editGuard.reason || tTerm('credits.action.unavailable')),
-                          icon: <Edit size={16} />,
-                          onClick: () => handleEditPayment(payment),
-                          disabled: !editGuard.executable,
-                        });
-                      }
-                      if (deleteGuard.visible) {
-                        items.push({
-                          id: 'delete',
-                          label: deleteGuard.reason || tTerm('payouts.action.deleteTitle'),
-                          icon: <Trash2 size={16} />,
-                          onClick: () => toast.error({ title: deleteGuard.reason || tTerm('credits.action.unavailable') }),
-                          disabled: !deleteGuard.executable,
-                          iconVariant: 'danger',
-                          menuTone: 'danger',
-                        });
-                      }
                       return (
                         <RowActionsWithOverflow
                           variant="icon"
                           align="center"
-                          items={items}
+                          items={buildPaymentActions(payment, viewGuard)}
                           ariaLabel={tTerm('payouts.table.actions')}
                         />
                       );
