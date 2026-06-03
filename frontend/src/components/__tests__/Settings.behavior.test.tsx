@@ -536,11 +536,14 @@ describe('Settings operational configuration', () => {
     expect(screen.getAllByText(/Desde.*5\.000\.001/).length).toBeGreaterThan(0);
     expect(getTextboxByAriaLabel('Monto para probar tasa')).toHaveValue('2.000.000');
     expect(screen.getAllByText('48% EA').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('4% mensual').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Mensual: 4% mensual')).toBeInTheDocument();
     expect(screen.getByText(/Crédito medio aplica a/)).toBeInTheDocument();
     expect(screen.getAllByText('Crédito medio').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole('table', { name: 'Políticas de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Tasa anual/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Tasa mensual/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Uso/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Prioridad/ })).not.toBeInTheDocument();
     expect(document.querySelector('.data-table-surface')).toBeInTheDocument();

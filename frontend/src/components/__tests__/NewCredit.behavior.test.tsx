@@ -201,6 +201,20 @@ describe('NewCredit behavior', () => {
     expect(mockUseConfig).toHaveBeenCalledWith({ enabled: true });
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
     expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-tour="new-credit-rate-summary"]')).not.toBeInTheDocument();
+    const financialSummary = container.querySelector('[data-tour="new-credit-calculation-snapshot"]');
+    expect(financialSummary).toHaveTextContent('Tasa anual');
+    expect(financialSummary).toHaveTextContent('40,00%');
+    expect(financialSummary).toHaveTextContent('Tasa mensual');
+    expect(financialSummary).toHaveTextContent('3,33%');
+    expect(financialSummary).toHaveTextContent('Cuota mensual');
+    expect(financialSummary).toHaveTextContent('16 meses');
+    expect(financialSummary).not.toHaveTextContent('Resumen financiero');
+    expect(financialSummary).not.toHaveTextContent('La tasa se resuelve por monto');
+    expect(financialSummary).not.toHaveTextContent('Al registrar');
+    expect(financialSummary).not.toHaveTextContent('Para cuotas mensuales');
+    expect(financialSummary).not.toHaveTextContent('Pago mensual');
+    expect(financialSummary).not.toHaveTextContent('1,33 años');
     expect(screen.queryByRole('spinbutton', { name: 'Tasa configurada' })).not.toBeInTheDocument();
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('floating-action-dock');
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
@@ -310,6 +324,7 @@ describe('NewCredit behavior', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
     expect(screen.getByText('Estado no clasificado')).toBeInTheDocument();
+    expect(screen.getByText('Totales')).toBeInTheDocument();
     expect(screen.queryByText('manual_hold')).not.toBeInTheDocument();
   });
 

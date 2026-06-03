@@ -111,6 +111,10 @@ export const formatRange = (minAmount: unknown, maxAmount: unknown) => {
 
 export const formatRate = (value: unknown) => `${formatPercentValue(value, { maximumFractionDigits: 2 })} EA`;
 
+export const formatMonthlyRate = (value: unknown) => (
+  `${formatPercentValue(Number(value || 0) / 12, { maximumFractionDigits: 2 })} mensual`
+);
+
 // --- Numeric Helpers ---
 
 export const toOptionalDraftNumber = (value: string, fallback: number | null = null) => {

@@ -35,6 +35,7 @@ import {
   buildRatePayload,
   findRatePolicyMatchesForAmount,
   formatCurrency,
+  formatMonthlyRate,
   formatRange,
   formatRate,
   isArchivedSeededCatchAllRatePolicy,
@@ -269,7 +270,7 @@ export default function RatePoliciesTab({
         </SectionSurface>
 
         <AppTable variant="operational" shell="off"
-          minWidthClassName="min-w-[860px]"
+          minWidthClassName="min-w-[980px]"
           data-tour="settings-rate-policies-table"
           aria-label={tTerm('settings.rate.table.aria')}
         >
@@ -278,6 +279,7 @@ export default function RatePoliciesTab({
                   <th><HelpLabel label={tTerm('settings.rate.table.rule')} text={tTerm('settings.rate.table.ruleTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.range')} text={tTerm('settings.rate.table.rangeTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.annualRate')} text={tTerm('settings.rate.table.annualRateTooltip')} /></th>
+                  <th><HelpLabel label={tTerm('settings.rate.table.monthlyRate')} text={tTerm('settings.rate.table.monthlyRateTooltip')} /></th>
                   <th>{tTerm('settings.rate.table.state')}</th>
                   <TableActionsHeader>{tTerm('settings.rate.table.actions')}</TableActionsHeader>
                 </tr>
@@ -307,6 +309,7 @@ export default function RatePoliciesTab({
                     </td>
                     <td className="text-text-secondary">{formatRange(policy.minAmount, policy.maxAmount)}</td>
                     <td className="font-semibold">{formatRate(policy.annualEffectiveRate)}</td>
+                    <td className="font-semibold text-text-secondary">{formatMonthlyRate(policy.annualEffectiveRate)}</td>
                     <td><StatusBadge active={policy.isActive !== false} /></td>
                     <TableActionsCell>
                       <RowActionsWithOverflow
@@ -358,7 +361,7 @@ export default function RatePoliciesTab({
                 ))}
                 {visibleRatePolicies.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="table-empty-state">{tTerm('settings.rate.table.empty')}</td>
+                    <td colSpan={6} className="table-empty-state">{tTerm('settings.rate.table.empty')}</td>
                   </tr>
                 )}
               </tbody>
@@ -443,6 +446,13 @@ export default function RatePoliciesTab({
               <p className="mt-1 truncate text-lg font-bold text-text-primary">
                 {previewRatePolicy ? formatRate(previewRatePolicy.annualEffectiveRate) : tTerm('settings.coverage.result.noApplicableRate')}
               </p>
+              {previewRatePolicy ? (
+                <p className="mt-1 truncate text-sm font-semibold text-text-primary">
+                  {tTerm('settings.coverage.result.monthlyRate', {
+                    rate: formatMonthlyRate(previewRatePolicy.annualEffectiveRate),
+                  })}
+                </p>
+              ) : null}
               <p className="mt-1 truncate text-sm font-medium text-text-secondary">
                 {previewRatePolicy ? previewRatePolicy.label : tTerm('settings.coverage.result.noActiveRule')}
               </p>

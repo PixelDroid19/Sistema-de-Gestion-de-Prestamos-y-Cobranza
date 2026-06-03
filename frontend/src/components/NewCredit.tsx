@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calculator, CalendarDays, CheckCircle2, Clock3, DollarSign, Loader2, RotateCcw, Save, Wallet } from 'lucide-react';
+import { ArrowLeft, Calculator, CheckCircle2, CalendarDays, DollarSign, Loader2, RotateCcw, Save, Wallet } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../i18n';
 import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, isValidOperationalDateOnly } from '../i18n/format';
@@ -25,18 +25,28 @@ import {
   ActionButton,
   FormField,
   IconActionButton,
-  InsightStrip,
   PageHeader,
   PageShell,
   StatusChip,
   CustomerSearchSelect,
+  InsightStrip,
 } from './shared/Surfaces';
-import { AppTable } from './shared/tables';
+import { AppTable, TableSectionIntro } from './shared/tables';
 import { AppInput, CurrencyInput } from './shared/Surfaces';
 import { getLocalDateInputValue } from '../lib/dateInput';
 import { sanitizeNumericInputNumber, formatNumericInputValue } from '../lib/numericInputState';
 
-const formatMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0);
+const formatCalculatedMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const formatPercent = (value: number, locale: string, fractionDigits = 2) => {
+  if (!Number.isFinite(value)) return '-';
+  return `${new Intl.NumberFormat(locale, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value)}%`;
+};
 const getSafeCreditCreationFieldError = (field: unknown): { field: string; message: string } | null => {
   const normalizedField = String(field || '').trim().replace(/[_-]/g, '').toLowerCase();
   if (['customer', 'customerid', 'borrower', 'borrowerid'].includes(normalizedField)) {
@@ -229,34 +239,79 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ?? 0,
   );
   const hasValidatedResult = Boolean(result) && !isResultStale;
+  const workspaceRevealed = hasValidatedResult || isSimulating;
   const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && isLateFeePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
-  const summaryCards = useMemo(() => (result && !isResultStale ? [
-    { id: 'new-credit-installment', label: tTerm('simulator.schedule.header.payment'), value: formatMoney(result.summary.installmentAmount), helper: tTerm('newCredit.summary.card.installmentHelper'), accent: 'teal' as const, icon: <Wallet size={18} /> },
-    { id: 'new-credit-total', label: tTerm('simulator.summary.totalPayment.short'), value: formatMoney(result.summary.totalPayable), helper: tTerm('simulator.summary.card.helper.capitalInterest'), accent: 'blue' as const, icon: <Calculator size={18} /> },
-    { id: 'new-credit-interest', label: tTerm('simulator.summary.totalInterest.short'), value: formatMoney(result.summary.totalInterest), helper: tTerm('newCredit.summary.card.interestHelper'), accent: 'rose' as const, icon: <Clock3 size={18} /> },
-  ] : []), [result, isResultStale, locale]);
-  const scheduleTotals = useMemo(() => {
-    if (!result?.schedule?.length || isResultStale) return null;
+  const appliedAnnualRate = Number(
+    result?.inputs?.interestRate
+    ?? resolvedRatePolicy?.annualEffectiveRate
+    ?? input.interestRate
+    ?? 0,
+  );
+  const appliedMonthlyRate = appliedAnnualRate / 12;
+  const loanAmount = Number(input.amount || 0);
+  const termMonths = Number(input.termMonths || 0);
+  const pendingCalculationValue = tTerm('newCredit.snapshot.pendingValue');
+  const snapshotInstallment = hasValidatedResult
+    ? formatCalculatedMoney(Number(result?.summary.installmentAmount || 0))
+    : pendingCalculationValue;
+  const scheduleColumnTotals = useMemo(() => {
+    if (!result?.schedule?.length) {
+      return null;
+    }
 
-    return result.schedule.reduce((acc, row, index, rows) => {
-      acc.installmentCount += 1;
-      acc.totalScheduledPayment += Number(row.scheduledPayment || 0);
-      acc.totalInterest += Number(row.interestComponent || 0);
-      acc.totalPrincipal += Number(row.principalComponent || 0);
-      acc.finalBalance = index === rows.length - 1 ? Number(row.remainingBalance || 0) : acc.finalBalance;
-      if (String(row.status || '').toLowerCase() === 'pending') {
-        acc.pendingCount += 1;
-      }
-      return acc;
-    }, {
-      installmentCount: 0,
-      totalScheduledPayment: 0,
-      totalInterest: 0,
-      totalPrincipal: 0,
-      finalBalance: 0,
-      pendingCount: 0,
+    return result.schedule.reduce((totals, row, index, rows) => ({
+      scheduledPayment: totals.scheduledPayment + Number(row.scheduledPayment || 0),
+      interestComponent: totals.interestComponent + Number(row.interestComponent || 0),
+      principalComponent: totals.principalComponent + Number(row.principalComponent || 0),
+      closingBalance: index === rows.length - 1
+        ? Number(row.remainingBalance || 0)
+        : totals.closingBalance,
+    }), {
+      scheduledPayment: 0,
+      interestComponent: 0,
+      principalComponent: 0,
+      closingBalance: 0,
     });
-  }, [result, isResultStale]);
+  }, [result?.schedule]);
+  const summaryInsightItems = useMemo(() => (
+    hasValidatedResult ? [
+      {
+        id: 'new-credit-summary-annual-rate',
+        label: tTerm('newCredit.summary.rateAnnual'),
+        value: formatPercent(appliedAnnualRate, locale),
+        icon: <Calculator size={18} />,
+        accent: 'blue' as const,
+      },
+      {
+        id: 'new-credit-summary-monthly-rate',
+        label: tTerm('newCredit.summary.rateMonthly'),
+        value: formatPercent(appliedMonthlyRate, locale),
+        icon: <CalendarDays size={18} />,
+        accent: 'teal' as const,
+      },
+      {
+        id: 'new-credit-summary-installment',
+        label: tTerm('newCredit.summary.installmentMonthly'),
+        value: snapshotInstallment,
+        icon: <Wallet size={18} />,
+        accent: 'amber' as const,
+      },
+      {
+        id: 'new-credit-summary-term',
+        label: tTerm('newCredit.snapshot.termCompact'),
+        value: tTerm('newCredit.summary.termMonths', { months: termMonths }),
+        icon: <CalendarDays size={18} />,
+        accent: 'slate' as const,
+      },
+    ] : []
+  ), [
+    appliedAnnualRate,
+    appliedMonthlyRate,
+    hasValidatedResult,
+    locale,
+    snapshotInstallment,
+    termMonths,
+  ]);
   const handleBorrowerCustomerIdChange = (customerId: string) => {
     setBorrower((current) => ({ ...current, customerId }));
     setBorrowerErrors((current) => {
@@ -483,7 +538,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       className="pb-44"
       data-tour="new-credit-page"
     >
-      <PageShell className="new-credit-page mx-auto max-w-[1280px] !gap-4">
+      <PageShell className="new-credit-page mx-auto max-w-[1440px] !gap-5">
         <PageHeader
           tourId="new-credit-header"
           eyebrow={tTerm('newCredit.header.eyebrow')}
@@ -512,7 +567,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         </div>
 
         <section className="new-credit-workspace" data-tour="new-credit-simulation">
-          <div className="new-credit-workspace-body">
+          <div
+            className="new-credit-workspace-body"
+            data-state={workspaceRevealed ? 'results' : 'parameters'}
+          >
           <div className="new-credit-panel new-credit-form-panel" data-tour="new-credit-borrower">
               <div className="new-credit-panel-heading">
                 <h4 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -568,50 +626,58 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 </FormField>
               </div>
 
+              {!workspaceRevealed ? (
+                <p className="new-credit-validate-hint">{tTerm('newCredit.empty.subtitle')}</p>
+              ) : null}
+
           </div>
 
-          <div className="new-credit-panel new-credit-preview-panel">
-              <div className="new-credit-panel-heading">
-                <h3 className="text-[1.05rem] font-bold text-text-primary">{tTerm('simulator.section.summary.title')}</h3>
-              </div>
-
+          <div
+            className="new-credit-panel new-credit-preview-panel"
+            aria-hidden={!workspaceRevealed}
+          >
               {calculationError && (
-                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {calculationError}
                 </div>
               )}
 
-              {result && !isResultStale ? (
+              {hasValidatedResult && result ? (
                 <>
-                  <InsightStrip
+                  <section
+                    className="data-table-surface new-credit-finance-overview"
+                    data-tour="new-credit-calculation-snapshot"
                     aria-label={tTerm('newCredit.summary.aria')}
-                    items={summaryCards}
-                    className="new-credit-summary-strip"
-                  />
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <CalendarDays size={16} className="text-text-secondary" />
-                        <div>
-                          <h4 className="text-sm font-bold text-text-primary">{tTerm('simulator.schedule.title')}</h4>
-                        </div>
-                      </div>
-                    </div>
+                  >
+                    <InsightStrip
+                      aria-label={tTerm('newCredit.snapshot.summary')}
+                      items={summaryInsightItems}
+                      className="new-credit-summary-strip"
+                    />
+                  </section>
+
+                  <section className="data-table-surface new-credit-schedule-block" data-tour="new-credit-schedule-block">
+                    <TableSectionIntro
+                      embedded
+                      title={tTerm('simulator.schedule.title')}
+                      description={tTerm('simulator.schedule.subtitle')}
+                    />
                     <AppTable
                       variant="financial"
                       visibleFrom="always"
                       horizontalScroll
-                      minWidthClassName="min-w-[880px]"
-                      surfaceClassName="new-credit-schedule-table mt-4"
+                      embeddedInSurface
+                      minWidthClassName="min-w-[1180px]"
+                      surfaceClassName="new-credit-schedule-table"
                     >
                         <colgroup>
-                          <col style={{ width: '6%' }} />
-                          <col style={{ width: '20%' }} />
-                          <col style={{ width: '13%' }} />
-                          <col style={{ width: '12%' }} />
-                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '5%' }} />
+                          <col style={{ width: '17%' }} />
+                          <col style={{ width: '17%' }} />
                           <col style={{ width: '15%' }} />
-                          <col style={{ width: '22%' }} />
+                          <col style={{ width: '16%' }} />
+                          <col style={{ width: '16%' }} />
+                          <col style={{ width: '14%' }} />
                         </colgroup>
                         <thead>
                           <tr>
@@ -629,10 +695,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                             <tr key={row.installmentNumber}>
                               <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
                               <td className="text-text-secondary">{formatDueDate(row.dueDate)}</td>
-                              <td className="text-right font-medium text-text-primary">{formatMoney(row.scheduledPayment)}</td>
-                              <td className="text-right text-text-secondary">{formatMoney(row.interestComponent)}</td>
-                              <td className="text-right font-medium text-emerald-600 dark:text-emerald-400">{formatMoney(row.principalComponent)}</td>
-                              <td className="text-right font-medium text-text-primary">{formatMoney(row.remainingBalance)}</td>
+                              <td className="text-right font-medium text-text-primary">{formatCalculatedMoney(row.scheduledPayment)}</td>
+                              <td className="text-right text-text-secondary">{formatCalculatedMoney(row.interestComponent)}</td>
+                              <td className="text-right font-medium text-text-primary">{formatCalculatedMoney(row.principalComponent)}</td>
+                              <td className="text-right font-medium text-text-primary">{formatCalculatedMoney(row.remainingBalance)}</td>
                               <td className="text-center text-text-secondary">{formatScheduleStatusLabel(row.status)}</td>
                             </tr>
                           )) : (
@@ -643,35 +709,38 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                             </tr>
                           )}
                         </tbody>
-                        {scheduleTotals && (
+                        {scheduleColumnTotals ? (
                           <tfoot>
-                            <tr>
-                              <td className="text-center font-semibold text-text-primary">{scheduleTotals.installmentCount}</td>
-                              <td className="font-semibold text-text-primary">{tTerm('newCredit.schedule.totals')}</td>
-                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalScheduledPayment)}</td>
-                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalInterest)}</td>
-                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalPrincipal)}</td>
-                              <td className="text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.finalBalance)}</td>
-                              <td className="text-center font-semibold text-text-primary">{tTerm('newCredit.schedule.pendingCount', { count: scheduleTotals.pendingCount })}</td>
+                            <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
+                              <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                                {tTerm('newCredit.schedule.totals')}
+                              </td>
+                              <td />
+                              <td className="text-right font-bold text-text-primary">
+                                {formatCalculatedMoney(scheduleColumnTotals.scheduledPayment)}
+                              </td>
+                              <td className="text-right font-bold text-text-secondary">
+                                {formatCalculatedMoney(scheduleColumnTotals.interestComponent)}
+                              </td>
+                              <td className="text-right font-bold text-text-primary">
+                                {formatCalculatedMoney(scheduleColumnTotals.principalComponent)}
+                              </td>
+                              <td className="text-right font-bold text-brand-primary text-base">
+                                {formatCalculatedMoney(scheduleColumnTotals.closingBalance)}
+                              </td>
+                              <td className="text-center text-xs text-text-secondary">—</td>
                             </tr>
                           </tfoot>
-                        )}
+                        ) : null}
                     </AppTable>
-                  </div>
+                  </section>
                 </>
-              ) : (
-                <div className="new-credit-empty-preview">
-                  <div className="w-full max-w-2xl">
-                    <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary shadow-[0_8px_20px_rgba(37,99,235,0.12)]">
-                      <Calculator size={22} />
-                    </span>
-                    <h4 className="mt-4 text-[1.35rem] font-bold text-text-primary">{tTerm('newCredit.empty.title')}</h4>
-                    <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-text-secondary">
-                      {tTerm('newCredit.empty.subtitle')}
-                    </p>
-                  </div>
+              ) : isSimulating ? (
+                <div className="new-credit-preview-loading" aria-live="polite">
+                  <Loader2 size={28} className="animate-spin text-brand-primary" />
+                  <p>{tTerm('simulator.schedule.loading')}</p>
                 </div>
-              )}
+              ) : null}
           </div>
           </div>
         </section>

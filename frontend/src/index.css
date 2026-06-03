@@ -1587,14 +1587,35 @@
     margin-top: -0.25rem;
   }
 
+  .new-credit-workspace .operational-control {
+    background: var(--bg-elevated);
+  }
+
+  .new-credit-workspace .operational-control:focus-within {
+    background: var(--bg-elevated);
+  }
+
   .new-credit-workspace-body {
     display: grid;
     gap: 0;
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   @media (min-width: 1280px) {
     .new-credit-workspace-body {
-      grid-template-columns: minmax(21rem, 0.72fr) minmax(0, 1.5fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+      transition: grid-template-columns 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .new-credit-workspace-body[data-state='results'] {
+      grid-template-columns: minmax(22rem, 0.38fr) minmax(0, 1.45fr);
+    }
+  }
+
+  @media (max-width: 1279px) {
+    .new-credit-workspace-body[data-state='results'] {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
@@ -1606,27 +1627,127 @@
     box-shadow: none;
   }
 
-  .new-credit-form-panel,
-  .new-credit-preview-panel {
-    padding: 1.5rem;
-  }
-
   .new-credit-form-panel {
     display: flex;
     flex-direction: column;
-    gap: 1.45rem;
+    gap: 1.6rem;
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: 38rem;
+    margin-inline: auto;
+    padding: 1.75rem 1.5rem 2rem;
+    transition: max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  @media (min-width: 640px) {
-    .new-credit-form-panel,
-    .new-credit-preview-panel {
-      padding: 1.75rem 2rem;
-    }
+  .new-credit-workspace-body[data-state='results'] .new-credit-form-panel {
+    max-width: none;
+    margin-inline: 0;
+    padding-bottom: 2.25rem;
+  }
+
+  .new-credit-preview-panel {
+    min-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    padding: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.28s ease;
+  }
+
+  .new-credit-workspace-body[data-state='parameters'] .new-credit-preview-panel {
+    display: none;
+  }
+
+  .new-credit-workspace-body[data-state='results'] .new-credit-preview-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    opacity: 1;
+    padding: 1.75rem 1.5rem 2.25rem;
+    pointer-events: auto;
+    visibility: visible;
+    transition: opacity 0.32s ease 0.12s;
   }
 
   @media (min-width: 1280px) {
     .new-credit-form-panel {
+      grid-column: 1;
+    }
+
+    .new-credit-preview-panel {
+      grid-column: 2;
+    }
+
+    .new-credit-workspace-body[data-state='parameters'] .new-credit-form-panel {
+      grid-column: 1 / -1;
+      max-width: 40rem;
+    }
+
+    .new-credit-workspace-body[data-state='results'] .new-credit-form-panel {
       border-right: 1px solid var(--border-subtle);
+    }
+  }
+
+  .new-credit-validate-hint {
+    margin: 0.15rem 0 0;
+    padding: 0.75rem 0.85rem;
+    border: 1px dashed var(--border-subtle);
+    border-radius: 0.85rem;
+    background: color-mix(in srgb, var(--bg-base) 40%, var(--bg-surface));
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+    line-height: 1.45;
+    text-align: center;
+  }
+
+  .new-credit-preview-loading {
+    display: flex;
+    min-height: 12rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem 1rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  @media (min-width: 640px) {
+    .new-credit-field-grid {
+      grid-template-columns: minmax(7rem, 0.85fr) minmax(9.75rem, 1.15fr);
+      gap: 1.25rem;
+      align-items: start;
+    }
+
+    .new-credit-form-panel,
+    .new-credit-preview-panel {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+
+    .new-credit-workspace-body[data-state='results'] .new-credit-preview-panel {
+      padding-top: 1.85rem;
+      padding-bottom: 5.75rem;
+      gap: 1.35rem;
+    }
+
+    .new-credit-workspace-body[data-state='results'] .new-credit-form-panel {
+      padding-bottom: 5.5rem;
+    }
+  }
+
+  @media (max-width: 1279px) {
+    .new-credit-workspace-body[data-state='results'] .new-credit-form-panel {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .new-credit-workspace-body,
+    .new-credit-preview-panel,
+    .new-credit-form-panel {
+      transition: none;
     }
   }
 
@@ -1726,7 +1847,85 @@
 
   .new-credit-field-grid {
     display: grid;
-    gap: 1.35rem;
+    gap: 1.25rem;
+  }
+
+  .new-credit-preview-panel .new-credit-finance-overview {
+    container-type: inline-size;
+    flex-shrink: 0;
+    background: var(--bg-elevated);
+  }
+
+  .new-credit-preview-panel .new-credit-finance-overview .table-panel-intro {
+    background: var(--bg-elevated);
+  }
+
+  .new-credit-preview-panel .new-credit-summary-strip {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--border-subtle) 84%, transparent);
+  }
+
+  .new-credit-preview-panel .new-credit-finance-overview .insight-strip-item {
+    background: var(--bg-surface);
+  }
+
+  .new-credit-preview-panel .new-credit-summary-strip.insight-strip {
+    box-sizing: border-box;
+    width: 100%;
+    gap: 1px;
+    padding: 0;
+  }
+
+  .new-credit-preview-panel .new-credit-finance-overview .insight-strip.insight-strip--count-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .new-credit-preview-panel .new-credit-finance-overview .insight-strip-item {
+    min-width: 0;
+  }
+
+  .new-credit-summary-strip .insight-strip-item {
+    align-items: center;
+    min-height: 5.75rem;
+    padding: 0.95rem 1.1rem;
+  }
+
+  .new-credit-summary-strip .insight-strip-icon {
+    flex: 0 0 2.35rem;
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .new-credit-summary-strip .insight-strip-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    line-height: 1.1;
+  }
+
+  .new-credit-summary-strip .insight-strip-value {
+    margin-top: 0.18rem;
+    font-size: 1.18rem;
+    line-height: 1.12;
+    white-space: nowrap;
+  }
+
+  @container (max-width: 68rem) {
+    .new-credit-preview-panel .new-credit-finance-overview .insight-strip.insight-strip--count-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (max-width: 34rem) {
+    .new-credit-preview-panel .new-credit-finance-overview .insight-strip.insight-strip--count-4 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .new-credit-preview-panel .new-credit-schedule-block {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   @media (min-width: 720px) {
@@ -1737,12 +1936,15 @@
     }
   }
 
-  .new-credit-summary-strip {
-    border-radius: 1.25rem;
+  .new-credit-schedule-block .new-credit-schedule-table {
+    margin-top: 0;
   }
 
-  .new-credit-summary-strip .insight-strip-item {
-    padding: 1rem 1.15rem;
+  .new-credit-schedule-table table th:nth-child(n + 3):nth-child(-n + 6),
+  .new-credit-schedule-table table td:nth-child(n + 3):nth-child(-n + 6),
+  .new-credit-schedule-table table tfoot td {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .new-credit-empty-preview {
@@ -1949,11 +2151,45 @@
   }
 
   .new-credit-workspace-body {
-    padding-bottom: 9rem;
+    padding-bottom: 6.5rem;
   }
 
   .new-credit-preview-panel .data-table-surface {
-    margin-top: 0.75rem;
+    margin-top: 0;
+    background: var(--bg-elevated);
+  }
+
+  .new-credit-preview-panel .new-credit-schedule-block {
+    margin-top: 0;
+  }
+
+  .new-credit-preview-panel .data-table-surface .table-panel-intro {
+    background: var(--bg-elevated);
+  }
+
+  .new-credit-preview-panel .data-table-surface .table-panel-intro h3 {
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .new-credit-preview-panel .data-table-surface .table-panel-intro p {
+    font-family: var(--font-body);
+  }
+
+  .new-credit-preview-panel .data-table-surface table thead th,
+  .new-credit-preview-panel .data-table-surface table tbody td {
+    background: var(--bg-elevated);
+  }
+
+  .new-credit-preview-panel .data-table-surface table tfoot td {
+    background: color-mix(in srgb, var(--bg-base) 5%, var(--bg-elevated));
+  }
+
+  .new-credit-preview-panel .data-table-surface thead,
+  .new-credit-preview-panel .data-table-surface table.financial-schedule-table thead th {
+    background: var(--bg-elevated);
   }
 
   .financial-schedule-scroll > table {

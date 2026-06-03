@@ -503,7 +503,7 @@ test('seedOperationalConfigDefaults seeds payment methods and policy entries wit
   assert.equal(byKey.get('transfer').defaults.value.metadata.type, 'bank_transfer');
   assert.equal(byKey.get('cash').defaults.value.requiresReference, false);
   assert.deepEqual(byKey.get('standard-credit').where, { category: 'rate_policy', key: 'standard-credit' });
-  assert.equal(byKey.get('standard-credit').defaults.value.annualEffectiveRate, 36);
+  assert.equal(byKey.get('standard-credit').defaults.value.annualEffectiveRate, 60);
   assert.deepEqual(byKey.get('standard-simple-late-fee').where, { category: 'late_fee_policy', key: 'standard-simple-late-fee' });
   assert.equal(byKey.get('standard-simple-late-fee').defaults.value.lateFeeMode, 'SIMPLE');
 });

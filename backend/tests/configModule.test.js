@@ -643,18 +643,18 @@ test('config financial policies reject missing labels and invalid ranges with op
   );
 });
 
-test('rate policy creation replaces the seeded catch-all when the first explicit range is created', async () => {
-  let updatedSeed;
-  let createdPayload;
+test('rate policy creation rejects active ranges that overlap the seeded catch-all', async () => {
+  let updateCalled = false;
+  let createCalled = false;
   const seededEntry = {
     id: 11,
-    key: 'credito-estandar',
+    key: 'standard-credit',
     label: 'Crédito estándar',
     isActive: true,
     value: {
       minAmount: 0,
       maxAmount: null,
-      annualEffectiveRate: 36,
+      annualEffectiveRate: 60,
       priority: 'medium',
       metadata: { seeded: true },
     },
@@ -662,45 +662,39 @@ test('rate policy creation replaces the seeded catch-all when the first explicit
 
   const createRatePolicy = createCreateRatePolicy({
     configRepository: {
-      async findByCategoryAndKey(category, key) {
-        return key === 'credito-estandar' ? seededEntry : null;
+      async findByCategoryAndKey() {
+        return null;
       },
       async listByCategory() {
         return [seededEntry];
       },
-      async update(id, payload) {
-        updatedSeed = { id, ...payload };
-        return updatedSeed;
+      async update() {
+        updateCalled = true;
+        throw new Error('update should not be called for overlapping rate policies');
       },
       async create(payload) {
-        createdPayload = payload;
-        return {
-          id: 12,
-          ...payload,
-          createdAt: '2026-05-20T00:00:00.000Z',
-          updatedAt: '2026-05-20T00:00:00.000Z',
-        };
+        createCalled = true;
+        return payload;
       },
     },
   });
 
-  const result = await createRatePolicy({
-    label: 'Crédito estándar',
-    minAmount: 0,
-    maxAmount: 1000000,
-    annualEffectiveRate: 48,
-  });
+  await assert.rejects(
+    () => createRatePolicy({
+      label: 'Rango capital inicial',
+      minAmount: 0,
+      maxAmount: 1000000,
+      annualEffectiveRate: 48,
+    }),
+    (error) => {
+      assert.ok(error instanceof ConflictError);
+      assert.equal(error.message, 'Las políticas de tasa activas no pueden solaparse.');
+      return true;
+    },
+  );
 
-  assert.equal(updatedSeed.id, 11);
-  assert.equal(updatedSeed.isActive, false);
-  assert.equal(updatedSeed.key, 'credito-estandar');
-  assert.equal(updatedSeed.value.metadata.replacedByExplicitRateRange, true);
-  assert.equal(createdPayload.key, 'credito-estandar');
-  assert.equal(createdPayload.value.minAmount, 0);
-  assert.equal(createdPayload.value.maxAmount, 1000000);
-  assert.equal(createdPayload.value.annualEffectiveRate, 48);
-  assert.equal(createdPayload.value.priority, 'medium');
-  assert.equal(result.label, 'Crédito estándar');
+  assert.equal(updateCalled, false);
+  assert.equal(createCalled, false);
 });
 
 test('late-fee policies reject modes that are not configurable from the operational UI', async () => {

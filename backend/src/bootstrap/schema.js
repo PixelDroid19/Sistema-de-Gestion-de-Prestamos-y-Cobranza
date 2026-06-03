@@ -130,7 +130,7 @@ const OPERATIONAL_CONFIG_SEEDS = Object.freeze([
     value: {
       minAmount: 0,
       maxAmount: null,
-      annualEffectiveRate: 36,
+      annualEffectiveRate: 60,
       priority: 'medium',
       description: 'Tasa base usada cuando el crédito toma tasa desde configuración.',
       metadata: { seeded: true },
