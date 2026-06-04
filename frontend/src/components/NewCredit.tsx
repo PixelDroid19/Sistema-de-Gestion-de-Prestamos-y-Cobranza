@@ -33,7 +33,7 @@ import {
 } from './shared/Surfaces';
 import { TableSectionIntro } from './shared/tables';
 import { CreditSimulationScheduleTable } from './shared/CreditSimulationScheduleTable';
-import { AppInput } from './shared/Surfaces';
+import { AppInput, CurrencyInput } from './shared/Surfaces';
 import { getLocalDateInputValue } from '../lib/dateInput';
 import { sanitizeNumericInputNumber, formatNumericInputValue } from '../lib/numericInputState';
 import {
@@ -672,13 +672,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               </FormField>
 
               <FormField label={tTerm('simulator.form.amount')}>
-                {/* Use AppInput directly to allow both the green circular dollar icon and the dollar prefix */}
-                <AppInput
-                  variant="money"
+                <CurrencyInput
                   value={formatNumericInputValue(input.amount)}
                   onValueChange={(value, detail) => handleCalculationInputChange({ amount: sanitizeNumericInputNumber(detail.numericValue) })}
-                  prefix="$"
-                  icon={<span className="new-credit-money-icon" aria-hidden="true">$</span>}
                   placeholder="0"
                 />
               </FormField>
@@ -789,12 +785,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 ) : null}
               </section>
 
-              {/* Inline action dock when in parameters state (desktop) or mobile */}
-              {!workspaceRevealed && (
-                <div className="new-credit-panel-footer" aria-label={tTerm('newCredit.aria.floatingActions')}>
-                  {actionDock}
-                </div>
-              )}
             </div>
 
             {/* Right Card: Preview / Results */}
@@ -846,9 +836,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                     />
                   </section>
 
-                  <div className="new-credit-panel-footer" aria-label={tTerm('newCredit.aria.floatingActions')}>
-                    {actionDock}
-                  </div>
                 </>
               ) : isSimulating ? (
                 <div className="new-credit-preview-loading" aria-live="polite">
@@ -860,6 +847,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           </div>
         </section>
       </PageShell>
+      {actionDock}
     </form>
   );
 }
