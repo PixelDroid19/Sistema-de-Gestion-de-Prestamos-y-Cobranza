@@ -142,6 +142,10 @@ const selectFirstLoanOption = () => {
   });
 };
 
+const clickFirstOverflowAction = () => {
+  fireEvent.click(screen.getAllByRole('button', { name: 'Más acciones' })[0]);
+};
+
 describe('Payouts behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -211,7 +215,7 @@ describe('Payouts behavioral parity scenarios', () => {
 
     renderPayouts();
 
-    expect(screen.getByText('Método sin nombre')).toBeInTheDocument();
+    expect(screen.getAllByText('Método sin nombre').length).toBeGreaterThan(0);
     expect(screen.queryByText(/internal_gateway/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
@@ -395,7 +399,7 @@ describe('Payouts behavioral parity scenarios', () => {
   it('keeps out-of-scope payout deletion explicitly blocked without regression', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    clickFirstOverflowAction();
     const deleteButton = screen.getByRole('menuitem', {
       name: 'La eliminación directa de pagos no está disponible. Use anulación de cuota desde el detalle del crédito.',
     });
@@ -409,7 +413,7 @@ describe('Payouts behavioral parity scenarios', () => {
   it('edits payment method with confirmation modal flow', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    clickFirstOverflowAction();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Editar método de pago real' }));
     fireEvent.change(screen.getByPlaceholderText('Ej: REF-123'), { target: { value: 'REF-123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
@@ -432,7 +436,7 @@ describe('Payouts behavioral parity scenarios', () => {
   it('closes the payment method edit modal with Escape', () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    clickFirstOverflowAction();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Editar método de pago real' }));
     const dialog = screen.getByRole('dialog', { name: 'Editar método de pago' });
 
@@ -444,7 +448,7 @@ describe('Payouts behavioral parity scenarios', () => {
   it('allows multi-selection visibility for payout rows', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByLabelText('Seleccionar pago registrado'));
+    fireEvent.click(screen.getAllByLabelText('Seleccionar pago registrado')[0]);
 
     expect(screen.getByText('1 pago(s) seleccionado(s)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descargar comprobantes' })).toBeInTheDocument();
@@ -457,7 +461,7 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(screen.queryByText('55')).not.toBeInTheDocument();
     expect(screen.queryByText('999')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Crédito vinculado' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Crédito vinculado' })[0]);
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/999');

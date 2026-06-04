@@ -526,9 +526,11 @@ describe('Settings operational configuration', () => {
 
     expect(screen.getByRole('heading', { name: 'Tasas automáticas por monto' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crear rango de tasa' })).toBeInTheDocument();
+    expect(screen.getByText(/Usa Sin tope solo en el último tramo/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
     expect(screen.getByRole('heading', { name: 'Nuevo rango de tasa' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
+    expect(screen.getByText(/primer rango explícito la archiva automáticamente/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     const ratePreviewSection = screen.getByRole('heading', { name: 'Tasa por monto' }).closest('section') as HTMLElement;
     expect(ratePreviewSection).toBeInTheDocument();

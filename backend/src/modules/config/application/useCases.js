@@ -163,19 +163,27 @@ const assertAmountRange = ({ minAmount, maxAmount }) => {
   }
 };
 
-const listCategoryEntries = async (configRepository, category) => {
+const listCategoryEntries = async (configRepository, category, options = {}) => {
   if (typeof configRepository.listByCategory !== 'function') {
     return [];
   }
 
-  return configRepository.listByCategory(category);
+  return configRepository.listByCategory(category, options);
 };
 
 const normalizeComparableLabel = (value) => normalizeKey(value);
 
-const assertUniqueLabel = async ({ configRepository, category, label, currentId = null, ignoreIds = [], entityName }) => {
+const assertUniqueLabel = async ({
+  configRepository,
+  category,
+  label,
+  currentId = null,
+  ignoreIds = [],
+  entityName,
+  options = {},
+}) => {
   const normalizedLabel = normalizeComparableLabel(label);
-  const entries = await listCategoryEntries(configRepository, category);
+  const entries = await listCategoryEntries(configRepository, category, options);
   const ignoredIds = new Set(ignoreIds.map((id) => Number(id)));
   const duplicate = entries.find((entry) => (
     Number(entry.id) !== Number(currentId)
@@ -205,10 +213,34 @@ const rangesOverlap = (left, right) => {
   return leftMin <= rightMax && rightMin <= leftMax;
 };
 
-const getRatePolicyOverlaps = async ({ configRepository, normalized, currentId = null }) => {
+const isFullRangeRatePolicyValue = (value = {}) => (
+  normalizeRangeBoundary(value.minAmount, 0) === 0
+  && normalizeRangeBoundary(value.maxAmount, Number.POSITIVE_INFINITY) === Number.POSITIVE_INFINITY
+);
+
+const isSeededCatchAllRatePolicyEntry = (entry) => (
+  entry?.isActive !== false
+  && entry?.value?.metadata?.seeded === true
+  && isFullRangeRatePolicyValue(entry.value)
+);
+
+const canArchiveSeededCatchAllForExplicitRateRange = (normalized, entry) => (
+  normalized.isActive !== false
+  && !isFullRangeRatePolicyValue(normalized.value)
+  && isSeededCatchAllRatePolicyEntry(entry)
+);
+
+const getRatePolicyOverlaps = async ({
+  configRepository,
+  normalized,
+  currentId = null,
+  ignoreIds = [],
+  options = {},
+}) => {
   if (normalized.isActive === false) return [];
 
-  const entries = await listCategoryEntries(configRepository, RATE_POLICY_CATEGORY);
+  const entries = await listCategoryEntries(configRepository, RATE_POLICY_CATEGORY, options);
+  const ignoredIds = new Set(ignoreIds.map((id) => Number(id)));
   const nextPolicy = {
     minAmount: normalized.value.minAmount,
     maxAmount: normalized.value.maxAmount,
@@ -216,12 +248,44 @@ const getRatePolicyOverlaps = async ({ configRepository, normalized, currentId =
 
   return entries.filter((entry) => (
     Number(entry.id) !== Number(currentId)
+    && !ignoredIds.has(Number(entry.id))
     && entry.isActive !== false
     && rangesOverlap(nextPolicy, {
       minAmount: entry.value?.minAmount,
       maxAmount: entry.value?.maxAmount,
     })
   ));
+};
+
+const getReplaceableSeededCatchAllRatePolicies = async ({ configRepository, normalized, options = {} }) => {
+  if (normalized.isActive === false || isFullRangeRatePolicyValue(normalized.value)) {
+    return [];
+  }
+
+  const overlaps = await getRatePolicyOverlaps({ configRepository, normalized, options });
+  return overlaps.filter((entry) => canArchiveSeededCatchAllForExplicitRateRange(normalized, entry));
+};
+
+const archiveSeededCatchAllRatePolicies = async ({ configRepository, entries, options = {} }) => {
+  await Promise.all(entries.map((entry) => configRepository.update(entry.id, {
+    isActive: false,
+    value: {
+      ...(entry.value || {}),
+      metadata: {
+        ...(entry.value?.metadata || {}),
+        seeded: true,
+        replacedByExplicitRateRange: true,
+      },
+    },
+  }, options)));
+};
+
+const runConfigMutation = async (configRepository, work) => {
+  if (typeof configRepository.runInTransaction === 'function') {
+    return configRepository.runInTransaction((transaction) => work({ transaction }));
+  }
+
+  return work({});
 };
 
 const buildRatePolicy = (entry) => ({
@@ -311,8 +375,20 @@ const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
   };
 };
 
-const assertNoAmbiguousRatePolicy = async ({ configRepository, normalized, currentId = null }) => {
-  const duplicate = (await getRatePolicyOverlaps({ configRepository, normalized, currentId }))[0];
+const assertNoAmbiguousRatePolicy = async ({
+  configRepository,
+  normalized,
+  currentId = null,
+  ignoreIds = [],
+  options = {},
+}) => {
+  const duplicate = (await getRatePolicyOverlaps({
+    configRepository,
+    normalized,
+    currentId,
+    ignoreIds,
+    options,
+  }))[0];
 
   if (duplicate) {
     throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyOverlap);
@@ -505,24 +581,45 @@ const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) =>
   const normalized = normalizeRatePolicyPayload(payload);
   if (!normalized.key) throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
 
-  const existing = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
-  if (existing) {
-    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyKeyExists);
-  }
-  await assertUniqueLabel({
-    configRepository,
-    category: RATE_POLICY_CATEGORY,
-    label: normalized.label,
-    entityName: 'Rate policy',
-  });
-  await assertNoAmbiguousRatePolicy({ configRepository, normalized });
+  return runConfigMutation(configRepository, async (options) => {
+    const replaceableSeededCatchAllPolicies = await getReplaceableSeededCatchAllRatePolicies({
+      configRepository,
+      normalized,
+      options,
+    });
+    const replaceableSeededCatchAllIds = replaceableSeededCatchAllPolicies.map((entry) => entry.id);
 
-  const entry = await configRepository.create({
-    category: RATE_POLICY_CATEGORY,
-    ...normalized,
-  });
+    const existing = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key, options);
+    if (existing) {
+      throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyKeyExists);
+    }
+    await assertUniqueLabel({
+      configRepository,
+      category: RATE_POLICY_CATEGORY,
+      label: normalized.label,
+      ignoreIds: replaceableSeededCatchAllIds,
+      entityName: 'Rate policy',
+      options,
+    });
+    await assertNoAmbiguousRatePolicy({
+      configRepository,
+      normalized,
+      ignoreIds: replaceableSeededCatchAllIds,
+      options,
+    });
 
-  return buildRatePolicy(entry);
+    const entry = await configRepository.create({
+      category: RATE_POLICY_CATEGORY,
+      ...normalized,
+    }, options);
+    await archiveSeededCatchAllRatePolicies({
+      configRepository,
+      entries: replaceableSeededCatchAllPolicies,
+      options,
+    });
+
+    return buildRatePolicy(entry);
+  });
 };
 
 const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payload = {}) => {
