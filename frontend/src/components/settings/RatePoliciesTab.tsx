@@ -10,7 +10,6 @@ import {
   ModalShell,
   AppInput,
   CurrencyInput,
-  OperationalSelect,
   SectionSurface,
   StatusChip,
 } from '../shared/Surfaces';
@@ -30,8 +29,10 @@ import {
   findRatePolicyMatchesForAmount,
   formatCurrency,
   formatMonthlyRate,
+  formatMonthlyRateFormula,
   formatRange,
   formatRate,
+  isFullRangeRatePolicy,
   isArchivedSeededCatchAllRatePolicy,
   getRatePolicyCoverageGaps,
   getRatePolicyConflictPairs,
@@ -93,9 +94,11 @@ export default function RatePoliciesTab({
     () => (previewRateConflicts.length > 1 ? null : sortRatePoliciesForApplication(previewRateMatches)[0] || null),
     [previewRateConflicts, previewRateMatches],
   );
+  const previewRateFormula = previewRatePolicy ? formatMonthlyRateFormula(previewRatePolicy.annualEffectiveRate) : '';
   const previewAmountNumber = Number(ratePreviewAmount);
   const hasValidPreviewAmount = Number.isFinite(previewAmountNumber) && previewAmountNumber >= 0;
   const isEditingRatePolicy = Boolean(editingRatePolicyId);
+  const hasSingleCatchAllActiveRate = activeRatePolicies.length === 1 && isFullRangeRatePolicy(activeRatePolicies[0]);
 
   const resetRatePolicyDraft = () => {
     setEditingRatePolicyId(null);
@@ -342,7 +345,9 @@ export default function RatePoliciesTab({
 
       <SectionSurface
         title={tTerm('settings.coverage.title')}
-        subtitle={tTerm('settings.coverage.subtitle')}
+        subtitle={hasSingleCatchAllActiveRate
+          ? tTerm('settings.coverage.subtitleSingleRange')
+          : tTerm('settings.coverage.subtitle')}
         bodyClassName="space-y-4"
       >
         {hasRatePolicyConflicts && (
@@ -377,19 +382,23 @@ export default function RatePoliciesTab({
             </ul>
           </div>
         )}
-        <FormField label={tTerm('settings.coverage.field.amount')}>
-          <CurrencyInput
-            aria-label={tTerm('settings.coverage.field.amount')}
-            value={ratePreviewAmount}
-            onValueChange={setRatePreviewAmount}
-            placeholder="2000000"
-          />
-        </FormField>
+        {hasSingleCatchAllActiveRate ? (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100">
+            <p className="font-semibold">{tTerm('settings.coverage.singleRange.title')}</p>
+            <p className="mt-1">{tTerm('settings.coverage.singleRange.description')}</p>
+          </div>
+        ) : (
+          <FormField label={tTerm('settings.coverage.field.amount')}>
+            <CurrencyInput
+              aria-label={tTerm('settings.coverage.field.amount')}
+              value={ratePreviewAmount}
+              onValueChange={setRatePreviewAmount}
+              placeholder="2000000"
+            />
+          </FormField>
+        )}
         <div className="rounded-xl border border-border-subtle bg-bg-base p-4" aria-live="polite">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-              {tTerm('settings.coverage.resultEyebrow')}
-            </p>
+          <div className="flex flex-wrap items-start justify-end gap-3">
             <StatusChip
               tone={previewRateConflicts.length > 1 ? 'danger' : previewRatePolicy ? 'success' : 'warning'}
               size="sm"
@@ -408,23 +417,32 @@ export default function RatePoliciesTab({
             </p>
           ) : previewRatePolicy ? (
             <dl className="mt-4 grid gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                    {tTerm('settings.coverage.result.annualRate')}
-                  </dt>
-                  <dd className="mt-1 text-xl font-bold text-text-primary">
-                    {formatRate(previewRatePolicy.annualEffectiveRate)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                    {tTerm('settings.coverage.result.monthlyLabel')}
-                  </dt>
-                  <dd className="mt-1 text-lg font-bold text-text-primary">
-                    {formatMonthlyRate(previewRatePolicy.annualEffectiveRate)}
-                  </dd>
-                </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                  {tTerm('settings.coverage.result.annualRate')}
+                </dt>
+                <dd className="mt-1 text-xl font-bold text-text-primary">
+                  {formatRate(previewRatePolicy.annualEffectiveRate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                  {tTerm('settings.coverage.result.monthlyLabel')}
+                </dt>
+                <dd className="mt-1 text-lg font-bold text-text-primary">
+                  {formatMonthlyRate(previewRatePolicy.annualEffectiveRate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                  {tTerm('settings.coverage.result.formula')}
+                </dt>
+                <dd className="mt-1 break-words text-sm font-semibold text-text-primary">
+                  {previewRateFormula}
+                </dd>
+                <p className="mt-1 text-xs leading-5 text-text-secondary">
+                  {tTerm('settings.coverage.result.formulaHelp')}
+                </p>
               </div>
               <div>
                 <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">

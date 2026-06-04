@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calculator, CheckCircle2, CalendarDays, DollarSign, Loader2, RotateCcw, Save, Wallet } from 'lucide-react';
+import { ArrowLeft, Calculator, CheckCircle2, CalendarDays, DollarSign, Loader2, Percent, RotateCcw, Save, Wallet } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../i18n';
 import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, isValidOperationalDateOnly } from '../i18n/format';
@@ -35,6 +35,13 @@ import { AppTable, TableSectionIntro } from './shared/tables';
 import { AppInput, CurrencyInput } from './shared/Surfaces';
 import { getLocalDateInputValue } from '../lib/dateInput';
 import { sanitizeNumericInputNumber, formatNumericInputValue } from '../lib/numericInputState';
+import {
+  findRatePolicyMatchesForAmount,
+  formatRange,
+  getEquivalentMonthlyRate,
+  getRatePolicyConflictsForAmount,
+  sortRatePoliciesForApplication,
+} from '../lib/ratePolicies';
 
 const formatCalculatedMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0, {
   minimumFractionDigits: 2,
@@ -57,31 +64,6 @@ const getSafeCreditCreationFieldError = (field: unknown): { field: string; messa
   }
 
   return null;
-};
-const getRangeBoundary = (value: unknown, fallback: number) => {
-  if (value === null || value === undefined || value === '') return fallback;
-  return Number(value);
-};
-const sortRatePoliciesForApplication = (policies: any[]) => [...policies].sort((left, right) => {
-  const minDiff = getRangeBoundary(left?.minAmount, 0) - getRangeBoundary(right?.minAmount, 0);
-  if (minDiff !== 0) return minDiff;
-  return getRangeBoundary(left?.maxAmount, Number.POSITIVE_INFINITY)
-    - getRangeBoundary(right?.maxAmount, Number.POSITIVE_INFINITY);
-});
-const findRatePolicyMatchesForAmount = (policies: any[], rawAmount: unknown) => {
-  const amount = Number(rawAmount || 0);
-  if (!Number.isFinite(amount) || amount < 0) return [];
-
-  return sortRatePoliciesForApplication(policies)
-    .filter((policy) => (
-      policy?.isActive !== false
-      && amount >= getRangeBoundary(policy?.minAmount, 0)
-      && amount <= getRangeBoundary(policy?.maxAmount, Number.POSITIVE_INFINITY)
-    ));
-};
-const getRatePolicyConflictsForAmount = (matches: any[]) => {
-  const orderedMatches = sortRatePoliciesForApplication(matches);
-  return orderedMatches.length > 1 ? orderedMatches : [];
 };
 const lateFeePriorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
 const normalizePolicyPriority = (value: unknown) => {
@@ -247,13 +229,107 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ?? input.interestRate
     ?? 0,
   );
-  const appliedMonthlyRate = appliedAnnualRate / 12;
-  const loanAmount = Number(input.amount || 0);
+  const appliedMonthlyRate = getEquivalentMonthlyRate(appliedAnnualRate);
+  const liveRateFormula = `${formatPercent(appliedAnnualRate, locale)} / 12 = ${formatPercent(appliedMonthlyRate, locale)}`;
   const termMonths = Number(input.termMonths || 0);
   const pendingCalculationValue = tTerm('newCredit.snapshot.pendingValue');
   const snapshotInstallment = hasValidatedResult
     ? formatCalculatedMoney(Number(result?.summary.installmentAmount || 0))
     : pendingCalculationValue;
+  const liveRatePreview = useMemo(() => {
+    if (!canReadFinancialConfig) {
+      if (!hasValidatedResult) {
+        return {
+          tone: 'neutral' as const,
+          statusLabel: tTerm('newCredit.ratePreview.status.pending'),
+          description: tTerm('newCredit.ratePreview.description.pending'),
+          annualRate: null,
+          monthlyRate: null,
+          ruleLabel: '',
+          rangeLabel: '',
+          formulaLabel: '',
+        };
+      }
+
+      return {
+        tone: 'success' as const,
+        statusLabel: tTerm('newCredit.ratePreview.status.validated'),
+        description: tTerm('newCredit.ratePreview.description.validated'),
+        annualRate: appliedAnnualRate,
+        monthlyRate: appliedMonthlyRate,
+        ruleLabel: String(calculationPolicySnapshot?.ratePolicyLabel || tTerm('newCredit.summary.activeRule')),
+        rangeLabel: '',
+        formulaLabel: liveRateFormula,
+      };
+    }
+
+    if (isRatePolicyResolving) {
+      return {
+        tone: 'neutral' as const,
+        statusLabel: tTerm('newCredit.ratePreview.status.loading'),
+        description: tTerm('newCredit.ratePreview.description.loading'),
+        annualRate: null,
+        monthlyRate: null,
+        ruleLabel: '',
+        rangeLabel: '',
+        formulaLabel: '',
+      };
+    }
+
+    if (hasAmbiguousRatePolicy) {
+      return {
+        tone: 'danger' as const,
+        statusLabel: tTerm('newCredit.ratePreview.status.conflict'),
+        description: tTerm('newCredit.ratePreview.description.conflict', {
+          labels: ambiguousRatePolicyMatches.map((policy) => policy.label).join(' y '),
+        }),
+        annualRate: null,
+        monthlyRate: null,
+        ruleLabel: '',
+        rangeLabel: '',
+        formulaLabel: '',
+      };
+    }
+
+    if (!resolvedRatePolicy) {
+      return {
+        tone: 'warning' as const,
+        statusLabel: tTerm('newCredit.ratePreview.status.missing'),
+        description: tTerm('newCredit.ratePreview.description.missing'),
+        annualRate: null,
+        monthlyRate: null,
+        ruleLabel: '',
+        rangeLabel: '',
+        formulaLabel: '',
+      };
+    }
+
+    const annualRate = Number(resolvedRatePolicy.annualEffectiveRate || 0);
+    const monthlyRate = getEquivalentMonthlyRate(annualRate);
+
+    return {
+      tone: 'success' as const,
+      statusLabel: tTerm('newCredit.ratePreview.status.ready'),
+      description: tTerm('newCredit.ratePreview.description.ready'),
+      annualRate,
+      monthlyRate,
+      ruleLabel: String(resolvedRatePolicy.label || ''),
+      rangeLabel: formatRange(resolvedRatePolicy.minAmount, resolvedRatePolicy.maxAmount),
+      formulaLabel: `${formatPercent(annualRate, locale)} / 12 = ${formatPercent(monthlyRate, locale)}`,
+    };
+  }, [
+    ambiguousRatePolicyMatches,
+    appliedAnnualRate,
+    appliedMonthlyRate,
+    calculationPolicySnapshot,
+    canReadFinancialConfig,
+    hasAmbiguousRatePolicy,
+    hasValidatedResult,
+    isRatePolicyResolving,
+    liveRateFormula,
+    locale,
+    resolvedRatePolicy,
+  ]);
   const scheduleColumnTotals = useMemo(() => {
     if (!result?.schedule?.length) {
       return null;
@@ -625,6 +701,79 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   />
                 </FormField>
               </div>
+
+              <section
+                className="rounded-[1.05rem] border border-border-subtle bg-bg-base px-4 py-4"
+                data-tour="new-credit-policy-summary"
+                aria-label={tTerm('newCredit.ratePreview.aria')}
+                aria-live="polite"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                      {tTerm('newCredit.ratePreview.eyebrow')}
+                    </p>
+                    <h5 className="mt-1 text-sm font-semibold text-text-primary">
+                      {tTerm('newCredit.ratePreview.title')}
+                    </h5>
+                  </div>
+                  <StatusChip tone={liveRatePreview.tone} size="sm" icon={<Percent size={13} />}>
+                    {liveRatePreview.statusLabel}
+                  </StatusChip>
+                </div>
+
+                <p className="mt-2 text-sm leading-5 text-text-secondary">
+                  {liveRatePreview.description}
+                </p>
+
+                {liveRatePreview.annualRate !== null && liveRatePreview.monthlyRate !== null ? (
+                  <div className="new-credit-config-summary mt-4">
+                    <div className="new-credit-config-item new-credit-config-item--blue">
+                      <div className="new-credit-config-icon" aria-hidden="true">
+                        <Percent size={15} />
+                      </div>
+                      <div>
+                        <span className="new-credit-config-label">{tTerm('newCredit.ratePreview.annualLabel')}</span>
+                        <span className="new-credit-config-value">{formatPercent(liveRatePreview.annualRate, locale)}</span>
+                        <span className="new-credit-config-helper">{tTerm('newCredit.ratePreview.annualHelper')}</span>
+                      </div>
+                    </div>
+
+                    <div className="new-credit-config-item new-credit-config-item--teal">
+                      <div className="new-credit-config-icon" aria-hidden="true">
+                        <CalendarDays size={15} />
+                      </div>
+                      <div>
+                        <span className="new-credit-config-label">{tTerm('newCredit.ratePreview.monthlyLabel')}</span>
+                        <span className="new-credit-config-value">{formatPercent(liveRatePreview.monthlyRate, locale)}</span>
+                        <span className="new-credit-config-helper">{tTerm('newCredit.ratePreview.monthlyHelper')}</span>
+                      </div>
+                    </div>
+
+                    <div className="new-credit-config-item new-credit-config-item--slate">
+                      <div className="new-credit-config-icon" aria-hidden="true">
+                        <Calculator size={15} />
+                      </div>
+                      <div>
+                        <span className="new-credit-config-label">{tTerm('newCredit.ratePreview.formulaLabel')}</span>
+                        <span className="new-credit-config-value">{liveRatePreview.formulaLabel}</span>
+                        <span className="new-credit-config-helper">{tTerm('newCredit.ratePreview.formulaHelper')}</span>
+                      </div>
+                    </div>
+
+                    <div className="new-credit-config-item new-credit-config-item--amber">
+                      <div className="new-credit-config-icon" aria-hidden="true">
+                        <CheckCircle2 size={15} />
+                      </div>
+                      <div>
+                        <span className="new-credit-config-label">{tTerm('newCredit.ratePreview.ruleLabel')}</span>
+                        <span className="new-credit-config-value">{liveRatePreview.ruleLabel}</span>
+                        <span className="new-credit-config-helper">{liveRatePreview.rangeLabel || tTerm('newCredit.ratePreview.ruleHelper')}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
 
               {!workspaceRevealed ? (
                 <p className="new-credit-validate-hint">{tTerm('newCredit.empty.subtitle')}</p>

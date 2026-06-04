@@ -631,6 +631,29 @@ describe('Settings operational configuration', () => {
     expect(screen.queryByText('Crea una regla activa para este tramo.')).not.toBeInTheDocument();
   });
 
+  it('hides the test amount input when a single catch-all active rate makes the preview static', () => {
+    mockConfigState.ratePolicies = [
+      {
+        id: 88,
+        label: 'Crédito único',
+        minAmount: 0,
+        maxAmount: null,
+        annualEffectiveRate: 60,
+        priority: 'medium',
+        isActive: true,
+      },
+    ];
+
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
+
+    expect(screen.queryByRole('textbox', { name: 'Monto para probar tasa' })).not.toBeInTheDocument();
+    expect(screen.getByText('Ahora mismo todos los montos usan la misma tasa.')).toBeInTheDocument();
+    expect(screen.getByText(/Solo hay una regla activa con rango/)).toBeInTheDocument();
+    expect(screen.getAllByText('60% EA').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('5% mensual').length).toBeGreaterThanOrEqual(2);
+  });
+
   it('hides archived seeded catch-all replacements from the operational rate table', () => {
     mockConfigState.ratePolicies = [
       {

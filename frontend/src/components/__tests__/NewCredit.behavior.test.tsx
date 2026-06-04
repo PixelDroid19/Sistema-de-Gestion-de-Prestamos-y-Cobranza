@@ -200,7 +200,13 @@ describe('NewCredit behavior', () => {
     });
     expect(mockUseConfig).toHaveBeenCalledWith({ enabled: true });
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
-    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
+    const liveRatePreview = container.querySelector('[data-tour="new-credit-policy-summary"]');
+    expect(liveRatePreview).toBeInTheDocument();
+    expect(liveRatePreview).toHaveTextContent('Lista para validar');
+    expect(liveRatePreview).toHaveTextContent('40,00%');
+    expect(liveRatePreview).toHaveTextContent('3,33%');
+    expect(liveRatePreview).toHaveTextContent('40,00% / 12 = 3,33%');
+    expect(liveRatePreview).toHaveTextContent('Tasa mayor a 1M');
     expect(container.querySelector('[data-tour="new-credit-rate-summary"]')).not.toBeInTheDocument();
     const financialSummary = container.querySelector('[data-tour="new-credit-calculation-snapshot"]');
     expect(financialSummary).toHaveTextContent('Tasa anual');
@@ -356,7 +362,10 @@ describe('NewCredit behavior', () => {
 
     const { container } = render(<NewCredit onBack={vi.fn()} />);
 
-    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
+    const liveRatePreview = container.querySelector('[data-tour="new-credit-policy-summary"]');
+    expect(liveRatePreview).toBeInTheDocument();
+    expect(liveRatePreview).toHaveTextContent('Buscando regla');
+    expect(liveRatePreview).toHaveTextContent('Cargando las tasas activas para este monto.');
     expect(screen.queryByText('Sin tasa configurada')).not.toBeInTheDocument();
     expect(screen.queryByText('Mora simple · 0% EA')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Validar crédito' })).toBeDisabled();
@@ -467,7 +476,10 @@ describe('NewCredit behavior', () => {
 
     const { container } = render(<NewCredit onBack={vi.fn()} />);
 
-    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
+    const liveRatePreview = container.querySelector('[data-tour="new-credit-policy-summary"]');
+    expect(liveRatePreview).toBeInTheDocument();
+    expect(liveRatePreview).toHaveTextContent('Conflicto');
+    expect(liveRatePreview).toHaveTextContent('Tasa estándar y Crédito estándar');
 
     fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
 
@@ -487,7 +499,9 @@ describe('NewCredit behavior', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
     expect(mockUseConfig).toHaveBeenCalledWith({ enabled: false });
-    expect(screen.queryByText('Tasa mayor a 1M')).not.toBeInTheDocument();
+    const liveRatePreview = screen.getByLabelText('Vista previa de la tasa del crédito');
+    expect(liveRatePreview).toHaveTextContent('Tasa validada');
+    expect(liveRatePreview).toHaveTextContent('Tasa mayor a 1M');
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
