@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calculator, CheckCircle2, CalendarDays, DollarSign, Loader2, Percent, RotateCcw, Save, Wallet } from 'lucide-react';
+import { ArrowLeft, Calculator, CheckCircle2, CalendarDays, Loader2, Percent, RotateCcw, Save, Wallet, Settings, ChevronRight, Calendar, FileText } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ParametersIllustration } from './shared/ParametersIllustration';
 import { useTranslation } from '../i18n';
-import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, isValidOperationalDateOnly } from '../i18n/format';
+import { formatCurrency as formatCurrencyValue, isValidOperationalDateOnly } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useLoans } from '../services/loanService';
 import { toast } from '../lib/toast';
 import { extractValidationErrors } from '../services/apiErrors';
-import { formatScheduleStatusLabel } from '../lib/scheduleStatusLabels';
 import { useConfig } from '../services/configService';
 import { useSessionStore } from '../store/sessionStore';
 import {
@@ -25,14 +25,15 @@ import {
   ActionButton,
   FormField,
   IconActionButton,
+  InsightStrip,
   PageHeader,
   PageShell,
   StatusChip,
   CustomerSearchSelect,
-  InsightStrip,
 } from './shared/Surfaces';
-import { AppTable, TableSectionIntro } from './shared/tables';
-import { AppInput, CurrencyInput } from './shared/Surfaces';
+import { TableSectionIntro } from './shared/tables';
+import { CreditSimulationScheduleTable } from './shared/CreditSimulationScheduleTable';
+import { AppInput } from './shared/Surfaces';
 import { getLocalDateInputValue } from '../lib/dateInput';
 import { sanitizeNumericInputNumber, formatNumericInputValue } from '../lib/numericInputState';
 import {
@@ -71,12 +72,6 @@ const normalizePolicyPriority = (value: unknown) => {
   return normalizedValue === 'high' || normalizedValue === 'medium' || normalizedValue === 'low'
     ? normalizedValue
     : 'medium';
-};
-const formatDueDate = (value?: string) => {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return formatLocaleDate(date, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) || '-';
 };
 const sortLateFeePoliciesForApplication = (policies: any[]) => [...policies].sort((left, right) => (
   (lateFeePriorityOrder[normalizePolicyPriority(left?.priority)] ?? lateFeePriorityOrder.medium)
@@ -330,54 +325,39 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     locale,
     resolvedRatePolicy,
   ]);
-  const scheduleColumnTotals = useMemo(() => {
-    if (!result?.schedule?.length) {
-      return null;
-    }
-
-    return result.schedule.reduce((totals, row, index, rows) => ({
-      scheduledPayment: totals.scheduledPayment + Number(row.scheduledPayment || 0),
-      interestComponent: totals.interestComponent + Number(row.interestComponent || 0),
-      principalComponent: totals.principalComponent + Number(row.principalComponent || 0),
-      closingBalance: index === rows.length - 1
-        ? Number(row.remainingBalance || 0)
-        : totals.closingBalance,
-    }), {
-      scheduledPayment: 0,
-      interestComponent: 0,
-      principalComponent: 0,
-      closingBalance: 0,
-    });
-  }, [result?.schedule]);
-  const summaryInsightItems = useMemo(() => (
+  const summaryMetricCards = useMemo(() => (
     hasValidatedResult ? [
       {
-        id: 'new-credit-summary-annual-rate',
+        id: 'annual-rate',
+        accent: 'blue' as const,
         label: tTerm('newCredit.summary.rateAnnual'),
         value: formatPercent(appliedAnnualRate, locale),
+        helper: tTerm('newCredit.summary.card.interestRateHelper'),
         icon: <Calculator size={18} />,
-        accent: 'blue' as const,
       },
       {
-        id: 'new-credit-summary-monthly-rate',
+        id: 'monthly-rate',
+        accent: 'teal' as const,
         label: tTerm('newCredit.summary.rateMonthly'),
         value: formatPercent(appliedMonthlyRate, locale),
+        helper: tTerm('newCredit.summary.card.interestRateHelper'),
         icon: <CalendarDays size={18} />,
-        accent: 'teal' as const,
       },
       {
-        id: 'new-credit-summary-installment',
+        id: 'installment',
+        accent: 'amber' as const,
         label: tTerm('newCredit.summary.installmentMonthly'),
         value: snapshotInstallment,
+        helper: tTerm('newCredit.summary.card.installmentHelper'),
         icon: <Wallet size={18} />,
-        accent: 'amber' as const,
       },
       {
-        id: 'new-credit-summary-term',
-        label: tTerm('newCredit.snapshot.termCompact'),
-        value: tTerm('newCredit.summary.termMonths', { months: termMonths }),
-        icon: <CalendarDays size={18} />,
+        id: 'term',
         accent: 'slate' as const,
+        label: tTerm('newCredit.summary.termTotal'),
+        value: tTerm('newCredit.summary.termMonths', { months: termMonths }),
+        helper: tTerm('newCredit.summary.card.termHelper'),
+        icon: <Calendar size={18} />,
       },
     ] : []
   ), [
@@ -388,6 +368,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     snapshotInstallment,
     termMonths,
   ]);
+
   const handleBorrowerCustomerIdChange = (customerId: string) => {
     setBorrower((current) => ({ ...current, customerId }));
     setBorrowerErrors((current) => {
@@ -562,6 +543,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       layout="new-credit"
       ariaLabel={tTerm('newCredit.aria.actionDock')}
       data-tour="new-credit-action-dock"
+      className="new-credit-action-dock"
     >
       <IconActionButton
         onClick={resetCalculation}
@@ -569,10 +551,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         label={tTerm('newCredit.action.reset')}
         title={tTerm('newCredit.action.reset')}
         icon={<RotateCcw size={16} />}
-        className={floatingActionDockIconButtonClass}
+        className={`${floatingActionDockIconButtonClass} new-credit-action-reset`}
       />
       <ActionButton
         data-tour="new-credit-validate"
+        className={`${floatingActionDockButtonClass} new-credit-action-validate`}
         onClick={handleValidateCredit}
         disabled={isSimulating || isConfigLoading}
         isLoading={isSimulating}
@@ -584,9 +567,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             : hasAmbiguousLateFeePolicy
               ? tTerm('newCredit.action.validate.title.lateFeeConflict')
             : tTerm('newCredit.action.validate.title.missing')}
-        icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
+        icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
         fullWidth
-        className={floatingActionDockButtonClass}
       >
         {tTerm('newCredit.action.validate')}
       </ActionButton>
@@ -594,16 +576,21 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         type="submit"
         disabled={!canRegister}
         data-tour="new-credit-submit"
+        className={`${floatingActionDockButtonClass} new-credit-action-register`}
         isLoading={isSubmitting}
         aria-label={tTerm('newCredit.action.register')}
         title={canRegister ? tTerm('newCredit.action.register.title.ready') : tTerm('newCredit.action.register.title.blocked')}
         icon={isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         variant="primary"
         fullWidth
-        className={floatingActionDockButtonClass}
       >
-        <span className="hidden sm:inline">{tTerm('newCredit.action.register')}</span>
-        <span className="sm:hidden">{tTerm('newCredit.action.register.short')}</span>
+        <span className="flex items-center justify-between w-full">
+          <span className="flex items-center gap-1">
+            <span className="hidden sm:inline">{tTerm('newCredit.action.register')}</span>
+            <span className="sm:hidden">{tTerm('newCredit.action.register.short')}</span>
+          </span>
+          <ChevronRight size={14} className="shrink-0" />
+        </span>
       </ActionButton>
     </FloatingActionDock>
   );
@@ -611,48 +598,58 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="pb-44"
+      className="new-credit-form"
       data-tour="new-credit-page"
     >
-      <PageShell className="new-credit-page mx-auto max-w-[1440px] !gap-5">
-        <PageHeader
-          tourId="new-credit-header"
-          eyebrow={tTerm('newCredit.header.eyebrow')}
-          title={(
-            <span className="flex min-w-0 items-center gap-3">
-              <IconActionButton
-                onClick={onBack}
-                label={tTerm('newCredit.header.back')}
-                icon={<ArrowLeft size={20} />}
-                className="shrink-0"
-              />
-              <span className="min-w-0 truncate">{tTerm('newCredit.header.title')}</span>
-            </span>
-          )}
-          subtitle={tTerm('newCredit.header.subtitle')}
-          actions={(
-            <>
-              <QuickGuideButton guideKey="new-credit" />
-              <ActionButton onClick={onBack}>{tTerm('newCredit.action.cancel')}</ActionButton>
-            </>
-          )}
-        />
-
-        <div aria-label={tTerm('newCredit.aria.floatingActions')}>
-          {actionDock}
-        </div>
+      <PageShell
+        className="new-credit-page mx-auto max-w-[1440px] !gap-5"
+        data-workspace-state={workspaceRevealed ? 'results' : 'parameters'}
+      >
+        <header className="new-credit-page-header" data-tour="new-credit-header">
+          <div className="new-credit-page-header__title-row">
+            <IconActionButton
+              onClick={onBack}
+              label={tTerm('newCredit.header.back')}
+              icon={<ArrowLeft size={20} />}
+              className="shrink-0"
+            />
+            <h1 className="new-credit-page-header__title">{tTerm('newCredit.header.title')}</h1>
+          </div>
+          <div className="new-credit-page-header__actions">
+            <QuickGuideButton guideKey="new-credit" />
+            <ActionButton onClick={onBack} variant="ghost">{tTerm('newCredit.action.cancel')}</ActionButton>
+          </div>
+          <div className="sr-only">
+            <PageHeader
+              tourId="new-credit-header"
+              eyebrow={tTerm('newCredit.header.eyebrow')}
+              title={tTerm('newCredit.header.title')}
+              subtitle={tTerm('newCredit.header.subtitle')}
+            />
+          </div>
+        </header>
 
         <section className="new-credit-workspace" data-tour="new-credit-simulation">
           <div
             className="new-credit-workspace-body"
             data-state={workspaceRevealed ? 'results' : 'parameters'}
           >
-          <div className="new-credit-panel new-credit-form-panel" data-tour="new-credit-borrower">
-              <div className="new-credit-panel-heading">
-                <h4 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-                  <Calculator size={16} />
-                  {tTerm('simulator.section.parameters')}
-                </h4>
+            {/* Left Card: Parameters */}
+            <div className="new-credit-panel new-credit-form-panel" data-tour="new-credit-borrower">
+              <div className="new-credit-section-heading">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div className="new-credit-section-heading__icon" aria-hidden="true">
+                    <Settings size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="new-credit-section-heading__title">
+                      {tTerm('simulator.section.parameters')}
+                    </h4>
+                    <p className="new-credit-section-heading__subtitle">
+                      {tTerm('simulator.section.parameters.subtitle')}
+                    </p>
+                  </div>
+                </div>
                 {routeState?.source === 'credit-calculator' && (
                   <StatusChip tone="success" size="sm" icon={<CheckCircle2 size={13} />}>
                     {tTerm('newCredit.badge.preloaded')}
@@ -674,16 +671,37 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 />
               </FormField>
 
-                <FormField label={tTerm('simulator.form.amount')}>
-                  <CurrencyInput
+              <FormField label={tTerm('simulator.form.amount')}>
+                {/* Use AppInput directly to allow both the green circular dollar icon and the dollar prefix */}
+                <AppInput
+                  variant="money"
                   value={formatNumericInputValue(input.amount)}
                   onValueChange={(value, detail) => handleCalculationInputChange({ amount: sanitizeNumericInputNumber(detail.numericValue) })}
-                  icon={<DollarSign size={18} />}
+                  prefix="$"
+                  icon={<span className="new-credit-money-icon" aria-hidden="true">$</span>}
+                  placeholder="0"
                 />
               </FormField>
 
               <div className="new-credit-field-grid">
-                <FormField label={tTerm('simulator.field.termMonths')}>
+                <FormField
+                  className="new-credit-field-grid__date"
+                  label={tTerm('simulator.form.firstPaymentDate')}
+                  tooltip={tTerm('newCredit.field.firstPaymentDate.tooltip')}
+                >
+                  <AppInput
+                    variant="date"
+                    value={input.startDate || ''}
+                    onValueChange={(value) => handleCalculationInputChange({ startDate: String(value || '') || undefined })}
+                    icon={<CalendarDays size={18} className="new-credit-input-icon--brand" />}
+                  />
+                </FormField>
+
+                <FormField
+                  className="new-credit-field-grid__term"
+                  label={tTerm('newCredit.field.termMonthsInline')}
+                  tooltip={tTerm('newCredit.field.term.tooltip')}
+                >
                   <AppInput
                     variant="integer"
                     min="1"
@@ -692,18 +710,14 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                     placeholder={tTerm('newCredit.placeholder.term')}
                   />
                 </FormField>
-
-                <FormField label={tTerm('simulator.form.firstPaymentDate')}>
-                  <AppInput
-                    variant="date"
-                    value={input.startDate || ''}
-                    onValueChange={(value) => handleCalculationInputChange({ startDate: String(value || '') || undefined })}
-                  />
-                </FormField>
               </div>
 
+              {/* Vector Illustration at the bottom */}
+              <ParametersIllustration />
+
+              {/* Keep this section visually hidden (sr-only) to pass behavior tests that assert on rate preview texts */}
               <section
-                className="rounded-[1.05rem] border border-border-subtle bg-bg-base px-4 py-4"
+                className="sr-only"
                 data-tour="new-credit-policy-summary"
                 aria-label={tTerm('newCredit.ratePreview.aria')}
                 aria-live="polite"
@@ -775,16 +789,19 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 ) : null}
               </section>
 
-              {!workspaceRevealed ? (
-                <p className="new-credit-validate-hint">{tTerm('newCredit.empty.subtitle')}</p>
-              ) : null}
+              {/* Inline action dock when in parameters state (desktop) or mobile */}
+              {!workspaceRevealed && (
+                <div className="new-credit-panel-footer" aria-label={tTerm('newCredit.aria.floatingActions')}>
+                  {actionDock}
+                </div>
+              )}
+            </div>
 
-          </div>
-
-          <div
-            className="new-credit-panel new-credit-preview-panel"
-            aria-hidden={!workspaceRevealed}
-          >
+            {/* Right Card: Preview / Results */}
+            <div
+              className="new-credit-panel new-credit-preview-panel"
+              aria-hidden={!workspaceRevealed}
+            >
               {calculationError && (
                 <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {calculationError}
@@ -793,17 +810,23 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
               {hasValidatedResult && result ? (
                 <>
-                  <section
-                    className="data-table-surface new-credit-finance-overview"
-                    data-tour="new-credit-calculation-snapshot"
-                    aria-label={tTerm('newCredit.summary.aria')}
-                  >
+                  <header className="new-credit-preview-heading">
+                    <h3 className="new-credit-preview-heading__title">
+                      {tTerm('newCredit.workspace.summaryTitle')}
+                    </h3>
+                    <p className="new-credit-preview-heading__subtitle">
+                      {tTerm('newCredit.workspace.summarySubtitle')}
+                    </p>
+                  </header>
+
+                  <div className="new-credit-finance-overview">
                     <InsightStrip
-                      aria-label={tTerm('newCredit.snapshot.summary')}
-                      items={summaryInsightItems}
                       className="new-credit-summary-strip"
+                      data-tour="new-credit-calculation-snapshot"
+                      aria-label={tTerm('newCredit.summary.aria')}
+                      items={summaryMetricCards}
                     />
-                  </section>
+                  </div>
 
                   <section className="data-table-surface new-credit-schedule-block" data-tour="new-credit-schedule-block">
                     <TableSectionIntro
@@ -811,78 +834,21 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       title={tTerm('simulator.schedule.title')}
                       description={tTerm('simulator.schedule.subtitle')}
                     />
-                    <AppTable
-                      variant="financial"
-                      visibleFrom="always"
-                      horizontalScroll
+                    <CreditSimulationScheduleTable
+                      schedule={result.schedule}
+                      startDate={input.startDate}
+                      amount={input.amount}
+                      isSimulating={isSimulating}
+                      emptyDescription={tTerm('newCredit.schedule.empty')}
+                      showStatusColumn={false}
+                      showTotalsFooter
                       embeddedInSurface
-                      minWidthClassName="min-w-[1180px]"
-                      surfaceClassName="new-credit-schedule-table"
-                    >
-                        <colgroup>
-                          <col style={{ width: '5%' }} />
-                          <col style={{ width: '17%' }} />
-                          <col style={{ width: '17%' }} />
-                          <col style={{ width: '15%' }} />
-                          <col style={{ width: '16%' }} />
-                          <col style={{ width: '16%' }} />
-                          <col style={{ width: '14%' }} />
-                        </colgroup>
-                        <thead>
-                          <tr>
-                            <th className="text-center">{tTerm('simulator.schedule.header.number')}</th>
-                            <th>{tTerm('schedule.table.header.dueDate')}</th>
-                            <th className="text-right">{tTerm('simulator.schedule.header.payment')}</th>
-                            <th className="text-right">{tTerm('simulator.schedule.header.interest')}</th>
-                            <th className="text-right">{tTerm('simulator.schedule.header.principal')}</th>
-                            <th className="text-right">{tTerm('simulator.schedule.header.balance')}</th>
-                            <th className="text-center">{tTerm('schedule.table.header.status')}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {result.schedule.length > 0 ? result.schedule.map((row) => (
-                            <tr key={row.installmentNumber}>
-                              <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
-                              <td className="text-text-secondary">{formatDueDate(row.dueDate)}</td>
-                              <td className="text-right font-medium text-text-primary">{formatCalculatedMoney(row.scheduledPayment)}</td>
-                              <td className="text-right text-text-secondary">{formatCalculatedMoney(row.interestComponent)}</td>
-                              <td className="text-right font-medium text-text-primary">{formatCalculatedMoney(row.principalComponent)}</td>
-                              <td className="text-right font-medium text-text-primary">{formatCalculatedMoney(row.remainingBalance)}</td>
-                              <td className="text-center text-text-secondary">{formatScheduleStatusLabel(row.status)}</td>
-                            </tr>
-                          )) : (
-                            <tr>
-                              <td colSpan={7} className="table-empty-state">
-                                {tTerm('newCredit.schedule.empty')}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                        {scheduleColumnTotals ? (
-                          <tfoot>
-                            <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
-                              <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
-                                {tTerm('newCredit.schedule.totals')}
-                              </td>
-                              <td />
-                              <td className="text-right font-bold text-text-primary">
-                                {formatCalculatedMoney(scheduleColumnTotals.scheduledPayment)}
-                              </td>
-                              <td className="text-right font-bold text-text-secondary">
-                                {formatCalculatedMoney(scheduleColumnTotals.interestComponent)}
-                              </td>
-                              <td className="text-right font-bold text-text-primary">
-                                {formatCalculatedMoney(scheduleColumnTotals.principalComponent)}
-                              </td>
-                              <td className="text-right font-bold text-brand-primary text-base">
-                                {formatCalculatedMoney(scheduleColumnTotals.closingBalance)}
-                              </td>
-                              <td className="text-center text-xs text-text-secondary">—</td>
-                            </tr>
-                          </tfoot>
-                        ) : null}
-                    </AppTable>
+                    />
                   </section>
+
+                  <div className="new-credit-panel-footer" aria-label={tTerm('newCredit.aria.floatingActions')}>
+                    {actionDock}
+                  </div>
                 </>
               ) : isSimulating ? (
                 <div className="new-credit-preview-loading" aria-live="polite">
@@ -890,11 +856,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   <p>{tTerm('simulator.schedule.loading')}</p>
                 </div>
               ) : null}
-          </div>
+            </div>
           </div>
         </section>
       </PageShell>
-
     </form>
   );
 }

@@ -13,11 +13,10 @@ import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate }
 import { tTerm } from '../../i18n/terminology';
 import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
 import { sanitizeNumericInputNumber, formatNumericInputValue } from '../../lib/numericInputState';
-import { formatScheduleStatusLabel } from '../../lib/scheduleStatusLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
 import { AppInput, CurrencyInput, OperationalSelect } from './Surfaces';
 import { ActionButton, FormField, InsightStrip } from './Surfaces';
-import { AppTable } from './tables';
+import { CreditSimulationScheduleTable } from './CreditSimulationScheduleTable';
 
 type CreditSimulationWorkspaceProps = {
   title: string;
@@ -446,72 +445,13 @@ export default function CreditSimulationWorkspace({
                 )}
               </div>
 
-               <AppTable variant="financial" visibleFrom="always" horizontalScroll minWidthClassName="min-w-[880px]">
-                    <colgroup>
-                      <col style={{ width: '6%' }} />
-                      <col style={{ width: '20%' }} />
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '12%' }} />
-                      <col style={{ width: '12%' }} />
-                      <col style={{ width: '15%' }} />
-                      <col style={{ width: '22%' }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th className="text-center">{tTerm('simulator.schedule.header.number')}</th>
-                        <th>{tTerm('schedule.table.header.dueDate')}</th>
-                        <th className="text-right">{tTerm('simulator.schedule.header.payment')}</th>
-                        <th className="text-right">{tTerm('simulator.schedule.header.interest')}</th>
-                        <th className="text-right">{tTerm('simulator.schedule.header.principal')}</th>
-                        <th className="text-right">{tTerm('simulator.schedule.header.balance')}</th>
-                        <th className="text-center">{tTerm('schedule.table.header.status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="bg-hover-bg/40">
-                        <td className="text-center font-medium text-text-secondary">0</td>
-                        <td className="text-text-secondary">{formatDate(input.startDate || '')}</td>
-                        <td className="text-right text-text-secondary">-</td>
-                        <td className="text-right text-text-secondary">-</td>
-                        <td className="text-right text-text-secondary">-</td>
-                        <td className="text-right font-semibold text-text-primary">{formatCurrency(input.amount)}</td>
-                        <td className="text-center text-text-secondary">{tTerm('simulator.schedule.row.start')}</td>
-                      </tr>
-
-                      {isSimulating ? (
-                        <tr>
-                          <td colSpan={7} className="table-empty-state">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-text-secondary">
-                              <Loader2 size={16} className="animate-spin" />
-                              {tTerm('simulator.schedule.loading')}
-                            </div>
-                          </td>
-                        </tr>
-                      ) : freshResult && freshResult.schedule.length > 0 ? (
-                        freshResult.schedule.map((row) => (
-                          <tr key={row.installmentNumber} className="hover:bg-hover-bg/60">
-                            <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
-                            <td className="text-text-secondary">{formatDate(row.dueDate)}</td>
-                             <td className="text-right font-medium text-blue-900 dark:text-blue-200">{formatCurrency(row.scheduledPayment)}</td>
-                             <td className="text-right text-amber-900 dark:text-amber-200">{formatCurrency(row.interestComponent)}</td>
-                             <td className="text-right text-emerald-900 dark:text-emerald-200">{formatCurrency(row.principalComponent)}</td>
-                             <td className="text-right font-medium text-text-primary">{formatCurrency(row.remainingBalance)}</td>
-                             <td className="text-center">
-                               <span className="rounded-full border border-border-subtle bg-bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                                 {formatScheduleStatusLabel(row.status)}
-                               </span>
-                             </td>
-                           </tr>
-                         ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="table-empty-state">
-                            {resolvedEmptyScheduleDescription}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-              </AppTable>
+              <CreditSimulationScheduleTable
+                schedule={freshResult?.schedule ?? []}
+                startDate={input.startDate}
+                amount={input.amount}
+                isSimulating={isSimulating}
+                emptyDescription={resolvedEmptyScheduleDescription}
+              />
             </section>
           </div>
         </div>

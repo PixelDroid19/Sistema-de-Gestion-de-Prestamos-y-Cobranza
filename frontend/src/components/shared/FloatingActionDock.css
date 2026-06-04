@@ -21,6 +21,13 @@
     left: auto;
   }
 
+  .new-credit-action-dock.floating-action-dock {
+    position: static;
+    right: auto;
+    bottom: auto;
+    left: auto;
+  }
+
   .floating-action-dock--layout-new-credit {
     width: 31rem;
   }

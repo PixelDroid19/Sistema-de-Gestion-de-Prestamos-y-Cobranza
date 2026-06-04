@@ -140,6 +140,19 @@
   color-scheme: dark;
 }
 
+.operational-control-input[type='date']::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  height: auto;
+  opacity: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
 .operational-control-input:disabled,
 .operational-control-select:disabled {
   cursor: not-allowed;

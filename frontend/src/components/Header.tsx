@@ -113,7 +113,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
   };
 
   return (
-    <header className="app-glass-surface min-h-16 shrink-0 border-b border-border-subtle px-3 py-3 sm:px-4 lg:px-6">
+    <header className="app-glass-surface app-shell-header min-h-16 shrink-0 border-b border-border-subtle px-3 py-3 sm:px-4 lg:px-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {toggleMobileSidebar && (
@@ -142,7 +142,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
         </div>
 
         <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
-          <div ref={searchRef} className="relative hidden lg:block">
+          <div ref={searchRef} className="relative z-50 hidden lg:block">
             <AppInput
               variant="text"
               value={searchQuery}
@@ -173,7 +173,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             </div>
 
             {isSearchOpen && (
-              <div className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[min(26rem,42vw)] overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-xl">
+              <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(26rem,42vw)] overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-xl">
                 <div className="border-b border-border-subtle px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">
                   {normalizedQuery ? tTerm('header.search.results') : tTerm('header.search.quickAccess')}
                 </div>

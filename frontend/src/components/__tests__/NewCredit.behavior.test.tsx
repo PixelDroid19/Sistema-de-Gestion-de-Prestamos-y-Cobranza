@@ -329,9 +329,11 @@ describe('NewCredit behavior', () => {
 
     render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getByText('Estado no clasificado')).toBeInTheDocument();
     expect(screen.getByText('Totales')).toBeInTheDocument();
+    expect(screen.queryByText('Estado no clasificado')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Estado/i })).not.toBeInTheDocument();
     expect(screen.queryByText('manual_hold')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ver todas las cuotas/i)).not.toBeInTheDocument();
   });
 
   it('guides the operator through customer, validation and registration readiness', () => {

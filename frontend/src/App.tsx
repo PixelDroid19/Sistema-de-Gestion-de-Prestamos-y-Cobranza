@@ -69,9 +69,9 @@ function MainLayout() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg-base text-text-primary font-sans">
-      <Sidebar 
-        currentView={currentView} 
-        setCurrentView={setCurrentView} 
+      <Sidebar
+        currentView={currentView}
+        setCurrentView={setCurrentView}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
         isMobileOpen={isMobileOpen}
@@ -79,7 +79,7 @@ function MainLayout() {
       />
       <div className="flex flex-col flex-1 min-w-0">
         <Header setCurrentView={setCurrentView} toggleMobileSidebar={() => setIsMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto bg-bg-base p-4 sm:p-6 lg:p-8">
+        <main className="app-shell-main flex-1 overflow-y-auto bg-bg-base p-4 sm:p-6 lg:p-8">
           <React.Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<RoleHomeRedirect />} />
