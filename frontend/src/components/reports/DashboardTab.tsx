@@ -1,8 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ReportTabPanel } from './ReportTabPanel';
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { DollarSign, TrendingUp, Users, Wallet } from 'lucide-react';
-import { useTranslation } from '../../i18n';
 import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import MeasuredChart from '../shared/MeasuredChart';
@@ -26,7 +24,6 @@ type DashboardTabProps = {
 };
 
 export default function DashboardTab({ metrics, monthlyData, statusData, headerActions }: DashboardTabProps) {
-  const { locale } = useTranslation();
   const [chartRange, setChartRange] = useState<'last6' | 'year' | 'historical'>('last6');
 
   const filteredMonthlyData = useMemo(() => {
@@ -35,16 +32,15 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
     return monthlyData;
   }, [chartRange, monthlyData]);
 
-  const chartRangeLabel = useMemo(() => {
-    if (chartRange === 'last6') return tTerm('reports.chart.disbursementRecovery.range.last6');
-    if (chartRange === 'year') return tTerm('reports.chart.disbursementRecovery.range.year');
-    return tTerm('reports.chart.disbursementRecovery.range.historical');
-  }, [chartRange, locale]);
-
   const hasKpiTotals = useMemo(
     () => Number(metrics.totalDisbursed || 0) > 0 || Number(metrics.totalRecovered || 0) > 0,
     [metrics.totalDisbursed, metrics.totalRecovered],
   );
+  const chartRangeLabel = chartRange === 'last6'
+    ? tTerm('reports.chart.disbursementRecovery.range.last6')
+    : chartRange === 'year'
+      ? tTerm('reports.chart.disbursementRecovery.range.year')
+      : tTerm('reports.chart.disbursementRecovery.range.historical');
 
   const chartHasData = useMemo(
     () => filteredMonthlyData.some((item: any) => Number(item?.disbursed || 0) > 0 || Number(item?.recovered || 0) > 0),
@@ -61,13 +57,14 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
 
   return (
     <div className="report-tab-layout">
-      <ReportTabPanel
-        title={tTerm('reports.tab.dashboard')}
-        subtitle={tTerm('reports.dashboard.panel.subtitle')}
-        headerActions={headerActions}
-      />
+      {headerActions ? (
+        <div className="report-tab-actions">
+          {headerActions}
+        </div>
+      ) : null}
 
       <InsightStrip
+        className="report-dashboard-strip"
         aria-label={tTerm('reports.summary.aria')}
         items={[
           {
@@ -104,9 +101,11 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
           },
         ]}
       />
-      <p className="text-xs text-text-secondary mt-1">
-        <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
-      </p>
+      {hasKpiTotals && !chartHasData ? (
+        <p className="text-xs text-text-secondary">
+          <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <SectionSurface className="lg:col-span-2">
@@ -129,9 +128,11 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
               </OperationalSelect>
             </div>
           </div>
-          <p className="text-xs text-text-secondary mb-4">
-            <span className="font-medium">{tTerm('reports.chart.scope.label')}:</span> {tTerm('reports.chart.scope.selectedRange')} {tTerm('reports.chart.scope.currentRangePrefix')} {chartRangeLabel}.
-          </p>
+          {hasKpiTotals && !chartHasData ? (
+            <p className="mb-4 text-xs text-text-secondary">
+              <span className="font-medium">{tTerm('reports.chart.scope.label')}:</span> {tTerm('reports.chart.scope.selectedRange')} {tTerm('reports.chart.scope.currentRangePrefix')} {chartRangeLabel}.
+            </p>
+          ) : null}
           {chartHasData ? (
             <div className="h-72 w-full min-w-0 text-sm">
               <MeasuredChart className="h-full w-full min-w-0 text-sm" minHeight={288}>

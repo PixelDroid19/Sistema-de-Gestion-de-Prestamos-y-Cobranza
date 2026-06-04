@@ -808,6 +808,23 @@
     box-shadow: none;
   }
 
+  .reports-page-tabs .view-tab {
+    min-height: 2.2rem;
+    padding-inline: 0.75rem;
+    font-size: 0.82rem;
+  }
+
+  @media (max-width: 767px) {
+    .reports-page-tabs.view-tabs {
+      gap: 0.25rem;
+      padding: 0.25rem;
+    }
+
+    .reports-page-tabs .view-tab {
+      padding-inline: 0.65rem;
+    }
+  }
+
   .reports-tab-content {
     display: flex;
     flex-direction: column;
@@ -1015,12 +1032,21 @@
     gap: 0.75rem;
   }
 
+  .report-tab-panel__header--actions-only {
+    align-items: stretch;
+    justify-content: flex-end;
+  }
+
   @media (min-width: 768px) {
     .report-tab-panel__header {
       flex-direction: row;
       align-items: flex-start;
       justify-content: space-between;
       gap: 1rem;
+    }
+
+    .report-tab-panel__header--actions-only {
+      justify-content: flex-end;
     }
   }
 
@@ -1556,6 +1582,38 @@
 
   .insight-strip-item--slate {
     --insight-accent: #475569;
+  }
+
+  @media (min-width: 900px) and (max-width: 1119px) {
+    .report-dashboard-strip.insight-strip--count-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .report-dashboard-strip .insight-strip-item {
+      gap: 0.75rem;
+      padding: 1rem;
+    }
+
+    .report-dashboard-strip .insight-strip-icon {
+      width: 2.4rem;
+      height: 2.4rem;
+    }
+
+    .report-dashboard-strip .insight-strip-label {
+      font-size: 0.68rem;
+      line-height: 1.15;
+      letter-spacing: 0.12em;
+    }
+
+    .report-dashboard-strip .insight-strip-value {
+      margin-top: 0.28rem;
+      font-size: 1.05rem;
+    }
+
+    .report-dashboard-strip .insight-strip-helper {
+      margin-top: 0.18rem;
+      font-size: 0.8rem;
+    }
   }
 
   .calendar-summary-strip {

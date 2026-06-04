@@ -91,13 +91,19 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     const participationAssigned = Number(summary?.participationAssigned ?? associates.reduce((total: number, associate: any) => (
       total + Number(associate.participationPercentage || 0)
     ), 0));
+    const activeWithoutParticipationCount = associates.filter((associate: any) => (
+      associate.status === 'active' && Number(associate.participationPercentage || 0) <= 0
+    )).length;
+    const participationPending = Math.max(0, 100 - participationAssigned);
 
     return {
       activeCount,
+      activeWithoutParticipationCount,
       totalCount: Number(visibleTotal || 0),
       totalContributed,
       monthlyInterestEstimate,
       participationAssigned,
+      participationPending,
     };
   }, [associates, pagination?.total, pagination?.totalItems, summary]);
 
@@ -132,6 +138,38 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       ? tTerm('common.interestType.annual')
       : tTerm('common.interestType.monthly');
     return `${formatNumberValue(rate, { maximumFractionDigits: 4 })}% ${type.toLowerCase()}`;
+  };
+
+  const getAssociateContactLine = (associate: any) => (
+    [associate?.email, associate?.phone].filter((value) => typeof value === 'string' && value.trim().length > 0).join(' · ')
+  );
+
+  const getParticipationText = (associate: any) => {
+    const participation = Number(associate?.participationPercentage || 0);
+    return participation > 0 ? formatPercent(participation) : tTerm('associates.table.participationMissing');
+  };
+
+  const getParticipationHelper = (associate: any) => {
+    const participation = Number(associate?.participationPercentage || 0);
+    return participation > 0
+      ? tTerm('associates.table.participationConfigured')
+      : tTerm('associates.table.participationPending');
+  };
+
+  const getInterestScheduleLabel = (associate: any) => {
+    const type = associate?.interestType === 'annual'
+      ? tTerm('common.interestType.annual').toLowerCase()
+      : tTerm('common.interestType.monthly').toLowerCase();
+    const paymentDay = Number(associate?.interestPaymentDay || 0);
+
+    if (paymentDay > 0) {
+      return tTerm('associates.table.interestScheduleWithDay', {
+        periodicity: type,
+        day: formatNumberValue(paymentDay, { maximumFractionDigits: 0 }),
+      });
+    }
+
+    return tTerm('associates.table.interestSchedule', { periodicity: type });
   };
 
   const handleToggleStatus = async (associate: any) => {
@@ -289,9 +327,16 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 id: 'associate-active',
                 label: tTerm('associates.summary.active'),
                 value: `${associateStripMetrics.activeCount} / ${associateStripMetrics.totalCount}`,
-                helper: tTerm('associates.summary.activeHelper'),
+                helper: associateStripMetrics.activeWithoutParticipationCount > 0
+                  ? tTerm(
+                    associateStripMetrics.activeWithoutParticipationCount === 1
+                      ? 'associates.summary.activePendingParticipation.one'
+                      : 'associates.summary.activePendingParticipation.many',
+                    { count: associateStripMetrics.activeWithoutParticipationCount },
+                  )
+                  : tTerm('associates.summary.activeHelper'),
                 icon: <Users size={18} />,
-                accent: 'slate',
+                accent: associateStripMetrics.activeWithoutParticipationCount > 0 ? 'amber' : 'slate',
               },
               {
                 id: 'associate-participation',
@@ -299,7 +344,9 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 value: formatPercent(associateStripMetrics.participationAssigned),
                 helper: associateStripMetrics.participationAssigned === 100
                   ? tTerm('associates.summary.participationComplete')
-                  : tTerm('associates.summary.participationConfigured'),
+                  : tTerm('associates.summary.participationConfigured', {
+                    pending: formatPercent(associateStripMetrics.participationPending),
+                  }),
                 icon: <Percent size={18} />,
                 accent: associateStripMetrics.participationAssigned === 100 ? 'emerald' : 'amber',
               },
@@ -379,21 +426,32 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
             <tbody>
               {associates.map((associate: any) => (
                 <tr key={associate.id} className="hover:bg-hover-bg transition-colors">
-                  <td className="py-4 font-medium flex items-center gap-3">
-                    <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
-                      {getAssociateInitials(associate)}
+                  <td className="py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-600 dark:bg-blue-900 dark:text-blue-400">
+                        {getAssociateInitials(associate)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-text-primary">{getAssociateName(associate)}</p>
+                        <p className="mt-1 truncate text-sm text-text-secondary">
+                          {getAssociateContactLine(associate) || tTerm('associates.table.contactPending')}
+                        </p>
+                      </div>
                     </div>
-                    {getAssociateName(associate)}
                   </td>
                   <td className="py-4">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(associate.status)}`}>
                       {getStatusLabel(associate.status)}
                     </span>
                   </td>
-                  <td className="py-4 text-text-secondary">
-                    {associate.participationPercentage ? formatPercent(associate.participationPercentage) : tTerm('common.notAvailable')}
+                  <td className="py-4">
+                    <p className="font-medium text-text-primary">{getParticipationText(associate)}</p>
+                    <p className="mt-1 text-sm text-text-secondary">{getParticipationHelper(associate)}</p>
                   </td>
-                  <td className="py-4 text-text-secondary">{getInterestLabel(associate)}</td>
+                  <td className="py-4">
+                    <p className="font-medium text-text-primary">{getInterestLabel(associate)}</p>
+                    <p className="mt-1 text-sm text-text-secondary">{getInterestScheduleLabel(associate)}</p>
+                  </td>
                   <TableActionsCell className="py-4">
                     <RowActionsWithOverflow
                       variant="icon"

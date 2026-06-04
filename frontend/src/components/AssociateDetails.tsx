@@ -687,38 +687,42 @@ export default function AssociateDetails() {
         )}
       />
 
-      <ToolbarSurface className="items-stretch gap-5 lg:items-center" data-tour="associate-details-actions">
-        <div className="min-w-0 lg:max-w-2xl">
-          <p className="text-base font-semibold text-text-primary">{tTerm('associateDetails.toolbar.title')}</p>
-          <p className="mt-2 text-sm leading-6 text-text-secondary">
-            {tTerm('associateDetails.toolbar.description')}
-          </p>
-        </div>
-        <div className="grid gap-2 lg:min-w-[30rem]">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <ActionButton onClick={() => setShowContributionsModal(true)} icon={<History size={16} />} fullWidth>
-              {tTerm('associateDetails.cta.viewInterestHistory')}
-            </ActionButton>
-            <ActionButton onClick={() => setShowInstallmentsModal(true)} icon={<Clock size={16} />} fullWidth>
-              {tTerm('associateDetails.cta.viewInterestSchedule')}
-            </ActionButton>
-          </div>
-          {isAdmin && (
+      <ToolbarSurface className="items-stretch gap-4" data-tour="associate-details-actions">
+        <div className="grid w-full gap-4 lg:grid-cols-2">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+              {tTerm('associateDetails.toolbar.consultationGroup')}
+            </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <ActionButton onClick={() => openMoneyActionModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
-                {tTerm('associateDetails.cta.registerCapitalContribution')}
+              <ActionButton onClick={() => setShowContributionsModal(true)} icon={<History size={16} />} fullWidth>
+                {tTerm('associateDetails.cta.viewInterestHistory')}
               </ActionButton>
-              <ActionButton onClick={() => setActiveTab('installments')} icon={<CheckCircle size={16} />} variant="secondary" fullWidth>
-                {tTerm('associateDetails.cta.registerInterestPayment')}
-              </ActionButton>
-              <ActionButton onClick={() => openMoneyActionModal('distribution')} icon={<Download size={16} />} fullWidth>
-                {tTerm('associateDetails.cta.registerInterestWithdrawal')}
-              </ActionButton>
-              <ActionButton onClick={() => openMoneyActionModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth>
-                {tTerm('associateDetails.cta.registerInterestReinvestment')}
+              <ActionButton onClick={() => setShowInstallmentsModal(true)} icon={<Clock size={16} />} fullWidth>
+                {tTerm('associateDetails.cta.viewInterestSchedule')}
               </ActionButton>
             </div>
-          )}
+          </div>
+          {isAdmin ? (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                {tTerm('associateDetails.toolbar.movementGroup')}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ActionButton onClick={() => openMoneyActionModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
+                  {tTerm('associateDetails.cta.registerCapitalContribution')}
+                </ActionButton>
+                <ActionButton onClick={() => setActiveTab('installments')} icon={<CheckCircle size={16} />} variant="secondary" fullWidth>
+                  {tTerm('associateDetails.cta.registerInterestPayment')}
+                </ActionButton>
+                <ActionButton onClick={() => openMoneyActionModal('distribution')} icon={<Download size={16} />} fullWidth>
+                  {tTerm('associateDetails.cta.registerInterestWithdrawal')}
+                </ActionButton>
+                <ActionButton onClick={() => openMoneyActionModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth>
+                  {tTerm('associateDetails.cta.registerInterestReinvestment')}
+                </ActionButton>
+              </div>
+            </div>
+          ) : null}
         </div>
       </ToolbarSurface>
 

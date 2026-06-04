@@ -4,7 +4,7 @@ import { ReportTabActionsBar } from './ReportTabActionsBar';
 type FilterColumns = 2 | 3 | 4 | 5;
 
 type ReportTabPanelProps = {
-  title: string;
+  title?: string;
   subtitle?: string;
   headerActions?: ReactNode;
   filters?: ReactNode;
@@ -39,23 +39,29 @@ export function ReportTabPanel({
   className = '',
 }: ReportTabPanelProps) {
   const filterClassName = `report-tab-panel__filters report-tab-panel__filters--cols-${filterColumns}`;
+  const hasHeaderCopy = Boolean(title || subtitle);
+  const hasHeader = hasHeaderCopy || Boolean(headerActions);
 
   return (
     <Component
       className={`report-tab-panel ${className}`.trim()}
       onSubmit={Component === 'form' ? onSubmit : undefined}
     >
-      <div className="report-tab-panel__header">
-        <div className="report-tab-panel__header-copy min-w-0">
-          <h3 className="report-tab-panel__title">{title}</h3>
-          {subtitle ? <p className="report-tab-panel__subtitle">{subtitle}</p> : null}
+      {hasHeader ? (
+        <div className={`report-tab-panel__header ${hasHeaderCopy ? '' : 'report-tab-panel__header--actions-only'}`.trim()}>
+          {hasHeaderCopy ? (
+            <div className="report-tab-panel__header-copy min-w-0">
+              {title ? <h3 className="report-tab-panel__title">{title}</h3> : null}
+              {subtitle ? <p className="report-tab-panel__subtitle">{subtitle}</p> : null}
+            </div>
+          ) : null}
+          {headerActions ? (
+            <div className="report-tab-panel__header-actions">
+              <ReportTabActionsBar>{headerActions}</ReportTabActionsBar>
+            </div>
+          ) : null}
         </div>
-        {headerActions ? (
-          <div className="report-tab-panel__header-actions">
-            <ReportTabActionsBar>{headerActions}</ReportTabActionsBar>
-          </div>
-        ) : null}
-      </div>
+      ) : null}
       {filters ? <div className={filterClassName}>{filters}</div> : null}
       {secondaryFilters ? <div className="report-tab-panel__secondary-filters">{secondaryFilters}</div> : null}
       {actions ? <div className="report-tab-panel__actions">{actions}</div> : null}
