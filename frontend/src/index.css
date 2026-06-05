@@ -238,17 +238,7 @@
   }
 
   .associate-tracking-inline-table {
-    border: 1px solid var(--border-subtle) !important;
-    border-radius: 1rem !important;
-    background: var(--bg-surface) !important;
-    box-shadow: none !important;
-    overflow: hidden;
-  }
-
-  .associate-tracking-inline-table > .overflow-x-auto {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
+    background: color-mix(in srgb, var(--bg-surface) 94%, var(--bg-base) 6%);
   }
 
   .associate-tracking-state {

@@ -418,8 +418,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
             : (
               <AppTable
                 variant="operational"
-                shell="off"
-                className="associate-tracking-inline-table"
+                surfaceClassName="associate-tracking-inline-table"
                 minWidthClassName="min-w-[760px]"
                 hasData
                 recordsLabel={tTerm('associateTracking.obligations.recordsLabel')}
@@ -493,8 +492,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
             : (
               <AppTable
                 variant="operational"
-                shell="off"
-                className="associate-tracking-inline-table"
+                surfaceClassName="associate-tracking-inline-table"
                 minWidthClassName="min-w-[760px]"
                 hasData
                 recordsLabel={tTerm('associates.table.recordsLabel')}
@@ -599,8 +597,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
           ) : (
             <AppTable
               variant="operational"
-              shell="off"
-              className="associate-tracking-inline-table"
+              surfaceClassName="associate-tracking-inline-table"
               minWidthClassName="min-w-[760px]"
               hasData
               recordsLabel={tTerm('associateTracking.activity.recordsLabel')}
