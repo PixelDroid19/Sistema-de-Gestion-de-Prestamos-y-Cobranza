@@ -4,14 +4,20 @@ const express = require('express');
 const ExcelJS = require('exceljs');
 
 const { createReportsRouter } = require('@/modules/reports/presentation/router');
+const { createAssociatesRouter } = require('@/modules/associates/presentation/router');
 const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
 const { createExportPayoutsExcel } = require('@/modules/reports/application/useCases/createExportPayoutsExcel');
-const { createExportAssociatesExcel, createExportAssociatesPdf } = require('@/modules/reports/application/useCases/createExportAssociatesExcel');
+const { createExportAssociatesExcel, createExportAssociatesPdf } = require('@/modules/associates/application/reportingUseCases');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookBuilder');
 const { closeServer, listen } = require('./helpers/http');
 
 let activeServer;
+const associateValidation = {
+  create(_req, _res, next) { next(); },
+  update(_req, _res, next) { next(); },
+  proportionalDistribution(_req, _res, next) { next(); },
+};
 
 afterEach(async () => {
   await closeServer(activeServer);
@@ -719,7 +725,7 @@ const roleAwareAuth = (config = []) => (req, res, next) => {
     res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
     return;
   }
-  if (permissions.includes('REPORTS_VIEW_ALL') && !['admin', 'employee'].includes(role)) {
+  if (permissions.length > 0 && !['admin', 'employee'].includes(role)) {
     res.status(403).json({ success: false, error: { message: 'No tienes acceso a esta acción.', statusCode: 403 } });
     return;
   }
@@ -1407,19 +1413,16 @@ test('GET /reports/credits/summary rejects non-admin users', async () => {
   assert.equal(response.status, 403);
 });
 
-test('GET /reports/associates/excel returns xlsx file for admin', async () => {
+test('GET /associates/export returns xlsx file for admin', async () => {
   const mockRows = [
     { associateId: 1, associateName: 'Socio 1', section: 'summary', amount: '10000', date: 'Distributed: 500', status: 'active', participationPercentage: '25.0000' },
     { associateId: 1, associateName: 'Socio 1', section: 'contribution', entryId: 1, amount: '5000', date: '2024-01-15', status: 'completed', participationPercentage: '25.0000' },
   ];
 
-  const router = createReportsRouter({
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
-      async getRecoveredLoans() { return { success: true, data: { loans: [] }, summary: {} }; },
-      async getOutstandingLoans() { return { success: true, data: { loans: [] }, summary: {} }; },
-      async getRecoveryReport() { return { success: true, data: { recoveredLoans: [], outstandingLoans: [] }, summary: {} }; },
-      async getDashboardSummary() { return { success: true, data: { summary: {} } }; },
       async exportAssociatesExcel(input) {
         assert.equal(input.actor.role, 'admin');
         return {
@@ -1447,9 +1450,6 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
           },
         };
       },
-      async exportRecoveryReport() {
-        return { fileName: 'recovery-report.csv', contentType: 'text/csv', buffer: Buffer.from('test') };
-      },
     },
   });
 
@@ -1458,7 +1458,7 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/excel`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1476,8 +1476,9 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
   assert.equal(headers.includes('associateId'), false);
 });
 
-test('GET /reports/associates/export returns pdf file for admin', async () => {
-  const router = createReportsRouter({
+test('GET /associates/export returns pdf file for admin', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
       async exportAssociatesPdf(input) {
@@ -1496,7 +1497,7 @@ test('GET /reports/associates/export returns pdf file for admin', async () => {
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export?format=pdf`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1506,8 +1507,9 @@ test('GET /reports/associates/export returns pdf file for admin', async () => {
   assert.match(Buffer.from(await response.arrayBuffer()).toString('utf8'), /REPORTE DE SOCIOS INVERSIONISTAS/);
 });
 
-test('GET /reports/associates/export forwards associate filter to pdf export use case', async () => {
-  const router = createReportsRouter({
+test('GET /associates/export forwards associate filter to pdf export use case', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
       async exportAssociatesPdf(input) {
@@ -1527,7 +1529,7 @@ test('GET /reports/associates/export forwards associate filter to pdf export use
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf&associateId=8`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export?format=pdf&associateId=8`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1535,8 +1537,9 @@ test('GET /reports/associates/export forwards associate filter to pdf export use
   assert.equal(response.headers.get('content-type'), 'application/pdf');
 });
 
-test('GET /reports/associates/export forwards status filter to pdf export use case', async () => {
-  const router = createReportsRouter({
+test('GET /associates/export forwards status filter to pdf export use case', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
       async exportAssociatesPdf(input) {
@@ -1561,7 +1564,7 @@ test('GET /reports/associates/export forwards status filter to pdf export use ca
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf&status=inactive`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export?format=pdf&status=inactive`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1569,8 +1572,9 @@ test('GET /reports/associates/export forwards status filter to pdf export use ca
   assert.equal(response.headers.get('content-type'), 'application/pdf');
 });
 
-test('GET /reports/associates/export forwards date range filters to pdf export use case', async () => {
-  const router = createReportsRouter({
+test('GET /associates/export forwards date range filters to pdf export use case', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
       async exportAssociatesPdf(input) {
@@ -1595,7 +1599,7 @@ test('GET /reports/associates/export forwards date range filters to pdf export u
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf&fromDate=2026-04-01&toDate=2026-04-30`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export?format=pdf&fromDate=2026-04-01&toDate=2026-04-30`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1603,14 +1607,11 @@ test('GET /reports/associates/export forwards date range filters to pdf export u
   assert.equal(response.headers.get('content-type'), 'application/pdf');
 });
 
-test('GET /reports/associates/excel allows employee role with report permission', async () => {
-  const router = createReportsRouter({
+test('GET /associates/export allows employee role with associates permission', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
-      async getRecoveredLoans() { return { success: true, data: { loans: [] }, summary: {} }; },
-      async getOutstandingLoans() { return { success: true, data: { loans: [] }, summary: {} }; },
-      async getRecoveryReport() { return { success: true, data: { recoveredLoans: [], outstandingLoans: [] }, summary: {} }; },
-      async getDashboardSummary() { return { success: true, data: { summary: {} } }; },
       async exportAssociatesExcel(input) {
         assert.equal(input.actor.role, 'employee');
         return {
@@ -1626,9 +1627,6 @@ test('GET /reports/associates/excel allows employee role with report permission'
           },
         };
       },
-      async exportRecoveryReport() {
-        return { fileName: 'recovery-report.csv', contentType: 'text/csv', buffer: Buffer.from('test') };
-      },
     },
   });
 
@@ -1637,15 +1635,16 @@ test('GET /reports/associates/excel allows employee role with report permission'
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/excel`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'employee' },
   });
 
   assert.equal(response.status, 200);
 });
 
-test('GET /reports/associates/excel rejects socio role', async () => {
-  const router = createReportsRouter({
+test('GET /associates/export rejects socio role', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
       async exportAssociatesExcel() {
@@ -1659,15 +1658,16 @@ test('GET /reports/associates/excel rejects socio role', async () => {
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/excel`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
   });
 
   assert.equal(response.status, 403);
 });
 
-test('GET /reports/associates/excel rejects customer role', async () => {
-  const router = createReportsRouter({
+test('GET /associates/export rejects customer role', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
       async exportAssociatesExcel() {
@@ -1681,7 +1681,7 @@ test('GET /reports/associates/excel rejects customer role', async () => {
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/excel`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/export`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
   });
 

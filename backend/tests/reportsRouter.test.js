@@ -339,18 +339,6 @@ test('createReportsRouter rejects malformed credit and associate report identifi
         calls.push(['exportCustomerCreditHistory', input.loanId]);
         return { fileName: 'credit-history.pdf', contentType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') };
       },
-      async getAssociateProfitabilityReport(input) {
-        calls.push(['getAssociateProfitabilityReport', input.associateId]);
-        return { associate: { id: Number(input.associateId) }, summary: {} };
-      },
-      async exportAssociateProfitabilityReport(input) {
-        calls.push(['exportAssociateProfitabilityReport', input.associateId]);
-        return {
-          fileName: 'associate-profitability.xlsx',
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          buffer: Buffer.from('PKtest'),
-        };
-      },
     },
   });
 
@@ -375,30 +363,12 @@ test('createReportsRouter rejects malformed credit and associate report identifi
       path: '/credit-history/loan/1e2/export',
       headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     }),
-    requestJson(activeServer, {
-      path: '/associates/profitability/7.5',
-      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    }),
-    requestJson(activeServer, {
-      path: '/associates/abc/export',
-      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    }),
-    requestJson(activeServer, {
-      path: '/partner-report/1e2',
-      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    }),
   ]);
 
   assert.equal(responses[0].statusCode, 400);
   assert.match(responses[0].body.error.message, /número del crédito/i);
   assert.equal(responses[1].statusCode, 400);
   assert.match(responses[1].body.error.message, /número del crédito/i);
-  assert.equal(responses[2].statusCode, 400);
-  assert.match(responses[2].body.error.message, /número del socio/i);
-  assert.equal(responses[3].statusCode, 400);
-  assert.match(responses[3].body.error.message, /número del socio/i);
-  assert.equal(responses[4].statusCode, 400);
-  assert.match(responses[4].body.error.message, /número del socio/i);
   assert.deepEqual(calls, []);
 });
 
@@ -510,16 +480,6 @@ test('createReportsRouter serves export and credit-history contracts', async () 
           buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
         };
       },
-      async getAssociateProfitabilityReport() {
-        return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [{ id: 4, distributionType: 'proportional', declaredProportionalTotal: '600.00', allocatedAmount: '150.00' }] } };
-      },
-      async exportAssociateProfitabilityReport() {
-        return {
-          fileName: 'associate-7-profitability.xlsx',
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          buffer: Buffer.from('PKtest', 'utf8'),
-        };
-      },
     },
   });
 
@@ -544,10 +504,6 @@ test('createReportsRouter serves export and credit-history contracts', async () 
   const loanHistoryExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/credit-history/loan/12/export?format=pdf`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
-  const associateExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/7/export?format=xlsx`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-  });
-
   assert.equal(exportResponse.status, 200);
   assert.match(await exportResponse.text(), /header/);
   assert.equal(customerHistoryExportResponse.status, 200);
@@ -559,8 +515,6 @@ test('createReportsRouter serves export and credit-history contracts', async () 
   assert.equal(historyResponse.body.data.history.closure.closureReason, 'payoff');
   assert.equal(loanHistoryExportResponse.status, 200);
   assert.match(await loanHistoryExportResponse.text(), /%PDF-1.4/);
-  assert.equal(associateExportResponse.status, 200);
-  assert.equal((await associateExportResponse.arrayBuffer()).byteLength > 0, true);
 });
 
 test('createReportsRouter returns success when customer history has empty segments', async () => {
@@ -597,16 +551,6 @@ test('createReportsRouter returns success when customer history has empty segmen
       },
       async getCustomerCreditHistory() {
         return { loan: { id: 12 }, snapshot: { totalPaid: 300 }, payments: [], payoffHistory: [], closure: { closureReason: null } };
-      },
-      async getAssociateProfitabilityReport() {
-        return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [] } };
-      },
-      async exportAssociateProfitabilityReport() {
-        return {
-          fileName: 'associate-7-profitability.xlsx',
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          buffer: Buffer.from('PKtest', 'utf8'),
-        };
       },
     },
   });
@@ -696,12 +640,12 @@ test('createReportsRouter rejects customer records from administrative credit hi
   assert.equal(exportResponse.status, 403);
 });
 
-test('createReportsRouter rejects socio records from administrative associate export routes', async () => {
+test('createReportsRouter rejects socio records from administrative report routes', async () => {
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
     useCases: {
-      async exportAssociateProfitabilityReport() {
-        throw new Error('exportAssociateProfitabilityReport should not be called');
+      async getComparativeAnalysis() {
+        throw new Error('getComparativeAnalysis should not be called');
       },
     },
   });
@@ -711,7 +655,7 @@ test('createReportsRouter rejects socio records from administrative associate ex
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/7/export?format=xlsx`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/comparative-analysis`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
   });
 
@@ -734,14 +678,6 @@ test('createReportsRouter exposes comparative/earnings routes and removes legacy
       async getInterestEarnings(input) {
         calls.push(['getInterestEarnings', input.year]);
         return { success: true, data: { byMonth: [{ month: 1, interest: '20.00' }], totalInterest: '20.00' } };
-      },
-      async exportAssociateProfitabilityReport() {
-        calls.push(['exportAssociateProfitabilityReport']);
-        return {
-          fileName: 'associate-7-profitability.xlsx',
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          buffer: Buffer.from('PKtest', 'utf8'),
-        };
       },
       async exportRecoveryReport() {
         calls.push(['exportRecoveryReport']);
@@ -797,9 +733,6 @@ test('createReportsRouter exposes comparative/earnings routes and removes legacy
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { year: '2024' },
   });
-  const partnerReportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/partner-report/7?format=xlsx`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-  });
   const canonicalPayoutExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/payouts/excel?startDate=2026-01-01&endDate=2026-01-31`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
@@ -825,9 +758,6 @@ test('createReportsRouter exposes comparative/earnings routes and removes legacy
     },
   });
 
-  assert.equal(partnerReportResponse.status, 200);
-  assert.equal((await partnerReportResponse.arrayBuffer()).byteLength > 0, true);
-
   assert.equal(canonicalPayoutExportResponse.status, 200);
   assert.equal((await canonicalPayoutExportResponse.arrayBuffer()).byteLength > 0, true);
 
@@ -838,7 +768,6 @@ test('createReportsRouter exposes comparative/earnings routes and removes legacy
     ['getComparativeAnalysis', 2025],
     ['getMonthlyEarnings', 2024],
     ['getInterestEarnings', 2024],
-    ['exportAssociateProfitabilityReport'],
     ['exportPayoutsExcel', {
       customerId: undefined,
       loanId: undefined,

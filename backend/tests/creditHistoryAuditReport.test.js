@@ -103,7 +103,7 @@ test('buildCreditHistoryAuditReport reconciles monthly audit totals for loans an
   assert.equal(report.months[1].availableCash, '8000000.00');
 });
 
-test('buildCreditHistoryAuditReport subtracts paid associate interest and operating expenses from available cash', () => {
+test('buildCreditHistoryAuditReport reconciles caja solo con créditos y gastos operativos', () => {
   const report = buildCreditHistoryAuditReport({
     filters: {
       startDate: new Date('2026-01-01T00:00:00.000Z'),
@@ -115,22 +115,16 @@ test('buildCreditHistoryAuditReport subtracts paid associate interest and operat
     payments: [
       makePayment({ id: 10, amount: 50000000, principalApplied: 45000000, interestApplied: 4000000, penaltyApplied: 1000000, paymentDate: '2026-01-20T00:00:00.000Z' }),
     ],
-    associateInterestPayments: [
-      { id: 20, amount: 2000000, status: 'paid', paidAt: '2026-01-22T00:00:00.000Z' },
-      { id: 21, amount: 9000000, status: 'pending', dueDate: '2026-01-25T00:00:00.000Z' },
-    ],
     operatingExpenses: [
       { id: 30, amount: 1500000, status: 'completed', expenseDate: '2026-01-28T00:00:00.000Z' },
       { id: 31, amount: 700000, status: 'annulled', expenseDate: '2026-01-29T00:00:00.000Z' },
     ],
   });
 
-  assert.equal(report.summary.totalAssociateInterestPaid, '2000000.00');
   assert.equal(report.summary.totalOperatingExpenses, '1500000.00');
-  assert.equal(report.summary.availableCash, '6500000.00');
-  assert.equal(report.months[0].associateInterestPaid, '2000000.00');
+  assert.equal(report.summary.availableCash, '8500000.00');
   assert.equal(report.months[0].operatingExpenses, '1500000.00');
-  assert.equal(report.months[0].availableCash, '6500000.00');
+  assert.equal(report.months[0].availableCash, '8500000.00');
 });
 
 test('credit history detail reconciles paid interest from canonical payments and does not count capital payments as received installments', () => {
@@ -261,9 +255,6 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
         return {
           loans: [makeLoan({ amount: 2000000 })],
           payments: [makePayment({ amount: 2000000, principalApplied: 1500000, interestApplied: 500000 })],
-          associateInterestPayments: [
-            { id: 20, amount: 200000, status: 'paid', paidAt: '2026-01-20T00:00:00.000Z' },
-          ],
           operatingExpenses: [
             { id: 30, amount: 100000, status: 'completed', expenseDate: '2026-01-21T00:00:00.000Z' },
           ],
@@ -286,7 +277,6 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   const headers = workbook.getWorksheet('Historial Mensual').getRow(2).values;
   assert.ok(headers.includes('Créditos Creados'));
   assert.ok(headers.includes('Cuotas Recibidas'));
-  assert.ok(headers.includes('Intereses Pagados a Socios'));
   assert.ok(headers.includes('Gastos Operativos'));
   assert.ok(headers.includes('Intereses Cobrados'));
   assert.ok(headers.includes('Capital Recuperado'));
@@ -298,12 +288,12 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   const historySheet = workbook.getWorksheet('Historial Mensual');
   const firstCapitalCell = historySheet.getRow(3).getCell(3);
   const firstReceivedCell = historySheet.getRow(3).getCell(5);
-  const firstGainsCell = historySheet.getRow(3).getCell(13);
-  const firstAvailableCashCell = historySheet.getRow(3).getCell(14);
+  const firstGainsCell = historySheet.getRow(3).getCell(12);
+  const firstAvailableCashCell = historySheet.getRow(3).getCell(13);
   assert.equal(firstCapitalCell.value, 2000000);
   assert.equal(firstReceivedCell.value, 2000000);
   assert.equal(firstGainsCell.value, 500000);
-  assert.equal(firstAvailableCashCell.value, -300000);
+  assert.equal(firstAvailableCashCell.value, -100000);
   assert.equal(typeof firstCapitalCell.value, 'number');
   assert.match(firstCapitalCell.numFmt, /\$/);
   assert.match(firstGainsCell.numFmt, /\$/);
@@ -325,10 +315,9 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.doesNotMatch(pdf.fileName, /\.csv$/);
   assert.match(pdf.buffer.toString('utf8'), /%PDF-1.4/);
   assert.match(pdf.buffer.toString('utf8'), /Historial de créditos/);
-  assert.match(pdf.buffer.toString('utf8'), /Intereses pagados a socios/);
   assert.match(pdf.buffer.toString('utf8'), /Gastos operativos/);
   assert.match(pdf.buffer.toString('utf8'), /Detalle mensual/);
-  assert.match(pdf.buffer.toString('utf8'), /2026-01 - prestado 2000000.00 - recibido 2000000.00 - socios 200000.00 - gastos 100000.00 - caja -300000.00/);
+  assert.match(pdf.buffer.toString('utf8'), /2026-01 - prestado 2000000.00 - recibido 2000000.00 - gastos 100000.00 - caja -100000.00/);
 });
 
 test('reports router exposes advanced credit history JSON, Excel and PDF routes', async () => {

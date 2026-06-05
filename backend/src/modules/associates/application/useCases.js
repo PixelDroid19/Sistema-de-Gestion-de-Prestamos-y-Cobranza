@@ -22,6 +22,7 @@ const PERCENTAGE_SCALE = 10000;
 const HUNDRED_PERCENT_UNITS = 100 * PERCENTAGE_SCALE;
 const ALLOWED_ASSOCIATE_STATUSES = new Set(['active', 'inactive']);
 const ALLOWED_INTEREST_TYPES = new Set(['monthly', 'annual']);
+const ALLOWED_ASSOCIATE_CONTRIBUTION_STATUSES = new Set(['completed', 'pending', 'annulled', 'manual_hold']);
 const DEFAULT_INTEREST_PAYMENT_DAY = 1;
 const DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH = 1;
 const ASSOCIATE_PAYMENT_ALERT_WINDOW_DAYS = 7;
@@ -33,6 +34,7 @@ const ASSOCIATE_DATE_FIELD_LABELS = {
   interestStartDate: 'La fecha de inicio de intereses',
   contributionDate: 'La fecha del aporte',
   distributionDate: 'La fecha de distribución',
+  capitalReturnDate: 'La fecha de devolución de capital',
   reinvestmentDate: 'La fecha de reinversión',
   paymentDate: 'La fecha de pago',
 };
@@ -116,6 +118,19 @@ const normalizeInterestRate = (value) => {
   }
 
   return numericValue.toFixed(4);
+};
+
+const normalizeAssociateContributionStatus = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return 'completed';
+  }
+
+  const normalizedValue = String(value).trim().toLowerCase();
+  if (!ALLOWED_ASSOCIATE_CONTRIBUTION_STATUSES.has(normalizedValue)) {
+    throw new ValidationError('El estado del aporte debe ser completado, pendiente, anulado o en revisión.');
+  }
+
+  return normalizedValue;
 };
 
 const normalizePaymentDay = (value) => {
@@ -318,7 +333,150 @@ const getContributionInterestRate = ({ contribution, associate }) => normalizeIn
   contribution.interestRateSnapshot ?? associate.interestRate,
 );
 
-const buildInterestInstallmentBasis = ({ associate, contributions = [], capitalBaseOverride = null }) => {
+const getDistributionBasis = (distribution) => {
+  const serializedDistribution = typeof distribution?.toJSON === 'function' ? distribution.toJSON() : distribution;
+  return serializedDistribution?.basis && typeof serializedDistribution.basis === 'object'
+    ? serializedDistribution.basis
+    : {};
+};
+
+const isCapitalReturnDistribution = (distribution) => getDistributionBasis(distribution).type === 'capital-return';
+
+const sortRowsByOperationalDateAsc = (left, right, getDate) => {
+  const leftDate = toOperationalDateOrNull(getDate(left));
+  const rightDate = toOperationalDateOrNull(getDate(right));
+  const leftTimestamp = leftDate?.getTime() || 0;
+  const rightTimestamp = rightDate?.getTime() || 0;
+
+  if (leftTimestamp !== rightTimestamp) {
+    return leftTimestamp - rightTimestamp;
+  }
+
+  return Number(left?.id || 0) - Number(right?.id || 0);
+};
+
+const amountToCents = (value) => Math.round(roundCurrency(Number(value || 0)) * 100);
+const centsToAmount = (value) => roundCurrency(Number(value || 0) / 100);
+
+const allocateCentsByWeight = ({ buckets, totalCents, getWeight }) => {
+  if (!Array.isArray(buckets) || buckets.length === 0 || totalCents <= 0) {
+    return [];
+  }
+
+  const weightedBuckets = buckets
+    .map((bucket) => ({
+      bucket,
+      weight: Math.max(0, Number(getWeight(bucket) || 0)),
+    }))
+    .filter((entry) => entry.weight > 0);
+
+  const totalWeight = weightedBuckets.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight <= 0) {
+    return [];
+  }
+
+  const baseAllocations = weightedBuckets.map((entry) => {
+    const rawAllocation = (totalCents * entry.weight) / totalWeight;
+    const flooredCents = Math.floor(rawAllocation);
+
+    return {
+      bucket: entry.bucket,
+      cents: flooredCents,
+      remainder: rawAllocation - flooredCents,
+    };
+  });
+
+  const allocatedCents = baseAllocations.reduce((sum, entry) => sum + entry.cents, 0);
+  let remainingCents = totalCents - allocatedCents;
+
+  if (remainingCents > 0) {
+    baseAllocations
+      .sort((left, right) => {
+        if (right.remainder !== left.remainder) {
+          return right.remainder - left.remainder;
+        }
+        return Number(left.bucket?.id || 0) - Number(right.bucket?.id || 0);
+      })
+      .slice(0, remainingCents)
+      .forEach((entry) => {
+        entry.cents += 1;
+      });
+  }
+
+  return baseAllocations.map((entry) => ({
+    bucket: entry.bucket,
+    cents: entry.cents,
+  }));
+};
+
+const buildContributionCapitalState = ({ associate, contributions = [], distributions = [] }) => {
+  const capitalBuckets = [...contributions]
+    .sort((left, right) => sortRowsByOperationalDateAsc(left, right, (row) => row.contributionDate))
+    .map((contribution) => {
+      const originalAmountCents = amountToCents(contribution.amount);
+      return {
+        id: Number(contribution.id || 0),
+        contributionId: contribution.id,
+        contributionDate: contribution.contributionDate,
+        interestRate: getContributionInterestRate({ contribution, associate }),
+        interestType: normalizeInterestType(contribution.interestTypeSnapshot ?? associate.interestType),
+        originalAmountCents,
+        remainingAmountCents: originalAmountCents,
+      };
+    });
+
+  const capitalReturnDistributions = [...distributions]
+    .filter(isCapitalReturnDistribution)
+    .sort((left, right) => sortRowsByOperationalDateAsc(left, right, (row) => row.distributionDate));
+
+  let totalCapitalReturnedCents = 0;
+
+  capitalReturnDistributions.forEach((distribution) => {
+    const requestedReturnCents = amountToCents(distribution.amount);
+    const totalRemainingCents = capitalBuckets.reduce((sum, bucket) => sum + bucket.remainingAmountCents, 0);
+    const appliedReturnCents = Math.min(requestedReturnCents, totalRemainingCents);
+
+    if (appliedReturnCents <= 0 || totalRemainingCents <= 0) {
+      return;
+    }
+
+    const allocations = allocateCentsByWeight({
+      buckets: capitalBuckets,
+      totalCents: appliedReturnCents,
+      getWeight: (bucket) => bucket.remainingAmountCents,
+    });
+
+    allocations.forEach(({ bucket, cents }) => {
+      bucket.remainingAmountCents = Math.max(0, bucket.remainingAmountCents - cents);
+    });
+
+    totalCapitalReturnedCents += appliedReturnCents;
+  });
+
+  const totalOriginalCapitalCents = capitalBuckets.reduce((sum, bucket) => sum + bucket.originalAmountCents, 0);
+  const totalCurrentCapitalCents = capitalBuckets.reduce((sum, bucket) => sum + bucket.remainingAmountCents, 0);
+
+  return {
+    buckets: capitalBuckets.map((bucket) => ({
+      contributionId: bucket.contributionId,
+      contributionDate: bucket.contributionDate,
+      interestRate: bucket.interestRate,
+      interestType: bucket.interestType,
+      originalAmount: centsToAmount(bucket.originalAmountCents),
+      remainingAmount: centsToAmount(bucket.remainingAmountCents),
+    })),
+    totalOriginalCapital: centsToAmount(totalOriginalCapitalCents),
+    totalCurrentCapital: centsToAmount(totalCurrentCapitalCents),
+    totalCapitalReturned: centsToAmount(totalCapitalReturnedCents),
+  };
+};
+
+const buildInterestInstallmentBasis = ({
+  associate,
+  contributions = [],
+  distributions = [],
+  capitalBaseOverride = null,
+}) => {
   if (capitalBaseOverride !== null) {
     const capitalBase = roundCurrency(capitalBaseOverride);
     const interestRate = normalizeInterestRate(associate.interestRate);
@@ -331,17 +489,18 @@ const buildInterestInstallmentBasis = ({ associate, contributions = [], capitalB
     };
   }
 
-  const basis = contributions.reduce((result, contribution) => {
-    const contributionAmount = roundCurrency(contribution.amount);
+  const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
+
+  const basis = capitalState.buckets.reduce((result, bucket) => {
+    const contributionAmount = roundCurrency(bucket.remainingAmount);
     if (contributionAmount <= 0) {
       return result;
     }
 
-    const interestRate = getContributionInterestRate({ contribution, associate });
     result.capitalBase += contributionAmount;
     result.amount += calculateInterestInstallmentAmount({
       capitalBase: contributionAmount,
-      interestRate,
+      interestRate: bucket.interestRate,
     });
     return result;
   }, { capitalBase: 0, amount: 0 });
@@ -354,6 +513,28 @@ const buildInterestInstallmentBasis = ({ associate, contributions = [], capitalB
     capitalBase: roundCurrency(basis.capitalBase),
     amount: roundCurrency(basis.amount),
     effectiveInterestRate,
+  };
+};
+
+const buildInterestInstallmentPayload = ({
+  associate,
+  interestBasis,
+  installmentNumber,
+  dueDate,
+}) => {
+  const interestType = normalizeInterestType(associate.interestType);
+  const { periodStartDate, periodEndDate } = buildInterestPeriod({ interestType, dueDate });
+
+  return {
+    installmentNumber,
+    amount: interestBasis.amount,
+    dueDate,
+    capitalBase: interestBasis.capitalBase,
+    interestRate: interestBasis.effectiveInterestRate,
+    interestType,
+    periodStartDate,
+    periodEndDate,
+    notes: 'Interés programado sobre capital aportado',
   };
 };
 
@@ -476,67 +657,111 @@ const ensureNextInterestInstallment = async ({
     return null;
   }
 
-  const [contributions, installments] = await Promise.all([
+  const [contributions, distributions, rawInstallments] = await Promise.all([
     typeof associateRepository.listContributionsByAssociate === 'function'
       ? associateRepository.listContributionsByAssociate(associate.id, { transaction })
+      : [],
+    typeof associateRepository.listProfitDistributionsByAssociate === 'function'
+      ? associateRepository.listProfitDistributionsByAssociate(associate.id, { transaction })
       : [],
     typeof associateRepository.findInstallmentsByAssociateId === 'function'
       ? associateRepository.findInstallmentsByAssociateId(associate.id, { transaction })
       : [],
   ]);
 
-  const hasPendingInstallment = installments.some((installment) => (
-    installment.status === 'pending'
-      && Number(installment.installmentNumber) !== Number(excludeInstallmentNumber)
-  ));
-  if (hasPendingInstallment) {
-    return null;
-  }
+  const pendingInstallments = rawInstallments
+    .filter((installment) => (
+      installment.status === 'pending'
+        && Number(installment.installmentNumber) !== Number(excludeInstallmentNumber)
+    ))
+    .sort((left, right) => sortRowsByOperationalDateAsc(left, right, (row) => row.dueDate));
+  const pendingInstallment = pendingInstallments[0] || null;
 
   const interestBasis = buildInterestInstallmentBasis({
     associate,
     contributions,
+    distributions,
     capitalBaseOverride,
   });
   if (interestBasis.capitalBase <= 0 || interestBasis.amount <= 0) {
+    if (pendingInstallments.length > 0 && typeof associateRepository.deleteInstallmentById === 'function') {
+      await Promise.all(pendingInstallments.map((installment) => associateRepository.deleteInstallmentById(
+        installment.id,
+        { transaction },
+      )));
+    }
     return null;
   }
 
-  const interestType = normalizeInterestType(associate.interestType);
+  if (pendingInstallment) {
+    const dueDate = toOperationalDateOrNull(pendingInstallment.dueDate) || buildInterestDueDate({ associate, fromDate, afterDate });
+    const projectionPayload = buildInterestInstallmentPayload({
+      associate,
+      interestBasis,
+      installmentNumber: pendingInstallment.installmentNumber,
+      dueDate,
+    });
+
+    if (typeof associateRepository.updateInstallmentProjection === 'function') {
+      return associateRepository.updateInstallmentProjection(
+        pendingInstallment.id,
+        projectionPayload,
+        { transaction },
+      );
+    }
+
+    return {
+      ...pendingInstallment,
+      ...projectionPayload,
+    };
+  }
+
   const dueDate = buildInterestDueDate({ associate, fromDate, afterDate });
-  const { periodStartDate, periodEndDate } = buildInterestPeriod({ interestType, dueDate });
+  const projectionPayload = buildInterestInstallmentPayload({
+    associate,
+    interestBasis,
+    installmentNumber: getNextInstallmentNumber(rawInstallments),
+    dueDate,
+  });
 
   return associateRepository.createInstallment({
     associateId: associate.id,
-    installmentNumber: getNextInstallmentNumber(installments),
-    amount: interestBasis.amount,
-    dueDate,
-    capitalBase: interestBasis.capitalBase,
-    interestRate: interestBasis.effectiveInterestRate,
-    interestType,
-    periodStartDate,
-    periodEndDate,
+    ...projectionPayload,
     status: 'pending',
-    notes: 'Interés programado sobre capital aportado',
   }, { transaction });
 };
 
 const normalizeDistributionRecord = (distribution) => {
   const serializedDistribution = typeof distribution?.toJSON === 'function' ? distribution.toJSON() : distribution;
-  const basis = serializedDistribution?.basis && typeof serializedDistribution.basis === 'object'
-    ? serializedDistribution.basis
-    : {};
-  const isProportional = basis.type === 'proportional-participation';
+  const basis = getDistributionBasis(serializedDistribution);
+  const normalizedDistributionType = basis.type === 'capital-return'
+    ? 'capital_return'
+    : (basis.type === 'reinvestment'
+      ? 'reinvestment'
+      : (basis.type === 'proportional-participation' ? 'proportional' : 'manual'));
+  const isProportional = normalizedDistributionType === 'proportional';
 
   return {
     ...serializedDistribution,
-    distributionType: isProportional ? 'proportional' : 'manual',
+    distributionType: normalizedDistributionType,
     declaredProportionalTotal: isProportional ? basis.sourceAmount || null : null,
     allocatedAmount: isProportional ? basis.allocatedAmount || formatCurrency(serializedDistribution.amount) : formatCurrency(serializedDistribution.amount),
     participationPercentage: isProportional ? basis.participationPercentage || null : null,
     roundingAdjustment: isProportional ? basis.roundingAdjustment || '0.00' : null,
     batchKey: isProportional ? basis.batchKey || null : null,
     basis,
+  };
+};
+
+const splitAssociateDistributions = (distributions = []) => {
+  const normalizedDistributions = distributions.map(normalizeDistributionRecord);
+  return {
+    normalizedDistributions,
+    capitalReturns: normalizedDistributions.filter((distribution) => distribution.distributionType === 'capital_return'),
+    reinvestments: normalizedDistributions.filter((distribution) => distribution.distributionType === 'reinvestment'),
+    interestWithdrawals: normalizedDistributions.filter((distribution) => (
+      !['capital_return', 'reinvestment'].includes(distribution.distributionType)
+    )),
   };
 };
 
@@ -932,11 +1157,19 @@ const createListAssociateFinancialDetails = ({ associateRepository }) => async (
     asOfDate: new Date(),
   });
 
+  const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
+  const {
+    normalizedDistributions,
+    capitalReturns,
+    interestWithdrawals,
+  } = splitAssociateDistributions(distributions);
   const totalContributed = contributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-  const totalDistributed = distributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-  const totalInterestPaid = installments
+  const totalCapitalReturned = capitalReturns.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const totalManualInterestPaid = interestWithdrawals.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const totalScheduledInterestPaid = installments
     .filter((installment) => installment.status === 'paid')
     .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
+  const totalInterestPaid = roundCurrency(totalScheduledInterestPaid + totalManualInterestPaid);
   const interestDebt = installments
     .filter((installment) => ['pending', 'overdue'].includes(installment.status))
     .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
@@ -945,39 +1178,349 @@ const createListAssociateFinancialDetails = ({ associateRepository }) => async (
     .map((installment) => ({ installment, dateOnly: toDateOnlyOrNull(installment.dueDate) }))
     .filter((entry) => entry.dateOnly)
     .sort((left, right) => normalizeOperationalDate(left.dateOnly).getTime() - normalizeOperationalDate(right.dateOnly).getTime())[0]?.installment || null;
-  const paymentHistory = installments
-    .filter((installment) => installment.status === 'paid')
-    .sort((left, right) => {
-      const rightDate = toOperationalDateOrNull(right.paidAt || right.updatedAt);
-      const leftDate = toOperationalDateOrNull(left.paidAt || left.updatedAt);
-      return (rightDate?.getTime() || 0) - (leftDate?.getTime() || 0);
-    })
-    .map((installment) => ({
-      id: installment.id,
-      amount: roundCurrency(installment.amount),
-      installmentNumber: installment.installmentNumber,
-      dueDate: installment.dueDate,
-      paidAt: installment.paidAt,
-      paidBy: installment.paidBy,
-      paidByUser: installment.paidByUser,
-      paymentMethod: installment.paymentMethod || null,
+  const paymentHistory = [
+    ...installments
+      .filter((installment) => installment.status === 'paid')
+      .map((installment) => mapAssociateInterestPayment({
+        payment: installment,
+        associate,
+        paymentType: 'scheduled',
+      })),
+    ...interestWithdrawals.map((distribution) => mapAssociateInterestPayment({
+      payment: distribution,
+      associate,
+      paymentType: 'manual',
+    })),
+    ...capitalReturns.map((distribution) => mapAssociateInterestPayment({
+      payment: distribution,
+      associate,
+      paymentType: 'capital_return',
+    })),
+  ].sort((left, right) => {
+    const rightDate = toOperationalDateOrNull(right.paidAt || right.dueDate);
+    const leftDate = toOperationalDateOrNull(left.paidAt || left.dueDate);
+    return (rightDate?.getTime() || 0) - (leftDate?.getTime() || 0);
+  });
+
+  const capitalReturnHistory = capitalReturns
+    .sort((left, right) => sortRowsByOperationalDateAsc(right, left, (row) => row.distributionDate))
+    .map((distribution) => ({
+      id: distribution.id,
+      amount: roundCurrency(distribution.amount),
+      distributionDate: distribution.distributionDate,
+      createdBy: distribution.createdBy || null,
+      notes: distribution.notes || null,
     }));
+
   return {
     associate: normalizeAssociateRecord(associate),
     summary: {
       totalContributed: roundCurrency(totalContributed),
-      totalDistributed: roundCurrency(totalDistributed),
-      totalInterestPaid: roundCurrency(totalInterestPaid),
+      currentCapital: roundCurrency(capitalState.totalCurrentCapital),
+      totalCapitalReturned: roundCurrency(totalCapitalReturned),
+      totalInterestWithdrawn: roundCurrency(totalManualInterestPaid),
+      scheduledInterestPaid: roundCurrency(totalScheduledInterestPaid),
+      manualInterestPaid: roundCurrency(totalManualInterestPaid),
+      totalInterestPaid,
       interestDebt: roundCurrency(interestDebt),
       nextInterestPaymentDate: nextInterestPayment?.dueDate ? toDateOnlyOrNull(nextInterestPayment.dueDate) : null,
-      netProfit: roundCurrency(totalDistributed),
       debtStatus: installments.some((installment) => installment.status === 'overdue')
         ? 'overdue'
         : (interestDebt > 0 ? 'pending' : 'up_to_date'),
     },
     contributions,
-    distributions: distributions.map(normalizeDistributionRecord),
+    distributions: normalizedDistributions,
+    capitalReturns: capitalReturnHistory,
     paymentHistory,
+  };
+};
+
+const groupRowsByAssociateId = (rows = []) => rows.reduce((groups, row) => {
+  const associateId = Number(row.associateId);
+  if (!Number.isFinite(associateId)) {
+    return groups;
+  }
+
+  const currentRows = groups.get(associateId) || [];
+  currentRows.push(row);
+  groups.set(associateId, currentRows);
+  return groups;
+}, new Map());
+
+const sumAmounts = (rows = []) => roundCurrency(rows.reduce((sum, row) => sum + Number(row.amount || 0), 0));
+
+const getFirstDatedInstallment = (installments = []) => installments
+  .map((installment) => ({ installment, dateOnly: toDateOnlyOrNull(installment.dueDate) }))
+  .filter((entry) => entry.dateOnly)
+  .sort((left, right) => normalizeOperationalDate(left.dateOnly).getTime() - normalizeOperationalDate(right.dateOnly).getTime())[0]?.installment || null;
+
+const getLastPaidInstallment = (installments = []) => installments
+  .filter((installment) => installment.status === 'paid')
+  .sort((left, right) => {
+    const rightDate = toOperationalDateOrNull(right.paidAt || right.updatedAt);
+    const leftDate = toOperationalDateOrNull(left.paidAt || left.updatedAt);
+    return (rightDate?.getTime() || 0) - (leftDate?.getTime() || 0);
+  })[0] || null;
+
+const mapTrackingObligation = (installment, associate) => ({
+  id: installment.id,
+  associateId: installment.associateId,
+  associateName: associate?.name || null,
+  installmentNumber: installment.installmentNumber,
+  amount: roundCurrency(installment.amount),
+  dueDate: installment.dueDate,
+  periodStartDate: installment.periodStartDate,
+  periodEndDate: installment.periodEndDate,
+  capitalBase: installment.capitalBase === null || installment.capitalBase === undefined
+    ? null
+    : roundCurrency(installment.capitalBase),
+  interestRate: installment.interestRate,
+  interestType: installment.interestType,
+  status: installment.status,
+  paidAt: installment.paidAt,
+  paidByUser: installment.paidByUser || null,
+  paymentMethod: installment.paymentMethod || null,
+});
+
+const getInterestPaymentDisplayType = (payment) => {
+  if (payment?.paymentType === 'capital_return' || payment?.distributionType === 'capital_return') {
+    return 'Devolución de capital';
+  }
+
+  if (payment?.paymentType === 'manual') {
+    return payment?.distributionType === 'proportional'
+      ? 'Pago proporcional de rentabilidad'
+      : 'Pago manual de rentabilidad';
+  }
+
+  const installmentNumber = Number(payment?.installmentNumber || 0);
+  return installmentNumber > 0
+    ? `Pago programado #${installmentNumber}`
+    : 'Pago de interés';
+};
+
+const mapAssociateInterestPayment = ({ payment, associate, paymentType }) => {
+  if (paymentType === 'manual' || paymentType === 'capital_return') {
+    return {
+      id: payment.id,
+      associateId: payment.associateId,
+      associateName: associate?.name || null,
+      installmentNumber: null,
+      displayType: getInterestPaymentDisplayType({ ...payment, paymentType }),
+      paymentType,
+      amount: roundCurrency(payment.amount),
+      dueDate: null,
+      paidAt: payment.distributionDate,
+      paidByUser: payment.createdBy || null,
+      responsibleUser: payment.createdBy || null,
+      paymentMethod: null,
+      notes: payment.notes || null,
+      distributionType: payment.distributionType,
+    };
+  }
+
+  return {
+    id: payment.id,
+    associateId: payment.associateId,
+    associateName: associate?.name || null,
+    installmentNumber: payment.installmentNumber,
+    displayType: getInterestPaymentDisplayType({ ...payment, paymentType }),
+    paymentType,
+    amount: roundCurrency(payment.amount),
+    dueDate: payment.dueDate,
+    paidAt: payment.paidAt,
+    paidByUser: payment.paidByUser || null,
+    responsibleUser: payment.paidByUser || null,
+    paymentMethod: payment.paymentMethod || null,
+    notes: payment.notes || null,
+    distributionType: null,
+  };
+};
+
+const serializeInstallmentRecord = (installment) => (
+  typeof installment?.toJSON === 'function' ? installment.toJSON() : installment
+);
+
+/**
+ * Build the aggregate investor-associate tracking read model.
+ * @param {{ associateRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createGetAssociateTracking = ({ associateRepository, clock = () => new Date() }) => async ({ actor, filters } = {}) => {
+  if (!actor || !['admin', 'employee'].includes(actor.role)) {
+    throw new AuthorizationError('Solo usuarios administrativos autorizados pueden consultar seguimiento financiero de socios.');
+  }
+
+  const normalizedFilters = normalizeAssociateListFilters(filters);
+  const dataset = await associateRepository.getTrackingDataset(normalizedFilters);
+  const asOfDate = clock();
+  const contributionsByAssociate = groupRowsByAssociateId(dataset.contributions);
+  const distributionsByAssociate = groupRowsByAssociateId(dataset.distributions);
+  const installmentsByAssociate = groupRowsByAssociateId(dataset.installments);
+  const normalizedAssociates = dataset.associates.map(normalizeAssociateRecord);
+  const associateById = new Map(normalizedAssociates.map((associate) => [Number(associate.id), associate]));
+
+  const normalizedInstallments = [];
+  for (const associate of normalizedAssociates) {
+    const associateId = Number(associate.id);
+    const rawInstallments = installmentsByAssociate.get(associateId) || [];
+    const installments = await persistExpiredAssociateInstallments({
+      associateRepository,
+      associateId,
+      installments: rawInstallments,
+      asOfDate,
+    });
+    normalizedInstallments.push(...installments);
+    installmentsByAssociate.set(associateId, installments);
+  }
+
+  const associateRows = normalizedAssociates.map((associate) => {
+    const associateId = Number(associate.id);
+    const contributions = contributionsByAssociate.get(associateId) || [];
+    const distributions = distributionsByAssociate.get(associateId) || [];
+    const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
+    const { capitalReturns, interestWithdrawals } = splitAssociateDistributions(distributions);
+    const installments = installmentsByAssociate.get(associateId) || [];
+    const pendingInstallments = installments.filter((installment) => resolveAssociateInstallmentStatus(installment, asOfDate) === 'pending');
+    const overdueInstallments = installments.filter((installment) => resolveAssociateInstallmentStatus(installment, asOfDate) === 'overdue');
+    const paidInstallments = installments.filter((installment) => installment.status === 'paid');
+    const scheduledInterestPaid = sumAmounts(paidInstallments);
+    const manualInterestPaid = sumAmounts(interestWithdrawals);
+    const nextInstallment = getFirstDatedInstallment([...overdueInstallments, ...pendingInstallments]);
+    const lastPaidInstallment = getLastPaidInstallment(paidInstallments);
+
+    return {
+      associate,
+      totalContributed: sumAmounts(contributions),
+      currentCapital: roundCurrency(capitalState.totalCurrentCapital),
+      totalCapitalReturned: capitalReturns.reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
+      interestPending: sumAmounts(pendingInstallments),
+      interestOverdue: sumAmounts(overdueInstallments),
+      scheduledInterestPaid,
+      manualInterestPaid,
+      interestPaid: roundCurrency(scheduledInterestPaid + manualInterestPaid),
+      nextPaymentDate: nextInstallment?.dueDate ? toDateOnlyOrNull(nextInstallment.dueDate) : null,
+      lastPaymentDate: lastPaidInstallment?.paidAt ? toDateOnlyOrNull(lastPaidInstallment.paidAt) : null,
+      pendingInstallments: pendingInstallments.length,
+      overdueInstallments: overdueInstallments.length,
+      paidInstallments: paidInstallments.length,
+      debtStatus: overdueInstallments.length > 0 ? 'overdue' : (pendingInstallments.length > 0 ? 'pending' : 'current'),
+    };
+  });
+
+  const openObligations = normalizedInstallments
+    .map((installment) => ({
+      installment,
+      status: resolveAssociateInstallmentStatus(installment, asOfDate),
+    }))
+    .filter(({ status }) => ['pending', 'overdue'].includes(status))
+    .map(({ installment, status }) => mapTrackingObligation(
+      { ...serializeInstallmentRecord(installment), status },
+      associateById.get(Number(installment.associateId)),
+    ))
+    .sort((left, right) => {
+      const leftDate = toOperationalDateOrNull(left.dueDate);
+      const rightDate = toOperationalDateOrNull(right.dueDate);
+      return (leftDate?.getTime() || 0) - (rightDate?.getTime() || 0);
+    });
+
+  const recentPayments = [
+    ...normalizedInstallments
+      .filter((installment) => installment.status === 'paid')
+      .map((installment) => mapAssociateInterestPayment({
+        payment: installment,
+        associate: associateById.get(Number(installment.associateId)),
+        paymentType: 'scheduled',
+      })),
+    ...dataset.distributions
+      .map(normalizeDistributionRecord)
+      .filter((distribution) => !['reinvestment', 'capital_return'].includes(distribution.distributionType))
+      .map((distribution) => mapAssociateInterestPayment({
+        payment: distribution,
+        associate: associateById.get(Number(distribution.associateId)),
+        paymentType: 'manual',
+      })),
+  ].sort((left, right) => {
+    const rightDate = toOperationalDateOrNull(right.paidAt || right.dueDate);
+    const leftDate = toOperationalDateOrNull(left.paidAt || left.dueDate);
+    return (rightDate?.getTime() || 0) - (leftDate?.getTime() || 0);
+  }).slice(0, 12);
+
+  const recentContributions = dataset.contributions
+    .map((contribution) => ({
+      id: contribution.id,
+      associateId: contribution.associateId,
+      associateName: associateById.get(Number(contribution.associateId))?.name || null,
+      amount: roundCurrency(contribution.amount),
+      contributionDate: contribution.contributionDate,
+      status: normalizeAssociateContributionStatus(contribution.status),
+      createdBy: contribution.createdBy || null,
+      notes: contribution.notes || null,
+    }))
+    .sort((left, right) => {
+      const rightDate = toOperationalDateOrNull(right.contributionDate);
+      const leftDate = toOperationalDateOrNull(left.contributionDate);
+      return (rightDate?.getTime() || 0) - (leftDate?.getTime() || 0);
+    })
+    .slice(0, 12);
+
+  const recentCapitalReturns = dataset.distributions
+    .map(normalizeDistributionRecord)
+    .filter((distribution) => distribution.distributionType === 'capital_return')
+    .map((distribution) => ({
+      id: distribution.id,
+      associateId: distribution.associateId,
+      associateName: associateById.get(Number(distribution.associateId))?.name || null,
+      amount: roundCurrency(distribution.amount),
+      distributionDate: distribution.distributionDate,
+      createdBy: distribution.createdBy || null,
+      notes: distribution.notes || null,
+    }))
+    .sort((left, right) => {
+      const rightDate = toOperationalDateOrNull(right.distributionDate);
+      const leftDate = toOperationalDateOrNull(left.distributionDate);
+      return (rightDate?.getTime() || 0) - (leftDate?.getTime() || 0);
+    })
+    .slice(0, 12);
+
+  const summary = associateRows.reduce((result, row) => {
+    result.totalAssociates += 1;
+    result.activeAssociates += row.associate.status === 'active' ? 1 : 0;
+    result.totalCapital += row.currentCapital;
+    result.totalCapitalReturned += row.totalCapitalReturned;
+    result.interestPending += row.interestPending;
+    result.interestOverdue += row.interestOverdue;
+    result.interestPaid += row.interestPaid;
+    result.upcomingObligations += row.pendingInstallments;
+    result.overdueObligations += row.overdueInstallments;
+    return result;
+  }, {
+    totalAssociates: 0,
+    activeAssociates: 0,
+    totalCapital: 0,
+    totalCapitalReturned: 0,
+    interestPending: 0,
+    interestOverdue: 0,
+    interestPaid: 0,
+    upcomingObligations: 0,
+    overdueObligations: 0,
+  });
+
+  return {
+    summary: {
+      ...summary,
+      totalCapital: roundCurrency(summary.totalCapital),
+      totalCapitalReturned: roundCurrency(summary.totalCapitalReturned),
+      interestPending: roundCurrency(summary.interestPending),
+      interestOverdue: roundCurrency(summary.interestOverdue),
+      interestPaid: roundCurrency(summary.interestPaid),
+      totalPayable: roundCurrency(summary.interestPending + summary.interestOverdue),
+    },
+    associates: associateRows,
+    obligations: openObligations.slice(0, 20),
+    recentPayments,
+    recentContributions,
+    recentCapitalReturns,
   };
 };
 
@@ -1001,6 +1544,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       associateId: associate.id,
       amount,
       contributionDate: normalizeOptionalOperationDate(payload.contributionDate, 'contributionDate'),
+      status: normalizeAssociateContributionStatus(payload.status),
       ...buildContributionTermsSnapshot(associate),
       createdByUserId: actor.id,
       notes: payload.notes ? String(payload.notes).trim() : null,
@@ -1054,6 +1598,84 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
   return useCase;
 };
 
+const createCreateAssociateCapitalReturn = ({ associateRepository, auditService }) => {
+  const useCase = async ({ actor, associateId, payload }) => {
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar devoluciones de capital.');
+    }
+
+    const associate = await associateRepository.findById(associateId);
+    if (!associate) {
+      throw new NotFoundError('Associate');
+    }
+
+    const amount = parsePositiveCurrencyAmount(payload.amount);
+    if (amount === null) {
+      throw new ValidationError('El monto de la devolución de capital debe ser mayor a 0');
+    }
+
+    const operationDate = normalizeOptionalOperationDate(
+      payload.capitalReturnDate ?? payload.distributionDate,
+      'capitalReturnDate',
+    );
+    const notes = payload.notes ? String(payload.notes).trim() : null;
+
+    return associateRepository.runInTransaction(async (transaction) => {
+      const [contributions, distributions] = await Promise.all([
+        associateRepository.listContributionsByAssociate(associate.id, { transaction }),
+        associateRepository.listProfitDistributionsByAssociate(associate.id, { transaction }),
+      ]);
+
+      const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
+      const currentCapital = roundCurrency(capitalState.totalCurrentCapital);
+
+      if (currentCapital <= 0) {
+        throw new ValidationError('El socio no tiene capital vigente para devolver.');
+      }
+
+      if (amount > currentCapital) {
+        throw new ValidationError('La devolución de capital no puede superar el capital vigente del socio.');
+      }
+
+      const distribution = await associateRepository.createProfitDistribution({
+        associateId: associate.id,
+        loanId: null,
+        amount,
+        distributionDate: operationDate,
+        createdByUserId: actor.id,
+        notes,
+        basis: {
+          type: 'capital-return',
+          capitalReturn: true,
+          direction: 'distribution',
+          previousCapitalBase: formatCurrency(currentCapital),
+        },
+      }, { transaction });
+
+      await ensureNextInterestInstallment({
+        associateRepository,
+        associate,
+        transaction,
+        fromDate: operationDate,
+      });
+
+      return {
+        associate: normalizeAssociateRecord(associate),
+        capitalReturn: normalizeDistributionRecord(distribution),
+        summary: {
+          previousCurrentCapital: currentCapital,
+          currentCapital: roundCurrency(currentCapital - amount),
+        },
+      };
+    });
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'AssociateCapitalReturn' })(useCase);
+  }
+  return useCase;
+};
+
 const createCreateAssociateReinvestment = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
@@ -1096,6 +1718,13 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
         createdByUserId: actor.id,
         notes: note,
       }, { transaction });
+
+      await ensureNextInterestInstallment({
+        associateRepository,
+        associate,
+        transaction,
+        fromDate: operationDate,
+      });
 
       return {
         associate: normalizeAssociateRecord(associate),
@@ -1415,7 +2044,7 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
     ...mapValidDatedRows(events.distributions, (d) => d.date, (d, date) => ({
       ...d,
       date,
-      displayType: 'Distribución',
+      displayType: d.displayType || 'Distribución',
       displayAmount: `-${d.amount.toFixed(2)}`,
     })),
     ...mapValidDatedRows(events.installments, (i) => i.dueDate, (i, date) => ({
@@ -1444,14 +2073,18 @@ module.exports = {
   allocateProportionalDistribution,
   buildProportionalIdempotencyRequestHash,
   normalizeDistributionRecord,
+  normalizeAssociateRecord,
+  normalizeParticipationPercentage,
   createListAssociates,
   createCreateAssociate,
   createGetAssociateById,
   createUpdateAssociate,
   createDeleteAssociate,
   createListAssociateFinancialDetails,
+  createGetAssociateTracking,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateAssociateCapitalReturn,
   createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
   createGetAssociateInstallments,

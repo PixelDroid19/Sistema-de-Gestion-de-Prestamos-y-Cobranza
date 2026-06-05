@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { queryKeys, type AssociateCalendarFilters } from './queryKeys';
+import { queryKeys, type AssociateCalendarFilters, type AssociateTrackingFilters } from './queryKeys';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
 export type AssociateInstallmentPaymentPayload = {
@@ -9,6 +9,29 @@ export type AssociateInstallmentPaymentPayload = {
   paymentMethod?: string;
   notes?: string;
 };
+
+const downloadAssociateExport = async ({
+  status,
+}: { status?: string } = {}): Promise<void> => {
+  const response = await apiClient.get('/associates/export', {
+    responseType: 'blob',
+    params: { status },
+  });
+
+  const blob = new Blob([response.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = 'associates-export.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(objectUrl);
+};
+
+export const exportAssociatesExcel = downloadAssociateExport;
 
 export const useAssociates = (
   params?: { page?: number; pageSize?: number; search?: string; status?: string },
@@ -61,6 +84,18 @@ export const useAssociateById = (associateId: number) => {
   });
 };
 
+export const useAssociateTracking = (
+  filters?: AssociateTrackingFilters,
+  options?: { enabled?: boolean },
+) => useQuery({
+  queryKey: queryKeys.associates.tracking(filters),
+  queryFn: async () => {
+    const { data } = await apiClient.get('/associates/tracking', { params: filters });
+    return data;
+  },
+  enabled: options?.enabled ?? true,
+});
+
 const normalizeCalendarFilters = (filters?: AssociateCalendarFilters): AssociateCalendarFilters => ({
   ...(filters?.startDate ? { startDate: filters.startDate } : {}),
   ...(filters?.endDate ? { endDate: filters.endDate } : {}),
@@ -106,7 +141,9 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
+      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
     },
   });
 
@@ -118,6 +155,20 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
+      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
+    },
+  });
+
+  const createCapitalReturn = useMutation({
+    mutationFn: async (capitalReturnData: any) => {
+      const { data } = await apiClient.post(`/associates/${associateId}/capital-returns`, capitalReturnData);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
+      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
     },
   });
 
@@ -128,7 +179,9 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
+      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
     },
   });
 
@@ -157,6 +210,7 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
+      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
     },
   });
 
@@ -170,6 +224,7 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     isLoading: getFinancialDetails.isLoading || getInstallments.isLoading || getCalendar.isLoading,
     createContribution,
     createDistribution,
+    createCapitalReturn,
     createReinvestment,
     payInstallment,
   };

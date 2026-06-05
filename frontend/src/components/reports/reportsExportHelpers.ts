@@ -1,4 +1,4 @@
-export type ReportExportType = 'credits' | 'payouts' | 'profitability' | 'associates';
+export type ReportExportType = 'credits' | 'payouts' | 'profitability';
 
 export type ReportExportFormat = 'xlsx' | 'pdf';
 
@@ -8,7 +8,6 @@ export type ContextualExportParams = {
   status?: string;
   format?: ReportExportFormat;
   paymentType?: string;
-  associateId?: number;
   customerId?: number;
   loanId?: number;
 };
@@ -34,7 +33,6 @@ export const buildContextualExportParams = (
     status?: string;
     format?: ReportExportFormat;
     paymentType?: string;
-    associateId?: number;
     customerId?: number;
     loanId?: number;
   },
@@ -48,22 +46,18 @@ export const buildContextualExportParams = (
     return params;
   }
 
-  if (type === 'credits' || type === 'associates' || type === 'payouts') {
+  if (type === 'credits' || type === 'payouts') {
     if (input.status) {
       params.status = input.status;
     }
   }
 
-  if (type === 'credits' || type === 'associates' || type === 'payouts') {
+  if (type === 'credits' || type === 'payouts') {
     params.format = input.format;
   }
 
   if (type === 'payouts' && input.paymentType) {
     params.paymentType = input.paymentType;
-  }
-
-  if (type === 'associates' && input.associateId) {
-    params.associateId = input.associateId;
   }
 
   if ((type === 'credits' || type === 'payouts') && input.customerId) {

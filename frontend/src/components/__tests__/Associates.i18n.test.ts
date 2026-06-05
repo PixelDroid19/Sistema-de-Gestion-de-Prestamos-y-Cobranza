@@ -30,7 +30,7 @@ describe('Associates i18n contracts', () => {
       'Interés pactado',
       'Tasa mensual o anual que se reconoce',
       'Acciones',
-      'No tiene permiso para exportar reportes de socios.',
+      'No tiene permiso para exportar información de socios.',
     ].forEach((text) => {
       expect(associatesSource).not.toContain(text);
     });

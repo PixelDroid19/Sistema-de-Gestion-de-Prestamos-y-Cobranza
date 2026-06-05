@@ -123,4 +123,22 @@ describe('NewAssociate behavior', () => {
 
     expect(container.querySelector('#new-associate-interest-day')).toHaveValue('8');
   });
+
+  it('shows annual payment month only when annual interest is selected', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+
+    expect(container.querySelector('#new-associate-interest-month')).not.toBeInTheDocument();
+
+    fireEvent.change(container.querySelector('#new-associate-interest-type') as HTMLSelectElement, {
+      target: { value: 'annual' },
+    });
+
+    expect(container.querySelector('#new-associate-interest-month')).toBeInTheDocument();
+
+    fireEvent.change(container.querySelector('#new-associate-interest-type') as HTMLSelectElement, {
+      target: { value: 'monthly' },
+    });
+
+    expect(container.querySelector('#new-associate-interest-month')).not.toBeInTheDocument();
+  });
 });

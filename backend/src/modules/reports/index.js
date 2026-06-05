@@ -12,8 +12,6 @@ const {
   createExportCustomerCreditProfile,
   createExportCustomerCreditHistory,
   createExportRecoveryReport,
-  createGetAssociateProfitabilityReport,
-  createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
   createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
@@ -30,8 +28,6 @@ const {
   createExportCreditsExcel,
   createExportCreditsPdf,
   createGetCreditsSummary,
-  createExportAssociatesExcel,
-  createExportAssociatesPdf,
   createExportPayoutsExcel,
   createExportPayoutsPdf,
   createGetPayoutsReport,
@@ -46,7 +42,6 @@ const {
   createExportCreditHistoryAuditPdf,
 } = require('./application/useCases');
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
-const { associateRepository } = require('@/modules/associates/infrastructure/repositories');
 const { createReportsRouter } = require('./presentation/router');
 
 /**
@@ -69,8 +64,6 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     exportCustomerCreditProfile: createExportCustomerCreditProfile({ reportRepository }),
     exportCustomerCreditHistory: createExportCustomerCreditHistory({ paymentRepository, loanViewService, loanAccessPolicy, alertRepository, promiseRepository }),
     exportRecoveryReport: createExportRecoveryReport({ reportRepository, paymentRepository, loanViewService }),
-    getAssociateProfitabilityReport: createGetAssociateProfitabilityReport({ associateRepository }),
-    exportAssociateProfitabilityReport: createExportAssociateProfitabilityReport({ reportRepository, associateRepository }),
     getCustomerProfitabilityReport: createGetCustomerProfitabilityReport({ reportRepository }),
     exportCustomerProfitabilityReport: createExportCustomerProfitabilityReport({ reportRepository }),
     getLoanProfitabilityReport: createGetLoanProfitabilityReport({ reportRepository }),
@@ -89,8 +82,6 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
     exportCreditsPdf: createExportCreditsPdf({ reportRepository, paymentRepository, loanViewService }),
     getCreditsSummary: createGetCreditsSummary({ reportRepository, paymentRepository, loanViewService }),
-    exportAssociatesExcel: createExportAssociatesExcel({ associateRepository, reportRepository }),
-    exportAssociatesPdf: createExportAssociatesPdf({ associateRepository, reportRepository }),
     exportPayoutsExcel: createExportPayoutsExcel({ paymentRepository }),
     exportPayoutsPdf: createExportPayoutsPdf({ paymentRepository }),
     // Enhanced reports - payouts and payment schedule

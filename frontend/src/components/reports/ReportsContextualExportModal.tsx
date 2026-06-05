@@ -16,7 +16,6 @@ type ReportsContextualExportModalProps = ReportsExportFormProps & {
 const getContextualExportLabel = (type: ReportExportType) => {
   if (type === 'credits') return tTerm('reports.cta.exportCredits');
   if (type === 'profitability') return tTerm('reports.cta.exportProfitability');
-  if (type === 'associates') return tTerm('reports.cta.exportAssociates');
   return tTerm('reports.cta.exportPayouts');
 };
 
@@ -28,7 +27,6 @@ export default function ReportsContextualExportModal({
   onExport,
   reportType,
   hasInvalidRange,
-  hasInvalidAssociateId,
   hasInvalidReportCustomerId,
   hasInvalidReportLoanId,
   ...formProps
@@ -37,20 +35,17 @@ export default function ReportsContextualExportModal({
 
   const exportBlocked = isExporting
     || hasInvalidRange
-    || hasInvalidAssociateId
     || hasInvalidReportCustomerId
     || hasInvalidReportLoanId
     || !exportExecutable;
 
   const exportTitle = hasInvalidRange
     ? tTerm('reports.export.invalidRange')
-    : hasInvalidAssociateId
-      ? tTerm('reports.export.invalidAssociate')
-      : hasInvalidReportCustomerId
-        ? tTerm('reports.export.invalidCustomer')
-        : hasInvalidReportLoanId
-          ? tTerm('reports.export.invalidLoan')
-          : (exportExecutable ? getContextualExportLabel(reportType) : (exportDisabledReason || tTerm('credits.action.unavailable')));
+    : hasInvalidReportCustomerId
+      ? tTerm('reports.export.invalidCustomer')
+      : hasInvalidReportLoanId
+        ? tTerm('reports.export.invalidLoan')
+        : (exportExecutable ? getContextualExportLabel(reportType) : (exportDisabledReason || tTerm('credits.action.unavailable')));
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -91,7 +86,6 @@ export default function ReportsContextualExportModal({
         formId={formId}
         onSubmit={handleSubmit}
         hasInvalidRange={hasInvalidRange}
-        hasInvalidAssociateId={hasInvalidAssociateId}
         hasInvalidReportCustomerId={hasInvalidReportCustomerId}
         hasInvalidReportLoanId={hasInvalidReportLoanId}
       />

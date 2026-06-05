@@ -7,14 +7,22 @@ const {
   createUpdateAssociate,
   createDeleteAssociate,
   createListAssociateFinancialDetails,
+  createGetAssociateTracking,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateAssociateCapitalReturn,
   createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
   createGetAssociateInstallments,
   createPayAssociateInstallment,
   createGetAssociateCalendar,
 } = require('./application/useCases');
+const {
+  createExportAssociatesExcel,
+  createExportAssociatesPdf,
+  createGetAssociateProfitabilityReport,
+  createExportAssociateProfitabilityReport,
+} = require('./application/reportingUseCases');
 const { associateRepository } = require('./infrastructure/repositories');
 const { createAssociatesRouter } = require('./presentation/router');
 
@@ -32,8 +40,14 @@ const createAssociatesModule = ({ sharedRuntime, auditService } = {}) => {
     updateAssociate: createUpdateAssociate({ associateRepository, auditService }),
     deleteAssociate: createDeleteAssociate({ associateRepository, auditService }),
     getAssociateFinancialDetails: createListAssociateFinancialDetails({ associateRepository }),
+    getAssociateTracking: createGetAssociateTracking({ associateRepository }),
+    exportAssociatesExcel: createExportAssociatesExcel({ associateRepository }),
+    exportAssociatesPdf: createExportAssociatesPdf({ associateRepository }),
+    getAssociateProfitabilityReport: createGetAssociateProfitabilityReport({ associateRepository }),
+    exportAssociateProfitabilityReport: createExportAssociateProfitabilityReport({ associateRepository }),
     createAssociateContribution: createCreateAssociateContribution({ associateRepository, auditService }),
     createProfitDistribution: createCreateProfitDistribution({ associateRepository, auditService }),
+    createAssociateCapitalReturn: createCreateAssociateCapitalReturn({ associateRepository, auditService }),
     createAssociateReinvestment: createCreateAssociateReinvestment({ associateRepository, auditService }),
     createProportionalProfitDistribution: createCreateProportionalProfitDistribution({ associateRepository, auditService }),
     getAssociateInstallments: createGetAssociateInstallments({ associateRepository }),

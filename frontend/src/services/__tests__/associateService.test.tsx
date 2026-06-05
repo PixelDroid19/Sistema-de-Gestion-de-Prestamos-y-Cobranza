@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../api/client';
-import { useAssociateDetails } from '../associateService';
+import { exportAssociatesExcel, useAssociateDetails, useAssociateTracking } from '../associateService';
 
 vi.mock('../../api/client', () => ({
   apiClient: {
@@ -15,6 +15,8 @@ vi.mock('../../api/client', () => ({
 const mockGet = vi.mocked(apiClient.get);
 const mockPost = vi.mocked(apiClient.post);
 const jsonResponse = (data: unknown) => ({ data, status: 200, headers: new Headers() });
+const createObjectURL = vi.fn(() => 'blob:associate-export');
+const revokeObjectURL = vi.fn();
 
 const wrapper = ({ children }: { children: ReactNode }) => {
   const client = new QueryClient({
@@ -31,6 +33,16 @@ describe('associateService', () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockPost.mockReset();
+    createObjectURL.mockClear();
+    revokeObjectURL.mockClear();
+    Object.defineProperty(window.URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(window.URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURL,
+    });
     mockGet.mockImplementation(async (url) => {
       if (url === '/associates/12/financial-details') {
         return jsonResponse({ data: { details: { associate: { id: 12, name: 'Socio QA' } } } });
@@ -70,6 +82,54 @@ describe('associateService', () => {
         },
       });
     });
+  });
+
+  it('loads associate tracking from the associates module', async () => {
+    renderHook(() => useAssociateTracking({ status: 'active', search: 'ana' }), { wrapper });
+
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith('/associates/tracking', {
+        params: { status: 'active', search: 'ana' },
+      });
+    });
+
+    expect(mockGet).not.toHaveBeenCalledWith('/reports/associates/export');
+  });
+
+  it('exports associates from the associates module instead of reports', async () => {
+    const click = vi.fn();
+    const appendChild = vi.spyOn(document.body, 'appendChild');
+    const removeChild = vi.spyOn(document.body, 'removeChild');
+    const createElement = vi.spyOn(document, 'createElement');
+    createElement.mockImplementation((tagName: string, options?: ElementCreationOptions) => {
+      const element = document.createElementNS('http://www.w3.org/1999/xhtml', tagName) as HTMLElement;
+      if (tagName.toLowerCase() === 'a') {
+        Object.defineProperty(element, 'click', {
+          configurable: true,
+          value: click,
+        });
+      }
+      if (options?.is) {
+        element.setAttribute('is', options.is);
+      }
+      return element;
+    });
+    mockGet.mockResolvedValueOnce(jsonResponse(new Blob(['xlsx'])));
+
+    await exportAssociatesExcel({ status: 'inactive' });
+
+    expect(mockGet).toHaveBeenCalledWith('/associates/export', {
+      responseType: 'blob',
+      params: { status: 'inactive' },
+    });
+    expect(mockGet).not.toHaveBeenCalledWith('/reports/associates/excel', expect.anything());
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:associate-export');
+
+    createElement.mockRestore();
+    appendChild.mockRestore();
+    removeChild.mockRestore();
   });
 
   it('sends actual payment details when marking an associate installment as paid', async () => {

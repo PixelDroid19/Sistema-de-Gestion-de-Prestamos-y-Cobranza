@@ -98,9 +98,25 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
         calls.push(['createProfitDistribution', input]);
         return { id: 11, associateId: Number(input.associateId), amount: input.payload.amount };
       },
+      async createAssociateCapitalReturn(input) {
+        calls.push(['createAssociateCapitalReturn', input]);
+        return { capitalReturn: { id: 12, associateId: Number(input.associateId), amount: input.payload.amount } };
+      },
       async createAssociateReinvestment(input) {
         calls.push(['createAssociateReinvestment', input]);
-        return { contribution: { id: 12 }, distribution: { id: 13 } };
+        return { contribution: { id: 13 }, distribution: { id: 14 } };
+      },
+      async getAssociateProfitabilityReport(input) {
+        calls.push(['getAssociateProfitabilityReport', input]);
+        return { associate: { id: Number(input.associateId) }, summary: { totalContributed: '500.00' } };
+      },
+      async exportAssociateProfitabilityReport(input) {
+        calls.push(['exportAssociateProfitabilityReport', input]);
+        return {
+          fileName: 'associate-5-profitability.xlsx',
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          buffer: Buffer.from('PKtest'),
+        };
       },
     },
   });
@@ -163,11 +179,25 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { amount: 200 },
   });
+  const capitalReturnResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/5/capital-returns',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { amount: 120 },
+  });
   const reinvestmentResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/5/reinvestments',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { amount: 150 },
+  });
+  const profitabilityResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/5/profitability',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const associateExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/5/export?format=xlsx`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
   assert.equal(listResponse.statusCode, 200);
@@ -228,8 +258,17 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.equal(contributionResponse.body.message, 'Aporte del socio registrado correctamente');
   assert.equal(distributionResponse.statusCode, 201);
   assert.equal(distributionResponse.body.message, 'Distribución de utilidad registrada correctamente');
+  assert.equal(capitalReturnResponse.statusCode, 201);
+  assert.equal(capitalReturnResponse.body.message, 'Devolución de capital registrada correctamente');
   assert.equal(reinvestmentResponse.statusCode, 201);
   assert.equal(reinvestmentResponse.body.message, 'Reinversión del socio registrada correctamente');
+  assert.equal(profitabilityResponse.statusCode, 200);
+  assert.deepEqual(profitabilityResponse.body, {
+    success: true,
+    data: { report: { associate: { id: 5 }, summary: { totalContributed: '500.00' } } },
+  });
+  assert.equal(associateExportResponse.status, 200);
+  assert.equal((await associateExportResponse.arrayBuffer()).byteLength > 0, true);
   assert.deepEqual(calls[0], ['listAssociates', {
     pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
     filters: { search: 'Ana', status: 'active' },
@@ -239,7 +278,102 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.deepEqual(calls[4], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
   assert.deepEqual(calls[6], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 } }]);
   assert.deepEqual(calls[7], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
-  assert.deepEqual(calls[8], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
+  assert.deepEqual(calls[8], ['createAssociateCapitalReturn', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 120 } }]);
+  assert.deepEqual(calls[9], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
+  assert.deepEqual(calls[10], ['getAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
+  assert.deepEqual(calls[11], ['exportAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, format: 'xlsx' }]);
+});
+
+test('createAssociatesRouter serves investor tracking before id routes', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateTracking(input) {
+        calls.push(input);
+        return {
+          summary: { totalCapital: 100000000, totalPayable: 2000000 },
+          associates: [],
+          obligations: [],
+          recentPayments: [],
+          recentContributions: [],
+        };
+      },
+      async getAssociateById() {
+        throw new Error('tracking should not be handled as an associate id');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/tracking?status=active&search=Socio',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.data.tracking.summary.totalCapital, 100000000);
+  assert.deepEqual(calls[0], {
+    actor: { id: 1, role: 'admin', name: 'Admin Test' },
+    filters: { search: 'Socio', status: 'active' },
+  });
+});
+
+test('createAssociatesRouter exports associates from the associates module before id routes', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportAssociatesExcel(input) {
+        calls.push(input);
+        return {
+          sheets: [{
+            name: 'Socios',
+            columns: [{ header: 'Socio', key: 'name' }],
+            rows: [{ name: 'Socio QA' }],
+          }],
+        };
+      },
+      async getAssociateById() {
+        throw new Error('export should not be handled as an associate id');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/export?status=inactive',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.headers['content-type'], /spreadsheetml\.sheet/);
+  assert.match(response.headers['content-disposition'], /associates-export\.xlsx/);
+  assert.deepEqual(calls[0], {
+    actor: { id: 1, role: 'admin', name: 'Admin Test' },
+    filters: {
+      associateId: undefined,
+      fromDate: undefined,
+      toDate: undefined,
+      status: 'inactive',
+    },
+  });
 });
 
 test('createAssociatesRouter rejects malformed route identifiers before executing associate operations', async () => {
@@ -270,6 +404,10 @@ test('createAssociatesRouter rejects malformed route identifiers before executin
       async createProfitDistribution(input) {
         calls.push(['createProfitDistribution', input.associateId]);
         return { id: 1 };
+      },
+      async createAssociateCapitalReturn(input) {
+        calls.push(['createAssociateCapitalReturn', input.associateId]);
+        return { capitalReturn: { id: 1 } };
       },
       async createAssociateReinvestment(input) {
         calls.push(['createAssociateReinvestment', input.associateId]);
@@ -307,8 +445,11 @@ test('createAssociatesRouter rejects malformed route identifiers before executin
     { method: 'PATCH', path: '/1e2', field: /número del socio/i, body: { status: 'inactive' } },
     { method: 'DELETE', path: '/1.5', field: /número del socio/i },
     { method: 'GET', path: '/abc/financial-details', field: /número del socio/i },
+    { method: 'GET', path: '/abc/profitability', field: /número del socio/i },
+    { method: 'GET', path: '/abc/export', field: /número del socio/i },
     { method: 'POST', path: '/abc/contributions', field: /número del socio/i, body: { amount: 100 } },
     { method: 'POST', path: '/abc/distributions', field: /número del socio/i, body: { amount: 100 } },
+    { method: 'POST', path: '/abc/capital-returns', field: /número del socio/i, body: { amount: 100 } },
     { method: 'POST', path: '/abc/reinvestments', field: /número del socio/i, body: { amount: 100 } },
     { method: 'GET', path: '/abc/installments', field: /número del socio/i },
     { method: 'POST', path: '/12/installments/1e2/pay', field: /número de la cuota/i, body: { paymentDate: '2026-02-15' } },

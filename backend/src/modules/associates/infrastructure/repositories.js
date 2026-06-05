@@ -105,6 +105,48 @@ const associateRepository = {
       participationAssigned: 0,
     });
   },
+  async getTrackingDataset(filters = {}) {
+    const where = buildAssociateListWhere(filters);
+    const associates = await Associate.findAll({
+      where,
+      order: [['name', 'ASC']],
+    });
+    const associateIds = associates.map((associate) => associate.id);
+
+    if (associateIds.length === 0) {
+      return {
+        associates,
+        contributions: [],
+        distributions: [],
+        installments: [],
+      };
+    }
+
+    const [contributions, distributions, installments] = await Promise.all([
+      AssociateContribution.findAll({
+        where: { associateId: { [Op.in]: associateIds } },
+        include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
+        order: [['contributionDate', 'DESC'], ['createdAt', 'DESC']],
+      }),
+      ProfitDistribution.findAll({
+        where: { associateId: { [Op.in]: associateIds } },
+        include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
+        order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']],
+      }),
+      AssociateInstallment.findAll({
+        where: { associateId: { [Op.in]: associateIds } },
+        include: [{ model: User, as: 'paidByUser', attributes: ['id', 'name', 'email', 'role'] }],
+        order: [['dueDate', 'ASC'], ['installmentNumber', 'ASC']],
+      }),
+    ]);
+
+    return {
+      associates,
+      contributions,
+      distributions,
+      installments,
+    };
+  },
   findById(id, { transaction } = {}) {
     return Associate.findByPk(id, { transaction });
   },
@@ -170,13 +212,14 @@ const associateRepository = {
       transaction,
     });
   },
-  listProfitDistributionsByAssociate(associateId) {
+  listProfitDistributionsByAssociate(associateId, { transaction } = {}) {
     return ProfitDistribution.findAll({
       where: { associateId },
       include: [
         { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] },
       ],
       order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']],
+      transaction,
     });
   },
   createProfitDistribution(payload, { transaction } = {}) {
@@ -240,6 +283,17 @@ const associateRepository = {
       },
     );
   },
+  updateInstallmentProjection(installmentId, payload, { transaction } = {}) {
+    return AssociateInstallment.findByPk(installmentId, { transaction }).then((installment) => (
+      installment ? installment.update(payload, { transaction }) : null
+    ));
+  },
+  deleteInstallmentById(installmentId, { transaction } = {}) {
+    return AssociateInstallment.destroy({
+      where: { id: installmentId },
+      transaction,
+    });
+  },
   findCalendarEvents(associateId, startDate, endDate) {
     const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
     const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), 11, 31);
@@ -286,6 +340,9 @@ const associateRepository = {
         date: d.distributionDate,
         notes: d.notes,
         createdBy: d.createdBy,
+        displayType: d?.basis?.type === 'capital-return'
+          ? 'Devolución de capital'
+          : (d?.basis?.type === 'reinvestment' ? 'Reinversión' : 'Pago manual de rentabilidad'),
       })),
       installments: installments.map((i) => ({
         id: i.id,

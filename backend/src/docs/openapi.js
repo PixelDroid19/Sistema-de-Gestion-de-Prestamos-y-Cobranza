@@ -372,6 +372,40 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Pago registrado y siguiente vencimiento de interés generado' } },
       },
     },
+    '/associates/{associateId}/profitability': {
+      get: {
+        tags: ['Associates'],
+        summary: 'Consultar rentabilidad y movimientos del socio',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Resumen de aportes, intereses/retiros y capital devuelto del socio' } },
+      },
+    },
+    '/associates/{associateId}/export': {
+      get: {
+        tags: ['Associates'],
+        summary: 'Exportar el historial detallado de un socio',
+        parameters: [
+          { name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } },
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'csv'], default: 'xlsx' } },
+        ],
+        responses: { 200: { description: 'Archivo detallado del socio con aportes, devoluciones y rentabilidad' } },
+      },
+    },
+    '/associates/export': {
+      get: {
+        tags: ['Associates'],
+        summary: 'Exportar socios a Excel o PDF operativo',
+        description: 'Genera el reporte administrativo de socios desde su propio módulo, sin mezclarlo con reportes de créditos.',
+        parameters: [
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' } },
+          { name: 'associateId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra el reporte por socio inversionista.' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive'] }, description: 'Filtra socios activos o inactivos.' },
+          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: { 200: { description: 'Archivo de socios en el formato solicitado' } },
+      },
+    },
     '/loans/{loanId}/payoff-executions': {
       post: {
         tags: ['Payments'],
@@ -538,35 +572,6 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'paymentType', in: 'query', schema: { type: 'string', enum: ['installment', 'partial', 'capital', 'payoff'] } },
         ],
         responses: { 200: { description: 'Archivo de pagos en el formato solicitado' } },
-      },
-    },
-    '/reports/associates/excel': {
-      get: {
-        tags: ['Reports'],
-        summary: 'Exportar socios a Excel operativo',
-        description: 'Genera hojas inspiradas en el reporte anterior de socios: Resumen General, Distribución por Estado, Detalle de Socios, Análisis de Rentabilidad y Rangos de Inversión. Incluye capital aportado, tipo/tasa de interés, deuda con el socio, interés pagado, próximo pago y movimientos.',
-        parameters: [
-          { name: 'associateId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra el reporte por socio inversionista.' },
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive'] }, description: 'Filtra socios activos o inactivos.' },
-          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
-          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
-        ],
-        responses: { 200: { description: 'Archivo Excel de socios' } },
-      },
-    },
-    '/reports/associates/export': {
-      get: {
-        tags: ['Reports'],
-        summary: 'Exportar socios a Excel o PDF operativo',
-        description: 'Genera el reporte administrativo de socios en Excel o PDF. El PDF resume pagos realizados a socios, intereses pendientes y cronograma de pagos.',
-        parameters: [
-          { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' } },
-          { name: 'associateId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra el reporte por socio inversionista.' },
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive'] }, description: 'Filtra socios activos o inactivos.' },
-          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
-          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
-        ],
-        responses: { 200: { description: 'Archivo de socios en el formato solicitado' } },
       },
     },
     '/notifications': {

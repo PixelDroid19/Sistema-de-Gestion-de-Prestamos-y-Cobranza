@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { CreditCard, DollarSign, HandCoins, ReceiptText, TrendingUp, Wallet } from 'lucide-react';
+import { CreditCard, DollarSign, ReceiptText, TrendingUp, Wallet } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import {
@@ -182,14 +182,6 @@ export default function CreditHistoryMonthlyTab({
         ]}
         secondaryItems={[
           {
-            id: 'credit-history-associate-interest',
-            label: tTerm('reports.creditHistory.summary.associateInterestPaid.label'),
-            value: formatMoney(summary.totalAssociateInterestPaid),
-            helper: tTerm('reports.creditHistory.summary.associateInterestPaid.helper'),
-            icon: <HandCoins size={18} />,
-            accent: 'rose',
-          },
-          {
             id: 'credit-history-operating-expenses',
             label: tTerm('reports.creditHistory.summary.operatingExpenses.label'),
             value: formatMoney(summary.totalOperatingExpenses),
@@ -211,7 +203,6 @@ export default function CreditHistoryMonthlyTab({
                 <th>{tTerm('reports.creditHistory.table.principal')}</th>
                 <th>{tTerm('reports.creditHistory.table.installments')}</th>
                 <th>{tTerm('reports.creditHistory.table.received')}</th>
-                <th>{tTerm('reports.creditHistory.table.associateInterestPaid')}</th>
                 <th>{tTerm('reports.creditHistory.table.operatingExpenses')}</th>
                 <th>{tTerm('reports.creditHistory.table.gains')}</th>
                 <th>{tTerm('reports.creditHistory.table.losses')}</th>
@@ -221,11 +212,11 @@ export default function CreditHistoryMonthlyTab({
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="table-empty-state">{tTerm('reports.creditHistory.table.loading')}</td>
+                  <td colSpan={9} className="table-empty-state">{tTerm('reports.creditHistory.table.loading')}</td>
                 </tr>
               ) : months.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="table-empty-state">{tTerm('reports.creditHistory.table.empty')}</td>
+                  <td colSpan={9} className="table-empty-state">{tTerm('reports.creditHistory.table.empty')}</td>
                 </tr>
               ) : (
                 months.map((month) => (
@@ -235,7 +226,6 @@ export default function CreditHistoryMonthlyTab({
                     <td>{formatMoney(month.createdPrincipal)}</td>
                     <td>{formatNumberValue(month.installmentsReceived)}</td>
                     <td>{formatMoney(month.paymentsReceived)}</td>
-                    <td className="text-rose-600">{formatMoney(month.associateInterestPaid)}</td>
                     <td className="text-rose-600">{formatMoney(month.operatingExpenses)}</td>
                     <td className="text-emerald-600">{formatMoney(month.gains)}</td>
                     <td className="text-rose-600">{formatMoney(month.lossesAtRisk)}</td>

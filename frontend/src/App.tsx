@@ -22,6 +22,7 @@ const Credits = React.lazy(() => import('./components/Credits'));
 const NewCredit = React.lazy(() => import('./components/NewCredit'));
 const CreditDetails = React.lazy(() => import('./components/CreditDetails'));
 const Associates = React.lazy(() => import('./components/Associates'));
+const AssociateTracking = React.lazy(() => import('./components/AssociateTracking'));
 const AssociateDetails = React.lazy(() => import('./components/AssociateDetails'));
 const Payouts = React.lazy(() => import('./components/Payouts'));
 const Notifications = React.lazy(() => import('./components/Notifications'));
@@ -102,6 +103,7 @@ function MainLayout() {
               <Route path="/credits/:id" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={[PERMISSION.CREDITS_VIEW_ALL]}><CreditDetails /></ProtectedRoute>} />
               <Route path="/credits/:id/schedule" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={[PERMISSION.CREDITS_VIEW_ALL]}><PaymentSchedule /></ProtectedRoute>} />
               <Route path="/associates" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={[PERMISSION.SOCIOS_VIEW_ALL]}><AssociatesLandingRoute setCurrentView={setCurrentView} /></ProtectedRoute>} />
+              <Route path="/associates-tracking" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={[PERMISSION.SOCIOS_VIEW_ALL]}><AssociateTracking setCurrentView={setCurrentView} /></ProtectedRoute>} />
               <Route path="/associates-new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={[PERMISSION.SOCIOS_CREATE]}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
               <Route path="/associates/:id/edit" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={[PERMISSION.SOCIOS_UPDATE]}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
               <Route path="/associates/:id" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={[PERMISSION.SOCIOS_VIEW_ALL]}><AssociateDetails /></ProtectedRoute>} />

@@ -457,23 +457,6 @@ const paginateCollection = (items, pagination) => {
   };
 };
 
-// ─── Participation ──────────────────────────────────────────────────────────
-
-const normalizeParticipationPercentage = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-  return Number(value).toFixed(4);
-};
-
-const normalizeAssociateRecord = (associate) => {
-  const serializedAssociate = typeof associate?.toJSON === 'function' ? associate.toJSON() : associate;
-  return {
-    ...serializedAssociate,
-    participationPercentage: normalizeParticipationPercentage(serializedAssociate?.participationPercentage),
-  };
-};
-
 module.exports = {
   escapePdfText,
   buildPdfTextStream,
@@ -498,6 +481,4 @@ module.exports = {
   buildLoanReportRecord,
   buildLoansWithDetails,
   paginateCollection,
-  normalizeParticipationPercentage,
-  normalizeAssociateRecord,
 };

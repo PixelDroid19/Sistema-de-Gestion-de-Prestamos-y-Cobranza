@@ -179,13 +179,6 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
     return Number(String(value).trim());
   };
-  const parseOptionalQueryId = (value, fieldName) => {
-    if (value === undefined || value === null || value === '') {
-      return undefined;
-    }
-
-    return parseRequiredRouteId(value, fieldName);
-  };
   const buildCreditExportFilters = (query = {}) => ({
     customerId: query.customerId,
     loanId: query.loanId,
@@ -201,12 +194,6 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     status: query.status,
     customerId: query.customerId,
     loanId: query.loanId || query.creditId,
-  });
-  const buildAssociateExportFilters = (query = {}) => ({
-    associateId: parseOptionalQueryId(query.associateId, 'associateId'),
-    fromDate: query.fromDate || query.startDate,
-    toDate: query.toDate || query.endDate,
-    status: query.status,
   });
   const buildPayoutExportFilters = (query = {}) => ({
     customerId: query.customerId,
@@ -486,28 +473,6 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.get('/associates/profitability/:associateId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const associateId = parseRequiredRouteId(req.params.associateId, 'associateId');
-    const report = await useCases.getAssociateProfitabilityReport({ actor: req.user, associateId });
-    res.json({ success: true, data: { report } });
-  }));
-
-  router.get('/associates/profitability', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const report = await useCases.getAssociateProfitabilityReport({ actor: req.user });
-    res.json({ success: true, data: { report } });
-  }));
-
-  router.get('/associates/:associateId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const format = String(req.query.format || 'xlsx').toLowerCase();
-    const associateId = parseRequiredRouteId(req.params.associateId, 'associateId');
-    const exportFile = await useCases.exportAssociateProfitabilityReport({
-      actor: req.user,
-      associateId,
-      format,
-    });
-    sendBufferDownload(res, exportFile);
-  }));
-
   // === Financial Analytics Routes ===
 
   router.get('/credit-earnings', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
@@ -636,49 +601,6 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/credits/summary', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getCreditsSummary({ actor: req.user }));
-  }));
-
-  router.get('/associates/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const filters = buildAssociateExportFilters(req.query);
-    const exportData = await useCases.exportAssociatesExcel({ actor: req.user, filters });
-    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de socios');
-    const buffer = await buildWorkbookBuffer(workbookSheets);
-    sendBufferDownload(res, {
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fileName: 'associates-export.xlsx',
-      buffer,
-    });
-  }));
-
-  router.get('/associates/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const format = String(req.query.format || 'xlsx').toLowerCase();
-    const filters = buildAssociateExportFilters(req.query);
-
-    if (format === 'pdf') {
-      const exportFile = await useCases.exportAssociatesPdf({ actor: req.user, filters });
-      sendBufferDownload(res, exportFile);
-      return;
-    }
-
-    const exportData = await useCases.exportAssociatesExcel({ actor: req.user, filters });
-    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de socios');
-    const buffer = await buildWorkbookBuffer(workbookSheets);
-    sendBufferDownload(res, {
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fileName: 'associates-export.xlsx',
-      buffer,
-    });
-  }));
-
-  router.get('/partner-report/:associateId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const format = String(req.query.format || 'xlsx').toLowerCase();
-    const associateId = parseRequiredRouteId(req.params.associateId, 'associateId');
-    const exportFile = await useCases.exportAssociateProfitabilityReport({
-      actor: req.user,
-      associateId,
-      format,
-    });
-    sendBufferDownload(res, exportFile);
   }));
 
   // === Enhanced Reports: Payouts and Payment Schedule ===

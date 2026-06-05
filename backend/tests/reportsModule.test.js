@@ -15,14 +15,16 @@ const {
   createExportCustomerCreditProfile,
   createExportCustomerCreditHistory,
   createExportRecoveryReport,
-  createGetAssociateProfitabilityReport,
-  createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
   createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
   createGetPayoutsReport,
   createExportPayoutsExcel,
 } = require('@/modules/reports/application/useCases');
+const {
+  createGetAssociateProfitabilityReport,
+  createExportAssociateProfitabilityReport,
+} = require('@/modules/associates/application/reportingUseCases');
 const { createReportsModule } = require('@/modules/reports');
 
 test('createGetRecoveredLoans builds report records and summary totals', async () => {

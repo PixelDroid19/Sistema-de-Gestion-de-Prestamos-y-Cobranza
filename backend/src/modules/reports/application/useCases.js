@@ -1,5 +1,4 @@
-const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
-const { normalizeDistributionRecord } = require('@/modules/associates/application/useCases');
+const { NotFoundError } = require('@/utils/errorHandler');
 const { buildWorkbookBuffer, STYLE_COLORS } = require('./workbookBuilder');
 const {
   ensureAdmin,
@@ -11,7 +10,6 @@ const {
   buildCsv,
   formatIsoDate,
   moneyColumn,
-  dateColumn,
   buildMonthlyPerformanceSeries,
   buildCustomerHistoryTimeline,
   buildProfitabilityLoanRows,
@@ -21,12 +19,8 @@ const {
   buildServicingNotes,
   buildLoansWithDetails,
   paginateCollection,
-  normalizeParticipationPercentage,
-  normalizeAssociateRecord,
 } = require('./reportInternals');
 const { formatOperationalStatus, formatPaymentType } = require('./reportLabels');
-
-const ASSOCIATE_PROFITABILITY_ACCESS_REQUIRED_MESSAGE = 'El acceso a la rentabilidad del socio no está configurado para este usuario.';
 
 const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
   ensureAdmin(actor);
@@ -389,22 +383,6 @@ const formatMissingSections = (sections = []) => {
 
 const formatYesNo = (value) => (value ? 'Sí' : 'No');
 
-const ASSOCIATE_DISTRIBUTION_TYPE_LABELS = {
-  proportional: 'Proporcional',
-  fixed: 'Fija',
-  manual: 'Manual',
-};
-
-/**
- * Formats associate distribution type values for operator-facing reports.
- *
- * @param {string} value Normalized associate distribution type.
- * @returns {string} Spanish label for CSV/PDF/XLSX report artifacts.
- */
-const formatAssociateDistributionType = (value) => (
-  ASSOCIATE_DISTRIBUTION_TYPE_LABELS[String(value || '').trim().toLowerCase()] || (value ? 'Tipo de distribución no clasificado' : '')
-);
-
 const createExportCustomerHistory = ({ reportRepository }) => async ({ actor, customerId, format = 'pdf' }) => {
   const history = await createGetCustomerHistory({ reportRepository })({ actor, customerId });
   const data = history.data;
@@ -576,31 +554,6 @@ const RECOVERY_EXPORT_COLUMNS = [
   { header: 'Estado de Recuperación', key: 'recoveryStatus', width: 24 },
 ];
 
-const ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS = [
-  { header: 'Indicador', key: 'indicator', width: 34 },
-  { header: 'Valor', key: 'value', width: 22 },
-  { header: 'Unidad', key: 'unit', width: 15 },
-];
-
-const ASSOCIATE_CONTRIBUTION_COLUMNS = [
-  { header: 'ID Aporte', key: 'contributionId', width: 14 },
-  moneyColumn('Monto', 'amount'),
-  dateColumn('Fecha Aporte', 'contributionDate', 18),
-  { header: 'Notas', key: 'notes', width: 34 },
-];
-
-const ASSOCIATE_DISTRIBUTION_COLUMNS = [
-  { header: 'ID Distribución', key: 'distributionId', width: 16 },
-  { header: 'Referencia', key: 'creditId', width: 18 },
-  moneyColumn('Monto', 'amount'),
-  dateColumn('Fecha Distribución', 'distributionDate', 20),
-  { header: 'Tipo Distribución', key: 'distributionType', width: 20 },
-  { header: 'Participación %', key: 'participationPercentage', width: 18 },
-  moneyColumn('Total Proporcional', 'declaredProportionalTotal', 20),
-  moneyColumn('Monto Asignado', 'allocatedAmount', 20),
-  { header: 'Notas', key: 'notes', width: 34 },
-];
-
 const CUSTOMER_PROFITABILITY_COLUMNS = [
   { header: 'ID Cliente', key: 'customerId', width: 12 },
   { header: 'Cliente', key: 'customerName', width: 28 },
@@ -662,138 +615,6 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
     fileName: 'recovery-report.csv',
     contentType: 'text/csv; charset=utf-8',
     buffer: Buffer.from(csv, 'utf8'),
-  };
-};
-
-const createGetAssociateProfitabilityReport = ({ associateRepository }) => async ({ actor, associateId = null }) => {
-  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
-
-  const resolveAssociate = async () => {
-    return associateRepository.findById(associateId);
-  };
-
-  const associate = await resolveAssociate();
-  if (!associate) {
-    throw new AuthorizationError(ASSOCIATE_PROFITABILITY_ACCESS_REQUIRED_MESSAGE);
-  }
-
-  const [contributions, distributions] = await Promise.all([
-    associateRepository.listContributionsByAssociate(associate.id),
-    associateRepository.listProfitDistributionsByAssociate(associate.id),
-  ]);
-
-  const totalContributed = contributions.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const totalDistributed = distributions.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-
-  return {
-    associate: normalizeAssociateRecord(associate),
-    summary: {
-      totalContributed: totalContributed.toFixed(2),
-      totalDistributed: totalDistributed.toFixed(2),
-      netProfit: totalDistributed.toFixed(2),
-      contributionCount: contributions.length,
-      distributionCount: distributions.length,
-      participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
-    },
-    data: {
-      contributions,
-      distributions: distributions.map(normalizeDistributionRecord),
-    },
-  };
-};
-
-const createExportAssociateProfitabilityReport = ({ reportRepository, associateRepository }) => async ({ actor, associateId, format = 'xlsx' }) => {
-  const report = await createGetAssociateProfitabilityReport({ associateRepository })({ actor, associateId });
-  const dataset = await reportRepository.getAssociateExportDataset(report.associate.id);
-
-  const contributionRows = (dataset.contributions || []).map((entry) => ({
-    contributionId: entry.id,
-    amount: entry.amount,
-    contributionDate: entry.contributionDate,
-    notes: entry.notes || '',
-  }));
-  const distributionRows = (dataset.distributions || []).map((entry) => {
-    const normalizedEntry = normalizeDistributionRecord(entry);
-
-    return {
-      distributionId: entry.id,
-      creditId: entry.loanId,
-      amount: entry.amount,
-      distributionDate: entry.distributionDate,
-      distributionType: formatAssociateDistributionType(normalizedEntry.distributionType),
-      participationPercentage: normalizedEntry.participationPercentage || normalizeParticipationPercentage(dataset.associate?.participationPercentage),
-      declaredProportionalTotal: normalizedEntry.declaredProportionalTotal,
-      allocatedAmount: normalizedEntry.allocatedAmount,
-      notes: entry.notes || '',
-    };
-  });
-  if (format === 'csv') {
-    const csv = buildCsv({
-      headers: ['Sección', 'ID', 'Referencia', 'Monto', 'Fecha', 'Estado', 'Participación %', 'Tipo Distribución', 'Total Proporcional', 'Monto Asignado', 'Notas'],
-      rows: [
-        ...contributionRows.map((row) => ['Aporte', row.contributionId, '', row.amount, row.contributionDate, '', normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.notes]),
-        ...distributionRows.map((row) => [
-          'Distribución',
-          row.distributionId,
-          row.creditId || '',
-          row.amount,
-          row.distributionDate,
-          '',
-          row.participationPercentage || '',
-          row.distributionType,
-          row.declaredProportionalTotal || '',
-          row.allocatedAmount || '',
-          row.notes,
-        ]),
-      ],
-    });
-
-    return {
-      fileName: `associate-${report.associate.id}-profitability.csv`,
-      contentType: 'text/csv; charset=utf-8',
-      buffer: Buffer.from(csv, 'utf8'),
-    };
-  }
-
-  return {
-    fileName: `associate-${report.associate.id}-profitability.xlsx`,
-    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    buffer: await buildWorkbookBuffer([
-      {
-        name: 'Resumen General',
-        title: `RENTABILIDAD DEL SOCIO - ${report.associate.name}`,
-        tabColor: STYLE_COLORS.blue,
-        headerFill: STYLE_COLORS.green,
-        columns: ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS,
-        rows: [
-          { indicator: 'Socio', value: report.associate.name, unit: '' },
-          { indicator: 'ID Socio', value: report.associate.id, unit: '' },
-          { indicator: 'Aportes Totales', value: Number(report.summary.totalContributed || 0), unit: '$' },
-          { indicator: 'Distribuciones Totales', value: Number(report.summary.totalDistributed || 0), unit: '$' },
-          { indicator: 'Ganancia Neta', value: Number(report.summary.netProfit || 0), unit: '$' },
-          { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0, unit: 'movimientos' },
-          { indicator: 'Cantidad de Distribuciones', value: report.summary.distributionCount || 0, unit: 'movimientos' },
-          { indicator: 'Participación', value: report.summary.participationPercentage || '0.0000', unit: '%' },
-        ],
-        autoFilter: false,
-      },
-      {
-        name: 'Aportes',
-        title: 'APORTES DEL SOCIO',
-        tabColor: STYLE_COLORS.green,
-        headerFill: STYLE_COLORS.headerBlue,
-        columns: ASSOCIATE_CONTRIBUTION_COLUMNS,
-        rows: contributionRows,
-      },
-      {
-        name: 'Distribuciones',
-        title: 'DISTRIBUCIONES DEL SOCIO',
-        tabColor: STYLE_COLORS.yellow,
-        headerFill: STYLE_COLORS.headerBlue,
-        columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
-        rows: distributionRows,
-      },
-    ]),
   };
 };
 
@@ -932,8 +753,6 @@ module.exports = {
   createExportCustomerCreditProfile,
   createExportCustomerCreditHistory,
   createExportRecoveryReport,
-  createGetAssociateProfitabilityReport,
-  createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
   createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
@@ -952,8 +771,6 @@ module.exports = {
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,
   createExportCreditsPdf: require('./useCases/createExportCreditsExcel').createExportCreditsPdf,
   createGetCreditsSummary: require('./useCases/createGetCreditsSummary').createGetCreditsSummary,
-  createExportAssociatesExcel: require('./useCases/createExportAssociatesExcel').createExportAssociatesExcel,
-  createExportAssociatesPdf: require('./useCases/createExportAssociatesExcel').createExportAssociatesPdf,
   createExportPayoutsExcel: require('./useCases/createExportPayoutsExcel').createExportPayoutsExcel,
   createExportPayoutsPdf: require('./useCases/createExportPayoutsExcel').createExportPayoutsPdf,
   // Enhanced reports use cases

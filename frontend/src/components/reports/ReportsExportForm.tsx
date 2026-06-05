@@ -13,8 +13,6 @@ export type ReportsExportFormProps = {
   onReportStatusFilterChange: (value: string) => void;
   reportPaymentTypeFilter: string;
   onReportPaymentTypeFilterChange: (value: string) => void;
-  reportAssociateIdFilter: string;
-  onReportAssociateIdFilterChange: (value: string) => void;
   reportCustomerIdFilter: string;
   onReportCustomerIdFilterChange: (value: string) => void;
   reportLoanIdFilter: string;
@@ -22,20 +20,11 @@ export type ReportsExportFormProps = {
   reportFormat: ReportExportFormat;
   onReportFormatChange: (value: ReportExportFormat) => void;
   hasInvalidRange: boolean;
-  hasInvalidAssociateId: boolean;
   hasInvalidReportCustomerId: boolean;
   hasInvalidReportLoanId: boolean;
   layout?: 'panel' | 'modal';
   formId?: string;
   onSubmit?: (event: FormEvent) => void;
-};
-
-const acceptNumericFilter = (value: string, onChange: (value: string) => void) => {
-  if (!/^\d*$/.test(value.trim())) {
-    return;
-  }
-
-  onChange(value);
 };
 
 export default function ReportsExportForm({
@@ -47,8 +36,6 @@ export default function ReportsExportForm({
   onReportStatusFilterChange,
   reportPaymentTypeFilter,
   onReportPaymentTypeFilterChange,
-  reportAssociateIdFilter,
-  onReportAssociateIdFilterChange,
   reportCustomerIdFilter,
   onReportCustomerIdFilterChange,
   reportLoanIdFilter,
@@ -56,7 +43,6 @@ export default function ReportsExportForm({
   reportFormat,
   onReportFormatChange,
   hasInvalidRange,
-  hasInvalidAssociateId,
   hasInvalidReportCustomerId,
   hasInvalidReportLoanId,
   layout = 'panel',
@@ -67,23 +53,20 @@ export default function ReportsExportForm({
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [loanSearchQuery, setLoanSearchQuery] = useState('');
 
-  const showFormat = reportType === 'credits' || reportType === 'associates' || reportType === 'payouts';
-  const showStatus = reportType === 'credits' || reportType === 'associates' || reportType === 'payouts';
-  const showAssociateId = reportType === 'associates';
+  const showFormat = reportType === 'credits' || reportType === 'payouts';
+  const showStatus = reportType === 'credits' || reportType === 'payouts';
   const showCustomerLoan = reportType === 'credits' || reportType === 'payouts';
   const showPaymentType = reportType === 'payouts';
-  const hasAdvancedFilters = showStatus || showAssociateId || showCustomerLoan || showPaymentType;
+  const hasAdvancedFilters = showStatus || showCustomerLoan || showPaymentType;
 
   const activeAdvancedFilterCount = useMemo(() => {
     let count = 0;
     if (reportStatusFilter) count += 1;
     if (reportPaymentTypeFilter) count += 1;
-    if (reportAssociateIdFilter.trim()) count += 1;
     if (reportCustomerIdFilter.trim()) count += 1;
     if (reportLoanIdFilter.trim()) count += 1;
     return count;
   }, [
-    reportAssociateIdFilter,
     reportCustomerIdFilter,
     reportLoanIdFilter,
     reportPaymentTypeFilter,
@@ -95,7 +78,6 @@ export default function ReportsExportForm({
     onReportTypeChange(nextType);
     onReportStatusFilterChange('');
     onReportPaymentTypeFilterChange('');
-    onReportAssociateIdFilterChange('');
     onReportCustomerIdFilterChange('');
     onReportLoanIdFilterChange('');
     setCustomerSearchQuery('');
@@ -120,7 +102,6 @@ export default function ReportsExportForm({
           >
             <option value="credits">{tTerm('reports.export.type.credits')}</option>
             <option value="profitability">{tTerm('reports.export.type.profitability')}</option>
-            <option value="associates">{tTerm('reports.export.type.associates')}</option>
             <option value="payouts">{tTerm('reports.export.type.payouts')}</option>
           </OperationalSelect>
         </FormField>
@@ -189,34 +170,13 @@ export default function ReportsExportForm({
                   onChange={(event) => onReportStatusFilterChange(event.target.value)}
                 >
                   <option value="">{tTerm('credits.filter.all')}</option>
-                  {reportType === 'credits' ? (
-                    <>
-                      <option value="approved">{tTerm('credits.status.approved')}</option>
-                      <option value="active">{tTerm('common.status.active')}</option>
-                      <option value="overdue">{tTerm('schedule.status.overdue')}</option>
-                      <option value="defaulted">{tTerm('credits.status.defaulted')}</option>
-                      <option value="closed">{tTerm('common.status.closed')}</option>
-                      <option value="paid">{tTerm('schedule.status.paid')}</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="active">{tTerm('common.status.active')}</option>
-                      <option value="inactive">{tTerm('common.status.inactive')}</option>
-                    </>
-                  )}
+                  <option value="approved">{tTerm('credits.status.approved')}</option>
+                  <option value="active">{tTerm('common.status.active')}</option>
+                  <option value="overdue">{tTerm('schedule.status.overdue')}</option>
+                  <option value="defaulted">{tTerm('credits.status.defaulted')}</option>
+                  <option value="closed">{tTerm('common.status.closed')}</option>
+                  <option value="paid">{tTerm('schedule.status.paid')}</option>
                 </OperationalSelect>
-              </FormField>
-            )}
-
-            {showAssociateId && (
-              <FormField label={tTerm('reports.export.associate')}>
-                <AppInput
-                  id="report-associate"
-                  variant="integer"
-                  placeholder={tTerm('reports.export.associate.placeholder')}
-                  value={reportAssociateIdFilter}
-                  onValueChange={(v, _detail, e) => acceptNumericFilter(v, onReportAssociateIdFilterChange)}
-                />
               </FormField>
             )}
 
@@ -279,10 +239,9 @@ export default function ReportsExportForm({
         </div>
       )}
 
-      {(hasInvalidRange || hasInvalidAssociateId || hasInvalidReportCustomerId || hasInvalidReportLoanId) && (
+      {(hasInvalidRange || hasInvalidReportCustomerId || hasInvalidReportLoanId) && (
         <div className="reports-export-form__errors" role="status">
           {hasInvalidRange && <p>{tTerm('reports.export.invalidRange')}</p>}
-          {hasInvalidAssociateId && <p>{tTerm('reports.export.invalidAssociate')}</p>}
           {hasInvalidReportCustomerId && <p>{tTerm('reports.export.invalidCustomer')}</p>}
           {hasInvalidReportLoanId && <p>{tTerm('reports.export.invalidLoan')}</p>}
         </div>

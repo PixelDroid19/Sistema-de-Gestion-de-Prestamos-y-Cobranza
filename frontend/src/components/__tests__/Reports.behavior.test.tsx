@@ -614,29 +614,17 @@ describe('Reports behavioral parity scenarios', () => {
     expect(payload).not.toHaveProperty('loanId');
   });
 
-  it('exports associates report with selected PDF format', async () => {
+  it('keeps investor associate exports out of the reports contextual exporter', async () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
     fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
-    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-04-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-04-30' } });
-    fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'associates' } });
-    fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'inactive' } });
-    fireEvent.change(screen.getByLabelText('Socio'), { target: { value: '8' } });
-    fireEvent.change(screen.getByLabelText('Formato'), { target: { value: 'pdf' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar socios' }));
 
-    await waitFor(() => {
-      expect(mockExportContextualReport).toHaveBeenCalledWith('associates', {
-        fromDate: '2026-04-01',
-        toDate: '2026-04-30',
-        status: 'inactive',
-        format: 'pdf',
-        paymentType: undefined,
-        associateId: 8,
-      });
-    });
+    const reportType = screen.getByLabelText('Tipo de reporte');
+    expect(reportType).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Socios inversionistas' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Socio')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportar socios' })).not.toBeInTheDocument();
   });
 
   it('exports the customer profitability Excel when profitability tab is active', async () => {
@@ -682,12 +670,10 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByRole('heading', { name: 'Resumen diario de caja' })).toBeInTheDocument();
     expect(screen.getAllByText('Entradas por cuotas').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Salidas por préstamos').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Pagado a socios').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Pendiente a socios').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Pagado a socios')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pendiente a socios')).not.toBeInTheDocument();
     expect(screen.getAllByText('Gastos operativos').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Caja disponible').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/3[.,]000[.,]000/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/1[.,]200[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/2[.,]000[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/700[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('2026-01')).toBeInTheDocument();
@@ -765,14 +751,13 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByRole('heading', { name: 'Historial mensual de créditos' })).toBeInTheDocument();
     expect(screen.getAllByText('Capital prestado').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cuotas recibidas').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Pagado a socios').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Pagado a socios')).not.toBeInTheDocument();
     expect(screen.getAllByText('Gastos operativos').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ganancias').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Caja disponible').length).toBeGreaterThan(0);
     expect(screen.getByText('2026-04')).toBeInTheDocument();
     expect(screen.getAllByText(/4[.,]000[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/2[.,]500[.,]000/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/300[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/125[.,]000/).length).toBeGreaterThan(0);
 
     await waitFor(() => {

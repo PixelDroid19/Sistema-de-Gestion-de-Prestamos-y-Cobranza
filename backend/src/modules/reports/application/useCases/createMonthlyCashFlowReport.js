@@ -14,8 +14,6 @@ const CASH_FLOW_COLUMNS = [
   { header: 'Mes', key: 'month', width: 14 },
   moneyColumn('Entradas por Cuotas', 'inflows'),
   moneyColumn('Salidas por Préstamos', 'outflows'),
-  moneyColumn('Intereses Pagados a Socios', 'associateInterestPaid', 26),
-  moneyColumn('Intereses Pendientes a Socios', 'associateInterestPending', 28),
   moneyColumn('Gastos Operativos', 'operatingExpenses', 22),
   moneyColumn('Flujo Neto', 'netCashFlow'),
   moneyColumn('Caja Disponible', 'availableCash'),
@@ -83,8 +81,6 @@ const createEmptyMonth = (month) => ({
   principalRecoveredRaw: 0,
   interestCollectedRaw: 0,
   penaltyCollectedRaw: 0,
-  associateInterestPaidRaw: 0,
-  associateInterestPendingRaw: 0,
   operatingExpensesRaw: 0,
   collectedProfitRaw: 0,
   lossesAtRiskRaw: 0,
@@ -96,10 +92,8 @@ const formatMonth = (row, availableCash) => ({
   month: row.month,
   inflows: formatMoney(row.inflowsRaw),
   outflows: formatMoney(row.outflowsRaw),
-  associateInterestPaid: formatMoney(row.associateInterestPaidRaw),
-  associateInterestPending: formatMoney(row.associateInterestPendingRaw),
   operatingExpenses: formatMoney(row.operatingExpensesRaw),
-  netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.associateInterestPaidRaw - row.operatingExpensesRaw),
+  netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.operatingExpensesRaw),
   availableCash: formatMoney(availableCash),
   principalRecovered: formatMoney(row.principalRecoveredRaw),
   interestCollected: formatMoney(row.interestCollectedRaw),
@@ -117,8 +111,6 @@ const createEmptyDay = (date) => ({
   principalRecoveredRaw: 0,
   interestCollectedRaw: 0,
   penaltyCollectedRaw: 0,
-  associateInterestPaidRaw: 0,
-  associateInterestPendingRaw: 0,
   operatingExpensesRaw: 0,
   collectedProfitRaw: 0,
   lossesAtRiskRaw: 0,
@@ -130,10 +122,8 @@ const formatDay = (row, availableCash) => ({
   date: row.date,
   inflows: formatMoney(row.inflowsRaw),
   outflows: formatMoney(row.outflowsRaw),
-  associateInterestPaid: formatMoney(row.associateInterestPaidRaw),
-  associateInterestPending: formatMoney(row.associateInterestPendingRaw),
   operatingExpenses: formatMoney(row.operatingExpensesRaw),
-  netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.associateInterestPaidRaw - row.operatingExpensesRaw),
+  netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.operatingExpensesRaw),
   availableCash: formatMoney(availableCash),
   principalRecovered: formatMoney(row.principalRecoveredRaw),
   interestCollected: formatMoney(row.interestCollectedRaw),
@@ -173,11 +163,10 @@ const buildDayKeys = ({ fromDate, toDate }) => {
  * @param {number} input.year Calendar year to report.
  * @param {Array<object>} input.loans Canonical loan rows.
  * @param {Array<object>} input.payments Canonical payment rows.
- * @param {Array<object>} input.associateInterestPayments Paid associate interest installment rows.
  * @param {Array<object>} input.operatingExpenses Canonical completed operating expense rows.
  * @returns {{year:number, summary:object, months:Array<object>}}
  */
-const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associateInterestPayments = [], operatingExpenses = [] }) => {
+const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], operatingExpenses = [] }) => {
   const numericYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
   const monthsByKey = MONTHS.reduce((acc, month) => {
     const monthKey = `${numericYear}-${month}`;
@@ -197,23 +186,6 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
       monthsByKey[key].penaltyCollectedRaw += toNumber(payment.penaltyApplied);
       monthsByKey[key].collectedProfitRaw += toNumber(payment.interestApplied) + toNumber(payment.penaltyApplied);
       monthsByKey[key].paymentCount += 1;
-    });
-
-  associateInterestPayments
-    .forEach((installment) => {
-      const status = String(installment?.status || '').toLowerCase();
-      const isPaid = status === 'paid';
-      const isPending = status === 'pending' || status === 'overdue';
-      const key = monthKeyFromDate(isPaid
-        ? installment.paidAt || installment.paymentDate || installment.createdAt
-        : installment.dueDate || installment.createdAt);
-      if (!monthsByKey[key]) return;
-
-      if (isPaid) {
-        monthsByKey[key].associateInterestPaidRaw += toNumber(installment.amount);
-      } else if (isPending) {
-        monthsByKey[key].associateInterestPendingRaw += toNumber(installment.amount);
-      }
     });
 
   operatingExpenses
@@ -242,14 +214,12 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
   let availableCashRaw = 0;
   const rawMonths = Object.values(monthsByKey);
   const months = rawMonths.map((row) => {
-    availableCashRaw += row.inflowsRaw - row.outflowsRaw - row.associateInterestPaidRaw - row.operatingExpensesRaw;
+    availableCashRaw += row.inflowsRaw - row.outflowsRaw - row.operatingExpensesRaw;
     return formatMonth(row, availableCashRaw);
   });
 
   const totalInflows = rawMonths.reduce((sum, row) => sum + row.inflowsRaw, 0);
   const totalOutflows = rawMonths.reduce((sum, row) => sum + row.outflowsRaw, 0);
-  const totalAssociateInterestPaid = rawMonths.reduce((sum, row) => sum + row.associateInterestPaidRaw, 0);
-  const totalAssociateInterestPending = rawMonths.reduce((sum, row) => sum + row.associateInterestPendingRaw, 0);
   const totalOperatingExpenses = rawMonths.reduce((sum, row) => sum + row.operatingExpensesRaw, 0);
   const totalPrincipalRecovered = rawMonths.reduce((sum, row) => sum + row.principalRecoveredRaw, 0);
   const totalInterestCollected = rawMonths.reduce((sum, row) => sum + row.interestCollectedRaw, 0);
@@ -262,10 +232,8 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
     summary: {
       totalInflows: formatMoney(totalInflows),
       totalOutflows: formatMoney(totalOutflows),
-      totalAssociateInterestPaid: formatMoney(totalAssociateInterestPaid),
-      totalAssociateInterestPending: formatMoney(totalAssociateInterestPending),
       totalOperatingExpenses: formatMoney(totalOperatingExpenses),
-      availableCash: formatMoney(totalInflows - totalOutflows - totalAssociateInterestPaid - totalOperatingExpenses),
+      availableCash: formatMoney(totalInflows - totalOutflows - totalOperatingExpenses),
       totalPrincipalRecovered: formatMoney(totalPrincipalRecovered),
       totalInterestCollected: formatMoney(totalInterestCollected),
       totalPenaltyCollected: formatMoney(totalPenaltyCollected),
@@ -288,11 +256,10 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
  * @param {Date} input.toDate Inclusive end date.
  * @param {Array<object>} input.loans Canonical loan rows.
  * @param {Array<object>} input.payments Canonical payment rows.
- * @param {Array<object>} input.associateInterestPayments Paid associate interest installment rows.
  * @param {Array<object>} input.operatingExpenses Canonical completed operating expense rows.
  * @returns {{summary:object, days:Array<object>}}
  */
-const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [], associateInterestPayments = [], operatingExpenses = [] }) => {
+const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [], operatingExpenses = [] }) => {
   const dayKeys = buildDayKeys({ fromDate, toDate });
   const daysByKey = dayKeys.reduce((acc, date) => {
     acc[date] = createEmptyDay(date);
@@ -311,23 +278,6 @@ const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [],
       daysByKey[key].penaltyCollectedRaw += toNumber(payment.penaltyApplied);
       daysByKey[key].collectedProfitRaw += toNumber(payment.interestApplied) + toNumber(payment.penaltyApplied);
       daysByKey[key].paymentCount += 1;
-    });
-
-  associateInterestPayments
-    .forEach((installment) => {
-      const status = String(installment?.status || '').toLowerCase();
-      const isPaid = status === 'paid';
-      const isPending = status === 'pending' || status === 'overdue';
-      const key = dayKeyFromDate(isPaid
-        ? installment.paidAt || installment.paymentDate || installment.createdAt
-        : installment.dueDate || installment.createdAt);
-      if (!daysByKey[key]) return;
-
-      if (isPaid) {
-        daysByKey[key].associateInterestPaidRaw += toNumber(installment.amount);
-      } else if (isPending) {
-        daysByKey[key].associateInterestPendingRaw += toNumber(installment.amount);
-      }
     });
 
   operatingExpenses
@@ -356,14 +306,12 @@ const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [],
   let availableCashRaw = 0;
   const rawDays = Object.values(daysByKey);
   const days = rawDays.map((row) => {
-    availableCashRaw += row.inflowsRaw - row.outflowsRaw - row.associateInterestPaidRaw - row.operatingExpensesRaw;
+    availableCashRaw += row.inflowsRaw - row.outflowsRaw - row.operatingExpensesRaw;
     return formatDay(row, availableCashRaw);
   });
 
   const totalInflows = rawDays.reduce((sum, row) => sum + row.inflowsRaw, 0);
   const totalOutflows = rawDays.reduce((sum, row) => sum + row.outflowsRaw, 0);
-  const totalAssociateInterestPaid = rawDays.reduce((sum, row) => sum + row.associateInterestPaidRaw, 0);
-  const totalAssociateInterestPending = rawDays.reduce((sum, row) => sum + row.associateInterestPendingRaw, 0);
   const totalOperatingExpenses = rawDays.reduce((sum, row) => sum + row.operatingExpensesRaw, 0);
   const totalPrincipalRecovered = rawDays.reduce((sum, row) => sum + row.principalRecoveredRaw, 0);
   const totalInterestCollected = rawDays.reduce((sum, row) => sum + row.interestCollectedRaw, 0);
@@ -375,10 +323,8 @@ const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [],
     summary: {
       totalInflows: formatMoney(totalInflows),
       totalOutflows: formatMoney(totalOutflows),
-      totalAssociateInterestPaid: formatMoney(totalAssociateInterestPaid),
-      totalAssociateInterestPending: formatMoney(totalAssociateInterestPending),
       totalOperatingExpenses: formatMoney(totalOperatingExpenses),
-      availableCash: formatMoney(totalInflows - totalOutflows - totalAssociateInterestPaid - totalOperatingExpenses),
+      availableCash: formatMoney(totalInflows - totalOutflows - totalOperatingExpenses),
       totalPrincipalRecovered: formatMoney(totalPrincipalRecovered),
       totalInterestCollected: formatMoney(totalInterestCollected),
       totalPenaltyCollected: formatMoney(totalPenaltyCollected),
@@ -396,10 +342,8 @@ const buildCashFlowSheets = (report) => {
   const summaryRows = [
     { label: 'Entradas por cuotas', value: Number(report.summary.totalInflows), description: 'Dinero real recibido por pagos completados.' },
     { label: 'Salidas por préstamos', value: Number(report.summary.totalOutflows), description: 'Capital entregado en préstamos desembolsados.' },
-    { label: 'Intereses pagados a socios', value: Number(report.summary.totalAssociateInterestPaid), description: 'Rentabilidad pagada a socios inversionistas.' },
-    { label: 'Intereses pendientes de socios', value: Number(report.summary.totalAssociateInterestPending), description: 'Obligaciones programadas con socios que aún no han afectado la caja.' },
     { label: 'Gastos operativos', value: Number(report.summary.totalOperatingExpenses), description: 'Salidas administrativas y operativas completadas.' },
-    { label: 'Caja disponible', value: Number(report.summary.availableCash), description: 'Entradas menos préstamos, intereses a socios y gastos operativos.' },
+    { label: 'Caja disponible', value: Number(report.summary.availableCash), description: 'Entradas menos préstamos y gastos operativos.' },
     { label: 'Capital recuperado', value: Number(report.summary.totalPrincipalRecovered), description: 'Parte de pagos que redujo capital vivo.' },
     { label: 'Interés cobrado', value: Number(report.summary.totalInterestCollected), description: 'Interés efectivamente pagado por clientes.' },
     { label: 'Mora cobrada', value: Number(report.summary.totalPenaltyCollected), description: 'Mora o penalidades efectivamente cobradas.' },
@@ -427,8 +371,6 @@ const buildCashFlowSheets = (report) => {
         ...month,
         inflows: Number(month.inflows),
         outflows: Number(month.outflows),
-        associateInterestPaid: Number(month.associateInterestPaid),
-        associateInterestPending: Number(month.associateInterestPending),
         operatingExpenses: Number(month.operatingExpenses),
         netCashFlow: Number(month.netCashFlow),
         availableCash: Number(month.availableCash),
@@ -542,7 +484,6 @@ const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year,
     year: resolvedYear,
     loans: dataset.loans || [],
     payments: dataset.payments || [],
-    associateInterestPayments: dataset.associateInterestPayments || [],
     operatingExpenses: dataset.operatingExpenses || [],
   });
   report.filters = {
@@ -567,7 +508,6 @@ const createGetDailyCashFlow = ({ reportRepository }) => async ({ actor, filters
     toDate: dateRange.toDate,
     loans: dataset.loans || [],
     payments: dataset.payments || [],
-    associateInterestPayments: dataset.associateInterestPayments || [],
     operatingExpenses: dataset.operatingExpenses || [],
   });
   report.filters = {
@@ -595,8 +535,6 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
   const lines = [
     `Entradas por cuotas: $${report.summary.totalInflows}`,
     `Salidas por préstamos: $${report.summary.totalOutflows}`,
-    `Intereses pagados a socios: $${report.summary.totalAssociateInterestPaid}`,
-    `Intereses pendientes de socios: $${report.summary.totalAssociateInterestPending}`,
     `Gastos operativos: $${report.summary.totalOperatingExpenses}`,
     `Caja disponible: $${report.summary.availableCash}`,
     `Ganancia cobrada: $${report.summary.totalCollectedProfit}`,
@@ -604,7 +542,7 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
     `Resultado neto: $${report.summary.netProfitIndicator}`,
     '',
     'Historial mensual:',
-    ...report.months.map((month) => `${month.month}: entradas $${month.inflows} - salidas $${month.outflows} - socios pagados $${month.associateInterestPaid} - socios pendientes $${month.associateInterestPending} - gastos $${month.operatingExpenses} = caja $${month.availableCash}`),
+    ...report.months.map((month) => `${month.month}: entradas $${month.inflows} - salidas $${month.outflows} - gastos $${month.operatingExpenses} = caja $${month.availableCash}`),
   ].slice(0, 42);
 
   return {

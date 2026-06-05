@@ -36,13 +36,16 @@ import {
 } from './shared/tables';
 
 type TabType = 'overview' | 'installments' | 'calendar';
-type AssociateMoneyActionType = 'contribution' | 'distribution' | 'reinvestment';
+type AssociateMoneyActionType = 'contribution' | 'distribution' | 'capitalReturn' | 'reinvestment';
 
 const formatAssociateCurrency = (value: unknown) => formatLocaleCurrency(value);
+const detailActionButtonClassName = 'min-h-[3rem] justify-start px-4 py-3 text-left whitespace-normal leading-5';
 
 const formatSignedCurrency = (value: unknown, type?: string, status?: string) => {
   const numericValue = Number(value || 0);
-  const prefix = type === 'contribution' ? '+' : type === 'distribution' ? '-' : status === 'paid' ? '✓ ' : '';
+  const prefix = type === 'contribution'
+    ? '+'
+    : (['distribution', 'capitalReturn'].includes(String(type)) ? '-' : (status === 'paid' ? '✓ ' : ''));
   return `${prefix}${formatAssociateCurrency(numericValue)}`;
 };
 
@@ -71,6 +74,7 @@ const getInstallmentStatusPresentation = (installment: any) => {
 };
 
 const getCalendarEventTypeLabel = (event: any) => {
+  if (event?.displayType) return event.displayType;
   if (event?.type === 'contribution') return tTerm('associateDetails.calendar.eventType.contribution');
   if (event?.type === 'distribution') return tTerm('associateDetails.calendar.eventType.distribution');
   if (event?.type === 'installment') return tTerm('associateDetails.calendar.eventType.installment');
@@ -108,12 +112,23 @@ export default function AssociateDetails() {
     });
   };
 
-  const { details, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId, calendarFilters);
+  const {
+    details,
+    installments,
+    contributions,
+    calendar,
+    isLoading,
+    createContribution,
+    createDistribution,
+    createCapitalReturn,
+    createReinvestment,
+    payInstallment,
+  } = useAssociateDetails(associateId, calendarFilters);
   const associate = details?.associate ?? null;
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showModal, setShowModal] = useState<AssociateMoneyActionType | null>(null);
-  const [showContributionsModal, setShowContributionsModal] = useState(false);
+  const [contributionModalMode, setContributionModalMode] = useState<'history' | 'create' | null>(null);
   const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
   const [payingInstallmentNumber, setPayingInstallmentNumber] = useState<number | null>(null);
   const [installmentPaymentForm, setInstallmentPaymentForm] = useState({
@@ -124,11 +139,25 @@ export default function AssociateDetails() {
   const [actionAmounts, setActionAmounts] = useState<Record<AssociateMoneyActionType, string>>({
     contribution: '',
     distribution: '',
+    capitalReturn: '',
     reinvestment: '',
   });
   const [actionErrors, setActionErrors] = useState<Record<AssociateMoneyActionType, string>>({
     contribution: '',
     distribution: '',
+    capitalReturn: '',
+    reinvestment: '',
+  });
+  const [actionDates, setActionDates] = useState<Record<AssociateMoneyActionType, string>>({
+    contribution: getTodayDateInputValue(),
+    distribution: getTodayDateInputValue(),
+    capitalReturn: getTodayDateInputValue(),
+    reinvestment: getTodayDateInputValue(),
+  });
+  const [actionNotes, setActionNotes] = useState<Record<AssociateMoneyActionType, string>>({
+    contribution: '',
+    distribution: '',
+    capitalReturn: '',
     reinvestment: '',
   });
   const [installmentPaymentErrors, setInstallmentPaymentErrors] = useState({
@@ -176,7 +205,8 @@ export default function AssociateDetails() {
 
   const detailsSummary = details?.summary;
   const totalContributions = detailsSummary?.totalContributed ?? details?.totalContributions ?? 0;
-  const totalDistributions = detailsSummary?.totalDistributed ?? details?.totalDistributions ?? 0;
+  const currentCapital = detailsSummary?.currentCapital ?? totalContributions;
+  const totalCapitalReturned = detailsSummary?.totalCapitalReturned ?? 0;
   const totalInterestPaid = detailsSummary?.totalInterestPaid ?? 0;
   const interestDebt = detailsSummary?.interestDebt ?? 0;
   const nextInterestPaymentDate = detailsSummary?.nextInterestPaymentDate ?? null;
@@ -237,28 +267,37 @@ export default function AssociateDetails() {
 
     setIsSubmitting(true);
     try {
-      const payload = { amount: parsedAmount, date: new Date().toISOString() };
-      
       if (showModal === 'contribution') {
         await createContribution.mutateAsync({
-          amount: payload.amount,
-          contributionDate: new Date().toISOString(),
+          amount: parsedAmount,
+          contributionDate: actionDates.contribution,
+          notes: actionNotes.contribution.trim() || undefined,
         });
       } else if (showModal === 'distribution') {
         await createDistribution.mutateAsync({
-          amount: payload.amount,
-          distributionDate: new Date().toISOString(),
+          amount: parsedAmount,
+          distributionDate: actionDates.distribution,
+          notes: actionNotes.distribution.trim() || undefined,
+        });
+      } else if (showModal === 'capitalReturn') {
+        await createCapitalReturn.mutateAsync({
+          amount: parsedAmount,
+          capitalReturnDate: actionDates.capitalReturn,
+          notes: actionNotes.capitalReturn.trim() || undefined,
         });
       } else if (showModal === 'reinvestment') {
         await createReinvestment.mutateAsync({
-          amount: payload.amount,
-          reinvestmentDate: new Date().toISOString(),
+          amount: parsedAmount,
+          reinvestmentDate: actionDates.reinvestment,
+          notes: actionNotes.reinvestment.trim() || undefined,
         });
       }
-      
+
       const completedAction = showModal;
       setShowModal(null);
       setActionAmounts((current) => ({ ...current, [completedAction]: '' }));
+      setActionDates((current) => ({ ...current, [completedAction]: getTodayDateInputValue() }));
+      setActionNotes((current) => ({ ...current, [completedAction]: '' }));
       toast.success({ title: tTerm('associateDetails.toast.action.success') });
     } catch (error) {
       toast.apiErrorSafe(error, { domain: 'associates' });
@@ -272,12 +311,16 @@ export default function AssociateDetails() {
       const currentAction = showModal;
       setActionAmounts((current) => ({ ...current, [currentAction]: '' }));
       setActionErrors((current) => ({ ...current, [currentAction]: '' }));
+      setActionDates((current) => ({ ...current, [currentAction]: getTodayDateInputValue() }));
+      setActionNotes((current) => ({ ...current, [currentAction]: '' }));
     }
     setShowModal(null);
   };
 
   const openMoneyActionModal = (action: AssociateMoneyActionType) => {
     setActionErrors((current) => ({ ...current, [action]: '' }));
+    setActionDates((current) => ({ ...current, [action]: getTodayDateInputValue() }));
+    setActionNotes((current) => ({ ...current, [action]: '' }));
     setShowModal(action);
   };
 
@@ -340,13 +383,17 @@ export default function AssociateDetails() {
   const renderOverviewTab = () => (
     <div className="space-y-6">
       <InsightStrip
+        className="associate-detail-summary-strip"
         aria-label={tTerm('associateDetails.overview.ariaLabel')}
         items={[
           {
             id: 'associate-detail-capital',
-            label: tTerm('associateDetails.overview.metric.capital'),
-            value: formatAssociateCurrency(totalContributions),
-            helper: tTerm('associateDetails.overview.metric.capitalHelper', { interestRate: interestRateLabel }),
+            label: tTerm('associateDetails.overview.metric.currentCapital'),
+            value: formatAssociateCurrency(currentCapital),
+            helper: tTerm('associateDetails.overview.metric.currentCapitalHelper', {
+              contributed: formatAssociateCurrency(totalContributions),
+              returned: formatAssociateCurrency(totalCapitalReturned),
+            }),
             icon: <Wallet size={18} />,
             accent: 'blue',
           },
@@ -354,9 +401,7 @@ export default function AssociateDetails() {
             id: 'associate-detail-interest-paid',
             label: tTerm('associateDetails.overview.metric.interestPaid'),
             value: formatAssociateCurrency(totalInterestPaid),
-            helper: totalDistributions > 0
-              ? tTerm('associateDetails.overview.metric.interestPaidHelper.distributed', { amount: formatAssociateCurrency(totalDistributions) })
-              : tTerm('associateDetails.overview.metric.interestPaidHelper.recognized'),
+            helper: tTerm('associateDetails.overview.metric.interestPaidHelper.recognized'),
             icon: <CheckCircle size={18} />,
             accent: 'emerald',
           },
@@ -433,21 +478,28 @@ export default function AssociateDetails() {
                 <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.dueDate')}</th>
                 <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.paidAt')}</th>
                 <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.method')}</th>
+                <th className="font-medium">{tTerm('associateTracking.table.responsibleUser')}</th>
               </tr>
             </thead>
             <tbody>
               {paymentHistory.map((entry: any) => (
                 <tr key={`associate-payment-history-${entry.id}-${entry.installmentNumber}`}>
-                  <td className="font-medium">{entry.installmentNumber}</td>
+                  <td>
+                    <p className="font-medium text-text-primary">
+                      {entry.displayType || entry.installmentNumber || tTerm('common.notAvailable')}
+                    </p>
+                  </td>
                   <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
                   <td>{formatAssociateDate(entry.dueDate)}</td>
                   <td>{formatAssociateDate(entry.paidAt)}</td>
                   <td className="text-text-secondary">{getPaymentMethodLabel(entry.paymentMethod)}</td>
+                  <td className="text-text-secondary">{entry.paidByUser?.name || entry.paidByUser?.email || '-'}</td>
                 </tr>
               ))}
             </tbody>
         </AppTable>
       </DataTableSurface>
+
     </div>
   );
 
@@ -645,7 +697,9 @@ export default function AssociateDetails() {
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       event.type === 'contribution' 
                         ? 'bg-emerald-100 text-emerald-700' 
-                        : event.type === 'distribution'
+                        : String(getCalendarEventTypeLabel(event)).toLowerCase().includes('devol')
+                          ? 'bg-blue-100 text-blue-700'
+                          : event.type === 'distribution'
                           ? 'bg-blue-100 text-blue-700'
                           : 'bg-amber-100 text-amber-700'
                     }`}>
@@ -687,37 +741,77 @@ export default function AssociateDetails() {
         )}
       />
 
-      <ToolbarSurface className="items-stretch gap-4" data-tour="associate-details-actions">
-        <div className="grid w-full gap-4 lg:grid-cols-2">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-              {tTerm('associateDetails.toolbar.consultationGroup')}
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <ActionButton onClick={() => setShowContributionsModal(true)} icon={<History size={16} />} fullWidth>
+      <ToolbarSurface className="associate-detail-action-panel" data-tour="associate-details-actions">
+        <div className="associate-detail-actions-grid">
+            <div className="associate-detail-action-group associate-detail-action-group--consultation space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                {tTerm('associateDetails.toolbar.consultationGroup')}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+              <ActionButton
+                onClick={() => setContributionModalMode('history')}
+                icon={<History size={16} />}
+                className={detailActionButtonClassName}
+                fullWidth
+              >
                 {tTerm('associateDetails.cta.viewInterestHistory')}
               </ActionButton>
-              <ActionButton onClick={() => setShowInstallmentsModal(true)} icon={<Clock size={16} />} fullWidth>
+              <ActionButton
+                onClick={() => setShowInstallmentsModal(true)}
+                icon={<Clock size={16} />}
+                className={detailActionButtonClassName}
+                fullWidth
+              >
                 {tTerm('associateDetails.cta.viewInterestSchedule')}
               </ActionButton>
             </div>
           </div>
           {isAdmin ? (
-            <div className="space-y-2">
+            <div className="associate-detail-action-group associate-detail-action-group--movement space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
                 {tTerm('associateDetails.toolbar.movementGroup')}
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ActionButton onClick={() => openMoneyActionModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
+              <div className="grid gap-2">
+                <ActionButton
+                  onClick={() => setContributionModalMode('create')}
+                  icon={<Wallet size={16} />}
+                  variant="primary"
+                  className={detailActionButtonClassName}
+                  fullWidth
+                >
                   {tTerm('associateDetails.cta.registerCapitalContribution')}
                 </ActionButton>
-                <ActionButton onClick={() => setActiveTab('installments')} icon={<CheckCircle size={16} />} variant="secondary" fullWidth>
+                <ActionButton
+                  onClick={() => setActiveTab('installments')}
+                  icon={<CheckCircle size={16} />}
+                  variant="secondary"
+                  className={detailActionButtonClassName}
+                  fullWidth
+                >
                   {tTerm('associateDetails.cta.registerInterestPayment')}
                 </ActionButton>
-                <ActionButton onClick={() => openMoneyActionModal('distribution')} icon={<Download size={16} />} fullWidth>
+                <ActionButton
+                  onClick={() => openMoneyActionModal('capitalReturn')}
+                  icon={<Download size={16} />}
+                  className={detailActionButtonClassName}
+                  fullWidth
+                >
+                  {tTerm('associateDetails.cta.registerCapitalReturn')}
+                </ActionButton>
+                <ActionButton
+                  onClick={() => openMoneyActionModal('distribution')}
+                  icon={<Download size={16} />}
+                  className={detailActionButtonClassName}
+                  fullWidth
+                >
                   {tTerm('associateDetails.cta.registerInterestWithdrawal')}
                 </ActionButton>
-                <ActionButton onClick={() => openMoneyActionModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth>
+                <ActionButton
+                  onClick={() => openMoneyActionModal('reinvestment')}
+                  icon={<RefreshCw size={16} />}
+                  className={detailActionButtonClassName}
+                  fullWidth
+                >
                   {tTerm('associateDetails.cta.registerInterestReinvestment')}
                 </ActionButton>
               </div>
@@ -758,6 +852,8 @@ export default function AssociateDetails() {
         <ModalShell
           title={showModal === 'contribution'
             ? tTerm('associateDetails.modal.title.contribution')
+            : showModal === 'capitalReturn'
+              ? tTerm('associateDetails.modal.title.capitalReturn')
             : showModal === 'distribution'
               ? tTerm('associateDetails.modal.title.distribution')
               : tTerm('associateDetails.modal.title.reinvestment')}
@@ -782,6 +878,38 @@ export default function AssociateDetails() {
                   }}
                   placeholder={tTerm('associateDetails.modal.placeholder.amount')}
                 />
+              </FormField>
+              <FormField
+                label={
+                  showModal === 'capitalReturn'
+                    ? tTerm('associateDetails.modal.field.capitalReturnDate')
+                    : showModal === 'reinvestment'
+                      ? tTerm('associateDetails.modal.field.reinvestmentDate')
+                      : tTerm('associateDetails.modal.field.distributionDate')
+                }
+                htmlFor={`associate-action-${showModal}-date`}
+              >
+                <AppInput
+                  id={`associate-action-${showModal}-date`}
+                  variant="date"
+                  value={actionDates[showModal]}
+                  onValueChange={(value) => setActionDates((current) => ({ ...current, [showModal]: value }))}
+                />
+              </FormField>
+              <FormField
+                label={tTerm('associateDetails.modal.field.notes')}
+                htmlFor={`associate-action-${showModal}-notes`}
+              >
+                <div className="operational-control operational-control--textarea">
+                  <textarea
+                    id={`associate-action-${showModal}-notes`}
+                    value={actionNotes[showModal]}
+                    onChange={(event) => setActionNotes((current) => ({ ...current, [showModal]: event.target.value }))}
+                    rows={3}
+                    placeholder={tTerm('associateDetails.modal.placeholder.notes')}
+                    className="operational-control-textarea"
+                  />
+                </div>
               </FormField>
               <div className="flex gap-3 pt-4">
                 <ActionButton
@@ -835,13 +963,15 @@ export default function AssociateDetails() {
               />
             </FormField>
             <FormField label={tTerm('associateDetails.installmentPayment.field.notes')}>
-              <textarea
-                value={installmentPaymentForm.notes}
-                onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
-                placeholder={tTerm('associateDetails.installmentPayment.placeholder.notes')}
-                rows={3}
-                className="operational-control-input w-full min-h-[72px] resize-y"
-              />
+              <div className="operational-control operational-control--textarea">
+                <textarea
+                  value={installmentPaymentForm.notes}
+                  onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
+                  placeholder={tTerm('associateDetails.installmentPayment.placeholder.notes')}
+                  rows={3}
+                  className="operational-control-textarea"
+                />
+              </div>
             </FormField>
             <div className="flex gap-3 pt-2">
               <ActionButton
@@ -867,14 +997,15 @@ export default function AssociateDetails() {
         </ModalShell>
       )}
 
-      {showContributionsModal && contributions !== undefined && (
+      {contributionModalMode !== null && contributions !== undefined && (
         <ContributionModal
           contributions={contributions}
           isLoading={false}
+          initialAddFormOpen={contributionModalMode === 'create'}
           onAddContribution={async (data) => {
             await createContribution.mutateAsync(data);
           }}
-          onClose={() => setShowContributionsModal(false)}
+          onClose={() => setContributionModalMode(null)}
           canAddContribution={isAdmin}
         />
       )}

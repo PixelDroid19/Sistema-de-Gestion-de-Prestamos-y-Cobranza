@@ -169,11 +169,10 @@ export default function Reports() {
     loanId: '',
   });
   const [isCashFlowExporting, setIsCashFlowExporting] = useState<'excel' | 'pdf' | null>(null);
-  const [reportType, setReportType] = useState<'credits' | 'payouts' | 'profitability' | 'associates'>('credits');
+  const [reportType, setReportType] = useState<'credits' | 'payouts' | 'profitability'>('credits');
   const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [reportStatusFilter, setReportStatusFilter] = useState<string>('');
   const [reportPaymentTypeFilter, setReportPaymentTypeFilter] = useState<string>('');
-  const [reportAssociateIdFilter, setReportAssociateIdFilter] = useState<string>('');
   const [reportCustomerIdFilter, setReportCustomerIdFilter] = useState<string>('');
   const [reportLoanIdFilter, setReportLoanIdFilter] = useState<string>('');
   const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
@@ -294,15 +293,6 @@ export default function Reports() {
   const hasInvalidRange = Boolean(
     reportRange.fromDate && reportRange.toDate && reportRange.fromDate > reportRange.toDate,
   );
-  const normalizedReportAssociateId = reportAssociateIdFilter.trim();
-  const hasInvalidAssociateId = reportType === 'associates'
-    && normalizedReportAssociateId.length > 0
-    && !/^[1-9]\d*$/.test(normalizedReportAssociateId);
-  const reportAssociateId = reportType === 'associates'
-    && normalizedReportAssociateId.length > 0
-    && !hasInvalidAssociateId
-    ? Number(normalizedReportAssociateId)
-    : undefined;
   const reportSupportsCustomerLoanFilters = reportType === 'credits' || reportType === 'payouts';
   const normalizedReportCustomerId = reportCustomerIdFilter.trim();
   const normalizedReportLoanId = reportLoanIdFilter.trim();
@@ -339,9 +329,7 @@ export default function Reports() {
       ? tTerm('reports.toast.contextual.credits')
       : type === 'profitability'
         ? tTerm('reports.toast.contextual.profitability')
-        : type === 'associates'
-          ? tTerm('reports.toast.contextual.associates')
-          : tTerm('reports.toast.contextual.payouts')
+        : tTerm('reports.toast.contextual.payouts')
   );
 
   const runContextualExport = async (
@@ -361,7 +349,6 @@ export default function Reports() {
 
   const handleExportContextualReport = async (): Promise<boolean> => {
     if (hasInvalidExportRange(reportRange.fromDate, reportRange.toDate)
-      || hasInvalidAssociateId
       || hasInvalidReportCustomerId
       || hasInvalidReportLoanId) {
       return false;
@@ -375,7 +362,6 @@ export default function Reports() {
         status: reportStatusFilter,
         format: reportFormat,
         paymentType: reportPaymentTypeFilter,
-        associateId: reportAssociateId,
         customerId: reportCustomerId,
         loanId: reportLoanId,
       }),
@@ -599,8 +585,6 @@ export default function Reports() {
           onReportStatusFilterChange={setReportStatusFilter}
           reportPaymentTypeFilter={reportPaymentTypeFilter}
           onReportPaymentTypeFilterChange={setReportPaymentTypeFilter}
-          reportAssociateIdFilter={reportAssociateIdFilter}
-          onReportAssociateIdFilterChange={setReportAssociateIdFilter}
           reportCustomerIdFilter={reportCustomerIdFilter}
           onReportCustomerIdFilterChange={setReportCustomerIdFilter}
           reportLoanIdFilter={reportLoanIdFilter}
@@ -609,7 +593,6 @@ export default function Reports() {
           onReportFormatChange={setReportFormat}
           isExporting={isExporting}
           hasInvalidRange={hasInvalidRange}
-          hasInvalidAssociateId={hasInvalidAssociateId}
           hasInvalidReportCustomerId={hasInvalidReportCustomerId}
           hasInvalidReportLoanId={hasInvalidReportLoanId}
           exportExecutable={reportExportGuard.executable}

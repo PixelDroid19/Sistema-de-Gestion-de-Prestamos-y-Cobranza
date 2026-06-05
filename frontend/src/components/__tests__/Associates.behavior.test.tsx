@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Associates from '../Associates';
-import { exportAssociatesExcel } from '../../services/reportService';
+import { exportAssociatesExcel } from '../../services/associateService';
 
 const updateAssociateMutateAsync = vi.fn();
 const deleteAssociateMutateAsync = vi.fn();
@@ -14,6 +14,7 @@ let mockSessionUser: {
 } | null = { role: 'admin', permissions: ['*'] };
 
 vi.mock('../../services/associateService', () => ({
+  exportAssociatesExcel: vi.fn(),
   useAssociates: (params: unknown) => useAssociatesSpy(params),
 }));
 
@@ -42,10 +43,6 @@ vi.mock('../../lib/toast', () => ({
 
 vi.mock('../../lib/confirmModal', () => ({
   confirmDanger: (...args: unknown[]) => confirmDanger(...args),
-}));
-
-vi.mock('../../services/reportService', () => ({
-  exportAssociatesExcel: vi.fn(),
 }));
 
 vi.mock('../NewAssociate', () => ({
@@ -178,18 +175,18 @@ describe('Associates behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
 
     expect(screen.getByRole('menuitem', { name: 'Reactivar socio' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Historial de intereses pagados' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Historial de pagos al socio' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Fechas de pago de intereses' })).toBeInTheDocument();
     expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 
-  it('hides mutation and export actions for employees with associates read-only permission', () => {
+  it('hides mutation actions for employees with associates read-only permission', () => {
     mockSessionUser = { role: 'employee', permissions: ['SOCIOS_VIEW_ALL'] };
 
     render(<Associates setCurrentView={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Ver detalle del socio' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /exportar/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /exportar/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /nuevo socio/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar socio' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Más acciones' })).not.toBeInTheDocument();

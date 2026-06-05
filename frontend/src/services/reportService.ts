@@ -13,14 +13,13 @@ import type {
   OperatingExpenseListParams,
 } from './queryKeys';
 
-type ReportContextualType = 'credits' | 'payouts' | 'profitability' | 'associates';
+type ReportContextualType = 'credits' | 'payouts' | 'profitability';
 type ReportContextualFormat = 'xlsx' | 'pdf';
 type ReportContextualFilters = {
   fromDate?: string;
   toDate?: string;
   customerId?: number;
   loanId?: number;
-  associateId?: number;
   status?: string;
   paymentType?: string;
   format?: ReportContextualFormat;
@@ -741,19 +740,6 @@ export const downloadCreditReport = async (loanId: number): Promise<void> => {
   });
 };
 
-export const exportAssociatesExcel = async (
-  filters: Pick<ReportContextualFilters, 'status'> = {},
-): Promise<void> => {
-  await downloadBlobWithParams({
-    url: '/reports/associates/excel',
-    fileName: 'associates-export.xlsx',
-    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    params: {
-      status: filters.status,
-    },
-  });
-};
-
 export const exportDashboardSummary = async (): Promise<void> => {
   await downloadBlob({
     url: '/reports/dashboard/excel',
@@ -877,27 +863,6 @@ export const exportContextualReport = async (
       params: {
         fromDate,
         toDate,
-      },
-    });
-    return;
-  }
-
-  if (type === 'associates') {
-    const extension = format === 'pdf' ? 'pdf' : 'xlsx';
-    const mimeType = format === 'pdf'
-      ? 'application/pdf'
-      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-    await downloadBlobWithParams({
-      url: '/reports/associates/export',
-      fileName: `socios_inversionistas_${suffix}.${extension}`,
-      mimeType,
-      params: {
-        format,
-        fromDate,
-        toDate,
-        associateId: filters.associateId,
-        status: filters.status,
       },
     });
     return;

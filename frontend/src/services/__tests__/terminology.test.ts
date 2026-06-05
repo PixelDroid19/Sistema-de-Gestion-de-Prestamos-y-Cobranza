@@ -14,13 +14,11 @@ describe('terminology canonical dictionary', () => {
 
   it('keeps report export validation messages free of internal id terminology', () => {
     const messages = [
-      tTerm('reports.export.invalidAssociate'),
       tTerm('reports.export.invalidCustomer'),
       tTerm('reports.export.invalidLoan'),
     ];
 
     expect(messages.join(' ')).not.toMatch(/\bID\b/i);
-    expect(tTerm('reports.export.invalidAssociate')).toBe('El socio debe tener un número válido.');
     expect(tTerm('reports.export.invalidCustomer')).toBe('Selecciona un cliente válido.');
     expect(tTerm('reports.export.invalidLoan')).toBe('Selecciona un crédito válido.');
   });

@@ -82,6 +82,7 @@ type SectionSurfaceProps = Omit<React.HTMLAttributes<HTMLElement>, 'title'> & {
   className?: string;
   bodyClassName?: string;
   as?: 'section' | 'form';
+  noValidate?: boolean;
 };
 
 type ActionButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {

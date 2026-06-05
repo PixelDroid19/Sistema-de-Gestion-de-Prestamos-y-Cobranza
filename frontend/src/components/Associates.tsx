@@ -5,11 +5,10 @@ import {
   formatNumber as formatNumberValue,
   formatPercent as formatPercentValue,
 } from '../i18n/format';
-import { useAssociates } from '../services/associateService';
+import { exportAssociatesExcel, useAssociates } from '../services/associateService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
 import { reportClientError } from '../lib/clientDiagnostics';
-import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import {
   AppTable,
@@ -40,7 +39,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
   const canCreateAssociates = hasPermission(PERMISSION.SOCIOS_CREATE);
   const canUpdateAssociates = hasPermission(PERMISSION.SOCIOS_UPDATE);
-  const canExportAssociates = hasPermission(PERMISSION.REPORTS_VIEW_ALL);
+  const canExportAssociates = hasPermission(PERMISSION.SOCIOS_VIEW_ALL);
   const { data: associatesData, isLoading, isError, updateAssociate, restoreAssociate } = useAssociates({
     page,
     pageSize,

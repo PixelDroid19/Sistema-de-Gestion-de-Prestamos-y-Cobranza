@@ -6,6 +6,7 @@ const AssociateContribution = sequelize.define('AssociateContribution', {
   associateId: { type: DataTypes.INTEGER, allowNull: false },
   amount: { type: DataTypes.FLOAT, allowNull: false },
   contributionDate: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+  status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'completed' },
   interestTypeSnapshot: {
     type: DataTypes.ENUM('monthly', 'annual'),
     allowNull: true,

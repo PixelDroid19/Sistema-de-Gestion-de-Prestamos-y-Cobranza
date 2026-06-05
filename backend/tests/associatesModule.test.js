@@ -11,8 +11,10 @@ const {
   createUpdateAssociate,
   createDeleteAssociate,
   createListAssociateFinancialDetails,
+  createGetAssociateTracking,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateAssociateCapitalReturn,
   createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
   createGetAssociateInstallments,
@@ -421,11 +423,33 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
         return [{ id: 1, amount: 1000 }];
       },
       async listProfitDistributionsByAssociate() {
-        return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
+        return [
+          {
+            id: 2,
+            amount: 150,
+            distributionDate: new Date('2026-04-18T00:00:00.000Z'),
+            createdBy: { id: 7, name: 'Operador Socios' },
+            basis: {
+              type: 'proportional-participation',
+              sourceAmount: '600.00',
+              allocatedAmount: '150.00',
+              participationPercentage: '25.0000',
+            },
+          },
+          { id: 3, amount: 50, distributionDate: new Date('2026-04-10T00:00:00.000Z'), basis: { type: 'capital-return' } },
+        ];
       },
       async findInstallmentsByAssociateId() {
         return [
-          { id: 3, amount: 20, dueDate: new Date('2026-04-15'), status: 'paid', paidAt: new Date('2026-04-16') },
+          {
+            id: 3,
+            installmentNumber: 1,
+            amount: 20,
+            dueDate: new Date('2026-04-15'),
+            status: 'paid',
+            paidAt: new Date('2026-04-16'),
+            paidByUser: { id: 1, name: 'Admin QA' },
+          },
           { id: 4, amount: 20, dueDate: new Date('2026-05-15'), status: 'pending', paidAt: null },
         ];
       },
@@ -437,14 +461,157 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
   assert.equal(report.associate.id, 12);
   assert.equal(report.associate.participationPercentage, '25.0000');
   assert.equal(report.summary.totalContributed, 1000);
-  assert.equal(report.summary.totalDistributed, 150);
-  assert.equal(report.summary.totalInterestPaid, 20);
+  assert.equal(report.summary.currentCapital, 950);
+  assert.equal(report.summary.totalCapitalReturned, 50);
+  assert.equal(report.summary.totalInterestWithdrawn, 150);
+  assert.equal(report.summary.scheduledInterestPaid, 20);
+  assert.equal(report.summary.manualInterestPaid, 150);
+  assert.equal(report.summary.totalInterestPaid, 170);
   assert.equal(report.summary.interestDebt, 20);
   assert.equal(report.summary.nextInterestPaymentDate, '2026-05-15');
   assert.equal(report.summary.debtStatus, 'pending');
-  assert.equal(report.paymentHistory.length, 1);
+  assert.equal(report.paymentHistory.length, 3);
+  assert.equal(report.paymentHistory[0].displayType, 'Pago proporcional de rentabilidad');
+  assert.equal(report.paymentHistory[0].paidByUser.name, 'Operador Socios');
+  assert.equal(report.paymentHistory[1].displayType, 'Pago programado #1');
+  assert.equal(report.paymentHistory[2].displayType, 'Devolución de capital');
   assert.equal(report.distributions[0].distributionType, 'proportional');
+  assert.equal(report.distributions[1].distributionType, 'capital_return');
+  assert.equal(report.capitalReturns.length, 1);
   assert.equal(Object.hasOwn(report, 'loans'), false);
+});
+
+test('createGetAssociateTracking aggregates investor obligations inside associates module', async () => {
+  let forwardedFilters = null;
+  const getAssociateTracking = createGetAssociateTracking({
+    clock: () => new Date('2026-05-10T00:00:00.000Z'),
+    associateRepository: {
+      async getTrackingDataset(filters) {
+        forwardedFilters = filters;
+        return {
+          associates: [
+            {
+              id: 12,
+              name: 'Socio Imagen',
+              status: 'active',
+              participationPercentage: '50.0000',
+              interestType: 'monthly',
+              interestRate: '2.0000',
+              interestPaymentDay: 15,
+              interestPaymentMonth: null,
+            },
+          ],
+          contributions: [
+            { id: 1, associateId: 12, amount: 100000000, contributionDate: new Date('2026-04-01T00:00:00.000Z') },
+          ],
+          distributions: [
+            {
+              id: 5,
+              associateId: 12,
+              amount: 250000,
+              distributionDate: new Date('2026-04-20T00:00:00.000Z'),
+              distributionType: 'manual',
+              createdBy: { id: 8, name: 'Operador Socios' },
+            },
+            {
+              id: 6,
+              associateId: 12,
+              amount: 500000,
+              distributionDate: new Date('2026-04-25T00:00:00.000Z'),
+              createdBy: { id: 9, name: 'Tesorería' },
+              basis: { type: 'capital-return' },
+            },
+          ],
+          recentCapitalReturns: [],
+          installments: [
+            { id: 2, associateId: 12, installmentNumber: 1, amount: 2000000, dueDate: new Date('2026-05-15T00:00:00.000Z'), status: 'pending', interestRate: '2.0000', interestType: 'monthly', paidAt: null },
+            { id: 3, associateId: 12, installmentNumber: 2, amount: 2000000, dueDate: new Date('2026-04-15T00:00:00.000Z'), status: 'overdue', interestRate: '2.0000', interestType: 'monthly', paidAt: null },
+            { id: 4, associateId: 12, installmentNumber: 3, amount: 2000000, dueDate: new Date('2026-03-15T00:00:00.000Z'), status: 'paid', interestRate: '2.0000', interestType: 'monthly', paidAt: new Date('2026-03-16T00:00:00.000Z'), paidByUser: { id: 7, name: 'Admin QA' } },
+          ],
+        };
+      },
+      async updateInstallmentStatus() {
+        throw new Error('No pending installment should expire in this scenario');
+      },
+    },
+  });
+
+  const tracking = await getAssociateTracking({
+    actor: { id: 1, role: 'admin' },
+    filters: { search: ' Imagen ', status: 'ACTIVE' },
+  });
+
+  assert.deepEqual(forwardedFilters, { search: 'Imagen', status: 'active' });
+  assert.equal(tracking.summary.totalCapital, 99500000);
+  assert.equal(tracking.summary.interestPending, 2000000);
+  assert.equal(tracking.summary.interestOverdue, 2000000);
+  assert.equal(tracking.summary.interestPaid, 2250000);
+  assert.equal(tracking.summary.totalPayable, 4000000);
+  assert.equal(tracking.associates[0].debtStatus, 'overdue');
+  assert.equal(tracking.associates[0].interestPaid, 2250000);
+  assert.equal(tracking.associates[0].nextPaymentDate, '2026-04-15');
+  assert.equal(tracking.obligations.length, 2);
+  assert.equal(tracking.recentPayments[0].displayType, 'Pago manual de rentabilidad');
+  assert.equal(tracking.recentPayments[1].displayType, 'Pago programado #3');
+  assert.equal(tracking.recentCapitalReturns[0].amount, 500000);
+  assert.equal(tracking.recentCapitalReturns[0].createdBy.name, 'Tesorería');
+  assert.equal(tracking.recentContributions[0].status, 'completed');
+});
+
+test('createCreateAssociateCapitalReturn reduces current capital and reprojections pending interest', async () => {
+  const calls = [];
+  let createdDistribution = null;
+  const createAssociateCapitalReturn = createCreateAssociateCapitalReturn({
+    associateRepository: {
+      async findById() {
+        return { id: 12, name: 'Socio Capital', interestType: 'monthly', interestRate: '2.0000', interestPaymentDay: 15 };
+      },
+      async runInTransaction(work) {
+        return work('tx-1');
+      },
+      async listContributionsByAssociate() {
+        return [{ id: 1, amount: 1000, contributionDate: new Date('2026-04-01T00:00:00.000Z') }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return createdDistribution ? [createdDistribution] : [];
+      },
+      async createProfitDistribution(payload) {
+        calls.push(['createProfitDistribution', payload]);
+        createdDistribution = { id: 10, ...payload };
+        return createdDistribution;
+      },
+      async findInstallmentsByAssociateId() {
+        return [{
+          id: 5,
+          associateId: 12,
+          installmentNumber: 2,
+          amount: 20,
+          dueDate: new Date('2026-05-15T00:00:00.000Z'),
+          status: 'pending',
+        }];
+      },
+      async updateInstallmentProjection(installmentId, payload) {
+        calls.push(['updateInstallmentProjection', installmentId, payload]);
+        return { id: installmentId, ...payload };
+      },
+      async createInstallment() {
+        throw new Error('createInstallment should not be called when a pending installment already exists');
+      },
+    },
+  });
+
+  const result = await createAssociateCapitalReturn({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 200, capitalReturnDate: '2026-05-01T00:00:00.000Z' },
+  });
+
+  assert.equal(result.summary.previousCurrentCapital, 1000);
+  assert.equal(result.summary.currentCapital, 800);
+  assert.equal(calls[0][0], 'createProfitDistribution');
+  assert.equal(calls[1][0], 'updateInstallmentProjection');
+  assert.equal(calls[1][2].capitalBase, 800);
+  assert.equal(calls[1][2].amount, 16);
 });
 
 test('createListAssociateFinancialDetails rejects socio records before associate lookup', async () => {
@@ -555,6 +722,7 @@ test('createCreateAssociateContribution validates positive amounts', async () =>
 
   assert.equal(contribution.id, 4);
   assert.equal(contribution.amount, 500);
+  assert.equal(calls[0][1].status, 'completed');
   assert.equal(calls[0][1].interestTypeSnapshot, 'monthly');
   assert.equal(calls[0][1].interestRateSnapshot, '1.5000');
   assert.equal(calls[1][0], 'createInstallment');

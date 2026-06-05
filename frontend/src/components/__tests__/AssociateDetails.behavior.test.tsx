@@ -30,10 +30,6 @@ vi.mock('../../lib/toast', () => ({
   },
 }));
 
-vi.mock('../ContributionModal', () => ({
-  default: () => null,
-}));
-
 vi.mock('../InstallmentsModal', () => ({
   default: () => null,
 }));
@@ -50,8 +46,9 @@ const buildDetailsResponse = () => ({
     },
     summary: {
       totalContributed: 2500000,
-      totalDistributed: 150000,
-      totalInterestPaid: 125000,
+      currentCapital: 2350000,
+      totalCapitalReturned: 150000,
+      totalInterestPaid: 275000,
       interestDebt: 62500,
       nextInterestPaymentDate: '2026-06-15T00:00:00.000Z',
       debtStatus: 'pending',
@@ -61,11 +58,33 @@ const buildDetailsResponse = () => ({
     paymentHistory: [
       {
         id: 50,
+        displayType: 'Pago programado #1',
         installmentNumber: 1,
         amount: 125000,
         dueDate: '2026-05-15T00:00:00.000Z',
         paidAt: '2026-05-16T00:00:00.000Z',
         paymentMethod: 'transfer',
+        paidByUser: { id: 1, name: 'Admin QA' },
+      },
+      {
+        id: 51,
+        displayType: 'Pago manual de rentabilidad',
+        installmentNumber: null,
+        amount: 150000,
+        dueDate: null,
+        paidAt: '2026-05-20T00:00:00.000Z',
+        paymentMethod: null,
+        paidByUser: { id: 7, name: 'Operador Socios' },
+      },
+      {
+        id: 52,
+        displayType: 'Devolución de capital',
+        installmentNumber: null,
+        amount: 500000,
+        dueDate: null,
+        paidAt: '2026-05-22T00:00:00.000Z',
+        paymentMethod: null,
+        paidByUser: { id: 9, name: 'Tesorería' },
       },
     ],
   },
@@ -118,6 +137,7 @@ const buildDetailsResponse = () => ({
   isLoading: false,
   createContribution: { mutateAsync: vi.fn() },
   createDistribution: { mutateAsync: vi.fn() },
+  createCapitalReturn: { mutateAsync: vi.fn() },
   createReinvestment: { mutateAsync: vi.fn() },
   payInstallment: { mutateAsync: vi.fn() },
 });
@@ -137,8 +157,9 @@ describe('AssociateDetails behavior', () => {
 
     expect(screen.getByRole('button', { name: 'Volver a socios' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar aporte de capital' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar pago de interés' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar retiro de intereses' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gestionar pagos de intereses' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar devolución de capital' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar pago manual de rentabilidad' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reinvertir intereses' })).toBeInTheDocument();
   });
 
@@ -161,8 +182,9 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.queryByRole('button', { name: 'Registrar aporte de capital' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar pago de interés' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar retiro de intereses' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Gestionar pagos de intereses' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar devolución de capital' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar pago manual de rentabilidad' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reinvertir intereses' })).not.toBeInTheDocument();
     expect(screen.getByText(/los movimientos financieros se registran desde la mesa operativa/i)).toBeInTheDocument();
 
@@ -203,11 +225,16 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.getByText(/Con intereses pendientes/i)).toBeInTheDocument();
-    expect(screen.getByText('Capital aportado')).toBeInTheDocument();
-    expect(screen.getByText('Interés pagado')).toBeInTheDocument();
+    expect(screen.getByText('Capital vigente')).toBeInTheDocument();
+    expect(screen.getByText('Rentabilidad pagada')).toBeInTheDocument();
     expect(screen.getByText('Interés por pagar')).toBeInTheDocument();
     expect(screen.getByText('Próximo pago')).toBeInTheDocument();
-    expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
+    expect(screen.getByText('Historial de pagos al socio')).toBeInTheDocument();
+    expect(screen.getByText('Pago manual de rentabilidad')).toBeInTheDocument();
+    expect(screen.getByText('Pago programado #1')).toBeInTheDocument();
+    expect(screen.getByText('Devolución de capital')).toBeInTheDocument();
+    expect(screen.getByText('Operador Socios')).toBeInTheDocument();
+    expect(screen.getByText('Tesorería')).toBeInTheDocument();
     expect(screen.getAllByText(/\$\s*125[,.]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('Transferencia')).toBeInTheDocument();
     expect(screen.queryByText('transfer')).not.toBeInTheDocument();
@@ -276,6 +303,19 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument();
   });
 
+  it('opens the interest installments tab from the detail action toolbar', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gestionar pagos de intereses' }));
+
+    expect(screen.getByRole('tab', { name: 'Pagos de intereses' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Pagos de intereses programados')).toBeInTheDocument();
+  });
+
   it('requires the actual associate interest payment details before marking an installment as paid', async () => {
     mockUseSessionStore.mockReturnValue({
       user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
@@ -339,20 +379,16 @@ describe('AssociateDetails behavior', () => {
     expect(detailsResponse.createReinvestment.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it('shows a Spanish inline validation error when the associate amount is empty', async () => {
+  it('opens the capital contribution modal in create mode from the associate toolbar', () => {
     mockUseSessionStore.mockReturnValue({
       user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
     });
-    const detailsResponse = buildDetailsResponse();
-    useAssociateDetailsSpy.mockReturnValue(detailsResponse);
 
     render(<AssociateDetails />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar aporte de capital' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(await screen.findByText('El monto es obligatorio.')).toBeInTheDocument();
-    expect(detailsResponse.createContribution.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Registrar aporte de capital' })).toBeInTheDocument();
   });
 
   it('closes associate money action modals with Escape', () => {
@@ -451,7 +487,7 @@ describe('AssociateDetails behavior', () => {
 
     const { container } = render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar retiro de intereses' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago manual de rentabilidad' }));
     fireEvent.change(container.querySelector('#associate-action-distribution-amount') as HTMLInputElement, {
       target: { value: '1200000' },
     });
@@ -462,5 +498,28 @@ describe('AssociateDetails behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reinvertir intereses' }));
 
     expect(container.querySelector('#associate-action-reinvestment-amount')).toHaveValue('');
+  });
+
+  it('records capital returns through a dedicated associate action', async () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    const detailsResponse = buildDetailsResponse();
+    detailsResponse.createCapitalReturn.mutateAsync = vi.fn().mockResolvedValue({});
+    useAssociateDetailsSpy.mockReturnValue(detailsResponse);
+
+    const { container } = render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar devolución de capital' }));
+    fireEvent.change(container.querySelector('#associate-action-capitalReturn-amount') as HTMLInputElement, {
+      target: { value: '500000' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    await waitFor(() => {
+        expect(detailsResponse.createCapitalReturn.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 500000, capitalReturnDate: expect.any(String), notes: undefined }),
+      );
+    });
   });
 });

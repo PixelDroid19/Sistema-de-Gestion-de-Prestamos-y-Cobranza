@@ -174,22 +174,6 @@ export default function CashflowTab({
             accent: 'emerald',
           },
           {
-            id: 'cashflow-associate-interest-paid',
-            label: tTerm('reports.cashflow.detail.associateInterestPaid.label'),
-            value: formatMoney(cashFlowData?.summary?.totalAssociateInterestPaid),
-            helper: tTerm('reports.cashflow.detail.associateInterestPaid.helper'),
-            icon: <DollarSign size={18} />,
-            accent: 'blue',
-          },
-          {
-            id: 'cashflow-associate-interest-pending',
-            label: tTerm('reports.cashflow.detail.associateInterestPending.label'),
-            value: formatMoney(cashFlowData?.summary?.totalAssociateInterestPending),
-            helper: tTerm('reports.cashflow.detail.associateInterestPending.helper'),
-            icon: <Users size={18} />,
-            accent: 'amber',
-          },
-          {
             id: 'cashflow-operating-expenses',
             label: tTerm('reports.cashflow.detail.operatingExpenses.label'),
             value: formatMoney(cashFlowData?.summary?.totalOperatingExpenses),
@@ -225,8 +209,6 @@ export default function CashflowTab({
                 <th>{tTerm('reports.cashflow.table.month')}</th>
                 <th>{tTerm('reports.cashflow.table.inflows')}</th>
                 <th>{tTerm('reports.cashflow.table.outflows')}</th>
-                <th>{tTerm('reports.cashflow.table.associateInterestPaid')}</th>
-                <th>{tTerm('reports.cashflow.table.associateInterestPending')}</th>
                 <th>{tTerm('reports.cashflow.table.operatingExpenses')}</th>
                 <th>{tTerm('reports.cashflow.table.netFlow')}</th>
                 <th>{tTerm('reports.cashflow.table.available')}</th>
@@ -237,11 +219,11 @@ export default function CashflowTab({
             <tbody>
               {isCashFlowLoading ? (
                 <tr>
-                  <td colSpan={10} className="table-empty-state">{tTerm('reports.cashflow.table.loading')}</td>
+                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.table.loading')}</td>
                 </tr>
               ) : (cashFlowData?.months || []).length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="table-empty-state">{tTerm('reports.cashflow.table.empty')}</td>
+                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.table.empty')}</td>
                 </tr>
               ) : (
                 (cashFlowData?.months || []).map((month: any) => (
@@ -249,8 +231,6 @@ export default function CashflowTab({
                     <td className="font-medium">{month.month}</td>
                     <td className="text-emerald-600">{formatMoney(month.inflows)}</td>
                     <td className="text-blue-600">{formatMoney(month.outflows)}</td>
-                    <td className="text-blue-600">{formatMoney(month.associateInterestPaid)}</td>
-                    <td className="text-amber-600">{formatMoney(month.associateInterestPending)}</td>
                     <td className="text-amber-600">{formatMoney(month.operatingExpenses)}</td>
                     <td className={Number(month.netCashFlow || 0) < 0 ? 'text-rose-600' : 'text-emerald-600'}>
                       {formatMoney(month.netCashFlow)}
@@ -310,16 +290,6 @@ export default function CashflowTab({
             accent: 'slate',
           },
         ]}
-        secondaryItems={[
-          {
-            id: 'daily-cashflow-associate-interest-pending',
-            label: tTerm('reports.cashflow.detail.associateInterestPending.label'),
-            value: formatMoney(dailyCashFlowData?.summary?.totalAssociateInterestPending),
-            helper: tTerm('reports.cashflow.detail.associateInterestPending.helper'),
-            icon: <Users size={18} />,
-            accent: 'amber',
-          },
-        ]}
       />
 
       <ReportDataTableSection
@@ -331,8 +301,6 @@ export default function CashflowTab({
                 <th>{tTerm('reports.cashflow.daily.table.date')}</th>
                 <th>{tTerm('reports.cashflow.table.inflows')}</th>
                 <th>{tTerm('reports.cashflow.table.outflows')}</th>
-                <th>{tTerm('reports.cashflow.table.associateInterestPaid')}</th>
-                <th>{tTerm('reports.cashflow.table.associateInterestPending')}</th>
                 <th>{tTerm('reports.cashflow.table.operatingExpenses')}</th>
                 <th>{tTerm('reports.cashflow.table.netFlow')}</th>
                 <th>{tTerm('reports.cashflow.table.available')}</th>
@@ -341,11 +309,11 @@ export default function CashflowTab({
             <tbody>
               {isDailyCashFlowLoading ? (
                 <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.daily.table.loading')}</td>
+                  <td colSpan={6} className="table-empty-state">{tTerm('reports.cashflow.daily.table.loading')}</td>
                 </tr>
               ) : (dailyCashFlowData?.days || []).length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.daily.table.empty')}</td>
+                  <td colSpan={6} className="table-empty-state">{tTerm('reports.cashflow.daily.table.empty')}</td>
                 </tr>
               ) : (
                 (dailyCashFlowData?.days || []).map((day: any) => (
@@ -353,8 +321,6 @@ export default function CashflowTab({
                     <td className="font-medium">{day.date}</td>
                     <td className="text-emerald-600">{formatMoney(day.inflows)}</td>
                     <td className="text-blue-600">{formatMoney(day.outflows)}</td>
-                    <td className="text-blue-600">{formatMoney(day.associateInterestPaid)}</td>
-                    <td className="text-amber-600">{formatMoney(day.associateInterestPending)}</td>
                     <td className="text-amber-600">{formatMoney(day.operatingExpenses)}</td>
                     <td className={Number(day.netCashFlow || 0) < 0 ? 'text-rose-600' : 'text-emerald-600'}>
                       {formatMoney(day.netCashFlow)}

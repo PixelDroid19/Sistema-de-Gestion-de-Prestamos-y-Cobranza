@@ -71,6 +71,11 @@ export type AssociateCalendarFilters = {
   endDate?: string;
 };
 
+export type AssociateTrackingFilters = {
+  search?: string;
+  status?: string;
+};
+
 export const queryKeys = {
   customers: {
     all: ['customers'] as const,
@@ -87,6 +92,7 @@ export const queryKeys = {
     list: (params?: AssociateListParams) => ['associates', 'list', params ?? {}] as const,
     detail: (associateId: number) => ['associates', 'detail', associateId] as const,
     financialDetails: (associateId: number) => ['associates', 'financial-details', associateId] as const,
+    tracking: (filters?: AssociateTrackingFilters) => ['associates', 'tracking', filters ?? {}] as const,
     installments: (associateId: number) => ['associates', 'installments', associateId] as const,
     calendar: (associateId: number, filters?: AssociateCalendarFilters) =>
       ['associates', 'calendar', associateId, filters ?? {}] as const,

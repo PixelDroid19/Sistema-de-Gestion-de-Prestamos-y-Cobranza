@@ -11,6 +11,7 @@ export const commonEs = {
 'sidebar.credits.simulator': 'Cálculo de Crédito',
 'sidebar.associates': 'Socios',
 'sidebar.associates.management': 'Gestión de socios',
+'sidebar.associates.tracking': 'Seguimiento financiero',
 'sidebar.payouts': 'Pagos y cobranza',
 'sidebar.audit': 'Auditoría',
 'sidebar.settings': 'Configuración',
@@ -95,6 +96,9 @@ export const commonEs = {
 // Shared statuses and options
 'common.status.active': 'Activo',
 'common.status.inactive': 'Inactivo',
+'common.status.pending': 'Pendiente',
+'common.status.annulled': 'Anulado',
+'common.status.manualHold': 'En revisión',
 'common.status.blacklisted': 'Bloqueado',
 'common.status.unknown': 'Estado no clasificado',
 'common.interestType.monthly': 'Mensual',

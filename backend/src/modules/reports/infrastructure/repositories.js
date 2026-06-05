@@ -2,16 +2,12 @@ const { Op, fn, col, literal } = require('sequelize');
 const {
   Loan,
   Customer,
-  Associate,
   Payment,
   DocumentAttachment,
   LoanAlert,
   PromiseToPay,
   Notification,
-  AssociateContribution,
-  AssociateInstallment,
   OperatingExpense,
-  ProfitDistribution,
   User,
 } = require('@/models');
 const { paginateModel } = require('@/modules/shared/pagination');
@@ -20,10 +16,6 @@ const reportIncludes = [
   {
     model: Customer,
     attributes: ['id', 'name', 'email', 'phone'],
-  },
-  {
-    model: Associate,
-    attributes: ['id', 'name', 'email', 'phone', 'status', 'participationPercentage'],
   },
 ];
 
@@ -280,22 +272,6 @@ const reportRepository = {
       pagination: customerPage.pagination,
     };
   },
-  async getAssociateExportDataset(associateId) {
-    const [associate, contributions, distributions, loans] = await Promise.all([
-      Associate.findByPk(associateId),
-      AssociateContribution.findAll({ where: { associateId }, order: [['contributionDate', 'DESC'], ['createdAt', 'DESC']] }),
-      ProfitDistribution.findAll({ where: { associateId }, order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']] }),
-      Loan.findAll({ where: { associateId }, include: reportIncludes, order: [['createdAt', 'DESC']] }),
-    ]);
-
-    return {
-      associate,
-      contributions,
-      distributions,
-      loans,
-    };
-  },
-
   /**
    * Get monthly earnings aggregation for a given year.
    * Groups completed payments by month and calculates totals.
@@ -388,18 +364,16 @@ const reportRepository = {
 
   /**
    * List canonical records used to reconcile monthly cash flow.
-   * Inflows are completed customer payments. Outflows are disbursed loan principal,
-   * paid associate interest installments and canonical completed operating expenses.
-   * Pending associate interest installments are returned as reporting liabilities
-   * without reducing available cash until they are paid.
+   * Inflows are completed customer payments. Outflows are disbursed loan principal
+   * and canonical completed operating expenses.
    * @param {{year: number, fromDate?: Date|null, toDate?: Date|null}} options
-   * @returns {Promise<{loans: Array<object>, payments: Array<object>, associateInterestPayments: Array<object>, operatingExpenses: Array<object>}>}
+   * @returns {Promise<{loans: Array<object>, payments: Array<object>, operatingExpenses: Array<object>}>}
    */
   async listCashFlowDataset({ year, fromDate = null, toDate = null }) {
     const startDate = fromDate || new Date(year, 0, 1);
     const endDate = toDate || new Date(year, 11, 31, 23, 59, 59, 999);
 
-    const [loans, payments, associateInterestPayments, operatingExpenses] = await Promise.all([
+    const [loans, payments, operatingExpenses] = await Promise.all([
       Loan.findAll({
         where: {
           status: { [Op.in]: ['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] },
@@ -425,27 +399,6 @@ const reportRepository = {
         ],
         order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
       }),
-      AssociateInstallment.findAll({
-        where: {
-          status: { [Op.in]: ['paid', 'pending', 'overdue'] },
-          [Op.or]: [
-            { paidAt: { [Op.gte]: startDate, [Op.lte]: endDate } },
-            { dueDate: { [Op.gte]: startDate, [Op.lte]: endDate } },
-          ],
-        },
-        include: [
-          {
-            model: Associate,
-            attributes: ['id', 'name', 'email', 'phone', 'status'],
-          },
-          {
-            model: User,
-            as: 'paidByUser',
-            attributes: ['id', 'name', 'email', 'role'],
-          },
-        ],
-        order: [['paidAt', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
-      }),
       OperatingExpense.findAll({
         where: {
           status: 'completed',
@@ -465,7 +418,6 @@ const reportRepository = {
     return {
       loans,
       payments,
-      associateInterestPayments,
       operatingExpenses,
     };
   },
@@ -545,14 +497,6 @@ const reportRepository = {
       ...(loanId ? { id: loanId } : {}),
     };
 
-    const associateInterestDateWhere = {};
-    if (startDate) {
-      associateInterestDateWhere[Op.gte] = startDate;
-    }
-    if (endDate) {
-      associateInterestDateWhere[Op.lte] = endDate;
-    }
-
     const operatingExpenseDateWhere = {};
     if (startDate) {
       operatingExpenseDateWhere[Op.gte] = startDate;
@@ -561,7 +505,7 @@ const reportRepository = {
       operatingExpenseDateWhere[Op.lte] = endDate;
     }
 
-    const [loans, payments, associateInterestPayments, operatingExpenses] = await Promise.all([
+    const [loans, payments, operatingExpenses] = await Promise.all([
       Loan.findAll({
         where: {
           ...statusWhere,
@@ -589,13 +533,6 @@ const reportRepository = {
         ],
         order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
       }),
-      AssociateInstallment.findAll({
-        where: {
-          status: 'paid',
-          ...(startDate || endDate ? { paidAt: associateInterestDateWhere } : {}),
-        },
-        order: [['paidAt', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
-      }),
       OperatingExpense.findAll({
         where: {
           status: 'completed',
@@ -605,7 +542,7 @@ const reportRepository = {
       }),
     ]);
 
-    return { loans, payments, associateInterestPayments, operatingExpenses };
+    return { loans, payments, operatingExpenses };
   },
 };
 
