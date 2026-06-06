@@ -3,6 +3,7 @@ const {
   formatMoney,
   parseDateRange,
   buildPdfBuffer,
+  parseOptionalReportId,
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
@@ -84,6 +85,7 @@ const normalizeExportFilters = (filters = {}) => {
       ? endOfUtcDay(dateRange.toDate)
       : dateRange.toDate,
     status: normalizeStatus(filters.status),
+    employeeId: parseOptionalReportId(filters.employeeId ?? filters.createdByUserId, 'employeeId'),
   };
 };
 

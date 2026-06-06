@@ -853,6 +853,7 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
           endDate: '2026-02-28',
           status: undefined,
           paymentType: undefined,
+          employeeId: undefined,
         });
         return {
           success: true,
@@ -921,9 +922,11 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
 });
 
 test('export payouts use case builds workbook sheets with operational headers and typed dates', async () => {
+  let repositoryQuery;
   const useCase = createExportPayoutsExcel({
     paymentRepository: {
-      async listPayoutsReport() {
+      async listPayoutsReport(query) {
+        repositoryQuery = query;
         return {
           items: [{
             id: 7,
@@ -938,6 +941,7 @@ test('export payouts use case builds workbook sheets with operational headers an
             paymentType: 'installment',
             paymentMethod: 'cash',
             status: 'completed',
+            createdBy: { id: 7, name: 'Operador QA', email: 'operador@test.local' },
             paymentMetadata: { reference: 'REC-7', voucherNumber: 'VCH-7' },
             Loan: {
               customerId: 10,
@@ -951,7 +955,7 @@ test('export payouts use case builds workbook sheets with operational headers an
 
   const result = await useCase({
     actor: { role: 'admin' },
-    filters: { customerId: '10', startDate: '2026-02-01', endDate: '2026-02-28' },
+    filters: { customerId: '10', employeeId: '7', startDate: '2026-02-01', endDate: '2026-02-28' },
   });
 
   assert.equal(result.success, true);
@@ -961,10 +965,13 @@ test('export payouts use case builds workbook sheets with operational headers an
     result.data.sheets[0].columns.map((column) => column.header).slice(0, 6),
     ['Pago', 'Crédito', 'Referencia cliente', 'Cliente', 'Fecha de Pago', 'Monto'],
   );
+  assert.ok(result.data.sheets[0].columns.map((column) => column.header).includes('Registrado por'));
   assert.equal(result.data.sheets[0].rows[0].paymentType, 'Cuota');
   assert.equal(result.data.sheets[0].rows[0].paymentMethod, 'Efectivo');
+  assert.equal(result.data.sheets[0].rows[0].createdBy, 'Operador QA');
   assert.ok(result.data.sheets[0].rows[0].paymentDate instanceof Date);
   assert.ok(result.data.sheets[0].rows[0].createdAt instanceof Date);
+  assert.equal(repositoryQuery.createdByUserId, 7);
 });
 
 test('export payouts use case rejects inverted date ranges before reading payments', async () => {
@@ -999,6 +1006,7 @@ test('GET /reports/payouts/export returns pdf file for admin', async () => {
           endDate: '2026-02-28',
           status: 'annulled',
           paymentType: 'capital',
+          employeeId: undefined,
         });
         return {
           fileName: 'reporte-pagos.pdf',
@@ -1034,6 +1042,7 @@ test('export operating expenses report builds operational Excel and PDF artifact
           fromDate: new Date('2026-05-01T00:00:00.000Z'),
           toDate: new Date('2026-05-31T23:59:59.999Z'),
           status: 'annulled',
+          employeeId: 7,
         });
         return [{
           id: 12,
@@ -1057,7 +1066,7 @@ test('export operating expenses report builds operational Excel and PDF artifact
   const excel = await useCase({
     actor: { role: 'admin' },
     format: 'xlsx',
-    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'annulled' },
+    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'annulled', employeeId: '7' },
   });
 
   assert.equal(excel.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1081,7 +1090,7 @@ test('export operating expenses report builds operational Excel and PDF artifact
   const pdf = await useCase({
     actor: { role: 'admin' },
     format: 'pdf',
-    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'annulled' },
+    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'annulled', employeeId: '7' },
   });
 
   assert.equal(pdf.contentType, 'application/pdf');
@@ -1153,6 +1162,7 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
           fromDate: '2026-05-01',
           toDate: '2026-05-31',
           status: 'completed',
+          employeeId: '7',
         });
 
         if (input.format === 'pdf') {
@@ -1198,7 +1208,7 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
   app.use(router);
   activeServer = await listen(app);
 
-  const xlsxResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?fromDate=2026-05-01&toDate=2026-05-31&status=completed`, {
+  const xlsxResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?fromDate=2026-05-01&toDate=2026-05-31&status=completed&employeeId=7`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1217,7 +1227,7 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
   assert.equal(headers.includes('expenseId'), false);
   assert.equal(sheet.getRow(3).getCell(5).value, 850000);
 
-  const pdfResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?format=pdf&fromDate=2026-05-01&toDate=2026-05-31&status=completed`, {
+  const pdfResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?format=pdf&fromDate=2026-05-01&toDate=2026-05-31&status=completed&employeeId=7`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1227,7 +1237,7 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
   assert.equal(calls.map((call) => call.format).join(','), 'xlsx,pdf');
 });
 
-test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
+test('GET /reports/dashboard exports xlsx and pdf files for admin', async () => {
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
     useCases: {
@@ -1245,6 +1255,7 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
               totalPortfolioAmount: '400000.00',
               totalInterestGenerated: '98000.00',
               totalInterestPaid: '62000.00',
+              totalAssociatePayments: '12000.00',
               totalRecoveredAmount: '210000.00',
               totalOutstandingAmount: '190000.00',
             },
@@ -1303,7 +1314,17 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
   assert.ok(headers.includes('Indicador'));
   assert.ok(headers.includes('Valor'));
   assert.equal(headers.includes('totalLoans'), false);
-  assert.equal(workbook.getWorksheet('Resumen General').getRow(5).getCell(2).value, 2);
+  const summaryRows = Array.from(workbook.getWorksheet('Resumen General').getSheetValues())
+    .map((row) => Array.isArray(row) ? row : [])
+    .map((row) => [row[1], row[2]]);
+  assert.deepEqual(
+    summaryRows.find(([label]) => label === 'Créditos recuperados'),
+    ['Créditos recuperados', 2],
+  );
+  assert.deepEqual(
+    summaryRows.find(([label]) => label === 'Pagos a socios'),
+    ['Pagos a socios', '12000.00'],
+  );
 
   const loanHeaders = workbook.getWorksheet('Préstamos recientes').getRow(2).values;
   assert.ok(loanHeaders.includes('Crédito'));
@@ -1317,6 +1338,20 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
   assert.equal(paymentHeaders.includes('ID Crédito'), false);
   assert.equal(workbook.getWorksheet('Pagos recientes').getRow(3).getCell(5).value, 'Cuota');
   assert.equal(workbook.getWorksheet('Pagos recientes').getRow(3).getCell(6).value, 'Completado');
+
+  const pdfResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/dashboard/pdf`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(pdfResponse.status, 200);
+  assert.equal(pdfResponse.headers.get('content-type'), 'application/pdf');
+  assert.match(pdfResponse.headers.get('content-disposition') || '', /dashboard-report-/);
+
+  const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+  assert.equal(pdfBuffer.subarray(0, 4).toString('utf8'), '%PDF');
+  const pdfText = pdfBuffer.toString('utf8');
+  assert.ok(pdfText.includes('REPORTE GENERAL DEL DASHBOARD'));
+  assert.ok(pdfText.includes('Créditos activos: 3'));
 });
 
 test('GET /reports/credits/excel rejects non-admin users', async () => {

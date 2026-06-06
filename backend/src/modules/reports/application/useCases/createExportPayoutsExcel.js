@@ -3,6 +3,7 @@ const {
   formatMoney,
   parseDateRange,
   buildPaymentDateWhere,
+  parseOptionalReportId,
   normalizePayoutStatusFilter,
   buildPdfBuffer,
 } = require('@/modules/reports/application/reportHelpers');
@@ -26,6 +27,7 @@ const PAYOUT_WORKBOOK_COLUMNS = [
   { header: 'Tipo Pago', key: 'paymentType', width: 16 },
   { header: 'Método', key: 'paymentMethod', width: 18 },
   { header: 'Estado', key: 'status', width: 14 },
+  { header: 'Registrado por', key: 'createdBy', width: 28 },
   { header: 'Referencia', key: 'reference', width: 22 },
   { header: 'Observación', key: 'observation', width: 30 },
   { header: 'Comprobante', key: 'voucherNumber', width: 18 },
@@ -52,6 +54,7 @@ const normalizePayoutExportFilters = (filters = {}) => {
     status: normalizePayoutStatusFilter(filters.status) || 'completed',
     paymentType: filters.paymentType,
     customerId: filters.customerId,
+    createdByUserId: parseOptionalReportId(filters.employeeId ?? filters.createdByUserId, 'employeeId'),
     ...buildPaymentDateWhere(dateRange),
   };
 };
@@ -61,6 +64,7 @@ const compactWhereClause = (filters) => Object.entries(filters)
   .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
 
 const resolveCustomer = (payment) => payment?.Loan?.Customer || payment?.Loan?.customer || null;
+const resolvePaymentCreator = (payment) => payment?.createdBy || payment?.CreatedBy || null;
 
 const parseMoneyValue = (value) => {
   const normalized = Number(String(value ?? 0).replace(/[^0-9.-]/g, ''));
@@ -96,6 +100,7 @@ const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
 
   return payments.map((payment) => {
     const customer = resolveCustomer(payment);
+    const createdBy = resolvePaymentCreator(payment);
 
     return {
       paymentId: payment.id,
@@ -112,6 +117,7 @@ const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
       paymentType: formatPaymentType(payment.paymentType),
       paymentMethod: formatPaymentMethod(payment.paymentMethod),
       status: formatOperationalStatus(payment.status),
+      createdBy: createdBy?.name || createdBy?.email || 'N/A',
       reference: payment.paymentMetadata?.reference || '',
       observation: payment.paymentMetadata?.observation || '',
       voucherNumber: payment.paymentMetadata?.voucherNumber || '',
@@ -164,7 +170,7 @@ const createExportPayoutsPdf = ({ paymentRepository }) => async ({ actor, filter
     `Mora aplicada: ${formatMoney(sumRowsByMoneyKey(rows, 'penaltyApplied'))}`,
     'Detalle operativo:',
     ...rows.slice(0, 20).map((row) => (
-      `Pago ${row.paymentId} | Credito ${row.loanId} | ${row.customerName} | ${row.paymentDate} | ${row.amount} | ${row.paymentType} | ${row.status}`
+      `Pago ${row.paymentId} | Credito ${row.loanId} | ${row.customerName} | ${row.paymentDate} | ${row.amount} | ${row.paymentType} | ${row.status} | ${row.createdBy}`
     )),
   ];
 

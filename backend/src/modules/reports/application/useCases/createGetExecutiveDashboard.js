@@ -44,6 +44,8 @@ const createGetExecutiveDashboard = ({ reportRepository, paymentRepository }) =>
       monthlyEarnings: monthlyEarnings.map((e, i) => ({
         month: monthlySeries[i].month,
         earnings: formatMoney(e),
+        interest: formatMoney(monthlyData[i]?.totalInterest || 0),
+        penalties: formatMoney(monthlyData[i]?.totalPenalties || 0),
       })),
     },
   };

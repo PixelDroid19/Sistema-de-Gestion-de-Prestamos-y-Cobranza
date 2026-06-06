@@ -25,6 +25,7 @@ const {
   createGetComparativeAnalysis,
   createGetForecastAnalysis,
   createGetNextMonthProjection,
+  createExportFinancialAnalyticsReport,
   createExportCreditsExcel,
   createExportCreditsPdf,
   createGetCreditsSummary,
@@ -34,10 +35,12 @@ const {
   createGetPaymentSchedule,
   createGetMonthlyCashFlow,
   createGetDailyCashFlow,
+  createGetAnnualCashFlow,
   createExportMonthlyCashFlowExcel,
   createExportMonthlyCashFlowPdf,
   createExportOperatingExpensesReport,
   createGetCreditHistoryAuditReport,
+  createListCreditHistoryFinancialProducts,
   createExportCreditHistoryAuditExcel,
   createExportCreditHistoryAuditPdf,
 } = require('./application/useCases');
@@ -52,6 +55,22 @@ const { createReportsRouter } = require('./presentation/router');
 const createReportsModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const { loanViewService, loanAccessPolicy, alertRepository, promiseRepository } = createCreditsPublicPorts({ sharedRuntime });
+  const getCreditEarnings = createGetCreditEarnings({ reportRepository });
+  const getInterestEarnings = createGetInterestEarnings({ paymentRepository });
+  const getMonthlyEarnings = createGetMonthlyEarnings({ reportRepository });
+  const getMonthlyInterest = createGetMonthlyInterest({ paymentRepository });
+  const getPerformanceAnalysis = createGetPerformanceAnalysis({ reportRepository });
+  const getExecutiveDashboard = createGetExecutiveDashboard({ reportRepository, paymentRepository });
+  const getComprehensiveAnalytics = createGetComprehensiveAnalytics({ reportRepository, paymentRepository });
+  const getComparativeAnalysis = createGetComparativeAnalysis({ reportRepository });
+  const getForecastAnalysis = createGetForecastAnalysis({ reportRepository });
+  const getNextMonthProjection = createGetNextMonthProjection({ reportRepository });
+  const exportFinancialAnalyticsReport = createExportFinancialAnalyticsReport({
+    getComprehensiveAnalytics,
+    getComparativeAnalysis,
+    getForecastAnalysis,
+    getNextMonthProjection,
+  });
   const useCases = {
     getRecoveredLoans: createGetRecoveredLoans({ reportRepository, paymentRepository, loanViewService }),
     getOutstandingLoans: createGetOutstandingLoans({ reportRepository, paymentRepository, loanViewService }),
@@ -68,16 +87,17 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     exportCustomerProfitabilityReport: createExportCustomerProfitabilityReport({ reportRepository }),
     getLoanProfitabilityReport: createGetLoanProfitabilityReport({ reportRepository }),
     // New financial analytics use cases
-    getCreditEarnings: createGetCreditEarnings({ reportRepository }),
-    getInterestEarnings: createGetInterestEarnings({ paymentRepository }),
-    getMonthlyEarnings: createGetMonthlyEarnings({ reportRepository }),
-    getMonthlyInterest: createGetMonthlyInterest({ paymentRepository }),
-    getPerformanceAnalysis: createGetPerformanceAnalysis({ reportRepository }),
-    getExecutiveDashboard: createGetExecutiveDashboard({ reportRepository, paymentRepository }),
-    getComprehensiveAnalytics: createGetComprehensiveAnalytics({ reportRepository, paymentRepository }),
-    getComparativeAnalysis: createGetComparativeAnalysis({ reportRepository }),
-    getForecastAnalysis: createGetForecastAnalysis({ reportRepository }),
-    getNextMonthProjection: createGetNextMonthProjection({ reportRepository }),
+    getCreditEarnings,
+    getInterestEarnings,
+    getMonthlyEarnings,
+    getMonthlyInterest,
+    getPerformanceAnalysis,
+    getExecutiveDashboard,
+    getComprehensiveAnalytics,
+    getComparativeAnalysis,
+    getForecastAnalysis,
+    getNextMonthProjection,
+    exportFinancialAnalyticsReport,
     // Credits Excel export and summary
     exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
     exportCreditsPdf: createExportCreditsPdf({ reportRepository, paymentRepository, loanViewService }),
@@ -89,9 +109,11 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getPaymentSchedule: createGetPaymentSchedule({ loanAccessPolicy, paymentRepository }),
     getMonthlyCashFlow: createGetMonthlyCashFlow({ reportRepository }),
     getDailyCashFlow: createGetDailyCashFlow({ reportRepository }),
+    getAnnualCashFlow: createGetAnnualCashFlow({ reportRepository }),
     exportMonthlyCashFlowExcel: createExportMonthlyCashFlowExcel({ reportRepository }),
     exportMonthlyCashFlowPdf: createExportMonthlyCashFlowPdf({ reportRepository }),
     exportOperatingExpensesReport: createExportOperatingExpensesReport({ reportRepository }),
+    listCreditHistoryFinancialProducts: createListCreditHistoryFinancialProducts({ reportRepository }),
     getCreditHistoryAuditReport: createGetCreditHistoryAuditReport({ reportRepository }),
     exportCreditHistoryAuditExcel: createExportCreditHistoryAuditExcel({ reportRepository }),
     exportCreditHistoryAuditPdf: createExportCreditHistoryAuditPdf({ reportRepository }),

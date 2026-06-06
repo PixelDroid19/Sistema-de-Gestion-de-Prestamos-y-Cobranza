@@ -104,7 +104,7 @@ test('createReportsRouter serves report contract responses', async () => {
         };
       },
       async exportCustomerProfitabilityReport(input) {
-        calls.push(['exportCustomerProfitabilityReport', input.actor.role, input.filters]);
+        calls.push(['exportCustomerProfitabilityReport', input.actor.role, input.filters, input.format]);
         return {
           fileName: 'rentabilidad-clientes.xlsx',
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -137,16 +137,6 @@ test('createReportsRouter serves report contract responses', async () => {
           fileName: 'loan-4-credit-history.pdf',
           contentType: 'application/pdf',
           buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
-        };
-      },
-      async getAssociateProfitabilityReport() {
-        return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [{ id: 4, distributionType: 'proportional', declaredProportionalTotal: '600.00', allocatedAmount: '150.00' }] } };
-      },
-      async exportAssociateProfitabilityReport() {
-        return {
-          fileName: 'associate-7-profitability.xlsx',
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          buffer: Buffer.from('PKtest', 'utf8'),
         };
       },
     },
@@ -225,7 +215,7 @@ test('createReportsRouter serves report contract responses', async () => {
     ['getCustomerHistory', 7],
     ['getCustomerCreditProfile', 7],
     ['getCustomerProfitabilityReport', { page: 4, pageSize: 3, limit: 3, offset: 9 }],
-    ['exportCustomerProfitabilityReport', 'admin', { fromDate: '2026-05-01', toDate: '2026-05-20' }],
+    ['exportCustomerProfitabilityReport', 'admin', { fromDate: '2026-05-01', toDate: '2026-05-20' }, 'xlsx'],
     ['getLoanProfitabilityReport', { page: 5, pageSize: 2, limit: 2, offset: 8 }],
   ]);
 });
@@ -326,7 +316,7 @@ test('createReportsRouter rejects malformed customer report identifiers before e
   assert.deepEqual(calls, []);
 });
 
-test('createReportsRouter rejects malformed credit and associate report identifiers before executing reports', async () => {
+test('createReportsRouter rejects malformed credit report identifiers before executing reports', async () => {
   const calls = [];
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
@@ -776,6 +766,7 @@ test('createReportsRouter exposes comparative/earnings routes and removes legacy
       endDate: '2026-01-31',
       status: undefined,
       paymentType: undefined,
+      employeeId: undefined,
     }],
   ]);
 });

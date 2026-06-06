@@ -15,7 +15,15 @@ const createGetMonthlyEarnings = ({ reportRepository }) => async ({ actor, year 
     year: targetYear,
     rows: monthlyData,
     valueKey: 'totalEarnings',
-  }).map((entry) => ({ month: entry.month, totalEarnings: entry.value }));
+  }).map((entry) => {
+    const sourceRow = monthlyData.find((row) => row.month === entry.month) || {};
+    return {
+      month: entry.month,
+      totalEarnings: entry.value,
+      totalInterest: Number(sourceRow.totalInterest || 0),
+      totalPenalties: Number(sourceRow.totalPenalties || 0),
+    };
+  });
 
   // Calculate trend, moving average, and change percent
   const earningsValues = months.map((m) => m.totalEarnings);
@@ -26,6 +34,8 @@ const createGetMonthlyEarnings = ({ reportRepository }) => async ({ actor, year 
     return {
       month: m.month,
       totalEarnings: formatMoney(m.totalEarnings),
+      totalInterest: formatMoney(m.totalInterest),
+      totalPenalties: formatMoney(m.totalPenalties),
       trend: calculateTrend(earningsValues.slice(0, i + 1)),
       changePercent: calculateChangePercent(m.totalEarnings, prevEarnings),
       movingAverage: formatMoney(movingAverages[i] || 0),

@@ -1,6 +1,7 @@
 const { AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { formatCurrency } = require('@/modules/shared/money');
 const { buildDateRangeMessage, normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
@@ -53,6 +54,18 @@ const buildPaymentDateWhere = (range = {}) => {
   return Object.keys(paymentDateWhere).length > 0
     ? { paymentDate: paymentDateWhere }
     : {};
+};
+
+const parseOptionalReportId = (value, fieldName = 'id') => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (!validateIntegerId(value)) {
+    throw new ValidationError(buildInvalidIntegerIdMessage(fieldName));
+  }
+
+  return Number(String(value).trim());
 };
 
 const normalizePayoutStatusFilter = (status) => {
@@ -154,6 +167,7 @@ module.exports = {
   formatMoney,
   parseDateRange,
   buildPaymentDateWhere,
+  parseOptionalReportId,
   normalizePayoutStatusFilter,
   mapMonthlySeries,
   buildCsv,

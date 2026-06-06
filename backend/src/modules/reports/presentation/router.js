@@ -3,6 +3,7 @@ const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload } = require('@/modules/shared/http');
 const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
+const { buildPdfBuffer, formatMoney } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer, STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 
@@ -194,6 +195,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     status: query.status,
     customerId: query.customerId,
     loanId: query.loanId || query.creditId,
+    financialProductId: query.financialProductId,
   });
   const buildPayoutExportFilters = (query = {}) => ({
     customerId: query.customerId,
@@ -203,6 +205,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     endDate: query.endDate || query.toDate,
     status: query.status,
     paymentType: query.paymentType,
+    employeeId: query.employeeId || query.createdByUserId,
   });
   const buildExportSuffix = (query = {}) => {
     const date = new Date().toISOString().slice(0, 10);
@@ -218,28 +221,43 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
    * Builds a compact operator-friendly workbook for dashboard exports.
    * Keeps the summary sheet first and adds activity sheets only when data exists.
    */
-  const buildDashboardWorkbookBuffer = (dashboardPayload = {}) => {
+  const buildDashboardSummaryRows = (dashboardPayload = {}) => {
     const summary = dashboardPayload?.summary || {};
     const collections = dashboardPayload?.collections || {};
-    const monthlyPerformance = Array.isArray(dashboardPayload?.monthlyPerformance)
-      ? dashboardPayload.monthlyPerformance
-      : [];
-    const recentActivity = dashboardPayload?.recentActivity || {};
-
-    const summaryRows = [
+    return [
       { indicador: 'Créditos totales', valor: summary.totalLoans ?? 0 },
+      { indicador: 'Clientes registrados', valor: summary.totalCustomers ?? 0 },
       { indicador: 'Créditos activos', valor: summary.activeLoans ?? 0 },
+      { indicador: 'Créditos finalizados', valor: summary.finalizedLoans ?? summary.recoveredLoans ?? 0 },
       { indicador: 'Créditos en mora', valor: summary.delinquentLoans ?? summary.defaultedLoans ?? 0 },
       { indicador: 'Créditos recuperados', valor: summary.recoveredLoans ?? 0 },
       { indicador: 'Capital colocado', valor: summary.totalPortfolioAmount ?? '0.00' },
+      { indicador: 'Capital recuperado', valor: summary.totalRecoveredAmount ?? '0.00' },
+      { indicador: 'Capital actualmente prestado', valor: summary.totalOutstandingPrincipal ?? '0.00' },
       { indicador: 'Interés generado', valor: summary.totalInterestGenerated ?? '0.00' },
       { indicador: 'Interés pagado', valor: summary.totalInterestPaid ?? '0.00' },
-      { indicador: 'Capital recuperado', valor: summary.totalRecoveredAmount ?? '0.00' },
+      { indicador: 'Interés pendiente', valor: summary.totalInterestPending ?? '0.00' },
+      { indicador: 'Pagos a socios', valor: summary.totalAssociatePayments ?? '0.00' },
+      { indicador: 'Cuotas pendientes', valor: summary.pendingInstallments ?? 0 },
+      { indicador: 'Cuotas vencidas', valor: summary.overdueInstallments ?? 0 },
       { indicador: 'Saldo pendiente', valor: summary.totalOutstandingAmount ?? '0.00' },
+      { indicador: 'Tasa de recuperación', valor: summary.recoveryRate ?? '0.00%' },
+      { indicador: 'Porcentaje de mora', valor: summary.arrearsRate ?? '0.00%' },
+      { indicador: 'Caja disponible', valor: summary.availableCash ?? '0.00' },
+      { indicador: 'Ganancia del período', valor: summary.periodProfit ?? '0.00' },
+      { indicador: 'Pérdida del período', valor: summary.periodLoss ?? '0.00' },
       { indicador: 'Alertas vencidas', valor: collections.overdueAlerts ?? 0 },
       { indicador: 'Compromisos pendientes', valor: collections.pendingPromises ?? 0 },
       { indicador: 'Notificaciones no leídas', valor: collections.unreadNotifications ?? 0 },
     ];
+  };
+
+  const buildDashboardWorkbookBuffer = (dashboardPayload = {}) => {
+    const monthlyPerformance = Array.isArray(dashboardPayload?.monthlyPerformance)
+      ? dashboardPayload.monthlyPerformance
+      : [];
+    const recentActivity = dashboardPayload?.recentActivity || {};
+    const summaryRows = buildDashboardSummaryRows(dashboardPayload);
 
     const sheets = [{
       name: 'Resumen General',
@@ -293,6 +311,44 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     return buildWorkbookBuffer(sheets);
   };
 
+  const buildDashboardPdfExport = (dashboardPayload = {}) => {
+    const summaryRows = buildDashboardSummaryRows(dashboardPayload);
+    const monthlyPerformance = Array.isArray(dashboardPayload?.monthlyPerformance)
+      ? dashboardPayload.monthlyPerformance
+      : [];
+    const recentActivity = dashboardPayload?.recentActivity || {};
+
+    const lines = [
+      'Resumen operativo y financiero del dashboard general.',
+      '',
+      ...summaryRows.map((row) => `${row.indicador}: ${row.valor}`),
+    ];
+
+    if (monthlyPerformance.length > 0) {
+      lines.push('', 'Evolución reciente:');
+      monthlyPerformance.slice(-6).forEach((row) => {
+        lines.push(
+          `${row.period || row.month || row.date || 'Periodo'}: desembolsado ${formatMoney(row.disbursed || row.totalDisbursed || 0)} · recuperado ${formatMoney(row.recovered || row.totalRecovered || 0)}`,
+        );
+      });
+    }
+
+    const activityCounters = [
+      `Créditos recientes: ${Array.isArray(recentActivity.loans) ? recentActivity.loans.length : 0}`,
+      `Pagos recientes: ${Array.isArray(recentActivity.payments) ? recentActivity.payments.length : 0}`,
+      `Alertas activas: ${Array.isArray(recentActivity.alerts) ? recentActivity.alerts.length : 0}`,
+      `Compromisos recientes: ${Array.isArray(recentActivity.promises) ? recentActivity.promises.length : 0}`,
+      `Notificaciones recientes: ${Array.isArray(recentActivity.notifications) ? recentActivity.notifications.length : 0}`,
+    ];
+
+    lines.push('', 'Actividad visible en el resumen:', ...activityCounters);
+
+    return buildPdfBuffer({
+      title: 'REPORTE GENERAL DEL DASHBOARD',
+      lines,
+    });
+  };
+
   router.get('/recovered', requirePermission('REPORTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getRecoveredLoans({ actor: req.user, pagination: req.pagination }));
   }));
@@ -320,6 +376,17 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
+  router.get('/dashboard/pdf', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const dashboardSummary = await useCases.getDashboardSummary({ actor: req.user });
+    const buffer = buildDashboardPdfExport(dashboardSummary?.data);
+
+    sendBufferDownload(res, {
+      contentType: 'application/pdf',
+      fileName: `dashboard-report-${new Date().toISOString().slice(0, 10)}.pdf`,
+      buffer,
+    });
+  }));
+
   router.get('/cash-flow/monthly', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const year = parseOptionalReportYear(req.query.year);
     const filters = { fromDate: req.query.fromDate, toDate: req.query.toDate };
@@ -333,6 +400,14 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
       toDate: req.query.toDate,
     };
     res.json(await useCases.getDailyCashFlow({ actor: req.user, filters }));
+  }));
+
+  router.get('/cash-flow/annual', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const filters = {
+      fromYear: req.query.fromYear,
+      toYear: req.query.toYear,
+    };
+    res.json(await useCases.getAnnualCashFlow({ actor: req.user, filters }));
   }));
 
   router.get('/cash-flow/monthly/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
@@ -363,6 +438,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
         fromDate: req.query.fromDate || req.query.startDate,
         toDate: req.query.toDate || req.query.endDate,
         status: req.query.status,
+        employeeId: req.query.employeeId || req.query.createdByUserId,
       },
     });
 
@@ -412,9 +488,11 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/profitability/customers/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
     const exportFile = await useCases.exportCustomerProfitabilityReport({
       actor: req.user,
       filters: { fromDate: req.query.fromDate, toDate: req.query.toDate },
+      format,
     });
     sendBufferDownload(res, exportFile);
   }));
@@ -444,6 +522,10 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     const loanId = parseRequiredRouteId(req.params.loanId, 'loanId');
     const exportFile = await useCases.exportCustomerCreditHistory({ actor: req.user, loanId, format });
     sendBufferDownload(res, exportFile);
+  }));
+
+  router.get('/credit-history/financial-products', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    res.json(await useCases.listCreditHistoryFinancialProducts({ actor: req.user }));
   }));
 
   router.get('/credit-history/monthly', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
@@ -536,6 +618,29 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     res.json(await useCases.getNextMonthProjection({ actor: req.user }));
   }));
 
+  router.get('/analytics/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const exportFile = await useCases.exportFinancialAnalyticsReport({
+      actor: req.user,
+      year: parseOptionalReportYear(req.query.year),
+      format: req.query.format,
+    });
+
+    if (exportFile.contentType === 'application/pdf') {
+      sendBufferDownload(res, exportFile);
+      return;
+    }
+
+    const workbookSheets = Array.isArray(exportFile.sheets) && exportFile.sheets.length > 0
+      ? exportFile.sheets
+      : requireWorkbookSheets({ data: { sheets: exportFile.sheets } }, 'La exportación de analítica financiera');
+    const buffer = await buildWorkbookBuffer(workbookSheets);
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: exportFile.fileName || `analitica-financiera-${req.query.year || new Date().getFullYear()}.xlsx`,
+      buffer,
+    });
+  }));
+
   // Credits Excel Export and Summary
   router.get('/credits/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const exportData = await useCases.exportCreditsExcel({ actor: req.user, filters: buildCreditExportFilters(req.query) });
@@ -615,6 +720,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
         toDate: req.query.toDate,
         status: req.query.status,
         paymentType: req.query.paymentType,
+        employeeId: req.query.employeeId,
       },
     }));
   }));

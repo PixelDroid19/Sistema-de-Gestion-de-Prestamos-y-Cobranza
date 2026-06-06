@@ -9,8 +9,10 @@ const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookB
 const {
   buildMonthlyCashFlowReport,
   buildDailyCashFlowReport,
+  buildAnnualCashFlowReport,
   createGetMonthlyCashFlow,
   createGetDailyCashFlow,
+  createGetAnnualCashFlow,
   createExportMonthlyCashFlowExcel,
   createExportMonthlyCashFlowPdf,
 } = require('@/modules/reports/application/useCases/createMonthlyCashFlowReport');
@@ -50,6 +52,14 @@ const makeOperatingExpense = (overrides = {}) => ({
   amount: overrides.amount ?? 0,
   status: overrides.status || 'completed',
   expenseDate: overrides.expenseDate || '2026-01-28T00:00:00.000Z',
+  ...overrides,
+});
+
+const makeAssociatePayment = (overrides = {}) => ({
+  id: overrides.id || 1,
+  amount: overrides.amount ?? 0,
+  status: overrides.status || 'paid',
+  paidAt: overrides.paidAt || '2026-01-25T00:00:00.000Z',
   ...overrides,
 });
 
@@ -115,7 +125,7 @@ test('buildMonthlyCashFlowReport reconciles monthly inflows, outflows, available
   assert.equal(report.months[1].lossesAtRisk, '7000000.00');
 });
 
-test('buildMonthlyCashFlowReport ignores socio payments and only reconciles credit cash plus operating expenses', () => {
+test('buildMonthlyCashFlowReport subtracts paid associate movements from available cash', () => {
   const report = buildMonthlyCashFlowReport({
     year: 2026,
     loans: [
@@ -124,13 +134,22 @@ test('buildMonthlyCashFlowReport ignores socio payments and only reconciles cred
     payments: [
       makePayment({ id: 10, amount: 50000000, principalApplied: 45000000, interestApplied: 5000000, paymentDate: '2026-01-20T00:00:00.000Z' }),
     ],
+    associatePayments: [
+      makeAssociatePayment({ id: 20, amount: 3000000, paidAt: '2026-01-25T00:00:00.000Z' }),
+      makeAssociatePayment({ id: 21, amount: 1000000, distributionDate: '2026-02-01T00:00:00.000Z', paidAt: null }),
+    ],
   });
 
   assert.equal(report.summary.totalInflows, '50000000.00');
   assert.equal(report.summary.totalOutflows, '40000000.00');
-  assert.equal(report.summary.availableCash, '10000000.00');
-  assert.equal(report.months[0].netCashFlow, '10000000.00');
-  assert.equal(report.months[0].availableCash, '10000000.00');
+  assert.equal(report.summary.totalAssociatePayments, '4000000.00');
+  assert.equal(report.summary.availableCash, '6000000.00');
+  assert.equal(report.summary.netProfitIndicator, '1000000.00');
+  assert.equal(report.months[0].associatePayments, '3000000.00');
+  assert.equal(report.months[0].netCashFlow, '7000000.00');
+  assert.equal(report.months[0].availableCash, '7000000.00');
+  assert.equal(report.months[1].associatePayments, '1000000.00');
+  assert.equal(report.months[1].availableCash, '6000000.00');
 });
 
 test('buildMonthlyCashFlowReport subtracts completed operating expenses from available cash', () => {
@@ -170,6 +189,9 @@ test('buildDailyCashFlowReport reconciles daily movements inside the selected ra
       makePayment({ id: 10, amount: 50000000, principalApplied: 45000000, interestApplied: 5000000, paymentDate: '2026-03-02T15:00:00.000Z' }),
       makePayment({ id: 11, amount: 1000000, status: 'annulled', paymentDate: '2026-03-02T16:00:00.000Z' }),
     ],
+    associatePayments: [
+      makeAssociatePayment({ id: 20, amount: 3000000, paidAt: '2026-03-02T18:00:00.000Z' }),
+    ],
     operatingExpenses: [
       makeOperatingExpense({ id: 30, amount: 2000000, expenseDate: '2026-03-03T10:00:00.000Z' }),
       makeOperatingExpense({ id: 31, amount: 1000000, status: 'annulled', expenseDate: '2026-03-03T11:00:00.000Z' }),
@@ -179,12 +201,47 @@ test('buildDailyCashFlowReport reconciles daily movements inside the selected ra
   assert.deepEqual(report.days.map((day) => day.date), ['2026-03-01', '2026-03-02', '2026-03-03']);
   assert.equal(report.summary.totalInflows, '50000000.00');
   assert.equal(report.summary.totalOutflows, '50000000.00');
+  assert.equal(report.summary.totalAssociatePayments, '3000000.00');
   assert.equal(report.summary.totalOperatingExpenses, '2000000.00');
-  assert.equal(report.summary.availableCash, '-2000000.00');
+  assert.equal(report.summary.availableCash, '-5000000.00');
   assert.equal(report.summary.lossesAtRisk, '8000000.00');
   assert.equal(report.days[0].availableCash, '-40000000.00');
-  assert.equal(report.days[1].availableCash, '10000000.00');
-  assert.equal(report.days[2].availableCash, '-2000000.00');
+  assert.equal(report.days[1].associatePayments, '3000000.00');
+  assert.equal(report.days[1].availableCash, '7000000.00');
+  assert.equal(report.days[2].availableCash, '-5000000.00');
+});
+
+test('buildAnnualCashFlowReport compares annual cash flow with canonical movements', () => {
+  const report = buildAnnualCashFlowReport({
+    fromYear: 2025,
+    toYear: 2026,
+    loans: [
+      makeLoan({ id: 1, amount: 20000000, status: 'active', startDate: '2025-03-01T00:00:00.000Z' }),
+      makeLoan({ id: 2, amount: 10000000, status: 'defaulted', principalOutstanding: 6000000, startDate: '2026-04-01T00:00:00.000Z' }),
+    ],
+    payments: [
+      makePayment({ id: 10, amount: 26000000, principalApplied: 24000000, interestApplied: 2000000, paymentDate: '2025-08-10T00:00:00.000Z' }),
+      makePayment({ id: 11, amount: 8000000, principalApplied: 7000000, interestApplied: 1000000, paymentDate: '2026-08-10T00:00:00.000Z' }),
+    ],
+    associatePayments: [
+      makeAssociatePayment({ id: 20, amount: 500000, paidAt: '2025-09-01T00:00:00.000Z' }),
+      makeAssociatePayment({ id: 21, amount: 700000, paidAt: '2026-09-01T00:00:00.000Z' }),
+    ],
+    operatingExpenses: [
+      makeOperatingExpense({ id: 30, amount: 300000, expenseDate: '2025-09-15T00:00:00.000Z' }),
+      makeOperatingExpense({ id: 31, amount: 400000, expenseDate: '2026-09-15T00:00:00.000Z' }),
+    ],
+  });
+
+  assert.equal(report.summary.totalInflows, '34000000.00');
+  assert.equal(report.summary.totalOutflows, '30000000.00');
+  assert.equal(report.summary.totalAssociatePayments, '1200000.00');
+  assert.equal(report.summary.totalOperatingExpenses, '700000.00');
+  assert.equal(report.summary.availableCash, '2100000.00');
+  assert.equal(report.summary.lossesAtRisk, '6000000.00');
+  assert.deepEqual(report.years.map((year) => year.year), ['2025', '2026']);
+  assert.equal(report.years[0].netCashFlow, '5200000.00');
+  assert.equal(report.years[1].netCashFlow, '-3100000.00');
 });
 
 test('createGetMonthlyCashFlow reads canonical dataset from repository', async () => {
@@ -195,6 +252,7 @@ test('createGetMonthlyCashFlow reads canonical dataset from repository', async (
         return {
           loans: [makeLoan({ amount: 40000000 })],
           payments: [makePayment({ amount: 50000000, principalApplied: 45000000, interestApplied: 5000000 })],
+          associatePayments: [makeAssociatePayment({ amount: 3000000 })],
           operatingExpenses: [makeOperatingExpense({ amount: 2000000 })],
         };
       },
@@ -204,8 +262,9 @@ test('createGetMonthlyCashFlow reads canonical dataset from repository', async (
   const response = await useCase({ actor: { role: 'admin' }, year: 2026 });
 
   assert.equal(response.success, true);
+  assert.equal(response.data.summary.totalAssociatePayments, '3000000.00');
   assert.equal(response.data.summary.totalOperatingExpenses, '2000000.00');
-  assert.equal(response.data.summary.availableCash, '8000000.00');
+  assert.equal(response.data.summary.availableCash, '5000000.00');
   assert.equal(response.data.months.length, 12);
 });
 
@@ -247,6 +306,7 @@ test('createGetDailyCashFlow reads canonical dataset for a single operational da
         return {
           loans: [makeLoan({ amount: 40000000, startDate: '2026-03-15T14:00:00.000Z' })],
           payments: [makePayment({ amount: 50000000, interestApplied: 5000000, paymentDate: '2026-03-15T16:00:00.000Z' })],
+          associatePayments: [makeAssociatePayment({ amount: 3000000, paidAt: '2026-03-15T17:00:00.000Z' })],
           operatingExpenses: [makeOperatingExpense({ amount: 2000000, expenseDate: '2026-03-15T18:00:00.000Z' })],
         };
       },
@@ -261,9 +321,40 @@ test('createGetDailyCashFlow reads canonical dataset for a single operational da
   assert.equal(response.success, true);
   assert.equal(response.data.filters.fromDate, '2026-03-15');
   assert.equal(response.data.filters.toDate, '2026-03-15');
-  assert.equal(response.data.summary.availableCash, '8000000.00');
+  assert.equal(response.data.summary.totalAssociatePayments, '3000000.00');
+  assert.equal(response.data.summary.availableCash, '5000000.00');
   assert.equal(response.data.days.length, 1);
   assert.equal(response.data.days[0].date, '2026-03-15');
+});
+
+test('createGetAnnualCashFlow reads canonical dataset for a year range', async () => {
+  const useCase = createGetAnnualCashFlow({
+    reportRepository: {
+      async listCashFlowDataset({ year, fromDate, toDate }) {
+        assert.equal(year, 2026);
+        assert.equal(fromDate.toISOString(), '2024-01-01T00:00:00.000Z');
+        assert.equal(toDate.toISOString(), '2026-12-31T23:59:59.999Z');
+        return {
+          loans: [makeLoan({ amount: 10000000, startDate: '2026-01-05T00:00:00.000Z' })],
+          payments: [makePayment({ amount: 12000000, interestApplied: 2000000, paymentDate: '2026-02-05T00:00:00.000Z' })],
+          associatePayments: [makeAssociatePayment({ amount: 500000, paidAt: '2026-03-05T00:00:00.000Z' })],
+          operatingExpenses: [makeOperatingExpense({ amount: 300000, expenseDate: '2026-04-05T00:00:00.000Z' })],
+        };
+      },
+    },
+  });
+
+  const response = await useCase({
+    actor: { role: 'admin' },
+    filters: { fromYear: '2024', toYear: '2026' },
+  });
+
+  assert.equal(response.success, true);
+  assert.equal(response.data.filters.fromYear, 2024);
+  assert.equal(response.data.filters.toYear, 2026);
+  assert.equal(response.data.years.length, 3);
+  assert.equal(response.data.years[2].year, '2026');
+  assert.equal(response.data.years[2].availableCash, '1200000.00');
 });
 
 test('monthly cash flow Excel and PDF exports include operational fields', async () => {
@@ -273,6 +364,7 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
         return {
           loans: [makeLoan({ amount: 40000000 })],
           payments: [makePayment({ amount: 50000000, principalApplied: 45000000, interestApplied: 4000000, penaltyApplied: 1000000 })],
+          associatePayments: [makeAssociatePayment({ amount: 3000000 })],
           operatingExpenses: [makeOperatingExpense({ amount: 2000000 })],
         };
       },
@@ -293,6 +385,7 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   const headers = history.getRow(2).values;
   assert.ok(headers.includes('Entradas por Cuotas'));
   assert.ok(headers.includes('Salidas por Préstamos'));
+  assert.ok(headers.includes('Pagos a Socios'));
   assert.ok(headers.includes('Gastos Operativos'));
   assert.ok(headers.includes('Caja Disponible'));
 
@@ -300,6 +393,7 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   assert.equal(pdf.contentType, 'application/pdf');
   assert.match(pdf.buffer.toString('utf8'), /%PDF-1.4/);
   assert.match(pdf.buffer.toString('utf8'), /Flujo de caja mensual 2026/);
+  assert.match(pdf.buffer.toString('utf8'), /Pagos a socios: \$3000000.00/);
   assert.match(pdf.buffer.toString('utf8'), /Gastos operativos: \$2000000.00/);
 });
 
@@ -403,4 +497,31 @@ test('reports router exposes daily cash flow JSON route with date filters', asyn
   assert.deepEqual(calls, [
     ['admin', { date: '2026-03-15', fromDate: undefined, toDate: undefined }],
   ]);
+});
+
+test('reports router exposes annual cash flow JSON route with year filters', async () => {
+  const calls = [];
+  const router = createReportsRouter({
+    authMiddleware: ({ permissions }) => (req, res, next) => {
+      req.user = { id: 1, role: 'admin', permissions };
+      next();
+    },
+    useCases: {
+      async getAnnualCashFlow(input) {
+        calls.push(input);
+        return { success: true, data: { filters: input.filters, years: [] } };
+      },
+    },
+  });
+  const app = express();
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/cash-flow/annual?fromYear=2024&toYear=2026',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(calls[0].filters, { fromYear: '2024', toYear: '2026' });
 });

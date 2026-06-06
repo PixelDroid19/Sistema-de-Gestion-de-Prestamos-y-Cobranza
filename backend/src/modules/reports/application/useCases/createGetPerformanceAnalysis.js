@@ -17,7 +17,15 @@ const createGetPerformanceAnalysis = ({ reportRepository }) => async ({ actor, y
     year: targetYear,
     rows: monthlyData,
     valueKey: 'totalEarnings',
-  }).map((entry) => ({ month: entry.month, totalEarnings: entry.value }));
+  }).map((entry) => {
+    const sourceRow = monthlyData.find((row) => row.month === entry.month) || {};
+    return {
+      month: entry.month,
+      totalEarnings: entry.value,
+      totalInterest: Number(sourceRow.totalInterest || 0),
+      totalPenalties: Number(sourceRow.totalPenalties || 0),
+    };
+  });
 
   const earningsValues = monthlyPerformance.map((m) => m.totalEarnings);
   const movingAverages = calculateMovingAverage(earningsValues, 3);
@@ -27,6 +35,8 @@ const createGetPerformanceAnalysis = ({ reportRepository }) => async ({ actor, y
     return {
       month: m.month,
       earnings: formatMoney(m.totalEarnings),
+      interest: formatMoney(m.totalInterest),
+      penalties: formatMoney(m.totalPenalties),
       trend: calculateTrend(earningsValues.slice(0, i + 1)),
       changePercent: calculateChangePercent(m.totalEarnings, prevEarnings),
       movingAverage: formatMoney(movingAverages[i] || 0),

@@ -25,6 +25,7 @@ const createOperatingExpensesRouter = ({ authMiddleware, useCases }) => {
       fromDate: req.query.fromDate,
       toDate: req.query.toDate,
       status: req.query.status,
+      employeeId: req.query.employeeId || req.query.createdByUserId,
     };
     const result = await useCases.listOperatingExpenses({
       filters,

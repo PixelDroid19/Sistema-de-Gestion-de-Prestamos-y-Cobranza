@@ -9,6 +9,10 @@ const buildExpenseWhere = (filters = {}) => {
     where.status = filters.status;
   }
 
+  if (filters.employeeId) {
+    where.createdByUserId = filters.employeeId;
+  }
+
   if (filters.fromDate || filters.toDate) {
     where.expenseDate = {
       ...(filters.fromDate ? { [Op.gte]: filters.fromDate } : {}),

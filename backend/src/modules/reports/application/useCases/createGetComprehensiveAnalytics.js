@@ -26,10 +26,12 @@ const createGetComprehensiveAnalytics = ({ reportRepository, paymentRepository }
 
   const months = earningsSeries.map((entry) => {
     const monthKey = entry.month;
+    const earningsRow = monthlyEarnings.find((row) => row.month === monthKey) || {};
     return {
       month: monthKey,
       totalEarnings: entry.value,
       totalInterest: interestByMonth[monthKey] || 0,
+      totalPenalties: Number(earningsRow.totalPenalties || 0),
     };
   });
 
@@ -42,6 +44,7 @@ const createGetComprehensiveAnalytics = ({ reportRepository, paymentRepository }
       month: m.month,
       totalEarnings: formatMoney(m.totalEarnings),
       totalInterest: formatMoney(m.totalInterest),
+      totalPenalties: formatMoney(m.totalPenalties),
       trend: calculateTrend(earningsValues.slice(0, i + 1)),
       changePercent: calculateChangePercent(m.totalEarnings, prevEarnings),
       movingAverage: formatMoney(movingAverages[i] || 0),

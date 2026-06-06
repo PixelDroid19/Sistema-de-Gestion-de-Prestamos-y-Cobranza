@@ -28,6 +28,7 @@ const MONTH_NAMES = [
   'Noviembre',
   'Diciembre',
 ];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: MONEY_FORMAT });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: DATE_FORMAT });
@@ -141,6 +142,19 @@ const normalizeOptionalPositiveId = (value, fieldName) => {
   return numericValue;
 };
 
+const normalizeOptionalFinancialProductId = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  if (!UUID_PATTERN.test(normalized)) {
+    throw new BadRequestError('El producto financiero seleccionado no es válido.');
+  }
+
+  return normalized;
+};
+
 const parseMonthFilter = (value) => {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -181,6 +195,7 @@ const normalizeCreditHistoryFilters = (filters = {}) => {
     status: normalizeStatusFilter(filters.status),
     customerId: normalizeOptionalPositiveId(filters.customerId, 'customerId'),
     loanId: normalizeOptionalPositiveId(filters.loanId ?? filters.creditId, 'loanId'),
+    financialProductId: normalizeOptionalFinancialProductId(filters.financialProductId),
   };
 };
 
@@ -432,6 +447,18 @@ const createGetCreditHistoryAuditReport = ({ reportRepository }) => async ({ act
   };
 };
 
+const createListCreditHistoryFinancialProducts = ({ reportRepository }) => async ({ actor }) => {
+  ensureAdmin(actor);
+  const financialProducts = await reportRepository.listCreditHistoryFinancialProducts();
+
+  return {
+    success: true,
+    data: {
+      financialProducts,
+    },
+  };
+};
+
 const createExportCreditHistoryAuditExcel = ({ reportRepository }) => async ({ actor, filters = {} }) => {
   const response = await createGetCreditHistoryAuditReport({ reportRepository })({ actor, filters });
   const report = response.data;
@@ -518,6 +545,7 @@ module.exports = {
   buildCreditHistoryAuditReport,
   normalizeCreditHistoryFilters,
   createGetCreditHistoryAuditReport,
+  createListCreditHistoryFinancialProducts,
   createExportCreditHistoryAuditExcel,
   createExportCreditHistoryAuditPdf,
 };

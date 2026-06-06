@@ -15,6 +15,7 @@ const {
   buildProfitabilityLoanRows,
   buildProfitabilitySummary,
   buildCustomerProfitabilityRows,
+  buildCustomerProfitabilityAnalytics,
   buildProfitabilitySummaryFromDataset,
   buildServicingNotes,
   buildLoansWithDetails,
@@ -106,6 +107,76 @@ const createGetRecoveryReport = ({ reportRepository, paymentRepository, loanView
   };
 };
 
+const toFiniteNumber = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const getLoanSnapshot = (loan = {}) => (
+  loan.financialSnapshot && typeof loan.financialSnapshot === 'object'
+    ? loan.financialSnapshot
+    : {}
+);
+
+const getLoanSchedule = (loan = {}) => {
+  const snapshot = getLoanSnapshot(loan);
+  if (Array.isArray(snapshot.schedule)) return snapshot.schedule;
+  if (Array.isArray(snapshot.emiSchedule)) return snapshot.emiSchedule;
+  if (Array.isArray(loan.emiSchedule)) return loan.emiSchedule;
+  return [];
+};
+
+const getInstallmentOutstanding = (row = {}) => toFiniteNumber(
+  row.remainingBalance
+    ?? row.outstandingAmount
+    ?? ((toFiniteNumber(row.remainingPrincipal) + toFiniteNumber(row.remainingInterest))),
+);
+
+const isInstallmentPaid = (row = {}) => (
+  row.status === 'paid'
+  || row.status === 'completed'
+  || (toFiniteNumber(row.paidTotal) > 0 && getInstallmentOutstanding(row) <= 0.01)
+);
+
+const isInstallmentOverdue = (row = {}, now = new Date()) => {
+  if (isInstallmentPaid(row)) return false;
+  if (row.status === 'overdue') return true;
+  if (!row.dueDate) return false;
+
+  const dueDate = new Date(row.dueDate);
+  return Number.isFinite(dueDate.getTime()) && dueDate < now;
+};
+
+const countInstallmentsByStatus = ({ loans = [], activeAlerts = [], now = new Date() }) => {
+  let pendingInstallments = 0;
+  let overdueInstallments = 0;
+  let hasScheduleEvidence = false;
+
+  loans.forEach((loan) => {
+    const schedule = getLoanSchedule(loan);
+    if (schedule.length === 0) return;
+    hasScheduleEvidence = true;
+
+    schedule.forEach((row) => {
+      if (isInstallmentPaid(row)) return;
+      if (isInstallmentOverdue(row, now)) {
+        overdueInstallments += 1;
+        return;
+      }
+      pendingInstallments += 1;
+    });
+  });
+
+  if (!hasScheduleEvidence) {
+    overdueInstallments = activeAlerts.filter((alert) => alert?.status === 'active').length;
+    pendingInstallments = loans.reduce((sum, loan) => (
+      sum + toFiniteNumber(getLoanSnapshot(loan).outstandingInstallments)
+    ), 0);
+  }
+
+  return { pendingInstallments, overdueInstallments };
+};
+
 const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
   ensureAdmin(actor);
 
@@ -118,11 +189,24 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
           delinquentLoans: 0,
           defaultedLoans: 0,
           recoveredLoans: 0,
+          totalCustomers: 0,
+          finalizedLoans: 0,
+          overdueLoans: 0,
+          pendingInstallments: 0,
+          overdueInstallments: 0,
         totalPortfolioAmount: '0.00',
         totalRecoveredAmount: '0.00',
         totalOutstandingAmount: '0.00',
+        totalOutstandingPrincipal: '0.00',
         totalInterestGenerated: '0.00',
         totalInterestPaid: '0.00',
+        totalInterestPending: '0.00',
+        recoveryRate: '0.00%',
+        arrearsRate: '0.00%',
+        totalAssociatePayments: '0.00',
+        availableCash: '0.00',
+        periodProfit: '0.00',
+        periodLoss: '0.00',
       },
       collections: {
         overdueAlerts: 0,
@@ -152,16 +236,45 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     });
 
     const totalPortfolioAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.amount || 0), 0);
-    const totalRecoveredAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalPaid || 0), 0);
     const totalOutstandingAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.outstandingAmount || 0), 0);
+    const totalOutstandingPrincipal = loansWithDetails.reduce((sum, loan) => sum + Number(loan.outstandingPrincipalAmount || 0), 0);
     const totalInterestGenerated = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalInterestGenerated || 0), 0);
     const totalInterestPaid = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalInterestPaid || 0), 0);
+    const completedPayments = (dashboard.payments || []).filter((payment) => !payment?.status || payment.status === 'completed');
+    const totalPaymentInflow = completedPayments.reduce((sum, payment) => sum + toFiniteNumber(payment.amount), 0);
+    const totalPrincipalRecovered = Math.max(
+      completedPayments.reduce((sum, payment) => sum + toFiniteNumber(payment.principalApplied), 0),
+      loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalPrincipalRecovered || 0), 0),
+    );
+    const totalPenaltyPaid = completedPayments.reduce((sum, payment) => sum + toFiniteNumber(payment.penaltyApplied), 0);
+    const totalOperatingExpenses = (dashboard.operatingExpenses || []).reduce((sum, expense) => sum + toFiniteNumber(expense.amount), 0);
+    const totalAssociatePayments = (dashboard.associatePayments || []).reduce((sum, payment) => sum + toFiniteNumber(payment.amount), 0);
     const delinquentLoanIds = new Set(
       (dashboard.alerts || [])
         .filter((alert) => alert?.status === 'active')
         .map((alert) => Number(alert?.loanId))
         .filter((loanId) => Number.isFinite(loanId) && loanId > 0),
     );
+    const installmentStatus = countInstallmentsByStatus({
+      loans: loansWithDetails,
+      activeAlerts: dashboard.alerts || [],
+    });
+    const totalOpenPortfolioLoans = loansWithDetails.filter((loan) => (
+      !['closed', 'paid'].includes(loan.status) && loan.recoveryBucket !== 'recovered'
+    )).length;
+    const finalizedLoans = loansWithDetails.filter((loan) => (
+      loan.status === 'closed' || loan.status === 'paid' || loan.recoveryBucket === 'recovered'
+    )).length;
+    const recoveryRate = totalPortfolioAmount > 0
+      ? (totalPrincipalRecovered / totalPortfolioAmount) * 100
+      : 0;
+    const arrearsRate = totalOpenPortfolioLoans > 0
+      ? (delinquentLoanIds.size / totalOpenPortfolioLoans) * 100
+      : 0;
+    const periodProfit = totalInterestPaid + totalPenaltyPaid - totalAssociatePayments - totalOperatingExpenses;
+    const periodLoss = loansWithDetails
+      .filter((loan) => loan.status === 'defaulted')
+      .reduce((sum, loan) => sum + Number(loan.outstandingAmount || 0), 0);
 
     return {
       success: true,
@@ -170,13 +283,26 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
           totalLoans: loansWithDetails.length,
           activeLoans: loansWithDetails.filter((loan) => ['approved', 'active'].includes(loan.status)).length,
           delinquentLoans: delinquentLoanIds.size,
+          overdueLoans: delinquentLoanIds.size,
           defaultedLoans: loansWithDetails.filter((loan) => loan.status === 'defaulted').length,
           recoveredLoans: loansWithDetails.filter((loan) => loan.recoveryBucket === 'recovered').length,
+          finalizedLoans,
+          totalCustomers: Number(dashboard.totalCustomers || 0),
+          pendingInstallments: installmentStatus.pendingInstallments,
+          overdueInstallments: installmentStatus.overdueInstallments,
           totalPortfolioAmount: totalPortfolioAmount.toFixed(2),
-          totalRecoveredAmount: totalRecoveredAmount.toFixed(2),
+          totalRecoveredAmount: totalPrincipalRecovered.toFixed(2),
           totalOutstandingAmount: totalOutstandingAmount.toFixed(2),
+          totalOutstandingPrincipal: totalOutstandingPrincipal.toFixed(2),
           totalInterestGenerated: totalInterestGenerated.toFixed(2),
           totalInterestPaid: totalInterestPaid.toFixed(2),
+          totalInterestPending: Math.max(0, totalInterestGenerated - totalInterestPaid).toFixed(2),
+          recoveryRate: `${recoveryRate.toFixed(2)}%`,
+          arrearsRate: `${arrearsRate.toFixed(2)}%`,
+          totalAssociatePayments: totalAssociatePayments.toFixed(2),
+          availableCash: (totalPaymentInflow - totalPortfolioAmount - totalAssociatePayments - totalOperatingExpenses).toFixed(2),
+          periodProfit: periodProfit.toFixed(2),
+          periodLoss: periodLoss.toFixed(2),
         },
         monthlyPerformance,
         collections: {
@@ -559,6 +685,10 @@ const CUSTOMER_PROFITABILITY_COLUMNS = [
   { header: 'Cliente', key: 'customerName', width: 28 },
   { header: 'Créditos Totales', key: 'loanCount', width: 16 },
   { header: 'Créditos Rentables', key: 'profitableLoanCount', width: 18 },
+  { header: 'Créditos Activos', key: 'activeLoanCount', width: 16 },
+  { header: 'Créditos Finalizados', key: 'closedLoanCount', width: 20 },
+  { header: 'Créditos en Mora', key: 'overdueLoanCount', width: 18 },
+  { header: 'Pagos Registrados', key: 'paymentCount', width: 18 },
   moneyColumn('Capital Prestado', 'originatedAmount', 20),
   moneyColumn('Total Recaudado', 'totalCollected', 20),
   moneyColumn('Capital Recuperado', 'principalCollected', 20),
@@ -566,6 +696,8 @@ const CUSTOMER_PROFITABILITY_COLUMNS = [
   moneyColumn('Mora Cobrada', 'penaltyCollected', 18),
   moneyColumn('Rentabilidad Total', 'totalProfit', 20),
   moneyColumn('Saldo en Cartera', 'outstandingBalance', 20),
+  { header: 'Comportamiento de Pago', key: 'paymentBehavior', width: 24 },
+  { header: 'Nivel de Riesgo', key: 'riskLevel', width: 18 },
 ];
 
 const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, format = 'csv' }) => {
@@ -633,17 +765,19 @@ const createGetCustomerProfitabilityReport = ({ reportRepository }) => async ({ 
       }),
     ]);
 
+    const pagedCustomers = buildCustomerProfitabilityRows(
+      buildProfitabilityLoanRows({
+        loans: pagedResult.items.loans,
+        payments: pagedResult.items.payments,
+      }),
+    );
+
     return {
       success: true,
       count: pagedResult.pagination.totalItems,
       summary: buildProfitabilitySummaryFromDataset(summaryDataset),
       data: {
-        customers: buildCustomerProfitabilityRows(
-          buildProfitabilityLoanRows({
-            loans: pagedResult.items.loans,
-            payments: pagedResult.items.payments,
-          }),
-        ),
+        customers: pagedCustomers,
         pagination: pagedResult.pagination,
       },
     };
@@ -656,7 +790,10 @@ const createGetCustomerProfitabilityReport = ({ reportRepository }) => async ({ 
   return {
     success: true,
     count: customerRows.length,
-    summary: buildProfitabilitySummary(customerRows),
+    summary: {
+      ...buildProfitabilitySummary(customerRows),
+      customerAnalytics: buildCustomerProfitabilityAnalytics(customerRows),
+    },
     data: {
       customers: customerRows,
     },
@@ -669,7 +806,46 @@ const toMoneyNumber = (value) => {
   return Number.isFinite(number) ? number : 0;
 };
 
-const createExportCustomerProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {} }) => {
+const formatCustomerPaymentBehaviorForExport = (value) => {
+  if (value === 'critical') return 'Crítico';
+  if (value === 'delinquent') return 'Con mora';
+  if (value === 'without_payments') return 'Sin pagos registrados';
+  return 'Al día';
+};
+
+const formatCustomerRiskForExport = (value) => {
+  if (value === 'high') return 'Alto';
+  if (value === 'medium') return 'Medio';
+  return 'Bajo';
+};
+
+const buildCustomerProfitabilityPdfLines = ({ report, rows }) => {
+  const summary = report.summary || {};
+  const analyticsSummary = summary.customerAnalytics?.summary || {};
+  const topOutstanding = [...rows]
+    .sort((left, right) => Number(right.outstandingBalance || 0) - Number(left.outstandingBalance || 0))
+    .slice(0, 5);
+  const delinquentRows = rows.filter((row) => Number(row.overdueLoanCount || 0) > 0 || Number(row.defaultedLoanCount || 0) > 0).slice(0, 5);
+
+  return [
+    `Clientes analizados: ${analyticsSummary.customerCount ?? rows.length}`,
+    `Clientes morosos: ${analyticsSummary.delinquentCustomerCount ?? delinquentRows.length}`,
+    `Clientes riesgo alto: ${analyticsSummary.highRiskCustomerCount ?? 0}`,
+    `Rentabilidad total: ${summary.totalProfit || '0.00'}`,
+    `Interés y mora cobrados: ${summary.totalCollected || '0.00'}`,
+    `Saldo pendiente en cartera: ${summary.totalOutstandingBalance || '0.00'}`,
+    'Clientes con mayor saldo pendiente:',
+    ...(topOutstanding.length > 0
+      ? topOutstanding.map((row) => `${row.customerName} | Saldo: ${formatMoney(row.outstandingBalance)} | Créditos: ${row.loanCount} | Riesgo: ${row.riskLevel}`)
+      : ['Sin clientes con saldo pendiente.']),
+    'Clientes morosos:',
+    ...(delinquentRows.length > 0
+      ? delinquentRows.map((row) => `${row.customerName} | Mora: ${row.overdueLoanCount} créditos | Comportamiento: ${row.paymentBehavior}`)
+      : ['Sin clientes morosos en el rango.']),
+  ];
+};
+
+const createExportCustomerProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {}, format = 'xlsx' }) => {
   const report = await createGetCustomerProfitabilityReport({ reportRepository })({ actor, filters });
   const rows = (report.data.customers || []).map((row) => ({
     customerId: row.customerId,
@@ -683,7 +859,25 @@ const createExportCustomerProfitabilityReport = ({ reportRepository }) => async 
     penaltyCollected: toMoneyNumber(row.penaltyCollected),
     totalProfit: toMoneyNumber(row.totalProfit),
     outstandingBalance: toMoneyNumber(row.outstandingBalance),
+    activeLoanCount: row.activeLoanCount || 0,
+    closedLoanCount: row.closedLoanCount || 0,
+    overdueLoanCount: row.overdueLoanCount || 0,
+    defaultedLoanCount: row.defaultedLoanCount || 0,
+    paymentCount: row.paymentCount || 0,
+    paymentBehavior: formatCustomerPaymentBehaviorForExport(row.paymentBehavior),
+    riskLevel: formatCustomerRiskForExport(row.riskLevel),
   }));
+
+  if (String(format).toLowerCase() === 'pdf') {
+    return {
+      fileName: 'rentabilidad-clientes.pdf',
+      contentType: 'application/pdf',
+      buffer: buildPdfBuffer({
+        title: 'Rentabilidad y riesgo por cliente',
+        lines: buildCustomerProfitabilityPdfLines({ report, rows }),
+      }),
+    };
+  }
 
   return {
     fileName: 'rentabilidad-clientes.xlsx',
@@ -767,6 +961,7 @@ module.exports = {
   createGetComparativeAnalysis: require('./useCases/createGetComparativeAnalysis').createGetComparativeAnalysis,
   createGetForecastAnalysis: require('./useCases/createGetForecastAnalysis').createGetForecastAnalysis,
   createGetNextMonthProjection: require('./useCases/createGetNextMonthProjection').createGetNextMonthProjection,
+  createExportFinancialAnalyticsReport: require('./useCases/createExportFinancialAnalyticsReport').createExportFinancialAnalyticsReport,
   // Excel export use cases
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,
   createExportCreditsPdf: require('./useCases/createExportCreditsExcel').createExportCreditsPdf,
@@ -778,10 +973,12 @@ module.exports = {
   createGetPaymentSchedule: require('./useCases/createGetPaymentSchedule').createGetPaymentSchedule,
   createGetMonthlyCashFlow: require('./useCases/createMonthlyCashFlowReport').createGetMonthlyCashFlow,
   createGetDailyCashFlow: require('./useCases/createMonthlyCashFlowReport').createGetDailyCashFlow,
+  createGetAnnualCashFlow: require('./useCases/createMonthlyCashFlowReport').createGetAnnualCashFlow,
   createExportMonthlyCashFlowExcel: require('./useCases/createMonthlyCashFlowReport').createExportMonthlyCashFlowExcel,
   createExportMonthlyCashFlowPdf: require('./useCases/createMonthlyCashFlowReport').createExportMonthlyCashFlowPdf,
   createExportOperatingExpensesReport: require('./useCases/createExportOperatingExpensesReport').createExportOperatingExpensesReport,
   createGetCreditHistoryAuditReport: require('./useCases/createCreditHistoryAuditReport').createGetCreditHistoryAuditReport,
+  createListCreditHistoryFinancialProducts: require('./useCases/createCreditHistoryAuditReport').createListCreditHistoryFinancialProducts,
   createExportCreditHistoryAuditExcel: require('./useCases/createCreditHistoryAuditReport').createExportCreditHistoryAuditExcel,
   createExportCreditHistoryAuditPdf: require('./useCases/createCreditHistoryAuditReport').createExportCreditHistoryAuditPdf,
 };

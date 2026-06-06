@@ -1,6 +1,7 @@
 const { BusinessRuleViolationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
 const { buildDateRangeMessage, normalizeOperationalDate, normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
+const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
 const VALID_EXPENSE_STATUSES = new Set(['completed', 'annulled']);
 const OPERATING_EXPENSE_FIELD_LABELS = {
@@ -67,6 +68,18 @@ const normalizeStatusFilter = (status) => {
   return normalizedStatus;
 };
 
+const normalizeOptionalEmployeeId = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (!validateIntegerId(value)) {
+    throw new ValidationError(buildInvalidIntegerIdMessage('employeeId'));
+  }
+
+  return Number(String(value).trim());
+};
+
 const assertDateRangeOrder = ({ fromDate, toDate }) => {
   if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
     throw new ValidationError(buildDateRangeMessage('fromDate', 'toDate'));
@@ -94,8 +107,10 @@ const normalizeExpensePayload = (payload = {}, actor = {}) => {
 
 const normalizeListFilters = (filters = {}) => {
   const status = normalizeStatusFilter(filters.status);
+  const employeeId = normalizeOptionalEmployeeId(filters.employeeId ?? filters.createdByUserId);
   const normalizedFilters = {
     ...(status ? { status } : {}),
+    ...(employeeId ? { employeeId } : {}),
     ...(filters.fromDate ? { fromDate: normalizeOptionalOperationalDate(filters.fromDate, 'fromDate') } : {}),
     ...(filters.toDate ? { toDate: normalizeOptionalOperationalDate(filters.toDate, 'toDate') } : {}),
   };

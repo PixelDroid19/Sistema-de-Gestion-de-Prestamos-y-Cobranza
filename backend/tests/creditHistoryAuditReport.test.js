@@ -8,6 +8,7 @@ const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookB
 const {
   buildCreditHistoryAuditReport,
   createGetCreditHistoryAuditReport,
+  createListCreditHistoryFinancialProducts,
   createExportCreditHistoryAuditExcel,
   createExportCreditHistoryAuditPdf,
 } = require('@/modules/reports/application/useCases/createCreditHistoryAuditReport');
@@ -223,6 +224,7 @@ test('credit history audit use case passes normalized customer and credit filter
       async listCreditHistoryDataset(filters) {
         assert.equal(filters.customerId, 7);
         assert.equal(filters.loanId, 15);
+        assert.equal(filters.financialProductId, '11111111-1111-4111-8111-111111111111');
         return {
           loans: [makeLoan({ id: 15, customerId: 7, amount: 1200000, startDate: '2026-05-03T00:00:00.000Z' })],
           payments: [makePayment({
@@ -240,12 +242,37 @@ test('credit history audit use case passes normalized customer and credit filter
 
   const response = await useCase({
     actor: { role: 'admin' },
-    filters: { customerId: '7', loanId: '15' },
+    filters: {
+      customerId: '7',
+      loanId: '15',
+      financialProductId: '11111111-1111-4111-8111-111111111111',
+    },
   });
 
   assert.equal(response.success, true);
   assert.equal(response.data.credits[0].creditId, 15);
   assert.equal(response.data.payments[0].creditId, 15);
+});
+
+test('credit history financial products use case returns canonical product options for report filters', async () => {
+  const useCase = createListCreditHistoryFinancialProducts({
+    reportRepository: {
+      async listCreditHistoryFinancialProducts() {
+        return [
+          { id: 'prod-personal', name: 'Crédito personal' },
+          { id: 'prod-comercial', name: 'Crédito comercial' },
+        ];
+      },
+    },
+  });
+
+  const response = await useCase({ actor: { role: 'employee' } });
+
+  assert.equal(response.success, true);
+  assert.deepEqual(response.data.financialProducts, [
+    { id: 'prod-personal', name: 'Crédito personal' },
+    { id: 'prod-comercial', name: 'Crédito comercial' },
+  ]);
 });
 
 test('credit history audit Excel and PDF exports include Spanish operational fields and no CSV payload', async () => {
@@ -328,12 +355,21 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
       next();
     },
     useCases: {
+      async listCreditHistoryFinancialProducts({ actor }) {
+        calls.push(['catalog', actor.role]);
+        return {
+          success: true,
+          data: {
+            financialProducts: [{ id: 'prod-personal', name: 'Crédito personal' }],
+          },
+        };
+      },
       async getCreditHistoryAuditReport({ actor, filters }) {
-        calls.push(['json', actor.role, filters.status, filters.customerId, filters.loanId]);
+        calls.push(['json', actor.role, filters.status, filters.customerId, filters.loanId, filters.financialProductId]);
         return { success: true, data: { summary: { availableCash: '1000.00' }, months: [] } };
       },
       async exportCreditHistoryAuditExcel({ actor, filters }) {
-        calls.push(['excel', actor.role, filters.status, filters.customerId, filters.loanId]);
+        calls.push(['excel', actor.role, filters.status, filters.customerId, filters.loanId, filters.financialProductId]);
         return {
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           fileName: 'historial-creditos-2026-01-01-2026-01-31.xlsx',
@@ -341,7 +377,7 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
         };
       },
       async exportCreditHistoryAuditPdf({ actor, filters }) {
-        calls.push(['pdf', actor.role, filters.status, filters.customerId, filters.loanId]);
+        calls.push(['pdf', actor.role, filters.status, filters.customerId, filters.loanId, filters.financialProductId]);
         return {
           contentType: 'application/pdf',
           fileName: 'historial-creditos-2026-01-01-2026-01-31.pdf',
@@ -356,15 +392,22 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
   app.use(router);
   activeServer = await listen(app);
 
+  const catalogResponse = await requestJson(activeServer, {
+    path: '/credit-history/financial-products',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+  assert.equal(catalogResponse.statusCode, 200);
+  assert.deepEqual(catalogResponse.body.data.financialProducts, [{ id: 'prod-personal', name: 'Crédito personal' }]);
+
   const jsonResponse = await requestJson(activeServer, {
-    path: '/credit-history/monthly?startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15',
+    path: '/credit-history/monthly?startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15&financialProductId=11111111-1111-4111-8111-111111111111',
     headers: { authorization: 'Bearer valid-token' },
   });
   assert.equal(jsonResponse.statusCode, 200);
   assert.equal(jsonResponse.body.data.summary.availableCash, '1000.00');
 
   const excelResponse = await requestBuffer(activeServer, {
-    path: '/credit-history/monthly/export?format=xlsx&startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15',
+    path: '/credit-history/monthly/export?format=xlsx&startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15&financialProductId=11111111-1111-4111-8111-111111111111',
     headers: { authorization: 'Bearer valid-token' },
   });
   assert.equal(excelResponse.statusCode, 200);
@@ -372,7 +415,7 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
   assert.match(excelResponse.headers['content-disposition'] || '', /\.xlsx/);
 
   const pdfResponse = await requestBuffer(activeServer, {
-    path: '/credit-history/monthly/export?format=pdf&startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15',
+    path: '/credit-history/monthly/export?format=pdf&startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15&financialProductId=11111111-1111-4111-8111-111111111111',
     headers: { authorization: 'Bearer valid-token' },
   });
   assert.equal(pdfResponse.statusCode, 200);
@@ -380,8 +423,9 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
   assert.match(pdfResponse.headers['content-disposition'] || '', /\.pdf/);
 
   assert.deepEqual(calls, [
-    ['json', 'admin', 'active', '7', '15'],
-    ['excel', 'admin', 'active', '7', '15'],
-    ['pdf', 'admin', 'active', '7', '15'],
+    ['catalog', 'admin'],
+    ['json', 'admin', 'active', '7', '15', '11111111-1111-4111-8111-111111111111'],
+    ['excel', 'admin', 'active', '7', '15', '11111111-1111-4111-8111-111111111111'],
+    ['pdf', 'admin', 'active', '7', '15', '11111111-1111-4111-8111-111111111111'],
   ]);
 });

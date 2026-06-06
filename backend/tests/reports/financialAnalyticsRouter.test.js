@@ -1,6 +1,7 @@
 const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
+const http = require('node:http');
 
 const { createReportsRouter } = require('@/modules/reports/presentation/router');
 const { closeServer, listen, requestJson } = require('../helpers/http');
@@ -36,7 +37,7 @@ const buildMockUseCases = (calls = []) => ({
   },
   async getMonthlyEarnings(input) {
     calls.push(['getMonthlyEarnings', input.actor.role, input.year]);
-    return { success: true, data: { year: 2026, months: [{ month: '2026-01', totalEarnings: '5000.00', trend: 'up', changePercent: 10, movingAverage: '4800.00' }] } };
+    return { success: true, data: { year: 2026, months: [{ month: '2026-01', totalEarnings: '5000.00', totalInterest: '1000.00', totalPenalties: '250.00', trend: 'up', changePercent: 10, movingAverage: '4800.00' }] } };
   },
   async getMonthlyInterest(input) {
     calls.push(['getMonthlyInterest', input.actor.role, input.year]);
@@ -66,6 +67,28 @@ const buildMockUseCases = (calls = []) => ({
     calls.push(['getNextMonthProjection', input.actor.role]);
     return { success: true, data: { projection: { month: '2026-04', projectedEarnings: '5500.00', confidenceLevel: 'medium' }, model: { slope: 100, intercept: 4000 }, historicalSummary: {} } };
   },
+  async exportFinancialAnalyticsReport(input) {
+    calls.push(['exportFinancialAnalyticsReport', input.actor.role, input.year, input.format]);
+    if (String(input.format || 'xlsx').toLowerCase() === 'pdf') {
+      return {
+        fileName: 'analitica-financiera-2026.pdf',
+        contentType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 analytics', 'utf8'),
+      };
+    }
+
+    return {
+      fileName: 'analitica-financiera-2026.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      sheets: [
+        {
+          name: 'Resumen',
+          columns: [{ header: 'Indicador', key: 'indicator', width: 24 }],
+          rows: [{ indicator: 'Ganancia total' }],
+        },
+      ],
+    };
+  },
   // Required existing use cases for router
   async getRecoveredLoans() { return { success: true, data: { loans: [] }, summary: {} }; },
   async getOutstandingLoans() { return { success: true, data: { loans: [] }, summary: {} }; },
@@ -82,6 +105,31 @@ const buildMockUseCases = (calls = []) => ({
   async getCustomerProfitabilityReport() { return { success: true, data: { customers: [] }, summary: {} }; },
   async getLoanProfitabilityReport() { return { success: true, data: { loans: [] }, summary: {} }; },
   async getCustomerCreditHistory() { return { loan: {}, snapshot: {}, payments: [], payoffHistory: [], closure: {} }; },
+});
+
+const requestBinary = (server, { method = 'GET', path = '/', headers = {} } = {}) => new Promise((resolve, reject) => {
+  const { port } = server.address();
+
+  const request = http.request({
+    hostname: '127.0.0.1',
+    port,
+    method,
+    path,
+    headers,
+  }, (response) => {
+    const chunks = [];
+    response.on('data', (chunk) => chunks.push(chunk));
+    response.on('end', () => {
+      resolve({
+        statusCode: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks),
+      });
+    });
+  });
+
+  request.on('error', reject);
+  request.end();
 });
 
 test('Financial analytics routes require admin access', async () => {
@@ -105,6 +153,7 @@ test('Financial analytics routes require admin access', async () => {
     '/comparative-analysis',
     '/forecast-analysis',
     '/next-month-projection',
+    '/analytics/export?year=2026',
   ];
 
   for (const role of ['customer', 'socio']) {
@@ -204,6 +253,7 @@ test('GET /monthly-earnings returns monthly earnings with trend analysis', async
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.data.year, 2026);
   assert.ok(Array.isArray(response.body.data.months));
+  assert.equal(response.body.data.months[0].totalPenalties, '250.00');
   assert.equal(calls[0][0], 'getMonthlyEarnings');
 });
 
@@ -353,7 +403,29 @@ test('GET /next-month-projection returns next month projection', async () => {
   assert.ok(response.body.data.model);
 });
 
-test('All 10 financial analytics routes are accessible', async () => {
+test('GET /analytics/export streams the analytics workbook and preserves year/format filters', async () => {
+  const calls = [];
+  const useCases = buildMockUseCases(calls);
+  const router = createReportsRouter({ authMiddleware: roleAwareAuth, useCases });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await requestBinary(activeServer, {
+    path: '/analytics/export?year=2026&format=pdf',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.match(String(response.headers['content-type'] || ''), /application\/pdf/);
+  assert.match(String(response.headers['content-disposition'] || ''), /analitica-financiera-2026\.pdf/);
+  assert.equal(response.body.toString('utf8'), '%PDF-1.4 analytics');
+  assert.deepEqual(calls[calls.length - 1], ['exportFinancialAnalyticsReport', 'admin', 2026, 'pdf']);
+});
+
+test('All 11 financial analytics routes are accessible', async () => {
   const calls = [];
   const useCases = buildMockUseCases(calls);
   const router = createReportsRouter({ authMiddleware: roleAwareAuth, useCases });
@@ -374,15 +446,21 @@ test('All 10 financial analytics routes are accessible', async () => {
     { path: '/comparative-analysis', method: 'GET' },
     { path: '/forecast-analysis', method: 'GET' },
     { path: '/next-month-projection', method: 'GET' },
+    { path: '/analytics/export?year=2026', method: 'GET', binary: true },
   ];
 
   for (const route of routes) {
-    const response = await requestJson(activeServer, {
-      path: route.path,
-      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    });
+    const response = route.binary
+      ? await requestBinary(activeServer, {
+        path: route.path,
+        headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+      })
+      : await requestJson(activeServer, {
+        path: route.path,
+        headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+      });
     assert.equal(response.statusCode, 200, `Route ${route.path} should return 200`);
   }
 
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 11);
 });

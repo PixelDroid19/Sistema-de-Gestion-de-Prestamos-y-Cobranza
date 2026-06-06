@@ -312,7 +312,7 @@ test('operating expenses router exposes permission protected list, create and an
   assert.equal(annulResponse.statusCode, 200);
   assert.equal(annulResponse.body.message, 'Gasto operativo anulado correctamente');
   assert.deepEqual(calls[0], ['listOperatingExpenses', {
-    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'completed' },
+    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'completed', employeeId: undefined },
     pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
   }]);
   assert.deepEqual(calls[1], ['createOperatingExpense', {
@@ -324,6 +324,37 @@ test('operating expenses router exposes permission protected list, create and an
     expenseId: 5,
     payload: { reason: 'Duplicado' },
   }]);
+});
+
+test('operating expense list filters by employee responsible for the expense', async () => {
+  const { createListOperatingExpenses } = loadUseCases();
+  const { buildExpenseWhere } = require('@/modules/operatingExpenses/infrastructure/repositories');
+
+  const calls = [];
+  const listUseCase = createListOperatingExpenses({
+    operatingExpenseRepository: {
+      async listPage(input) {
+        calls.push(input);
+        return { items: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 1 } };
+      },
+    },
+  });
+
+  await listUseCase({
+    filters: { status: 'completed', employeeId: '7' },
+    pagination: { page: 1, pageSize: 20, limit: 20, offset: 0 },
+  });
+
+  assert.equal(calls[0].filters.employeeId, 7);
+  assert.deepEqual(buildExpenseWhere(calls[0].filters), {
+    status: 'completed',
+    createdByUserId: 7,
+  });
+
+  assert.throws(() => listUseCase({
+    filters: { employeeId: 'employee-7' },
+    pagination: { page: 1, pageSize: 20, limit: 20, offset: 0 },
+  }), /El identificador debe ser válido/i);
 });
 
 test('buildModuleRegistry includes operating expenses as a modular financial surface', () => {

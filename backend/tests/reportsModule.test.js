@@ -21,10 +21,6 @@ const {
   createGetPayoutsReport,
   createExportPayoutsExcel,
 } = require('@/modules/reports/application/useCases');
-const {
-  createGetAssociateProfitabilityReport,
-  createExportAssociateProfitabilityReport,
-} = require('@/modules/associates/application/reportingUseCases');
 const { createReportsModule } = require('@/modules/reports');
 
 test('createGetRecoveredLoans builds report records and summary totals', async () => {
@@ -419,11 +415,33 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
     reportRepository: {
       async getDashboardSummary() {
         return {
-          loans: [{ id: 1, status: 'active', amount: 1200, recoveryStatus: 'pending', disbursedAt: '2024-01-15T00:00:00.000Z' }],
-          payments: [{ id: 2, amount: 100, status: 'completed', paymentDate: '2024-02-10T00:00:00.000Z' }],
+          totalCustomers: 3,
+          loans: [{
+            id: 1,
+            status: 'active',
+            amount: 1200,
+            recoveryStatus: 'pending',
+            disbursedAt: '2024-01-15T00:00:00.000Z',
+            emiSchedule: [
+              { installmentNumber: 1, dueDate: '2024-01-10T00:00:00.000Z', remainingPrincipal: 80, remainingInterest: 20 },
+              { installmentNumber: 2, dueDate: '2099-02-10T00:00:00.000Z', remainingPrincipal: 80, remainingInterest: 20 },
+              { installmentNumber: 3, dueDate: '2099-03-10T00:00:00.000Z', remainingPrincipal: 0, remainingInterest: 0, status: 'paid' },
+            ],
+          }],
+          payments: [{
+            id: 2,
+            amount: 100,
+            status: 'completed',
+            paymentDate: '2024-02-10T00:00:00.000Z',
+            principalApplied: 60,
+            interestApplied: 35,
+            penaltyApplied: 5,
+          }],
           alerts: [{ id: 3, loanId: 1, status: 'active' }],
           promises: [{ id: 4, status: 'pending' }],
           notifications: [{ id: 5, isRead: false }],
+          operatingExpenses: [{ id: 6, amount: 15, status: 'completed' }],
+          associatePayments: [{ id: 7, amount: 30, status: 'paid' }],
         };
       },
     },
@@ -436,9 +454,11 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
       getSnapshot() {
         return {
           totalPaid: 100,
+          totalPaidPrincipal: 60,
           totalPayable: 1200,
           totalInterest: 180,
           totalPaidInterest: 35,
+          outstandingPrincipal: 1040,
           outstandingBalance: 1100,
           installmentAmount: 100,
           nextInstallment: null,
@@ -452,8 +472,21 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
   assert.equal(summary.data.summary.totalLoans, 1);
   assert.equal(summary.data.summary.delinquentLoans, 1);
   assert.equal(summary.data.summary.defaultedLoans, 0);
+  assert.equal(summary.data.summary.totalCustomers, 3);
+  assert.equal(summary.data.summary.finalizedLoans, 0);
+  assert.equal(summary.data.summary.pendingInstallments, 1);
+  assert.equal(summary.data.summary.overdueInstallments, 1);
+  assert.equal(summary.data.summary.totalRecoveredAmount, '60.00');
+  assert.equal(summary.data.summary.totalOutstandingPrincipal, '1040.00');
   assert.equal(summary.data.summary.totalInterestGenerated, '180.00');
   assert.equal(summary.data.summary.totalInterestPaid, '35.00');
+  assert.equal(summary.data.summary.totalInterestPending, '145.00');
+  assert.equal(summary.data.summary.recoveryRate, '5.00%');
+  assert.equal(summary.data.summary.arrearsRate, '100.00%');
+  assert.equal(summary.data.summary.totalAssociatePayments, '30.00');
+  assert.equal(summary.data.summary.availableCash, '-1145.00');
+  assert.equal(summary.data.summary.periodProfit, '-5.00');
+  assert.equal(summary.data.summary.periodLoss, '0.00');
   assert.equal(summary.data.collections.overdueAlerts, 1);
   assert.equal(summary.data.collections.unreadNotifications, 1);
   assert.ok(summary.data.monthlyPerformance.length >= 12);
@@ -600,7 +633,44 @@ test('profitability reports reconcile customer and loan totals from shared calcu
   assert.equal(customerReport.summary.totalProfit, '100.00');
   assert.equal(loanReport.summary.totalProfit, '100.00');
   assert.equal(customerReport.data.customers[0].totalCollected, '850.00');
+  assert.equal(customerReport.data.customers[0].activeLoanCount, 1);
+  assert.equal(customerReport.data.customers[0].closedLoanCount, 1);
+  assert.equal(customerReport.data.customers[0].paymentCount, 2);
+  assert.equal(customerReport.data.customers[0].paymentBehavior, 'current');
+  assert.equal(customerReport.data.customers[0].riskLevel, 'low');
+  assert.equal(customerReport.summary.customerAnalytics.summary.customerCount, 1);
   assert.equal(loanReport.data.loans[0].customerName, 'Ana');
+});
+
+test('customer profitability report flags delinquent customers and risk from loan state', async () => {
+  const reportRepository = {
+    async listProfitabilityDataset() {
+      return {
+        loans: [
+          { id: 1, customerId: 7, amount: 1000, status: 'overdue', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 800 } },
+          { id: 2, customerId: 7, amount: 500, status: 'defaulted', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 400 } },
+          { id: 3, customerId: 8, amount: 200, status: 'active', Customer: { name: 'Luis' }, financialSnapshot: { outstandingBalance: 200 } },
+        ],
+        payments: [
+          { id: 1, loanId: 1, amount: 100, status: 'completed', principalApplied: 80, interestApplied: 20, penaltyApplied: 0, paymentDate: '2026-03-01T00:00:00.000Z' },
+        ],
+      };
+    },
+  };
+
+  const report = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
+  const ana = report.data.customers.find((customer) => customer.customerName === 'Ana');
+  const luis = report.data.customers.find((customer) => customer.customerName === 'Luis');
+
+  assert.equal(ana.overdueLoanCount, 2);
+  assert.equal(ana.defaultedLoanCount, 1);
+  assert.equal(ana.isDelinquent, true);
+  assert.equal(ana.paymentBehavior, 'critical');
+  assert.equal(ana.riskLevel, 'high');
+  assert.equal(luis.paymentBehavior, 'without_payments');
+  assert.equal(luis.riskLevel, 'medium');
+  assert.equal(report.summary.customerAnalytics.summary.delinquentCustomerCount, 1);
+  assert.equal(report.summary.customerAnalytics.summary.highRiskCustomerCount, 1);
 });
 
 test('customer profitability Excel export uses the same values shown in profitability report', async () => {
@@ -633,9 +703,38 @@ test('customer profitability Excel export uses the same values shown in profitab
   assert.equal(sheet.getRow(2).values.includes('Mora Cobrada'), true);
   assert.equal(sheet.getRow(2).values.includes('Rentabilidad Total'), true);
   assert.equal(sheet.getRow(3).getCell(2).value, 'Ana');
-  assert.equal(sheet.getRow(3).getCell(8).value, 90);
-  assert.equal(sheet.getRow(3).getCell(9).value, 10);
-  assert.equal(sheet.getRow(3).getCell(10).value, 100);
+  assert.equal(sheet.getRow(3).getCell(12).value, 90);
+  assert.equal(sheet.getRow(3).getCell(13).value, 10);
+  assert.equal(sheet.getRow(3).getCell(14).value, 100);
+  assert.equal(sheet.getRow(3).getCell(16).value, 'Al día');
+  assert.equal(sheet.getRow(3).getCell(17).value, 'Bajo');
+});
+
+test('customer profitability PDF export summarizes risk and balances', async () => {
+  const reportRepository = {
+    async listProfitabilityDataset() {
+      return {
+        loans: [
+          { id: 1, customerId: 7, amount: 1000, status: 'defaulted', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
+        ],
+        payments: [
+          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
+        ],
+      };
+    },
+  };
+
+  const exportFile = await createExportCustomerProfitabilityReport({ reportRepository })({
+    actor: { id: 1, role: 'admin' },
+    format: 'pdf',
+  });
+
+  assert.equal(exportFile.contentType, 'application/pdf');
+  assert.equal(exportFile.fileName, 'rentabilidad-clientes.pdf');
+  const pdfText = exportFile.buffer.toString('utf8');
+  assert.match(pdfText, /Rentabilidad y riesgo por cliente/);
+  assert.match(pdfText, /Clientes morosos: 1/);
+  assert.match(pdfText, /Ana/);
 });
 
 test('customer profitability export rejects inverted date ranges before reading report data', async () => {
@@ -716,6 +815,8 @@ test('profitability reports keep zero-activity loans and customers non-profitabl
   assert.equal(customerReport.data.customers[0].totalCollected, '0.00');
   assert.equal(customerReport.data.customers[0].totalProfit, '0.00');
   assert.equal(customerReport.data.customers[0].profitableLoanCount, 0);
+  assert.equal(customerReport.data.customers[0].paymentBehavior, 'without_payments');
+  assert.equal(customerReport.data.customers[0].riskLevel, 'medium');
   assert.equal(loanReport.count, 1);
   assert.equal(loanReport.data.loans[0].paymentCount, 0);
   assert.equal(loanReport.data.loans[0].totalCollected, '0.00');
@@ -938,209 +1039,95 @@ test('payout reports normalize legacy reversed status to annulled payment record
 
   await getPayoutsReport({
     actor: { id: 1, role: 'admin' },
-    filters: { status: 'reversed' },
+    filters: { status: 'reversed', employeeId: '7' },
   });
   await exportPayoutsExcel({
     actor: { id: 1, role: 'admin' },
-    filters: { status: 'reversed' },
+    filters: { status: 'reversed', employeeId: '7' },
   });
 
   assert.equal(calls[0].status, 'annulled');
+  assert.equal(calls[0].createdByUserId, 7);
   assert.equal(calls[1].status, 'annulled');
+  assert.equal(calls[1].createdByUserId, 7);
+  assert.equal(calls[2].status, 'annulled');
+  assert.equal(calls[2].createdByUserId, 7);
 });
 
-test('createGetAssociateProfitabilityReport rejects socio records as report users', async () => {
-  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
-    associateRepository: {
-      async findById(id) {
-        throw new Error(`findById should not be called for socio records: ${id}`);
-      },
-      async listContributionsByAssociate() {
-        throw new Error('listContributionsByAssociate should not be called');
-      },
-      async listProfitDistributionsByAssociate() {
-        throw new Error('listProfitDistributionsByAssociate should not be called');
-      },
-      async listLoansByAssociate() {
-        throw new Error('listLoansByAssociate should not be called');
+test('payout report totals and installment collection periods use all filtered rows, not only the visible page', async () => {
+  const getPayoutsReport = createGetPayoutsReport({
+    paymentRepository: {
+      async listPayoutsReport(query) {
+        const filteredRows = [
+          {
+            id: 1,
+            amount: 100,
+            principalApplied: 70,
+            interestApplied: 30,
+            penaltyApplied: 0,
+            status: 'completed',
+            paymentType: 'installment',
+            paymentDate: '2026-06-01T12:00:00.000Z',
+          },
+          {
+            id: 2,
+            amount: 200,
+            principalApplied: 150,
+            interestApplied: 50,
+            penaltyApplied: 0,
+            status: 'completed',
+            paymentType: 'installment',
+            paymentDate: '2026-06-03T12:00:00.000Z',
+          },
+          {
+            id: 3,
+            amount: 500,
+            principalApplied: 500,
+            interestApplied: 0,
+            penaltyApplied: 0,
+            status: 'completed',
+            paymentType: 'capital',
+            paymentDate: '2026-06-04T12:00:00.000Z',
+          },
+        ];
+
+        if (query.pagination) {
+          return {
+            items: [filteredRows[0]],
+            pagination: {
+              page: query.pagination.page,
+              pageSize: query.pagination.pageSize,
+              totalItems: filteredRows.length,
+              totalPages: 3,
+            },
+          };
+        }
+
+        return { items: filteredRows };
       },
     },
   });
 
-  await assert.rejects(() => getAssociateProfitabilityReport({
-    actor: { id: 9, role: 'socio', associateId: 12 },
-  }), (error) => {
-    assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
-    return true;
-  });
-});
-
-test('createGetAssociateProfitabilityReport rejects socio records before associate lookup', async () => {
-  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
-    associateRepository: {
-      async findById(id) {
-        throw new Error(`findById should not be called for socio records: ${id}`);
-      },
-      async listContributionsByAssociate() {
-        throw new Error('listContributionsByAssociate should not be called');
-      },
-      async listProfitDistributionsByAssociate() {
-        throw new Error('listProfitDistributionsByAssociate should not be called');
-      },
-      async listLoansByAssociate() {
-        throw new Error('listLoansByAssociate should not be called');
-      },
-    },
-  });
-
-  await assert.rejects(() => getAssociateProfitabilityReport({
-    actor: { id: 9, role: 'socio', associateId: 12 },
-    associateId: 99,
-  }), (error) => {
-    assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
-    return true;
-  });
-});
-
-test('createGetAssociateProfitabilityReport rejects missing associate access with an operator message', async () => {
-  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
-    associateRepository: {
-      async findById(id) {
-        assert.equal(id, 12);
-        return null;
-      },
-      async listContributionsByAssociate() {
-        throw new Error('listContributionsByAssociate should not be called without associate access');
-      },
-      async listProfitDistributionsByAssociate() {
-        throw new Error('listProfitDistributionsByAssociate should not be called without associate access');
-      },
-    },
-  });
-
-  await assert.rejects(() => getAssociateProfitabilityReport({
+  const report = await getPayoutsReport({
     actor: { id: 1, role: 'admin' },
-    associateId: 12,
-  }), (error) => {
-    assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'El acceso a la rentabilidad del socio no está configurado para este usuario.');
-    return true;
-  });
-});
-
-test('createExportAssociateProfitabilityReport returns xlsx workbook for associate datasets', async () => {
-  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
-    reportRepository: {
-      async getAssociateExportDataset() {
-        return {
-          associate: { id: 12, participationPercentage: '25.0000' },
-          contributions: [{ id: 1, amount: 1000, contributionDate: '2026-01-01' }],
-          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }],
-          loans: [{ id: 5, amount: 4000, status: 'active', Customer: { name: 'Ana' } }],
-        };
-      },
-    },
-    associateRepository: {
-      async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000' };
-      },
-      async listContributionsByAssociate() {
-        return [{ id: 1, amount: 1000 }];
-      },
-      async listProfitDistributionsByAssociate() {
-        return [{ id: 2, amount: 150 }];
-      },
-      async listLoansByAssociate() {
-        return [{ id: 5, amount: 4000 }];
-      },
-    },
+    pagination: { page: 1, pageSize: 1 },
+    filters: { status: 'completed' },
   });
 
-  const exportFile = await exportAssociateProfitabilityReport({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'xlsx' });
-
-  assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
-
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(exportFile.buffer);
-  const serializedWorkbookValues = JSON.stringify(workbook.worksheets.map((sheet) => sheet.getSheetValues()));
-  assert.match(serializedWorkbookValues, /Proporcional/);
-  assert.doesNotMatch(serializedWorkbookValues, /proportional|distributionType|proportional-participation/);
-});
-
-test('createExportAssociateProfitabilityReport rejects socio export requests', async () => {
-  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
-    reportRepository: {
-      async getAssociateExportDataset() {
-        throw new Error('getAssociateExportDataset should not be called');
-      },
-    },
-    associateRepository: {
-      async findById(id) {
-        return { id, name: 'Other Partner', participationPercentage: '75.0000' };
-      },
-      async listContributionsByAssociate() {
-        throw new Error('listContributionsByAssociate should not be called');
-      },
-      async listProfitDistributionsByAssociate() {
-        throw new Error('listProfitDistributionsByAssociate should not be called');
-      },
-      async listLoansByAssociate() {
-        throw new Error('listLoansByAssociate should not be called');
-      },
-    },
-  });
-
-  await assert.rejects(() => exportAssociateProfitabilityReport({
-    actor: { id: 9, role: 'socio', associateId: 12 },
-    associateId: 99,
-    format: 'xlsx',
-  }), (error) => {
-    assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
-    return true;
-  });
-});
-
-test('createExportAssociateProfitabilityReport includes proportional audit columns in csv exports', async () => {
-  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
-    reportRepository: {
-      async getAssociateExportDataset() {
-        return {
-          associate: { id: 12, participationPercentage: '25.0000' },
-          contributions: [],
-          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }],
-          loans: [],
-        };
-      },
-    },
-    associateRepository: {
-      async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000' };
-      },
-      async listContributionsByAssociate() {
-        return [];
-      },
-      async listProfitDistributionsByAssociate() {
-        return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
-      },
-      async listLoansByAssociate() {
-        return [];
-      },
-    },
-  });
-
-  const exportFile = await exportAssociateProfitabilityReport({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'csv' });
-
-  assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
-  assert.match(exportFile.buffer.toString('utf8'), /Participación %,Tipo Distribución,Total Proporcional,Monto Asignado/);
-  assert.match(exportFile.buffer.toString('utf8'), /25.0000,Proporcional,600.00,150.00/);
-  assert.doesNotMatch(
-    exportFile.buffer.toString('utf8'),
-    /participationPercentage|distributionType|declaredProportionalTotal|allocatedAmount|proportional-participation/,
-  );
+  assert.equal(report.data.payouts.length, 1);
+  assert.equal(report.summary.totalPayouts, 3);
+  assert.equal(report.summary.totalAmount, '800.00');
+  assert.equal(report.summary.totalInterest, '80.00');
+  assert.deepEqual(report.summary.collectionBreakdown.daily.map((row) => [row.key, row.installmentCount, row.totalAmount]), [
+    ['2026-06-03', 1, '200.00'],
+    ['2026-06-01', 1, '100.00'],
+  ]);
+  assert.deepEqual(report.summary.collectionBreakdown.weekly.map((row) => [row.key, row.installmentCount, row.totalAmount]), [
+    ['2026-06-01', 2, '300.00'],
+  ]);
+  assert.deepEqual(report.summary.collectionBreakdown.monthly.map((row) => [row.key, row.installmentCount, row.totalAmount]), [
+    ['2026-06', 2, '300.00'],
+  ]);
 });
 
 test('createReportsModule consumes shared auth and credits ports from runtime', () => {

@@ -248,6 +248,59 @@ const buildCustomerHistoryTimeline = (history) => ([
 
 const RECOVERY_BALANCE_TOLERANCE = 0.01;
 const PROFITABILITY_PAYMENT_STATUSES = new Set(['completed']);
+const PROFITABILITY_ACTIVE_LOAN_STATUSES = new Set(['approved', 'active', 'overdue', 'defaulted']);
+const PROFITABILITY_CLOSED_LOAN_STATUSES = new Set(['closed', 'paid']);
+const PROFITABILITY_OVERDUE_STATUSES = new Set(['overdue', 'defaulted', 'late', 'delinquent']);
+
+const getProfitabilityLoanRiskSignals = (row) => {
+  const loanStatus = String(row.loanStatus || '').toLowerCase();
+  const recoveryStatus = String(row.recoveryStatus || '').toLowerCase();
+  const outstandingBalance = Number(row.outstandingBalance || 0);
+  const paymentCount = Number(row.paymentCount || 0);
+  const penaltyCollected = Number(row.penaltyCollected || 0);
+  const isOverdue = PROFITABILITY_OVERDUE_STATUSES.has(loanStatus)
+    || PROFITABILITY_OVERDUE_STATUSES.has(recoveryStatus);
+
+  return {
+    loanStatus,
+    recoveryStatus,
+    outstandingBalance,
+    paymentCount,
+    penaltyCollected,
+    isActive: PROFITABILITY_ACTIVE_LOAN_STATUSES.has(loanStatus),
+    isClosed: PROFITABILITY_CLOSED_LOAN_STATUSES.has(loanStatus) || outstandingBalance <= RECOVERY_BALANCE_TOLERANCE,
+    isOverdue,
+    hasOutstandingWithoutPayments: outstandingBalance > RECOVERY_BALANCE_TOLERANCE && paymentCount === 0,
+  };
+};
+
+const resolveCustomerRiskLevel = ({ overdueLoanCount, defaultedLoanCount, outstandingBalance, loanCount, paymentCount }) => {
+  if (defaultedLoanCount > 0 || overdueLoanCount > 1) {
+    return 'high';
+  }
+
+  if (overdueLoanCount > 0 || (outstandingBalance > RECOVERY_BALANCE_TOLERANCE && paymentCount === 0 && loanCount > 0)) {
+    return 'medium';
+  }
+
+  return 'low';
+};
+
+const resolveCustomerPaymentBehavior = ({ overdueLoanCount, defaultedLoanCount, paymentCount, outstandingBalance }) => {
+  if (defaultedLoanCount > 0) {
+    return 'critical';
+  }
+
+  if (overdueLoanCount > 0) {
+    return 'delinquent';
+  }
+
+  if (paymentCount === 0 && outstandingBalance > RECOVERY_BALANCE_TOLERANCE) {
+    return 'without_payments';
+  }
+
+  return 'current';
+};
 
 const buildProfitabilityLoanRows = ({ loans, payments }) => {
   const paymentsByLoan = payments.reduce((map, payment) => {
@@ -269,6 +322,10 @@ const buildProfitabilityLoanRows = ({ loans, payments }) => {
     const outstandingBalance = loan.financialSnapshot?.outstandingBalance
       ?? loan.remainingBalanceAfterPayment
       ?? 0;
+    const latestPaymentDate = loanPayments
+      .map((payment) => payment.paymentDate)
+      .filter(Boolean)
+      .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || null;
 
     return {
       loanId: loan.id,
@@ -284,7 +341,7 @@ const buildProfitabilityLoanRows = ({ loans, payments }) => {
       totalProfit: formatCurrency(totalProfit),
       outstandingBalance: formatCurrency(outstandingBalance),
       paymentCount: loanPayments.length,
-      lastPaymentDate: loanPayments[0]?.paymentDate || null,
+      lastPaymentDate: latestPaymentDate,
       profitable: totalProfit > 0,
     };
   });
@@ -311,7 +368,15 @@ const buildCustomerProfitabilityRows = (loanRows) => {
       totalProfit: 0,
       outstandingBalance: 0,
       profitableLoanCount: 0,
+      activeLoanCount: 0,
+      closedLoanCount: 0,
+      overdueLoanCount: 0,
+      defaultedLoanCount: 0,
+      paymentCount: 0,
+      penaltyEventCount: 0,
+      lastPaymentDate: null,
     };
+    const signals = getProfitabilityLoanRiskSignals(row);
 
     current.loanCount += 1;
     current.originatedAmount += Number(row.originatedAmount || 0);
@@ -322,25 +387,64 @@ const buildCustomerProfitabilityRows = (loanRows) => {
     current.totalProfit += Number(row.totalProfit || 0);
     current.outstandingBalance += Number(row.outstandingBalance || 0);
     current.profitableLoanCount += row.profitable ? 1 : 0;
+    current.activeLoanCount += signals.isActive ? 1 : 0;
+    current.closedLoanCount += signals.isClosed ? 1 : 0;
+    current.overdueLoanCount += signals.isOverdue ? 1 : 0;
+    current.defaultedLoanCount += signals.loanStatus === 'defaulted' || signals.recoveryStatus === 'defaulted' ? 1 : 0;
+    current.paymentCount += signals.paymentCount;
+    current.penaltyEventCount += signals.penaltyCollected > 0 ? 1 : 0;
+    if (row.lastPaymentDate && (!current.lastPaymentDate || new Date(row.lastPaymentDate) > new Date(current.lastPaymentDate))) {
+      current.lastPaymentDate = row.lastPaymentDate;
+    }
     map.set(Number(row.customerId), current);
     return map;
   }, new Map());
 
-  return Array.from(grouped.values()).map((row) => ({
-    ...row,
-    originatedAmount: formatCurrency(row.originatedAmount),
-    totalCollected: formatCurrency(row.totalCollected),
-    principalCollected: formatCurrency(row.principalCollected),
-    interestCollected: formatCurrency(row.interestCollected),
-    penaltyCollected: formatCurrency(row.penaltyCollected),
-    totalProfit: formatCurrency(row.totalProfit),
-    outstandingBalance: formatCurrency(row.outstandingBalance),
-  }));
+  return Array.from(grouped.values()).map((row) => {
+    const riskLevel = resolveCustomerRiskLevel(row);
+    const paymentBehavior = resolveCustomerPaymentBehavior(row);
+
+    return {
+      ...row,
+      riskLevel,
+      paymentBehavior,
+      isDelinquent: row.overdueLoanCount > 0 || row.defaultedLoanCount > 0,
+      originatedAmount: formatCurrency(row.originatedAmount),
+      totalCollected: formatCurrency(row.totalCollected),
+      principalCollected: formatCurrency(row.principalCollected),
+      interestCollected: formatCurrency(row.interestCollected),
+      penaltyCollected: formatCurrency(row.penaltyCollected),
+      totalProfit: formatCurrency(row.totalProfit),
+      outstandingBalance: formatCurrency(row.outstandingBalance),
+    };
+  });
+};
+
+const buildCustomerProfitabilityAnalytics = (customerRows) => {
+  const sortByNumber = (key) => [...customerRows].sort((left, right) => Number(right[key] || 0) - Number(left[key] || 0));
+  const delinquentCustomers = customerRows.filter((row) => row.isDelinquent);
+
+  return {
+    topByLoanCount: sortByNumber('loanCount').slice(0, 5),
+    topByOutstandingBalance: sortByNumber('outstandingBalance').filter((row) => Number(row.outstandingBalance || 0) > 0).slice(0, 5),
+    delinquentCustomers: delinquentCustomers.slice(0, 5),
+    summary: {
+      customerCount: customerRows.length,
+      delinquentCustomerCount: delinquentCustomers.length,
+      highRiskCustomerCount: customerRows.filter((row) => row.riskLevel === 'high').length,
+      mediumRiskCustomerCount: customerRows.filter((row) => row.riskLevel === 'medium').length,
+      lowRiskCustomerCount: customerRows.filter((row) => row.riskLevel === 'low').length,
+    },
+  };
 };
 
 const buildProfitabilitySummaryFromDataset = ({ loans = [], payments = [] }) => {
   const loanRows = buildProfitabilityLoanRows({ loans, payments });
-  return buildProfitabilitySummary(loanRows);
+  const customerRows = buildCustomerProfitabilityRows(loanRows);
+  return {
+    ...buildProfitabilitySummary(loanRows),
+    customerAnalytics: buildCustomerProfitabilityAnalytics(customerRows),
+  };
 };
 
 // ─── Servicing Notes ────────────────────────────────────────────────────────
@@ -423,10 +527,12 @@ const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService 
   return {
     ...serializedLoan,
     totalPaid: snapshot.totalPaid.toFixed(2),
+    totalPrincipalRecovered: Number(snapshot.totalPaidPrincipal || 0).toFixed(2),
     totalDue: snapshot.totalPayable.toFixed(2),
     totalInterestGenerated: Number(snapshot.totalInterest || 0).toFixed(2),
     totalInterestPaid: Number(snapshot.totalPaidInterest ?? totalInterestPaid).toFixed(2),
     outstandingAmount: snapshot.outstandingBalance.toFixed(2),
+    outstandingPrincipalAmount: Number(snapshot.outstandingPrincipal || 0).toFixed(2),
     emi: snapshot.installmentAmount.toFixed(2),
     paymentCount: payments.length,
     lastPaymentDate: loan.lastPaymentDate || (payments.length > 0 ? payments[payments.length - 1].paymentDate : null),
@@ -475,6 +581,7 @@ module.exports = {
   buildProfitabilityLoanRows,
   buildProfitabilitySummary,
   buildCustomerProfitabilityRows,
+  buildCustomerProfitabilityAnalytics,
   buildProfitabilitySummaryFromDataset,
   buildServicingNotes,
   getRecoveryBucket,
