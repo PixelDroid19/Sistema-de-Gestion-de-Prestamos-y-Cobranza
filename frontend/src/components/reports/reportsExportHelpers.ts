@@ -8,8 +8,10 @@ export type ContextualExportParams = {
   status?: string;
   format?: ReportExportFormat;
   paymentType?: string;
+  employeeId?: string;
   customerId?: number;
   loanId?: number;
+  financialProductId?: string;
 };
 
 export const parseOptionalPositiveId = (value: string) => {
@@ -33,8 +35,10 @@ export const buildContextualExportParams = (
     status?: string;
     format?: ReportExportFormat;
     paymentType?: string;
+    employeeId?: string;
     customerId?: number;
     loanId?: number;
+    financialProductId?: string;
   },
 ): ContextualExportParams => {
   const params: ContextualExportParams = {
@@ -43,6 +47,7 @@ export const buildContextualExportParams = (
   };
 
   if (type === 'profitability') {
+    params.format = input.format;
     return params;
   }
 
@@ -60,12 +65,20 @@ export const buildContextualExportParams = (
     params.paymentType = input.paymentType;
   }
 
+  if (type === 'payouts' && input.employeeId) {
+    params.employeeId = input.employeeId;
+  }
+
   if ((type === 'credits' || type === 'payouts') && input.customerId) {
     params.customerId = input.customerId;
   }
 
   if ((type === 'credits' || type === 'payouts') && input.loanId) {
     params.loanId = input.loanId;
+  }
+
+  if (type === 'credits' && input.financialProductId) {
+    params.financialProductId = input.financialProductId;
   }
 
   return params;

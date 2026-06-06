@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { AlertTriangle, CalendarClock, CheckCircle, Download, Eye, Search, Wallet } from 'lucide-react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { Activity, AlertTriangle, CalendarClock, CheckCircle, Download, Eye, ListChecks, Search, Users, Wallet } from 'lucide-react';
 import { useSessionStore } from '../store/sessionStore';
 import { tTerm } from '../i18n/terminology';
 import { formatCurrency, formatDate, formatNumber } from '../i18n/format';
@@ -11,27 +11,99 @@ import { reportClientError } from '../lib/clientDiagnostics';
 import {
   ActionButton,
   AppInput,
+  DataTableSurface,
   EmptyState,
   FormField,
   InsightStrip,
+  ModalShell,
   OperationalSelect,
   PageHeader,
   PageShell,
   SectionSurface,
   StatusChip,
   ToolbarSurface,
+  ViewTabs,
 } from './shared/Surfaces';
 import {
   AppTable,
+  type OperationalTableMode,
   RowActionsWithOverflow,
+  TABLE_EMBEDDED_SHELL_CLASS,
   TableActionsCell,
   TableActionsHeader,
+  TableSectionIntro,
   TableStatusPill,
 } from './shared/tables';
 
 type AssociateTrackingProps = {
   setCurrentView: (view: string) => void;
 };
+
+type AssociateTrackingTab = 'obligations' | 'associates' | 'activity';
+
+const TRACKING_PAGE_SIZE_OPTIONS = [5, 10, 25];
+
+type TrackingTableSectionProps = {
+  title: string;
+  subtitle: string;
+  aside?: ReactNode;
+  className?: string;
+  children: ReactNode;
+} & Pick<
+  OperationalTableMode,
+  | 'isLoading'
+  | 'isError'
+  | 'hasData'
+  | 'loadingContent'
+  | 'errorContent'
+  | 'emptyContent'
+  | 'pagination'
+  | 'recordsLabel'
+  | 'tableClassName'
+  | 'minWidthClassName'
+>;
+
+function TrackingTableSection({
+  title,
+  subtitle,
+  aside,
+  className = '',
+  children,
+  isLoading,
+  isError,
+  hasData,
+  loadingContent,
+  errorContent,
+  emptyContent,
+  pagination,
+  recordsLabel,
+  tableClassName,
+  minWidthClassName,
+}: TrackingTableSectionProps) {
+  return (
+    <DataTableSurface className={className}>
+      <TableSectionIntro embedded title={title} description={subtitle} aside={aside} />
+      <AppTable
+        variant="operational"
+        className={TABLE_EMBEDDED_SHELL_CLASS}
+        surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
+        statePresentation="shell"
+        isLoading={isLoading}
+        isError={isError}
+        hasData={hasData}
+        loadingContent={loadingContent}
+        errorContent={errorContent}
+        emptyContent={emptyContent}
+        pagination={pagination}
+        recordsLabel={recordsLabel}
+        tableClassName={tableClassName}
+        minWidthClassName={minWidthClassName}
+      >
+        {children}
+      </AppTable>
+    </DataTableSurface>
+  );
+}
 
 const getAssociateName = (associate: any) => {
   if (typeof associate?.name === 'string' && associate.name.trim()) {
@@ -52,21 +124,29 @@ const getInterestLabel = (associate: any) => {
   });
 };
 
+const getAssociateContactSummary = (associate: any) => {
+  const summary = [associate?.email, associate?.phone]
+    .filter((value) => typeof value === 'string' && value.trim().length > 0)
+    .join(' · ');
+
+  return summary || tTerm('associates.table.contactPending');
+};
+
 const getDebtStatusLabel = (status: string) => {
   if (status === 'overdue') return tTerm('associateTracking.status.overdue');
   if (status === 'pending') return tTerm('associateTracking.status.pending');
   return tTerm('associateTracking.status.current');
 };
 
-const getDebtStatusClassName = (status: string) => {
-  if (status === 'overdue') return 'bg-red-100 text-red-700';
-  if (status === 'pending') return 'bg-amber-100 text-amber-700';
-  return 'bg-emerald-100 text-emerald-700';
-};
-
 const getInstallmentStatusClassName = (status: string) => {
   if (status === 'overdue') return 'bg-red-100 text-red-700';
   if (status === 'paid') return 'bg-emerald-100 text-emerald-700';
+  return 'bg-amber-100 text-amber-700';
+};
+
+const getDebtStatusClassName = (status: string) => {
+  if (status === 'overdue') return 'bg-red-100 text-red-700';
+  if (status === 'current') return 'bg-emerald-100 text-emerald-700';
   return 'bg-amber-100 text-amber-700';
 };
 
@@ -144,6 +224,69 @@ const renderCountChip = (label: string, count: number, tone: 'neutral' | 'succes
   </StatusChip>
 );
 
+const getCurrentCapitalDetail = (row: any) => {
+  const currentCapital = Number(row?.currentCapital || 0);
+  const totalContributed = Number(row?.totalContributed || 0);
+  const totalCapitalReturned = Number(row?.totalCapitalReturned || 0);
+  const detailParts: string[] = [];
+
+  if (totalContributed > currentCapital || totalCapitalReturned > 0) {
+    detailParts.push(tTerm('associateTracking.table.contributedShort', {
+      amount: formatCurrency(totalContributed),
+    }));
+  }
+
+  if (totalCapitalReturned > 0) {
+    detailParts.push(tTerm('associateTracking.table.returnedShort', {
+      amount: formatCurrency(totalCapitalReturned),
+    }));
+  }
+
+  return detailParts.join(' · ');
+};
+
+const getPendingBalanceDetail = (pending: unknown, paid: unknown) => {
+  const pendingBalance = Number(pending || 0);
+  const paidBalance = Number(paid || 0);
+  const detailParts: string[] = [];
+
+  if (pendingBalance > 0) {
+    detailParts.push(tTerm('associateTracking.table.pendingShort', {
+      amount: formatCurrency(pendingBalance),
+    }));
+  }
+
+  if (paidBalance > 0) {
+    detailParts.push(tTerm('associateTracking.table.paidShort', {
+      amount: formatCurrency(paidBalance),
+    }));
+  }
+
+  return detailParts.join(' · ');
+};
+
+const getInstallmentQueueDetail = (pending: unknown, overdue: unknown) => {
+  const pendingCount = Number(pending || 0);
+  const overdueCount = Number(overdue || 0);
+  const detailParts: string[] = [];
+
+  if (pendingCount > 0) {
+    detailParts.push(tTerm(
+      pendingCount === 1 ? 'associateTracking.table.pendingOne' : 'associateTracking.table.pendingMany',
+      { pending: formatNumber(pendingCount, { maximumFractionDigits: 0 }) },
+    ));
+  }
+
+  if (overdueCount > 0) {
+    detailParts.push(tTerm(
+      overdueCount === 1 ? 'associateTracking.table.overdueOne' : 'associateTracking.table.overdueMany',
+      { overdue: formatNumber(overdueCount, { maximumFractionDigits: 0 }) },
+    ));
+  }
+
+  return detailParts.join(' · ');
+};
+
 export default function AssociateTracking({ setCurrentView }: AssociateTrackingProps) {
   const { user } = useSessionStore();
   const resolvedPermissions = useResolvedPermissionNames(user);
@@ -157,6 +300,14 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [isExporting, setIsExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState<AssociateTrackingTab>('obligations');
+  const [selectedAssociateId, setSelectedAssociateId] = useState<number | null>(null);
+  const [obligationPage, setObligationPage] = useState(1);
+  const [obligationPageSize, setObligationPageSize] = useState(TRACKING_PAGE_SIZE_OPTIONS[0]);
+  const [associatePage, setAssociatePage] = useState(1);
+  const [associatePageSize, setAssociatePageSize] = useState(TRACKING_PAGE_SIZE_OPTIONS[0]);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityPageSize, setActivityPageSize] = useState(TRACKING_PAGE_SIZE_OPTIONS[0]);
   const trackingFilters = useMemo(() => ({
     ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
     ...(statusFilter === 'all' ? {} : { status: statusFilter }),
@@ -214,33 +365,110 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
       })),
     ]
       .sort((left, right) => new Date(String(right.date)).getTime() - new Date(String(left.date)).getTime())
-      .slice(0, 8)
   ), [recentCapitalReturns, recentContributions, recentPayments]);
   const hasRecentActivity = recentActivity.length > 0;
-
-  const renderTableState = ({
-    emptyTitle,
-    emptyDescription,
-  }: {
-    emptyTitle: string;
-    emptyDescription: string;
-  }) => {
-    if (isLoading) {
-      return <div className="associate-tracking-state">{tTerm('associateTracking.state.loading')}</div>;
+  const selectedAssociateRow = selectedAssociateId == null
+    ? null
+    : associates.find((row: any) => Number(row?.associate?.id) === selectedAssociateId) ?? null;
+  const selectedAssociate = selectedAssociateRow?.associate ?? null;
+  const selectedAssociateName = selectedAssociate ? getAssociateName(selectedAssociate) : '';
+  const selectedAssociateObligations = selectedAssociateId == null
+    ? []
+    : obligations.filter((obligation: any) => Number(obligation.associateId) === selectedAssociateId);
+  const obligationTotalPages = Math.max(1, Math.ceil(obligations.length / obligationPageSize));
+  const currentObligationPage = Math.min(obligationPage, obligationTotalPages);
+  const paginatedObligations = useMemo(() => {
+    const startIndex = (currentObligationPage - 1) * obligationPageSize;
+    return obligations.slice(startIndex, startIndex + obligationPageSize);
+  }, [currentObligationPage, obligationPageSize, obligations]);
+  const obligationPagination = obligations.length > 0
+    ? {
+      page: currentObligationPage,
+      pageSize: obligationPageSize,
+      totalItems: obligations.length,
+      totalPages: obligationTotalPages,
+      onPrev: () => setObligationPage((page) => Math.max(1, page - 1)),
+      onNext: () => setObligationPage((page) => Math.min(obligationTotalPages, page + 1)),
+      onPageSizeChange: (pageSize: number) => {
+        setObligationPageSize(pageSize);
+        setObligationPage(1);
+      },
+      pageSizeOptions: TRACKING_PAGE_SIZE_OPTIONS,
     }
-
-    if (isError) {
-      return <div className="associate-tracking-state associate-tracking-state--error">{tTerm('associateTracking.state.error')}</div>;
+    : undefined;
+  const associateTotalPages = Math.max(1, Math.ceil(associates.length / associatePageSize));
+  const currentAssociatePage = Math.min(associatePage, associateTotalPages);
+  const paginatedAssociates = useMemo(() => {
+    const startIndex = (currentAssociatePage - 1) * associatePageSize;
+    return associates.slice(startIndex, startIndex + associatePageSize);
+  }, [associates, associatePageSize, currentAssociatePage]);
+  const associatePagination = associates.length > 0
+    ? {
+      page: currentAssociatePage,
+      pageSize: associatePageSize,
+      totalItems: associates.length,
+      totalPages: associateTotalPages,
+      onPrev: () => setAssociatePage((page) => Math.max(1, page - 1)),
+      onNext: () => setAssociatePage((page) => Math.min(associateTotalPages, page + 1)),
+      onPageSizeChange: (pageSize: number) => {
+        setAssociatePageSize(pageSize);
+        setAssociatePage(1);
+      },
+      pageSizeOptions: TRACKING_PAGE_SIZE_OPTIONS,
     }
+    : undefined;
+  const activityTotalPages = Math.max(1, Math.ceil(recentActivity.length / activityPageSize));
+  const currentActivityPage = Math.min(activityPage, activityTotalPages);
+  const paginatedRecentActivity = useMemo(() => {
+    const startIndex = (currentActivityPage - 1) * activityPageSize;
+    return recentActivity.slice(startIndex, startIndex + activityPageSize);
+  }, [activityPageSize, currentActivityPage, recentActivity]);
+  const activityPagination = recentActivity.length > 0
+    ? {
+      page: currentActivityPage,
+      pageSize: activityPageSize,
+      totalItems: recentActivity.length,
+      totalPages: activityTotalPages,
+      onPrev: () => setActivityPage((page) => Math.max(1, page - 1)),
+      onNext: () => setActivityPage((page) => Math.min(activityTotalPages, page + 1)),
+      onPageSizeChange: (pageSize: number) => {
+        setActivityPageSize(pageSize);
+        setActivityPage(1);
+      },
+      pageSizeOptions: TRACKING_PAGE_SIZE_OPTIONS,
+    }
+    : undefined;
 
-    return (
-      <EmptyState
-        compact
-        title={emptyTitle}
-        description={emptyDescription}
-      />
-    );
-  };
+  useEffect(() => {
+    setObligationPage(1);
+    setAssociatePage(1);
+    setActivityPage(1);
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    if (obligationPage > obligationTotalPages) {
+      setObligationPage(obligationTotalPages);
+    }
+  }, [obligationPage, obligationTotalPages]);
+
+  useEffect(() => {
+    if (associatePage > associateTotalPages) {
+      setAssociatePage(associateTotalPages);
+    }
+  }, [associatePage, associateTotalPages]);
+
+  useEffect(() => {
+    if (activityPage > activityTotalPages) {
+      setActivityPage(activityTotalPages);
+    }
+  }, [activityPage, activityTotalPages]);
+
+  const loadingState = <div className="associate-tracking-state">{tTerm('associateTracking.state.loading')}</div>;
+  const errorState = (
+    <div className="associate-tracking-state associate-tracking-state--error">
+      {tTerm('associateTracking.state.error')}
+    </div>
+  );
 
   const handleExport = async () => {
     if (!canExportAssociates) {
@@ -270,6 +498,35 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
     }
     setCurrentView(`associates/${id}`);
   };
+
+  const openAssociateSummary = (associateId: unknown) => {
+    const id = Number(associateId);
+    if (!Number.isFinite(id)) return;
+    setSelectedAssociateId(id);
+  };
+
+  const closeAssociateSummary = () => setSelectedAssociateId(null);
+
+  const tabs = [
+    {
+      id: 'obligations',
+      label: tTerm('associateTracking.tabs.obligations'),
+      count: obligations.length,
+      icon: ListChecks,
+    },
+    {
+      id: 'associates',
+      label: tTerm('associateTracking.tabs.associates'),
+      count: associates.length,
+      icon: Users,
+    },
+    {
+      id: 'activity',
+      label: tTerm('associateTracking.tabs.activity'),
+      count: recentActivityCount,
+      icon: Activity,
+    },
+  ];
 
   return (
     <PageShell data-tour="associate-tracking-page">
@@ -389,14 +646,22 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
         </div>
       </ToolbarSurface>
 
-      <div className="associate-tracking-content-grid">
-        <SectionSurface
+      <ViewTabs
+        className="associate-tracking-tabs"
+        tabs={tabs}
+        activeTab={activeTab}
+        onChange={(tabId) => setActiveTab(tabId as AssociateTrackingTab)}
+        ariaLabel={tTerm('associateTracking.tabs.aria')}
+      />
+
+      <div className="associate-tracking-content-grid" role="tabpanel">
+        {activeTab === 'obligations' && (
+        <TrackingTableSection
+          className="associate-tracking-content-grid__full"
           title={tTerm('associateTracking.obligations.title')}
           subtitle={tTerm('associateTracking.obligations.subtitle')}
-          bodyClassName="associate-tracking-section-body"
-          className="associate-tracking-content-grid__full"
-          actions={(
-            <div className="associate-tracking-section-actions">
+          aside={(
+            <>
               {renderCountChip(
                 tTerm('associateTracking.metrics.overdueShort'),
                 overdueObligationsCount,
@@ -407,238 +672,404 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
                 pendingObligationsCount,
                 pendingObligationsCount > 0 ? 'warning' : 'neutral',
               )}
-            </div>
+            </>
           )}
+          isLoading={isLoading}
+          isError={isError}
+          hasData={obligations.length > 0}
+          loadingContent={loadingState}
+          errorContent={errorState}
+          emptyContent={(
+            <EmptyState
+              compact
+              title={tTerm('associateTracking.obligations.empty.title')}
+              description={tTerm('associateTracking.obligations.empty.description')}
+            />
+          )}
+          recordsLabel={tTerm('associateTracking.obligations.recordsLabel')}
+          pagination={obligationPagination}
+          tableClassName="associate-tracking-table associate-tracking-table--obligations w-full text-sm text-left"
+          minWidthClassName="min-w-[980px]"
         >
-          {obligations.length === 0
-            ? renderTableState({
-              emptyTitle: tTerm('associateTracking.obligations.empty.title'),
-              emptyDescription: tTerm('associateTracking.obligations.empty.description'),
-            })
-            : (
-              <AppTable
-                variant="operational"
-                surfaceClassName="associate-tracking-inline-table"
-                minWidthClassName="min-w-[760px]"
-                hasData
-                recordsLabel={tTerm('associateTracking.obligations.recordsLabel')}
-              >
-                <thead>
-                  <tr>
-                    <th>{tTerm('associateTracking.table.associate')}</th>
-                    <th>{tTerm('associateTracking.table.dueDate')}</th>
-                    <th>{tTerm('associateTracking.table.amount')}</th>
-                    <th>{tTerm('associateTracking.table.rate')}</th>
-                    <th>{tTerm('associateTracking.table.status')}</th>
-                    <TableActionsHeader>{tTerm('associates.table.actions')}</TableActionsHeader>
-                  </tr>
-                </thead>
-                <tbody>
-                  {obligations.map((obligation: any) => (
-                    <tr key={`obligation-${obligation.id}`}>
-                      <td>
-                        <p className="font-semibold text-text-primary">{obligation.associateName || tTerm('associates.fallback.name')}</p>
-                        <p className="mt-1 text-sm text-text-secondary">
-                          {tTerm('associateTracking.table.installmentNumber', { number: obligation.installmentNumber })}
-                        </p>
-                      </td>
-                      <td>{formatDate(obligation.dueDate) || tTerm('common.notAvailable')}</td>
-                      <td className="font-semibold">{formatCurrency(obligation.amount)}</td>
-                      <td>
-                        {tTerm('associateTracking.table.rateValue', {
-                          rate: formatNumber(Number(obligation.interestRate || 0), { maximumFractionDigits: 4 }),
-                          type: obligation.interestType === 'annual'
-                            ? tTerm('common.interestType.annual').toLowerCase()
-                            : tTerm('common.interestType.monthly').toLowerCase(),
-                        })}
-                      </td>
-                      <td>
-                        <TableStatusPill className={getInstallmentStatusClassName(obligation.status)}>
-                          {getInstallmentStatusLabel(obligation.status)}
-                        </TableStatusPill>
-                      </td>
-                      <TableActionsCell>
-                        <RowActionsWithOverflow
-                          variant="icon"
-                          ariaLabel={tTerm('associates.table.actions')}
-                          items={[
-                            {
-                              id: 'details',
-                              label: tTerm('associateTracking.actions.viewSchedule'),
-                              icon: <Eye size={16} />,
-                              onClick: () => openAssociate(obligation.associateId, 'installments'),
-                            },
-                          ]}
-                        />
-                      </TableActionsCell>
-                    </tr>
-                  ))}
-                </tbody>
-              </AppTable>
-            )}
-        </SectionSurface>
+          <thead>
+            <tr>
+              <th>{tTerm('associateTracking.table.associate')}</th>
+              <th>{tTerm('associateTracking.table.dueDate')}</th>
+              <th>{tTerm('associateTracking.table.amount')}</th>
+              <th>{tTerm('associateTracking.table.rate')}</th>
+              <th>{tTerm('associateTracking.table.status')}</th>
+              <TableActionsHeader>{tTerm('associates.table.actions')}</TableActionsHeader>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedObligations.map((obligation: any) => (
+              <tr key={`obligation-${obligation.id}`}>
+                <td>
+                  <div className="associate-tracking-row-stack">
+                    <p className="associate-tracking-row-title">{obligation.associateName || tTerm('associates.fallback.name')}</p>
+                    <p className="associate-tracking-row-meta">
+                      {tTerm('associateTracking.table.installmentNumber', { number: obligation.installmentNumber })}
+                    </p>
+                  </div>
+                </td>
+                <td>
+                  <p className="associate-tracking-cell-primary">{formatDate(obligation.dueDate) || tTerm('common.notAvailable')}</p>
+                </td>
+                <td>
+                  <p className="associate-tracking-cell-primary">{formatCurrency(obligation.amount)}</p>
+                </td>
+                <td>
+                  <p className="associate-tracking-row-detail">
+                    {tTerm('associateTracking.table.rateValue', {
+                      rate: formatNumber(Number(obligation.interestRate || 0), { maximumFractionDigits: 4 }),
+                      type: obligation.interestType === 'annual'
+                        ? tTerm('common.interestType.annual').toLowerCase()
+                        : tTerm('common.interestType.monthly').toLowerCase(),
+                    })}
+                  </p>
+                </td>
+                <td>
+                  <TableStatusPill className={getInstallmentStatusClassName(obligation.status)}>
+                    {getInstallmentStatusLabel(obligation.status)}
+                  </TableStatusPill>
+                </td>
+                <TableActionsCell>
+                  <RowActionsWithOverflow
+                    variant="icon"
+                    maxInline={1}
+                    ariaLabel={tTerm('associates.table.actions')}
+                    items={[
+                      {
+                        id: 'summary',
+                        label: tTerm('associateTracking.actions.quickSummary'),
+                        icon: <Eye size={16} />,
+                        onClick: () => openAssociateSummary(obligation.associateId),
+                      },
+                      {
+                        id: 'details',
+                        label: tTerm('associateTracking.actions.viewSchedule'),
+                        icon: <CalendarClock size={16} />,
+                        onClick: () => openAssociate(obligation.associateId, 'installments'),
+                      },
+                    ]}
+                  />
+                </TableActionsCell>
+              </tr>
+            ))}
+          </tbody>
+        </TrackingTableSection>
+        )}
 
-        <SectionSurface
+        {activeTab === 'associates' && (
+        <TrackingTableSection
+          className="associate-tracking-content-grid__full"
           title={tTerm('associateTracking.associates.title')}
           subtitle={tTerm('associateTracking.associates.subtitle')}
-          bodyClassName="associate-tracking-section-body"
-          actions={renderCountChip(tTerm('associateTracking.metrics.associatesShort'), associates.length)}
+          aside={renderCountChip(tTerm('associateTracking.metrics.associatesShort'), associates.length)}
+          isLoading={isLoading}
+          isError={isError}
+          hasData={associates.length > 0}
+          loadingContent={loadingState}
+          errorContent={errorState}
+          emptyContent={(
+            <EmptyState
+              compact
+              title={tTerm('associateTracking.associates.empty.title')}
+              description={tTerm('associateTracking.associates.empty.description')}
+            />
+          )}
+          recordsLabel={tTerm('associates.table.recordsLabel')}
+          pagination={associatePagination}
+          tableClassName="associate-tracking-table associate-tracking-table--associates w-full text-sm text-left"
+          minWidthClassName="min-w-[1120px]"
         >
-          {associates.length === 0
-            ? renderTableState({
-              emptyTitle: tTerm('associateTracking.associates.empty.title'),
-              emptyDescription: tTerm('associateTracking.associates.empty.description'),
-            })
-            : (
-              <AppTable
-                variant="operational"
-                surfaceClassName="associate-tracking-inline-table"
-                minWidthClassName="min-w-[760px]"
-                hasData
-                recordsLabel={tTerm('associates.table.recordsLabel')}
-              >
-                <thead>
-                  <tr>
-                    <th>{tTerm('associateTracking.table.associate')}</th>
-                    <th>{tTerm('associateTracking.table.currentCapital')}</th>
-                    <th>{tTerm('associateTracking.table.termsAndBalance')}</th>
-                    <th>{tTerm('associateTracking.table.nextDue')}</th>
-                    <th>{tTerm('associateTracking.table.status')}</th>
-                    <TableActionsHeader>{tTerm('associates.table.actions')}</TableActionsHeader>
-                  </tr>
-                </thead>
-                <tbody>
-                  {associates.map((row: any) => {
-                    const associate = row.associate ?? {};
-                    return (
-                      <tr key={`associate-${associate.id}`}>
-                        <td>
-                          <p className="font-semibold text-text-primary">{getAssociateName(associate)}</p>
-                          <p className="mt-1 text-sm text-text-secondary">
-                            {[associate.email, associate.phone].filter(Boolean).join(' · ') || tTerm('associates.table.contactPending')}
-                          </p>
-                        </td>
-                        <td>
-                          <p className="font-semibold text-text-primary">{formatCurrency(row.currentCapital)}</p>
-                          <p className="mt-1 text-sm text-text-secondary">
-                            {tTerm('associateTracking.table.currentCapitalDetail', {
-                              contributed: formatCurrency(row.totalContributed),
-                              returned: formatCurrency(row.totalCapitalReturned),
-                            })}
-                          </p>
-                        </td>
-                        <td>
-                          <p className="font-semibold text-text-primary">{getInterestLabel(associate)}</p>
-                          <p className={`mt-1 text-sm ${Number(row.interestOverdue || 0) > 0 ? 'font-semibold text-red-600' : 'text-text-secondary'}`}>
-                            {tTerm('associateTracking.table.pendingDetail', {
-                              pending: formatCurrency(Number(row.interestPending || 0) + Number(row.interestOverdue || 0)),
-                              paid: formatCurrency(row.interestPaid),
-                            })}
-                          </p>
-                        </td>
-                        <td>
-                          <p className="font-semibold text-text-primary">{formatDate(row.nextPaymentDate) || tTerm('common.notAvailable')}</p>
-                          <p className="mt-1 text-sm text-text-secondary">
-                            {tTerm('associateTracking.table.installmentsDetail', {
-                              pending: formatNumber(row.pendingInstallments || 0, { maximumFractionDigits: 0 }),
-                              overdue: formatNumber(row.overdueInstallments || 0, { maximumFractionDigits: 0 }),
-                            })}
-                          </p>
-                        </td>
-                        <td>
-                          <TableStatusPill className={getDebtStatusClassName(row.debtStatus)}>
-                            {getDebtStatusLabel(row.debtStatus)}
-                          </TableStatusPill>
-                        </td>
-                        <TableActionsCell>
-                          <RowActionsWithOverflow
-                            variant="icon"
-                            ariaLabel={tTerm('associates.table.actions')}
-                            items={[
-                              {
-                                id: 'details',
-                                label: tTerm('associates.actions.view'),
-                                icon: <Eye size={16} />,
-                                onClick: () => openAssociate(associate.id),
-                              },
-                              {
-                                id: 'schedule',
-                                label: tTerm('associateTracking.actions.viewSchedule'),
-                                icon: <CalendarClock size={16} />,
-                                onClick: () => openAssociate(associate.id, 'installments'),
-                              },
-                            ]}
-                          />
-                        </TableActionsCell>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </AppTable>
-            )}
-        </SectionSurface>
+          <thead>
+            <tr>
+              <th>{tTerm('associateTracking.table.associate')}</th>
+              <th>{tTerm('associateTracking.table.currentCapital')}</th>
+              <th>{tTerm('associateTracking.table.termsAndBalance')}</th>
+              <th>{tTerm('associateTracking.table.nextDue')}</th>
+              <th>{tTerm('associateTracking.table.status')}</th>
+              <TableActionsHeader>{tTerm('associates.table.actions')}</TableActionsHeader>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedAssociates.map((row: any) => {
+              const associate = row.associate ?? {};
+              const pendingBalance = Number(row.interestPending || 0) + Number(row.interestOverdue || 0);
+              const paidBalance = Number(row.interestPaid || 0);
+              const hasOverdueBalance = Number(row.interestOverdue || 0) > 0;
+              const nextDueLabel = formatDate(row.nextPaymentDate) || tTerm('common.notAvailable');
+              const capitalDetail = getCurrentCapitalDetail(row);
+              const pendingBalanceDetail = getPendingBalanceDetail(pendingBalance, paidBalance);
+              const queueDetail = getInstallmentQueueDetail(row.pendingInstallments, row.overdueInstallments);
+              const financialSummaryClassName = hasOverdueBalance
+                ? 'associate-tracking-row-detail associate-tracking-row-detail--danger'
+                : 'associate-tracking-row-detail';
+              const queueDetailClassName = row.debtStatus === 'overdue'
+                ? 'associate-tracking-row-detail associate-tracking-row-detail--danger'
+                : row.debtStatus === 'current'
+                  ? 'associate-tracking-row-detail associate-tracking-row-detail--success'
+                  : 'associate-tracking-row-detail';
 
-        <SectionSurface
+              return (
+                <tr key={`associate-${associate.id}`}>
+                  <td>
+                    <div className="associate-tracking-row-stack">
+                      <p className="associate-tracking-row-title" title={getAssociateName(associate)}>{getAssociateName(associate)}</p>
+                      <p className="associate-tracking-row-meta" title={getAssociateContactSummary(associate)}>
+                        {getAssociateContactSummary(associate)}
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="associate-tracking-row-stack">
+                      <p className="associate-tracking-cell-primary">{formatCurrency(row.currentCapital)}</p>
+                      {capitalDetail ? (
+                        <p className="associate-tracking-row-detail" title={capitalDetail}>
+                          {capitalDetail}
+                        </p>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="associate-tracking-row-stack">
+                      <p className="associate-tracking-cell-primary">{getInterestLabel(associate)}</p>
+                      <p className={financialSummaryClassName} title={pendingBalanceDetail || undefined}>
+                        {pendingBalanceDetail || tTerm('associateTracking.status.current')}
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="associate-tracking-row-stack">
+                      <p className="associate-tracking-cell-primary" title={nextDueLabel}>{nextDueLabel}</p>
+                      <p className={queueDetailClassName} title={queueDetail || undefined}>
+                        {queueDetail || tTerm('associateTracking.status.current')}
+                      </p>
+                    </div>
+                  </td>
+                  <td>
+                    <TableStatusPill className={getDebtStatusClassName(row.debtStatus)}>
+                      {getDebtStatusLabel(row.debtStatus)}
+                    </TableStatusPill>
+                  </td>
+                  <TableActionsCell>
+                    <RowActionsWithOverflow
+                      variant="icon"
+                      maxInline={0}
+                      ariaLabel={tTerm('associates.table.actions')}
+                      items={[
+                        {
+                          id: 'details',
+                          label: tTerm('associateTracking.actions.quickSummary'),
+                          icon: <Eye size={16} />,
+                          onClick: () => openAssociateSummary(associate.id),
+                        },
+                        {
+                          id: 'schedule',
+                          label: tTerm('associateTracking.actions.viewSchedule'),
+                          icon: <CalendarClock size={16} />,
+                          onClick: () => openAssociate(associate.id, 'installments'),
+                        },
+                      ]}
+                    />
+                  </TableActionsCell>
+                </tr>
+              );
+            })}
+          </tbody>
+        </TrackingTableSection>
+        )}
+
+        {activeTab === 'activity' && (
+        <TrackingTableSection
+          className="associate-tracking-content-grid__full"
           title={tTerm('associateTracking.activity.title')}
           subtitle={tTerm('associateTracking.activity.subtitle')}
-          bodyClassName="associate-tracking-section-body"
-          actions={renderCountChip(
+          aside={renderCountChip(
             tTerm('associateTracking.metrics.activityShort'),
             recentActivityCount,
             hasRecentActivity ? 'info' : 'neutral',
           )}
-        >
-          {!hasRecentActivity ? (
+          isLoading={isLoading}
+          isError={isError}
+          hasData={hasRecentActivity}
+          loadingContent={loadingState}
+          errorContent={errorState}
+          emptyContent={(
             <EmptyState
               compact
               title={tTerm('associateTracking.activity.empty.title')}
               description={tTerm('associateTracking.activity.empty.description')}
             />
-          ) : (
-            <AppTable
-              variant="operational"
-              surfaceClassName="associate-tracking-inline-table"
-              minWidthClassName="min-w-[760px]"
-              hasData
-              recordsLabel={tTerm('associateTracking.activity.recordsLabel')}
-            >
-              <thead>
-                <tr>
-                  <th>{tTerm('associateTracking.table.movement')}</th>
-                  <th>{tTerm('associateTracking.table.associate')}</th>
-                  <th>{tTerm('associateTracking.table.realPaymentDate')}</th>
-                  <th>{tTerm('associateTracking.table.amount')}</th>
-                  <th>{tTerm('associateTracking.table.responsibleUser')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentActivity.map((activity) => (
-                  <tr key={activity.id}>
-                    <td>
-                      <TableStatusPill className={getRecentActivityToneClassName(activity.type)}>
-                        {activity.label}
-                      </TableStatusPill>
-                      <p className="mt-1 text-sm text-text-secondary">{activity.detail}</p>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="font-semibold text-left text-text-primary hover:text-brand-primary"
-                        onClick={() => openAssociate(activity.associateId)}
-                      >
-                        {activity.associateName}
-                      </button>
-                    </td>
-                    <td>{formatDate(activity.date) || tTerm('common.notAvailable')}</td>
-                    <td className="font-semibold">{formatCurrency(activity.amount)}</td>
-                    <td>{activity.responsible}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </AppTable>
           )}
-        </SectionSurface>
+          recordsLabel={tTerm('associateTracking.activity.recordsLabel')}
+          pagination={activityPagination}
+          tableClassName="associate-tracking-table associate-tracking-table--activity w-full text-sm text-left"
+          minWidthClassName="min-w-[920px]"
+        >
+          <thead>
+            <tr>
+              <th>{tTerm('associateTracking.table.movement')}</th>
+              <th>{tTerm('associateTracking.table.associate')}</th>
+              <th>{tTerm('associateTracking.table.realPaymentDate')}</th>
+              <th>{tTerm('associateTracking.table.amount')}</th>
+              <th>{tTerm('associateTracking.table.responsibleUser')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedRecentActivity.map((activity) => (
+              <tr key={activity.id}>
+                <td>
+                  <div className="associate-tracking-row-stack">
+                    <TableStatusPill className={getRecentActivityToneClassName(activity.type)}>
+                      {activity.label}
+                    </TableStatusPill>
+                    <p className="associate-tracking-row-detail">{activity.detail}</p>
+                  </div>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="associate-tracking-row-title text-left hover:text-brand-primary"
+                    onClick={() => openAssociate(activity.associateId)}
+                  >
+                    {activity.associateName}
+                  </button>
+                </td>
+                <td>
+                  <p className="associate-tracking-cell-primary">{formatDate(activity.date) || tTerm('common.notAvailable')}</p>
+                </td>
+                <td>
+                  <p className="associate-tracking-cell-primary">{formatCurrency(activity.amount)}</p>
+                </td>
+                <td>
+                  <p className="associate-tracking-row-detail">{activity.responsible}</p>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </TrackingTableSection>
+        )}
       </div>
+
+      {selectedAssociateRow && selectedAssociate && (
+        <ModalShell
+          title={tTerm('associateTracking.modal.title', { name: selectedAssociateName })}
+          subtitle={tTerm('associateTracking.modal.subtitle')}
+          maxWidthClassName="max-w-3xl"
+          onClose={closeAssociateSummary}
+          footer={(
+            <>
+              <ActionButton variant="secondary" onClick={closeAssociateSummary}>
+                {tTerm('associateTracking.modal.close')}
+              </ActionButton>
+              <ActionButton
+                variant="primary"
+                icon={<CalendarClock size={16} />}
+                onClick={() => {
+                  closeAssociateSummary();
+                  openAssociate(selectedAssociate.id, 'installments');
+                }}
+              >
+                {tTerm('associateTracking.modal.openDetail')}
+              </ActionButton>
+            </>
+          )}
+        >
+          <div className="associate-tracking-modal">
+            <InsightStrip
+              className="associate-tracking-modal__metrics"
+              aria-label={tTerm('associateTracking.modal.metricsAria')}
+              items={[
+                {
+                  id: 'modal-capital',
+                  label: tTerm('associateTracking.table.currentCapital'),
+                  value: formatCurrency(selectedAssociateRow.currentCapital),
+                  helper: tTerm('associateTracking.table.currentCapitalDetail', {
+                    contributed: formatCurrency(selectedAssociateRow.totalContributed),
+                    returned: formatCurrency(selectedAssociateRow.totalCapitalReturned),
+                  }),
+                  icon: <Wallet size={18} />,
+                  accent: 'blue',
+                },
+                {
+                  id: 'modal-payable',
+                  label: tTerm('associateTracking.table.pending'),
+                  value: formatCurrency(Number(selectedAssociateRow.interestPending || 0) + Number(selectedAssociateRow.interestOverdue || 0)),
+                  helper: tTerm('associateTracking.table.pendingDetail', {
+                    pending: formatCurrency(Number(selectedAssociateRow.interestPending || 0) + Number(selectedAssociateRow.interestOverdue || 0)),
+                    paid: formatCurrency(selectedAssociateRow.interestPaid),
+                  }),
+                  icon: <AlertTriangle size={18} />,
+                  accent: Number(selectedAssociateRow.interestOverdue || 0) > 0 ? 'rose' : 'amber',
+                },
+                {
+                  id: 'modal-next',
+                  label: tTerm('associateTracking.table.nextDue'),
+                  value: formatDate(selectedAssociateRow.nextPaymentDate) || tTerm('common.notAvailable'),
+                  helper: tTerm('associateTracking.table.installmentsDetail', {
+                    pending: formatNumber(selectedAssociateRow.pendingInstallments || 0, { maximumFractionDigits: 0 }),
+                    overdue: formatNumber(selectedAssociateRow.overdueInstallments || 0, { maximumFractionDigits: 0 }),
+                  }),
+                  icon: <CalendarClock size={18} />,
+                  accent: selectedAssociateRow.debtStatus === 'overdue' ? 'rose' : 'slate',
+                },
+              ]}
+            />
+
+            <div className="associate-tracking-modal__grid">
+              <SectionSurface
+                title={tTerm('associateTracking.modal.profileTitle')}
+                subtitle={selectedAssociate.email || selectedAssociate.phone || tTerm('associates.table.contactPending')}
+              >
+                <dl className="associate-tracking-modal__facts">
+                  <div>
+                    <dt>{tTerm('associateTracking.table.rate')}</dt>
+                    <dd>{getInterestLabel(selectedAssociate)}</dd>
+                  </div>
+                  <div>
+                    <dt>{tTerm('associateTracking.table.status')}</dt>
+                    <dd>{getDebtStatusLabel(selectedAssociateRow.debtStatus)}</dd>
+                  </div>
+                </dl>
+              </SectionSurface>
+
+              <SectionSurface
+                title={tTerm('associateTracking.modal.obligationsTitle')}
+                subtitle={tTerm('associateTracking.modal.obligationsSubtitle')}
+              >
+                {selectedAssociateObligations.length === 0 ? (
+                  <EmptyState
+                    compact
+                    title={tTerm('associateTracking.obligations.empty.title')}
+                    description={tTerm('associateTracking.obligations.empty.description')}
+                  />
+                ) : (
+                  <div className="associate-tracking-modal__obligations">
+                    {selectedAssociateObligations.slice(0, 3).map((obligation: any) => (
+                      <div key={`selected-obligation-${obligation.id}`} className="associate-tracking-modal__obligation">
+                        <div>
+                          <p className="font-semibold text-text-primary">
+                            {tTerm('associateTracking.table.installmentNumber', { number: obligation.installmentNumber })}
+                          </p>
+                          <p className="text-sm text-text-secondary">{formatDate(obligation.dueDate)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-text-primary">{formatCurrency(obligation.amount)}</p>
+                          <TableStatusPill className={getInstallmentStatusClassName(obligation.status)}>
+                            {getInstallmentStatusLabel(obligation.status)}
+                          </TableStatusPill>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SectionSurface>
+            </div>
+          </div>
+        </ModalShell>
+      )}
 
     </PageShell>
   );

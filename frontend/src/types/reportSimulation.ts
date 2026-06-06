@@ -4,6 +4,21 @@ export interface PayoutSummary {
   totalPrincipal: string;
   totalInterest: string;
   totalPenalties: string;
+  collectionBreakdown?: {
+    daily: PayoutCollectionBucket[];
+    weekly: PayoutCollectionBucket[];
+    monthly: PayoutCollectionBucket[];
+  };
+}
+
+export interface PayoutCollectionBucket {
+  key: string;
+  label: string;
+  installmentCount: number;
+  totalAmount: string;
+  totalPrincipal: string;
+  totalInterest: string;
+  totalPenalties: string;
 }
 
 export interface PayoutEntry {
@@ -18,6 +33,12 @@ export interface PayoutEntry {
   penaltyApplied: number;
   paymentMethod: string | null;
   installmentNumber: number | null;
+  createdBy?: {
+    id?: number;
+    name?: string;
+    email?: string;
+    role?: string;
+  } | null;
   Loan?: {
     id: number;
     amount: number;
@@ -45,6 +66,7 @@ export interface PayoutsReportFilters {
   toDate?: string;
   status?: string;
   paymentType?: string;
+  employeeId?: string;
 }
 
 export interface PaymentScheduleAmortizationEntry {
@@ -94,4 +116,49 @@ export interface PaymentScheduleResponse {
     summary: PaymentScheduleSummary;
     schedule: PaymentScheduleAmortizationEntry[];
   };
+}
+
+export interface PaymentCalendarOverviewSummary {
+  totalLoans: number;
+  totalEntries: number;
+  paidCount: number;
+  pendingCount: number;
+  overdueCount: number;
+  dueTodayCount: number;
+  actionableCount: number;
+  totalPayableAmount: number;
+  totalLateFeeAmount: number;
+}
+
+export interface PaymentCalendarOverviewAgendaItem {
+  loanId: number;
+  customerName: string;
+  totalInstallments: number;
+  installmentNumber: number;
+  dueDate: string;
+  status: string;
+  payableAmount: number;
+  scheduledPayment: number;
+  lateFeeDue: number;
+  daysOverdue: number;
+  canPay: boolean;
+  isNextPayable: boolean;
+  disabledReason?: string | null;
+}
+
+export interface PaymentCalendarOverviewEntry extends PaymentCalendarOverviewAgendaItem {
+  loanStatus: string;
+  principalComponent: number;
+  interestComponent: number;
+  remainingBalance: number;
+  outstandingAmount: number;
+}
+
+export interface PaymentCalendarOverviewResponse {
+  success?: boolean;
+  asOfDate: string;
+  summary: PaymentCalendarOverviewSummary;
+  agenda: PaymentCalendarOverviewAgendaItem[];
+  nextAction: PaymentCalendarOverviewAgendaItem | null;
+  entries: PaymentCalendarOverviewEntry[];
 }

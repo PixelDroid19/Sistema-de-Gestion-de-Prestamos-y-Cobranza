@@ -20,11 +20,18 @@ import { ReportTabPanel } from './ReportTabPanel';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
-type PayoutFilters = { fromDate?: string; toDate?: string; status?: string; paymentType?: string };
+type PayoutFilters = { fromDate?: string; toDate?: string; status?: string; paymentType?: string; employeeId?: string };
+
+type ReportEmployeeOption = {
+  id: number;
+  label: string;
+};
 
 type PayoutsTabProps = {
   payoutFilters: PayoutFilters;
   onPayoutFiltersChange: (filters: PayoutFilters) => void;
+  employees?: ReportEmployeeOption[];
+  canFilterByEmployee?: boolean;
   payoutPage: number;
   onPayoutPageChange: (page: number) => void;
   payoutPageSize: number;
@@ -36,9 +43,20 @@ type PayoutsTabProps = {
   exportActions?: ReactNode;
 };
 
+const getPayoutCreatorLabel = (payout: any) => {
+  const creator = payout?.createdBy || payout?.CreatedBy;
+  return creator?.name || creator?.email || tTerm('common.notAvailable');
+};
+
+const getLatestCollectionBucket = (buckets: any[] | undefined) => (
+  Array.isArray(buckets) && buckets.length > 0 ? buckets[0] : null
+);
+
 export default function PayoutsTab({
   payoutFilters,
   onPayoutFiltersChange,
+  employees = [],
+  canFilterByEmployee = false,
   payoutPage,
   onPayoutPageChange,
   payoutPageSize,
@@ -49,6 +67,15 @@ export default function PayoutsTab({
   isPayoutsLoading,
   exportActions,
 }: PayoutsTabProps) {
+  const latestDailyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.daily);
+  const latestWeeklyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.weekly);
+  const latestMonthlyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.monthly);
+  const collectionRows = [
+    { id: 'daily', label: tTerm('reports.payouts.collections.daily'), bucket: latestDailyCollection },
+    { id: 'weekly', label: tTerm('reports.payouts.collections.weekly'), bucket: latestWeeklyCollection },
+    { id: 'monthly', label: tTerm('reports.payouts.collections.monthly'), bucket: latestMonthlyCollection },
+  ];
+
   const updateFilters = (patch: PayoutFilters) => {
     const candidateFilters = { ...payoutFilters, ...patch };
     if (candidateFilters.fromDate && candidateFilters.toDate && candidateFilters.fromDate > candidateFilters.toDate) {
@@ -112,6 +139,19 @@ export default function PayoutsTab({
                 <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
               </OperationalSelect>
             </FormField>
+            {canFilterByEmployee && (
+              <FormField label={tTerm('reports.payouts.filter.employee')}>
+                <OperationalSelect
+                  value={payoutFilters.employeeId || ''}
+                  onChange={(event) => updateFilters({ employeeId: event.target.value })}
+                >
+                  <option value="">{tTerm('reports.payouts.filter.allEmployees')}</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>{employee.label}</option>
+                  ))}
+                </OperationalSelect>
+              </FormField>
+            )}
             <FormField label={tTerm('reports.payouts.table.rows')}>
               <OperationalSelect
                 value={payoutPageSize}
@@ -181,6 +221,44 @@ export default function PayoutsTab({
       )}
 
       <ReportDataTableSection
+        title={tTerm('reports.payouts.collections.title')}
+        subtitle={tTerm('reports.payouts.collections.subtitle')}
+        statePresentation="inline"
+        recordsLabel={tTerm('reports.payouts.collections.recordsLabel')}
+      >
+        <thead>
+          <tr>
+            <th>{tTerm('reports.payouts.collections.periodType')}</th>
+            <th>{tTerm('reports.payouts.collections.period')}</th>
+            <th>{tTerm('reports.payouts.collections.installments')}</th>
+            <th>{tTerm('reports.payouts.collections.amount')}</th>
+            <th>{tTerm('reports.payouts.summary.interest.label')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isPayoutsLoading ? (
+            <tr>
+              <td colSpan={5} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
+            </tr>
+          ) : collectionRows.every((row) => !row.bucket) ? (
+            <tr>
+              <td colSpan={5} className="table-empty-state">{tTerm('reports.payouts.collections.empty')}</td>
+            </tr>
+          ) : (
+            collectionRows.map((row) => (
+              <tr key={`payout-collection-${row.id}`}>
+                <td className="font-medium">{row.label}</td>
+                <td className="text-text-secondary">{row.bucket?.label || tTerm('common.notAvailable')}</td>
+                <td>{formatNumberValue(row.bucket?.installmentCount || 0)}</td>
+                <td className="font-medium">{formatMoney(row.bucket?.totalAmount || 0)}</td>
+                <td className="text-emerald-600">{formatMoney(row.bucket?.totalInterest || 0)}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </ReportDataTableSection>
+
+      <ReportDataTableSection
         title={tTerm('reports.payouts.table.title')}
         statePresentation="inline"
         pagination={
@@ -207,16 +285,17 @@ export default function PayoutsTab({
                 <th>{tTerm('reports.payouts.summary.penalties.label')}</th>
                 <th>{tTerm('payouts.form.paymentType')}</th>
                 <th>{tTerm('payouts.table.method')}</th>
+                <th>{tTerm('reports.payouts.table.createdBy')}</th>
               </tr>
             </thead>
             <tbody>
               {isPayoutsLoading ? (
                 <tr>
-                  <td colSpan={7} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
+                  <td colSpan={8} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
                 </tr>
               ) : payouts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-empty-state">{tTerm('reports.payouts.table.empty')}</td>
+                  <td colSpan={8} className="table-empty-state">{tTerm('reports.payouts.table.empty')}</td>
                 </tr>
               ) : (
                 payouts.map((payout: any, i: number) => (
@@ -232,6 +311,7 @@ export default function PayoutsTab({
                       </span>
                     </td>
                     <td className="text-text-secondary">{getPaymentMethodLabel(payout.paymentMethod)}</td>
+                    <td className="text-text-secondary">{getPayoutCreatorLabel(payout)}</td>
                   </tr>
                 ))
               )}

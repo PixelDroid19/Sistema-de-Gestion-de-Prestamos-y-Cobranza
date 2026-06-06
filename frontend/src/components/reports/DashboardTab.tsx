@@ -1,20 +1,22 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { DollarSign, TrendingUp, Users, Wallet } from 'lucide-react';
-import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
+import { AlertTriangle, CalendarClock, CheckCircle, DollarSign, TrendingUp, Users, Wallet } from 'lucide-react';
+import { formatCurrency as formatCurrencyValue, formatPercent as formatPercentValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import MeasuredChart from '../shared/MeasuredChart';
 import {
   EmptyState,
-  InsightStrip,
+  MetricCard,
   OperationalSelect,
   SectionSurface,
 } from '../shared/Surfaces';
 import { HelpTooltip } from '../shared/HelpSupport';
 import { getLoanStatusLabel } from '../credits/creditsHelpers';
+import { ReportMetricsSection } from './ReportMetricsSection';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+const formatPercent = (value: unknown) => formatPercentValue(value, { maximumFractionDigits: 2 });
 
 type DashboardTabProps = {
   metrics: any;
@@ -55,6 +57,99 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
     [statusData],
   );
 
+  const summaryPrimaryItems = useMemo(() => ([
+    {
+      id: 'reports-total-disbursed',
+      label: tTerm('reports.kpi.totalDisbursed.label'),
+      value: formatMoney(metrics.totalDisbursed),
+      helper: tTerm('reports.kpi.totalDisbursed.helper'),
+      icon: <DollarSign size={18} />,
+      accent: 'blue' as const,
+    },
+    {
+      id: 'reports-total-recovered',
+      label: tTerm('reports.kpi.totalRecovered.label'),
+      value: formatMoney(metrics.totalRecovered),
+      helper: tTerm('reports.kpi.totalRecovered.helper'),
+      icon: <Wallet size={18} />,
+      accent: 'emerald' as const,
+    },
+    {
+      id: 'reports-interest-paid',
+      label: tTerm('reports.kpi.interestPaid.label'),
+      value: formatMoney(metrics.totalInterestPaid),
+      helper: tTerm('reports.kpi.interestPaid.helper'),
+      icon: <TrendingUp size={18} />,
+      accent: 'rose' as const,
+    },
+    {
+      id: 'reports-active-loans',
+      label: tTerm('reports.kpi.activeLoans.label'),
+      value: metrics.totalActiveLoans,
+      helper: tTerm('reports.kpi.activeLoans.helper'),
+      icon: <Users size={18} />,
+      accent: 'amber' as const,
+    },
+  ]), [metrics.totalActiveLoans, metrics.totalDisbursed, metrics.totalInterestPaid, metrics.totalRecovered]);
+
+  const summarySecondaryItems = useMemo(() => ([
+    {
+      id: 'reports-interest-generated',
+      label: tTerm('reports.kpi.interestGenerated.label'),
+      value: formatMoney(metrics.totalInterestGenerated),
+      helper: tTerm('reports.kpi.interestGenerated.helper'),
+      icon: <TrendingUp size={18} />,
+      accent: 'emerald' as const,
+    },
+    {
+      id: 'reports-interest-pending',
+      label: tTerm('reports.kpi.interestPending.label'),
+      value: formatMoney(metrics.totalInterestPending),
+      helper: tTerm('reports.kpi.interestPending.helper'),
+      icon: <AlertTriangle size={18} />,
+      accent: Number(metrics.totalInterestPending || 0) > 0 ? 'amber' as const : 'slate' as const,
+    },
+    {
+      id: 'reports-current-lent-capital',
+      label: tTerm('reports.kpi.currentLentCapital.label'),
+      value: formatMoney(metrics.totalCurrentLent),
+      helper: tTerm('reports.kpi.currentLentCapital.helper'),
+      icon: <DollarSign size={18} />,
+      accent: 'blue' as const,
+    },
+    {
+      id: 'reports-pending-collection',
+      label: tTerm('reports.kpi.pendingCollection.label'),
+      value: formatMoney(metrics.totalPendingCollection),
+      helper: tTerm('reports.kpi.pendingCollection.helper'),
+      icon: <Wallet size={18} />,
+      accent: 'slate' as const,
+    },
+    {
+      id: 'reports-recovery-rate',
+      label: tTerm('reports.kpi.recoveryRate.label'),
+      value: formatPercent(metrics.recoveryRate),
+      helper: tTerm('reports.kpi.recoveryRate.helper'),
+      icon: <CheckCircle size={18} />,
+      accent: 'emerald' as const,
+    },
+    {
+      id: 'reports-arrears-rate',
+      label: tTerm('reports.kpi.arrearsRate.label'),
+      value: formatPercent(metrics.arrearsRate),
+      helper: tTerm('reports.kpi.arrearsRate.helper'),
+      icon: <AlertTriangle size={18} />,
+      accent: Number(metrics.arrearsRate || 0) > 0 ? 'rose' as const : 'emerald' as const,
+    },
+  ]), [
+    metrics.arrearsRate,
+    metrics.recoveryRate,
+    metrics.totalCurrentLent,
+    metrics.totalInterestGenerated,
+    metrics.totalInterestPending,
+    metrics.totalPendingCollection,
+  ]);
+
   return (
     <div className="report-tab-layout">
       {headerActions ? (
@@ -63,49 +158,89 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
         </div>
       ) : null}
 
-      <InsightStrip
-        className="report-dashboard-strip"
-        aria-label={tTerm('reports.summary.aria')}
-        items={[
-          {
-            id: 'reports-total-disbursed',
-            label: tTerm('reports.kpi.totalDisbursed.label'),
-            value: formatMoney(metrics.totalDisbursed),
-            helper: tTerm('reports.kpi.totalDisbursed.helper'),
-            icon: <DollarSign size={18} />,
-            accent: 'blue',
-          },
-          {
-            id: 'reports-interest-generated',
-            label: tTerm('reports.kpi.interestGenerated.label'),
-            value: formatMoney(metrics.totalInterestGenerated),
-            helper: tTerm('reports.kpi.interestGenerated.helper'),
-            icon: <TrendingUp size={18} />,
-            accent: 'emerald',
-          },
-          {
-            id: 'reports-interest-paid',
-            label: tTerm('reports.kpi.interestPaid.label'),
-            value: formatMoney(metrics.totalInterestPaid),
-            helper: tTerm('reports.kpi.interestPaid.helper'),
-            icon: <Wallet size={18} />,
-            accent: 'rose',
-          },
-          {
-            id: 'reports-active-loans',
-            label: tTerm('reports.kpi.activeLoans.label'),
-            value: metrics.totalActiveLoans,
-            helper: tTerm('reports.kpi.activeLoans.helper'),
-            icon: <Users size={18} />,
-            accent: 'amber',
-          },
-        ]}
+      <ReportMetricsSection
+        primaryAriaLabel={tTerm('reports.summary.aria')}
+        secondaryAriaLabel={tTerm('reports.dashboard.summary.moreAria')}
+        detailModalTitle={tTerm('reports.dashboard.summary.moreTitle')}
+        detailModalSubtitle={tTerm('reports.dashboard.summary.moreSubtitle')}
+        primaryItems={summaryPrimaryItems}
+        secondaryItems={summarySecondaryItems}
       />
       {hasKpiTotals && !chartHasData ? (
         <p className="text-xs text-text-secondary">
           <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
         </p>
       ) : null}
+
+      <SectionSurface
+        title={tTerm('reports.dashboard.operationalIndicators.title')}
+        subtitle={tTerm('reports.dashboard.operationalIndicators.subtitle')}
+        bodyClassName="report-dashboard-kpi-grid"
+      >
+        <MetricCard
+          label={tTerm('reports.kpi.customers.label')}
+          value={metrics.totalCustomers}
+          helper={tTerm('reports.kpi.customers.helper')}
+          icon={<Users size={18} />}
+          accent="blue"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.finalizedLoans.label')}
+          value={metrics.totalFinalizedLoans}
+          helper={tTerm('reports.kpi.finalizedLoans.helper')}
+          icon={<CheckCircle size={18} />}
+          accent="emerald"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.overdueLoans.label')}
+          value={metrics.totalOverdueLoans}
+          helper={tTerm('reports.kpi.overdueLoans.helper')}
+          icon={<AlertTriangle size={18} />}
+          accent="rose"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.interestPending.label')}
+          value={formatMoney(metrics.totalInterestPending)}
+          helper={tTerm('reports.kpi.interestPending.helper')}
+          icon={<Wallet size={18} />}
+          accent="amber"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.pendingInstallments.label')}
+          value={metrics.totalPendingInstallments}
+          helper={tTerm('reports.kpi.pendingInstallments.helper')}
+          icon={<CalendarClock size={18} />}
+          accent="slate"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.overdueInstallments.label')}
+          value={metrics.totalOverdueInstallments}
+          helper={tTerm('reports.kpi.overdueInstallments.helper')}
+          icon={<AlertTriangle size={18} />}
+          accent="rose"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.availableCash.label')}
+          value={formatMoney(metrics.availableCash)}
+          helper={tTerm('reports.kpi.availableCash.helper')}
+          icon={<DollarSign size={18} />}
+          accent="blue"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.periodProfit.label')}
+          value={formatMoney(metrics.periodProfit)}
+          helper={tTerm('reports.kpi.periodProfit.helper')}
+          icon={<TrendingUp size={18} />}
+          accent="emerald"
+        />
+        <MetricCard
+          label={tTerm('reports.kpi.periodLoss.label')}
+          value={formatMoney(metrics.periodLoss)}
+          helper={tTerm('reports.kpi.periodLoss.helper')}
+          icon={<AlertTriangle size={18} />}
+          accent="amber"
+        />
+      </SectionSurface>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <SectionSurface className="lg:col-span-2">

@@ -45,12 +45,27 @@ export type DailyCashFlowFilters = {
   toDate?: string;
 };
 
+export type AnnualCashFlowFilters = {
+  fromYear?: number;
+  toYear?: number;
+};
+
 export type CreditHistoryMonthlyFilters = {
   startDate?: string;
   endDate?: string;
   status?: string;
   customerId?: number;
   loanId?: number;
+  financialProductId?: string;
+};
+
+export type PaymentCalendarOverviewFilters = {
+  asOfDate?: string;
+  search?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
 };
 
 export type CustomerProfitabilityFilters = {
@@ -64,6 +79,7 @@ export type OperatingExpenseListParams = {
   fromDate?: string;
   toDate?: string;
   status?: string;
+  employeeId?: string;
 };
 
 export type AssociateCalendarFilters = {
@@ -150,8 +166,11 @@ export const queryKeys = {
       ['reports.monthlyCashFlow', year, filters ?? {}] as const,
     dailyCashFlow: (filters?: DailyCashFlowFilters) =>
       ['reports.dailyCashFlow', filters ?? {}] as const,
+    annualCashFlow: (filters?: AnnualCashFlowFilters) =>
+      ['reports.annualCashFlow', filters ?? {}] as const,
     creditHistoryMonthly: (filters?: CreditHistoryMonthlyFilters) =>
       ['reports.creditHistoryMonthly', filters ?? {}] as const,
+    creditHistoryFinancialProducts: ['reports.creditHistoryFinancialProducts'] as const,
     monthlyInterest: (year?: number) => ['reports.monthlyInterest', year] as const,
     performanceAnalysis: (year?: number) => ['reports.performanceAnalysis', year] as const,
     executiveDashboard: ['reports.executiveDashboard'] as const,
@@ -162,6 +181,8 @@ export const queryKeys = {
     payoutsRoot: ['reports.payouts'] as const,
     payouts: (filters: object, page: number, pageSize: number) =>
       ['reports.payouts', filters, page, pageSize] as const,
+    paymentCalendarOverview: (filters?: PaymentCalendarOverviewFilters) =>
+      ['reports.paymentCalendarOverview', filters ?? {}] as const,
     paymentSchedule: (loanId: number | null) => ['reports.paymentSchedule', loanId] as const,
   },
   operatingExpenses: {

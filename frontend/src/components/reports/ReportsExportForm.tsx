@@ -13,10 +13,17 @@ export type ReportsExportFormProps = {
   onReportStatusFilterChange: (value: string) => void;
   reportPaymentTypeFilter: string;
   onReportPaymentTypeFilterChange: (value: string) => void;
+  reportEmployeeIdFilter: string;
+  onReportEmployeeIdFilterChange: (value: string) => void;
+  employeeOptions?: Array<{ id: number; label: string }>;
+  canFilterByEmployee?: boolean;
   reportCustomerIdFilter: string;
   onReportCustomerIdFilterChange: (value: string) => void;
   reportLoanIdFilter: string;
   onReportLoanIdFilterChange: (value: string) => void;
+  reportFinancialProductIdFilter: string;
+  onReportFinancialProductIdFilterChange: (value: string) => void;
+  financialProductOptions?: Array<{ value: string; label: string }>;
   reportFormat: ReportExportFormat;
   onReportFormatChange: (value: ReportExportFormat) => void;
   hasInvalidRange: boolean;
@@ -36,10 +43,17 @@ export default function ReportsExportForm({
   onReportStatusFilterChange,
   reportPaymentTypeFilter,
   onReportPaymentTypeFilterChange,
+  reportEmployeeIdFilter,
+  onReportEmployeeIdFilterChange,
+  employeeOptions = [],
+  canFilterByEmployee = false,
   reportCustomerIdFilter,
   onReportCustomerIdFilterChange,
   reportLoanIdFilter,
   onReportLoanIdFilterChange,
+  reportFinancialProductIdFilter,
+  onReportFinancialProductIdFilterChange,
+  financialProductOptions = [],
   reportFormat,
   onReportFormatChange,
   hasInvalidRange,
@@ -53,21 +67,27 @@ export default function ReportsExportForm({
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [loanSearchQuery, setLoanSearchQuery] = useState('');
 
-  const showFormat = reportType === 'credits' || reportType === 'payouts';
+  const showFormat = reportType === 'credits' || reportType === 'payouts' || reportType === 'profitability';
   const showStatus = reportType === 'credits' || reportType === 'payouts';
   const showCustomerLoan = reportType === 'credits' || reportType === 'payouts';
+  const showFinancialProduct = reportType === 'credits';
   const showPaymentType = reportType === 'payouts';
-  const hasAdvancedFilters = showStatus || showCustomerLoan || showPaymentType;
+  const showEmployee = reportType === 'payouts' && canFilterByEmployee;
+  const hasAdvancedFilters = showStatus || showCustomerLoan || showFinancialProduct || showPaymentType || showEmployee;
 
   const activeAdvancedFilterCount = useMemo(() => {
     let count = 0;
     if (reportStatusFilter) count += 1;
     if (reportPaymentTypeFilter) count += 1;
+    if (reportEmployeeIdFilter.trim()) count += 1;
     if (reportCustomerIdFilter.trim()) count += 1;
     if (reportLoanIdFilter.trim()) count += 1;
+    if (reportFinancialProductIdFilter.trim()) count += 1;
     return count;
   }, [
     reportCustomerIdFilter,
+    reportEmployeeIdFilter,
+    reportFinancialProductIdFilter,
     reportLoanIdFilter,
     reportPaymentTypeFilter,
     reportStatusFilter,
@@ -78,8 +98,10 @@ export default function ReportsExportForm({
     onReportTypeChange(nextType);
     onReportStatusFilterChange('');
     onReportPaymentTypeFilterChange('');
+    onReportEmployeeIdFilterChange('');
     onReportCustomerIdFilterChange('');
     onReportLoanIdFilterChange('');
+    onReportFinancialProductIdFilterChange('');
     setCustomerSearchQuery('');
     setLoanSearchQuery('');
     setFiltersExpanded(layout === 'modal');
@@ -180,6 +202,21 @@ export default function ReportsExportForm({
               </FormField>
             )}
 
+            {showFinancialProduct && (
+              <FormField label={tTerm('reports.export.financialProduct')}>
+                <OperationalSelect
+                  id="report-financial-product"
+                  value={reportFinancialProductIdFilter}
+                  onChange={(event) => onReportFinancialProductIdFilterChange(event.target.value)}
+                >
+                  <option value="">{tTerm('reports.creditHistory.financialProduct.all')}</option>
+                  {financialProductOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </OperationalSelect>
+              </FormField>
+            )}
+
             {showCustomerLoan && (
               <>
                 <FormField label={tTerm('reports.export.customer')}>
@@ -219,6 +256,21 @@ export default function ReportsExportForm({
                   <option value="partial">{getPaymentTypeLabel('partial')}</option>
                   <option value="capital">{getPaymentTypeLabel('capital')}</option>
                   <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
+                </OperationalSelect>
+              </FormField>
+            )}
+
+            {showEmployee && (
+              <FormField label={tTerm('reports.payouts.filter.employee')}>
+                <OperationalSelect
+                  id="report-employee"
+                  value={reportEmployeeIdFilter}
+                  onChange={(event) => onReportEmployeeIdFilterChange(event.target.value)}
+                >
+                  <option value="">{tTerm('reports.payouts.filter.allEmployees')}</option>
+                  {employeeOptions.map((employee) => (
+                    <option key={employee.id} value={employee.id}>{employee.label}</option>
+                  ))}
                 </OperationalSelect>
               </FormField>
             )}

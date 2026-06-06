@@ -2,11 +2,14 @@ import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
-export const useUsers = (params?: { page?: number; pageSize?: number; search?: string; role?: string }) => {
+export const useUsers = (
+  params?: { page?: number; pageSize?: number; search?: string; role?: string },
+  options?: { enabled?: boolean },
+) => {
   const getUsers = useCrudListQuery(queryKeys.users.list(params), async () => {
     const { data } = await apiClient.get('/users', { params });
     return data;
-  });
+  }, { enabled: options?.enabled });
 
   const updateUser = useInvalidatingMutation(async ({ id, ...userData }: any) => {
     const { data } = await apiClient.put(`/users/${id}`, userData);

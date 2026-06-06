@@ -19,11 +19,15 @@ export const buildCreditHistoryExportSummary = (filters: {
   status: string;
   customerId: string;
   loanId: string;
+  financialProductLabel?: string;
 }) => {
   const parts = [buildDateRangeSummary(filters.startDate, filters.endDate)];
 
   if (filters.status) {
     parts.push(tTerm('reports.export.summary.status', { status: filters.status }));
+  }
+  if (filters.financialProductLabel) {
+    parts.push(tTerm('reports.export.summary.financialProduct', { product: filters.financialProductLabel }));
   }
   if (filters.customerId.trim()) {
     parts.push(tTerm('reports.export.summary.customer', { id: filters.customerId.trim() }));
@@ -40,6 +44,7 @@ export const buildPayoutExportSummary = (filters: {
   toDate?: string;
   paymentType?: string;
   status?: string;
+  employeeLabel?: string;
 }) => {
   const parts = [buildDateRangeSummary(filters.fromDate, filters.toDate)];
 
@@ -49,6 +54,13 @@ export const buildPayoutExportSummary = (filters: {
   if (filters.status) {
     parts.push(tTerm('reports.export.summary.payoutStatus', { status: filters.status }));
   }
+  if (filters.employeeLabel) {
+    parts.push(tTerm('reports.export.summary.employee', { employee: filters.employeeLabel }));
+  }
 
   return parts.join(' · ');
 };
+
+export const buildAnalyticsExportSummary = (filters: {
+  year: number;
+}) => `${tTerm('reports.analytics.year')}: ${filters.year}`;

@@ -9,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   const apiTarget = env.VITE_API_URL || 'http://localhost:5000';
+  const proxyOrigin = env.VITE_PROXY_ORIGIN?.trim();
 
   return {
     plugins: [react(), tailwindcss()],
@@ -31,10 +32,15 @@ export default defineConfig(({mode}) => {
             proxy.on('proxyReq', (proxyReq) => {
               // Local QA often runs the frontend on an alternate port while the
               // API is Railway-hosted. The browser Origin is then a local dev
-              // URL that production CORS correctly rejects. The dev proxy is
-              // same-origin from the browser perspective, so remove Origin
-              // before forwarding to keep local browser QA usable without
-              // weakening production CORS.
+              // URL that production CORS correctly rejects. When a QA backend
+              // requires an allowed origin, forward the configured proxy origin;
+              // otherwise keep stripping the browser origin to avoid weakening
+              // production CORS while preserving local browser QA.
+              if (proxyOrigin) {
+                proxyReq.setHeader('origin', proxyOrigin);
+                return;
+              }
+
               proxyReq.removeHeader('origin');
             });
           },

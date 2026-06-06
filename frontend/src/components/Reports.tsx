@@ -3,13 +3,17 @@ import { Download } from 'lucide-react';
 import {
   useReports,
   usePayoutsReport,
+  usePaymentCalendarOverview,
   usePaymentSchedule,
   exportDashboardSummary,
+  exportFinancialAnalyticsReport,
   exportContextualReport,
   useFinancialAnalytics,
   useMonthlyCashFlow,
   useDailyCashFlow,
+  useAnnualCashFlow,
   useCreditHistoryMonthly,
+  useCreditHistoryFinancialProducts,
   useCustomerProfitability,
   exportMonthlyCashFlowExcel,
   exportMonthlyCashFlowPdf,
@@ -22,6 +26,7 @@ import {
   type OperatingExpensePayload,
 } from '../services/reportService';
 import { useLoans } from '../services/loanService';
+import { useUsers } from '../services/userService';
 import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
@@ -43,6 +48,7 @@ import {
   ViewTabs,
 } from './shared/Surfaces';
 import DashboardTab from './reports/DashboardTab';
+import AnalyticsTab from './reports/AnalyticsTab';
 import CashflowTab from './reports/CashflowTab';
 import CreditHistoryMonthlyTab from './reports/CreditHistoryMonthlyTab';
 import ProfitabilityTab from './reports/ProfitabilityTab';
@@ -56,6 +62,7 @@ import { ReportTabPanel } from './reports/ReportTabPanel';
 import { ReportDataTableSection } from './reports/ReportDataTableSection';
 import {
   buildCreditHistoryExportSummary,
+  buildAnalyticsExportSummary,
   buildPayoutExportSummary,
 } from './reports/reportExportSummary';
 import {
@@ -66,6 +73,11 @@ import {
 import { getLoanStatusLabel } from './credits/creditsHelpers';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+
+type PayoutEmployeeOption = {
+  id: number;
+  label: string;
+};
 
 const getLoanCustomerName = (loan: any) => {
   const direct = loan?.customerName || loan?.clientName || loan?.borrowerName;
@@ -115,12 +127,31 @@ export default function Reports() {
   } = useReports();
 
   // Payouts report state
-  const [payoutFilters, setPayoutFilters] = useState<{ fromDate?: string; toDate?: string; paymentType?: string; status?: string }>({});
+  const [payoutFilters, setPayoutFilters] = useState<{ fromDate?: string; toDate?: string; paymentType?: string; status?: string; employeeId?: string }>({});
   const [payoutPage, setPayoutPage] = useState(1);
   const [payoutPageSize, setPayoutPageSize] = useState(20);
   const { payouts, summary: payoutSummary, pagination: payoutPagination, isLoading: isPayoutsLoading } = usePayoutsReport(payoutFilters, payoutPage, payoutPageSize);
+  const canFilterPayoutsByEmployee = user?.role === 'admin';
+  const canFilterExpensesByEmployee = user?.role === 'admin' && canViewOperatingExpensesTab;
+  const canLoadReportEmployeeOptions = canFilterPayoutsByEmployee || canFilterExpensesByEmployee;
+  const { data: usersData } = useUsers({ page: 1, pageSize: 100 }, { enabled: canLoadReportEmployeeOptions });
+  const payoutEmployeeOptions = useMemo<PayoutEmployeeOption[]>(() => {
+    const users = Array.isArray(usersData?.data?.users)
+      ? usersData.data.users
+      : Array.isArray(usersData?.data)
+        ? usersData.data
+        : [];
 
-  const [expenseFilters, setExpenseFilters] = useState<{ fromDate?: string; toDate?: string; status?: string }>({});
+    return users
+      .filter((reportUser: any) => ['admin', 'employee'].includes(reportUser?.role) && reportUser?.isActive !== false)
+      .map((reportUser: any) => ({
+        id: Number(reportUser.id),
+        label: reportUser.name || reportUser.email,
+      }))
+      .filter((reportUser: any) => Number.isFinite(reportUser.id) && reportUser.label);
+  }, [usersData]);
+
+  const [expenseFilters, setExpenseFilters] = useState<{ fromDate?: string; toDate?: string; status?: string; employeeId?: string }>({});
   const [expensePage, setExpensePage] = useState(1);
   const [expensePageSize] = useState(20);
   const {
@@ -132,8 +163,46 @@ export default function Reports() {
   const [annullingExpenseId, setAnnullingExpenseId] = useState<number | null>(null);
   const [exportingExpensesFormat, setExportingExpensesFormat] = useState<OperatingExpenseExportFormat | null>(null);
 
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'cashflow' | 'creditHistory' | 'outstanding' | 'profitability' | 'payouts' | 'schedule' | 'expenses'>('dashboard');
+
   // Payment schedule state
   const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
+  const calendarAsOfDate = useMemo(() => getLocalDateInputValue(), []);
+  const [scheduleAgendaFilters, setScheduleAgendaFilters] = useState({
+    search: '',
+    status: '',
+    startDate: '',
+    endDate: '',
+  });
+  const updateScheduleAgendaFilters = (
+    patch: Partial<typeof scheduleAgendaFilters>,
+  ) => {
+    setScheduleAgendaFilters((current) => {
+      const next = { ...current, ...patch };
+      if (next.startDate && next.endDate && next.startDate > next.endDate) {
+        return current;
+      }
+      return next;
+    });
+  };
+  const scheduleAgendaQueryFilters = useMemo(() => ({
+    asOfDate: calendarAsOfDate,
+    ...(scheduleAgendaFilters.search ? { search: scheduleAgendaFilters.search } : {}),
+    ...(scheduleAgendaFilters.status ? { status: scheduleAgendaFilters.status } : {}),
+    ...(scheduleAgendaFilters.startDate ? { startDate: scheduleAgendaFilters.startDate } : {}),
+    ...(scheduleAgendaFilters.endDate ? { endDate: scheduleAgendaFilters.endDate } : {}),
+    limit: 150,
+  }), [calendarAsOfDate, scheduleAgendaFilters]);
+  const {
+    agenda: scheduleAgenda,
+    summary: scheduleAgendaSummary,
+    isLoading: isScheduleAgendaLoading,
+    isError: isScheduleAgendaError,
+    refetch: refetchScheduleAgenda,
+  } = usePaymentCalendarOverview(
+    scheduleAgendaQueryFilters,
+    activeTab === 'schedule' && canViewPaymentScheduleTab,
+  );
   const {
     schedule,
     summary: scheduleSummary,
@@ -142,48 +211,66 @@ export default function Reports() {
     refetch: refetchSchedule,
   } = usePaymentSchedule(selectedLoanId);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'cashflow' | 'creditHistory' | 'outstanding' | 'profitability' | 'payouts' | 'schedule' | 'expenses'>('dashboard');
   const [isExporting, setIsExporting] = useState(false);
+  const [dashboardExportFormat, setDashboardExportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
+  const [isAnalyticsExporting, setIsAnalyticsExporting] = useState(false);
+  const [analyticsExportFormat, setAnalyticsExportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
   const [analyticsYear, setAnalyticsYear] = useState<number>(new Date().getFullYear());
-  const profitabilityDateRange = useMemo(
-    () => buildReportYearDateRange(analyticsYear),
-    [analyticsYear],
-  );
-  const [profitabilityExportRange, setProfitabilityExportRange] = useState(profitabilityDateRange);
+  const [profitabilityDateRange, setProfitabilityDateRange] = useState<{ fromDate: string; toDate: string }>(() => (
+    buildReportYearDateRange(new Date().getFullYear())
+  ));
   const {
     items: profitabilityItems,
+    customerAnalytics,
     isLoading: isProfitabilityLoading,
   } = useCustomerProfitability(profitabilityDateRange);
-
-  useEffect(() => {
-    setProfitabilityExportRange(profitabilityDateRange);
-  }, [profitabilityDateRange]);
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
   const [cashFlowRange, setCashFlowRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [dailyCashFlowDate, setDailyCashFlowDate] = useState<string>(() => getLocalDateInputValue());
-  const [creditHistoryFilters, setCreditHistoryFilters] = useState<{ startDate: string; endDate: string; status: string; customerId: string; loanId: string }>({
+  const [creditHistoryFilters, setCreditHistoryFilters] = useState<{
+    startDate: string;
+    endDate: string;
+    status: string;
+    customerId: string;
+    loanId: string;
+    financialProductId: string;
+  }>({
     startDate: '',
     endDate: '',
     status: '',
     customerId: '',
     loanId: '',
+    financialProductId: '',
   });
   const [isCashFlowExporting, setIsCashFlowExporting] = useState<'excel' | 'pdf' | null>(null);
   const [reportType, setReportType] = useState<'credits' | 'payouts' | 'profitability'>('credits');
   const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [reportStatusFilter, setReportStatusFilter] = useState<string>('');
   const [reportPaymentTypeFilter, setReportPaymentTypeFilter] = useState<string>('');
+  const [reportEmployeeIdFilter, setReportEmployeeIdFilter] = useState<string>('');
   const [reportCustomerIdFilter, setReportCustomerIdFilter] = useState<string>('');
   const [reportLoanIdFilter, setReportLoanIdFilter] = useState<string>('');
+  const [reportFinancialProductIdFilter, setReportFinancialProductIdFilter] = useState<string>('');
   const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
   const [contextualExportOpen, setContextualExportOpen] = useState(false);
-
-  const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
+  const {
+    performanceAnalysis,
+    executiveDashboard,
+    comprehensiveAnalytics,
+    comparativeAnalysis,
+    forecastAnalysis,
+    nextMonthProjection,
+  } = useFinancialAnalytics(analyticsYear);
   const cashFlowFilters = useMemo(() => ({
     ...(cashFlowRange.fromDate ? { fromDate: cashFlowRange.fromDate } : {}),
     ...(cashFlowRange.toDate ? { toDate: cashFlowRange.toDate } : {}),
   }), [cashFlowRange]);
   const { data: cashFlowData, isLoading: isCashFlowLoading } = useMonthlyCashFlow(cashFlowYear, cashFlowFilters);
+  const annualCashFlowFilters = useMemo(() => ({
+    fromYear: cashFlowYear - 2,
+    toYear: cashFlowYear,
+  }), [cashFlowYear]);
+  const { data: annualCashFlowData, isLoading: isAnnualCashFlowLoading } = useAnnualCashFlow(annualCashFlowFilters);
   const dailyCashFlowFilters = useMemo(() => ({
     ...(dailyCashFlowDate ? { date: dailyCashFlowDate } : {}),
   }), [dailyCashFlowDate]);
@@ -194,8 +281,10 @@ export default function Reports() {
     ...(creditHistoryFilters.status ? { status: creditHistoryFilters.status } : {}),
     ...(/^\d+$/.test(creditHistoryFilters.customerId.trim()) ? { customerId: Number(creditHistoryFilters.customerId) } : {}),
     ...(/^\d+$/.test(creditHistoryFilters.loanId.trim()) ? { loanId: Number(creditHistoryFilters.loanId) } : {}),
+    ...(creditHistoryFilters.financialProductId ? { financialProductId: creditHistoryFilters.financialProductId } : {}),
   }), [creditHistoryFilters]);
   const { data: creditHistoryData, isLoading: isCreditHistoryLoading } = useCreditHistoryMonthly(creditHistoryQueryFilters);
+  const { financialProducts: creditHistoryFinancialProducts } = useCreditHistoryFinancialProducts();
   const { data: scheduleLoansData, isLoading: isScheduleLoansLoading } = useLoans(
     { pageSize: 100 },
     { enabled: activeTab === 'schedule' },
@@ -222,56 +311,25 @@ export default function Reports() {
   const statusData = statusBreakdown ?? [];
   const profitabilityData = profitabilityItems;
   const isLoading = isReportsLoading || isProfitabilityLoading;
+  const creditHistoryFinancialProductOptions = useMemo(
+    () => creditHistoryFinancialProducts.map((product) => ({ value: product.id, label: product.name })),
+    [creditHistoryFinancialProducts],
+  );
+  const activeCreditHistoryFinancialProductLabel = useMemo(
+    () => creditHistoryFinancialProductOptions.find((product) => product.value === creditHistoryFilters.financialProductId)?.label || '',
+    [creditHistoryFilters.financialProductId, creditHistoryFinancialProductOptions],
+  );
 
-  const updateProfitabilityExportRange = (key: 'fromDate' | 'toDate', value: string) => {
-    if (key === 'fromDate' && value && profitabilityExportRange.toDate && value > profitabilityExportRange.toDate) {
+  const updateProfitabilityDateRange = (key: 'fromDate' | 'toDate', value: string) => {
+    if (key === 'fromDate' && value && profitabilityDateRange.toDate && value > profitabilityDateRange.toDate) {
       return;
     }
-    if (key === 'toDate' && value && profitabilityExportRange.fromDate && value < profitabilityExportRange.fromDate) {
+    if (key === 'toDate' && value && profitabilityDateRange.fromDate && value < profitabilityDateRange.fromDate) {
       return;
     }
 
-    setProfitabilityExportRange((prev) => ({ ...prev, [key]: value }));
+    setProfitabilityDateRange((prev) => ({ ...prev, [key]: value }));
   };
-
-  // ─── Advanced analytics ───────────────────────────────────────────────────
-
-  const advancedPerformance = performanceAnalysis?.data as any;
-  const advancedForecast = forecastAnalysis?.data as any;
-  const advancedProjection = nextMonthProjection?.data as any;
-
-  const advancedMetrics = useMemo(() => {
-    const collectionEfficiency = Number(
-      advancedPerformance?.collectionEfficiency ?? advancedPerformance?.efficiency
-      ?? advancedPerformance?.summary?.collectionEfficiency ?? 0,
-    );
-    const delinquencyTrend = Number(
-      advancedForecast?.delinquencyTrend ?? advancedForecast?.riskTrend
-      ?? advancedForecast?.summary?.delinquencyTrend ?? 0,
-    );
-    const projectedCollections = Number(
-      advancedProjection?.projectedCollections ?? advancedProjection?.projectedRecovered
-      ?? advancedProjection?.summary?.projectedCollections ?? 0,
-    );
-    return {
-      collectionEfficiency: Number.isFinite(collectionEfficiency) ? collectionEfficiency : 0,
-      delinquencyTrend: Number.isFinite(delinquencyTrend) ? delinquencyTrend : 0,
-      projectedCollections: Number.isFinite(projectedCollections) ? projectedCollections : 0,
-    };
-  }, [advancedForecast, advancedPerformance, advancedProjection]);
-
-  const advancedTrendSeries = useMemo(() => {
-    const rawSeries =
-      (Array.isArray(advancedPerformance?.monthlyTrend) && advancedPerformance.monthlyTrend)
-      || (Array.isArray(advancedForecast?.monthlyTrend) && advancedForecast.monthlyTrend)
-      || (Array.isArray(advancedForecast?.trend) && advancedForecast.trend)
-      || [];
-    return rawSeries.map((item: any, index: number) => ({
-      period: item?.month || item?.period || `P${index + 1}`,
-      recovered: Number(item?.recovered ?? item?.collections ?? item?.value ?? 0),
-      arrears: Number(item?.arrears ?? item?.overdue ?? item?.risk ?? 0),
-    }));
-  }, [advancedForecast, advancedPerformance]);
 
   // ─── Export handlers ──────────────────────────────────────────────────────
 
@@ -313,15 +371,32 @@ export default function Reports() {
     ? Number(normalizedReportLoanId)
     : undefined;
 
-  const handleExportReport = async () => {
+  const handleExportReport = async (): Promise<boolean> => {
     setIsExporting(true);
-    await executeGuardedAction({
+    const success = await executeGuardedAction({
       action: 'credit.report.download',
       context: { role: user?.role, permissions: resolvedPermissions },
-      run: async () => { await exportDashboardSummary(); },
-      successMessage: tTerm('reports.toast.export.success'),
+      run: async () => { await exportDashboardSummary(dashboardExportFormat); },
+      successMessage: dashboardExportFormat === 'pdf'
+        ? tTerm('reports.toast.dashboard.pdf')
+        : tTerm('reports.toast.dashboard.excel'),
     });
     setIsExporting(false);
+    return success;
+  };
+
+  const handleExportAnalytics = async (): Promise<boolean> => {
+    setIsAnalyticsExporting(true);
+    const success = await executeGuardedAction({
+      action: 'credit.report.download',
+      context: { role: user?.role, permissions: resolvedPermissions },
+      run: async () => { await exportFinancialAnalyticsReport(analyticsYear, analyticsExportFormat); },
+      successMessage: analyticsExportFormat === 'pdf'
+        ? tTerm('reports.toast.analytics.pdf')
+        : tTerm('reports.toast.analytics.excel'),
+    });
+    setIsAnalyticsExporting(false);
+    return success;
   };
 
   const contextualExportSuccessMessage = (type: typeof reportType) => (
@@ -362,8 +437,10 @@ export default function Reports() {
         status: reportStatusFilter,
         format: reportFormat,
         paymentType: reportPaymentTypeFilter,
+        employeeId: reportType === 'payouts' ? reportEmployeeIdFilter || undefined : undefined,
         customerId: reportCustomerId,
         loanId: reportLoanId,
+        financialProductId: reportType === 'credits' ? reportFinancialProductIdFilter || undefined : undefined,
       }),
     );
   };
@@ -387,6 +464,7 @@ export default function Reports() {
         format: reportFormat,
         customerId: parseOptionalPositiveId(creditHistoryFilters.customerId),
         loanId: parseOptionalPositiveId(creditHistoryFilters.loanId),
+        financialProductId: creditHistoryFilters.financialProductId || undefined,
       }),
     );
   };
@@ -409,13 +487,14 @@ export default function Reports() {
         status: payoutFilters.status,
         format: reportFormat,
         paymentType: payoutFilters.paymentType,
+        employeeId: payoutFilters.employeeId,
       }),
     );
   };
 
   const profitabilityExportBlocked = hasInvalidExportRange(
-    profitabilityExportRange.fromDate,
-    profitabilityExportRange.toDate,
+    profitabilityDateRange.fromDate,
+    profitabilityDateRange.toDate,
   ) || !reportExportGuard.executable;
 
   const handleExportProfitability = async (): Promise<boolean> => {
@@ -426,8 +505,9 @@ export default function Reports() {
     return runContextualExport(
       'profitability',
       buildContextualExportParams('profitability', {
-        fromDate: profitabilityExportRange.fromDate,
-        toDate: profitabilityExportRange.toDate,
+        fromDate: profitabilityDateRange.fromDate,
+        toDate: profitabilityDateRange.toDate,
+        format: reportFormat,
       }),
     );
   };
@@ -518,6 +598,7 @@ export default function Reports() {
 
   const reportTabs = useMemo(() => [
     { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
+    { id: 'analytics', label: tTerm('reports.tab.analytics'), title: tTerm('reports.tab.analytics.title') },
     { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
     { id: 'creditHistory', label: tTerm('reports.tab.creditHistory'), title: tTerm('reports.tab.creditHistory.title') },
     { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
@@ -585,10 +666,17 @@ export default function Reports() {
           onReportStatusFilterChange={setReportStatusFilter}
           reportPaymentTypeFilter={reportPaymentTypeFilter}
           onReportPaymentTypeFilterChange={setReportPaymentTypeFilter}
+          reportEmployeeIdFilter={reportEmployeeIdFilter}
+          onReportEmployeeIdFilterChange={setReportEmployeeIdFilter}
+          employeeOptions={payoutEmployeeOptions}
+          canFilterByEmployee={canFilterPayoutsByEmployee}
           reportCustomerIdFilter={reportCustomerIdFilter}
           onReportCustomerIdFilterChange={setReportCustomerIdFilter}
           reportLoanIdFilter={reportLoanIdFilter}
           onReportLoanIdFilterChange={setReportLoanIdFilter}
+          reportFinancialProductIdFilter={reportFinancialProductIdFilter}
+          onReportFinancialProductIdFilterChange={setReportFinancialProductIdFilter}
+          financialProductOptions={creditHistoryFinancialProductOptions}
           reportFormat={reportFormat}
           onReportFormatChange={setReportFormat}
           isExporting={isExporting}
@@ -615,15 +703,17 @@ export default function Reports() {
           statusData={statusData}
           headerActions={reportExportGuard.visible ? (
             <>
-              <ActionButton
-                variant="secondary"
-                onClick={() => { void handleExportReport(); }}
-                disabled={isExporting || !reportExportGuard.executable}
-                title={reportExportGuard.executable ? tTerm('reports.cta.exportDashboard') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-                icon={<Download size={16} />}
-              >
-                {isExporting ? tTerm('credits.cta.exporting') : tTerm('reports.cta.exportSummary')}
-              </ActionButton>
+              <ReportTabExportButton
+                modalTitle={tTerm('reports.export.tab.dashboard.title')}
+                modalSubtitle={tTerm('reports.export.tab.dashboard.subtitle')}
+                exportLabel={tTerm('reports.cta.exportDashboard')}
+                format={dashboardExportFormat}
+                onFormatChange={(format) => setDashboardExportFormat(format)}
+                isExporting={isExporting}
+                disabled={!reportExportGuard.executable}
+                disabledTitle={reportExportGuard.executable ? undefined : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+                onExport={handleExportReport}
+              />
               <ActionButton
                 variant="secondary"
                 onClick={() => setContextualExportOpen(true)}
@@ -646,6 +736,8 @@ export default function Reports() {
           onCashFlowRangeChange={setCashFlowRange}
           cashFlowData={cashFlowData}
           isCashFlowLoading={isCashFlowLoading}
+          annualCashFlowData={annualCashFlowData}
+          isAnnualCashFlowLoading={isAnnualCashFlowLoading}
           dailyCashFlowDate={dailyCashFlowDate}
           onDailyCashFlowDateChange={setDailyCashFlowDate}
           dailyCashFlowData={dailyCashFlowData}
@@ -656,17 +748,48 @@ export default function Reports() {
         />
       )}
 
+      {activeTab === 'analytics' && (
+        <AnalyticsTab
+          analyticsYear={analyticsYear}
+          onAnalyticsYearChange={setAnalyticsYear}
+          performanceAnalysis={performanceAnalysis?.data}
+          executiveDashboard={executiveDashboard?.data}
+          comprehensiveAnalytics={comprehensiveAnalytics?.data}
+          comparativeAnalysis={comparativeAnalysis?.data}
+          forecastAnalysis={forecastAnalysis?.data}
+          nextMonthProjection={nextMonthProjection?.data}
+          exportActions={reportExportGuard.visible ? (
+            <ReportTabExportButton
+              modalTitle={tTerm('reports.export.tab.analytics.title')}
+              modalSubtitle={tTerm('reports.export.tab.analytics.subtitle')}
+              summary={buildAnalyticsExportSummary({ year: analyticsYear })}
+              exportLabel={tTerm('reports.cta.exportAnalytics')}
+              format={analyticsExportFormat}
+              onFormatChange={(format) => setAnalyticsExportFormat(format)}
+              isExporting={isAnalyticsExporting}
+              disabled={!reportExportGuard.executable}
+              disabledTitle={reportExportGuard.executable ? undefined : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+              onExport={handleExportAnalytics}
+            />
+          ) : null}
+        />
+      )}
+
       {activeTab === 'creditHistory' && (
         <CreditHistoryMonthlyTab
           filters={creditHistoryFilters}
           onFiltersChange={setCreditHistoryFilters}
           data={creditHistoryData}
+          financialProductOptions={creditHistoryFinancialProductOptions}
           isLoading={isCreditHistoryLoading}
           exportActions={reportExportGuard.visible ? (
             <ReportTabExportButton
               modalTitle={tTerm('reports.export.tab.creditHistory.title')}
               modalSubtitle={tTerm('reports.export.tab.creditHistory.subtitle')}
-              summary={buildCreditHistoryExportSummary(creditHistoryFilters)}
+              summary={buildCreditHistoryExportSummary({
+                ...creditHistoryFilters,
+                financialProductLabel: activeCreditHistoryFinancialProductLabel,
+              })}
               exportLabel={tTerm('reports.cta.exportCredits')}
               format={reportFormat}
               onFormatChange={setReportFormat}
@@ -718,10 +841,9 @@ export default function Reports() {
       {activeTab === 'profitability' && (
         <ProfitabilityTab
           profitabilityData={profitabilityData}
-          analyticsYear={analyticsYear}
-          onAnalyticsYearChange={setAnalyticsYear}
-          advancedMetrics={advancedMetrics}
-          advancedTrendSeries={advancedTrendSeries}
+          customerAnalytics={customerAnalytics}
+          profitabilityDateRange={profitabilityDateRange}
+          onProfitabilityDateRangeChange={updateProfitabilityDateRange}
           exportActions={reportExportGuard.visible ? (
             <ReportTabExportButton
               modalTitle={tTerm('reports.export.tab.profitability.title')}
@@ -729,15 +851,14 @@ export default function Reports() {
               exportLabel={tTerm('reports.cta.exportProfitability')}
               format={reportFormat}
               onFormatChange={setReportFormat}
-              showFormat={false}
               showRangeFields
-              range={profitabilityExportRange}
-              onRangeChange={updateProfitabilityExportRange}
+              range={profitabilityDateRange}
+              onRangeChange={updateProfitabilityDateRange}
               isExporting={isExporting}
               disabled={profitabilityExportBlocked}
               disabledTitle={profitabilityExportBlocked && hasInvalidExportRange(
-                profitabilityExportRange.fromDate,
-                profitabilityExportRange.toDate,
+                profitabilityDateRange.fromDate,
+                profitabilityDateRange.toDate,
               )
                 ? tTerm('reports.export.invalidRange')
                 : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
@@ -751,6 +872,8 @@ export default function Reports() {
         <PayoutsTab
           payoutFilters={payoutFilters}
           onPayoutFiltersChange={setPayoutFilters}
+          employees={payoutEmployeeOptions}
+          canFilterByEmployee={canFilterPayoutsByEmployee}
           payoutPage={payoutPage}
           onPayoutPageChange={setPayoutPage}
           payoutPageSize={payoutPageSize}
@@ -763,7 +886,10 @@ export default function Reports() {
             <ReportTabExportButton
               modalTitle={tTerm('reports.export.tab.payouts.title')}
               modalSubtitle={tTerm('reports.export.tab.payouts.subtitle')}
-              summary={buildPayoutExportSummary(payoutFilters)}
+              summary={buildPayoutExportSummary({
+                ...payoutFilters,
+                employeeLabel: payoutEmployeeOptions.find((employee: PayoutEmployeeOption) => String(employee.id) === payoutFilters.employeeId)?.label,
+              })}
               exportLabel={tTerm('reports.cta.exportPayouts')}
               format={reportFormat}
               onFormatChange={setReportFormat}
@@ -796,11 +922,20 @@ export default function Reports() {
           onCreateExpense={handleCreateOperatingExpense}
           onAnnulExpense={handleAnnulOperatingExpense}
           onExportExpenses={handleExportOperatingExpenses}
+          employees={payoutEmployeeOptions}
+          canFilterByEmployee={canFilterExpensesByEmployee}
         />
       )}
 
       {activeTab === 'schedule' && (
         <ScheduleTab
+          scheduleAgenda={scheduleAgenda}
+          scheduleAgendaSummary={scheduleAgendaSummary}
+          isScheduleAgendaLoading={isScheduleAgendaLoading}
+          isScheduleAgendaError={isScheduleAgendaError}
+          onRefetchAgenda={() => { void refetchScheduleAgenda(); }}
+          scheduleAgendaFilters={scheduleAgendaFilters}
+          onScheduleAgendaFiltersChange={updateScheduleAgendaFilters}
           selectedLoanId={selectedLoanId}
           onLoanIdChange={setSelectedLoanId}
           loanOptions={scheduleLoanOptions}

@@ -20,6 +20,11 @@ import { ReportDataTableSection } from './ReportDataTableSection';
 import { RowActionsWithOverflow, TableActionsCell, TableActionsHeader } from '../shared/tables';
 import { ReportTabPanel } from './ReportTabPanel';
 
+type ReportEmployeeOption = {
+  id: number;
+  label: string;
+};
+
 type OperatingExpensesTabProps = {
   expenseFilters: OperatingExpenseFilters;
   onExpenseFiltersChange: (filters: OperatingExpenseFilters) => void;
@@ -37,6 +42,8 @@ type OperatingExpensesTabProps = {
   onCreateExpense: (payload: OperatingExpensePayload) => Promise<void>;
   onAnnulExpense: (expense: OperatingExpense) => Promise<void>;
   onExportExpenses: (format: OperatingExpenseExportFormat) => boolean | Promise<boolean>;
+  employees?: ReportEmployeeOption[];
+  canFilterByEmployee?: boolean;
 };
 
 const getExpenseStatusLabel = (status: string) => (
@@ -68,6 +75,8 @@ export default function OperatingExpensesTab({
   onCreateExpense,
   onAnnulExpense,
   onExportExpenses,
+  employees = [],
+  canFilterByEmployee = false,
 }: OperatingExpensesTabProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
@@ -92,7 +101,7 @@ export default function OperatingExpensesTab({
       <ReportTabPanel
         title={tTerm('reports.expenses.title')}
         subtitle={tTerm('reports.expenses.subtitle')}
-        filterColumns={3}
+        filterColumns={canFilterByEmployee ? 4 : 3}
         filters={(
           <>
             <FormField label={tTerm('reports.expenses.filter.from')}>
@@ -122,6 +131,24 @@ export default function OperatingExpensesTab({
                 <option value="annulled">{tTerm('reports.expenses.status.annulled')}</option>
               </OperationalSelect>
             </FormField>
+            {canFilterByEmployee && (
+              <FormField label={tTerm('reports.expenses.filter.employee')}>
+                <OperationalSelect
+                  value={expenseFilters.employeeId || ''}
+                  onChange={(event) => {
+                    onExpensePageChange(1);
+                    onExpenseFiltersChange({ ...expenseFilters, employeeId: event.target.value || undefined });
+                  }}
+                >
+                  <option value="">{tTerm('reports.expenses.filter.allEmployees')}</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={String(employee.id)}>
+                      {employee.label}
+                    </option>
+                  ))}
+                </OperationalSelect>
+              </FormField>
+            )}
           </>
         )}
         headerActions={(

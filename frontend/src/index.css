@@ -177,11 +177,16 @@
     gap: 1rem;
   }
 
+  .associate-tracking-header.app-page-header {
+    padding-bottom: 0.9rem;
+  }
+
   .associate-tracking-toolbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     align-items: end;
     gap: 0.875rem 1rem;
+    padding: 0.75rem 0.9rem;
   }
 
   .associate-tracking-toolbar__field {
@@ -204,9 +209,23 @@
     align-items: center;
   }
 
+  .associate-tracking-tabs {
+    width: 100%;
+    box-shadow: none;
+  }
+
+  .associate-tracking-tabs.view-tabs {
+    padding: 0.35rem;
+  }
+
+  .associate-tracking-tabs .view-tab {
+    min-height: 2.35rem;
+    padding-block: 0.45rem;
+  }
+
   .associate-tracking-summary-strip .insight-strip-item {
     min-height: 0;
-    padding: 1rem 1.05rem;
+    padding: 0.85rem 1rem;
   }
 
   .associate-tracking-summary-strip .insight-strip-helper {
@@ -216,28 +235,236 @@
   .associate-tracking-content-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   .associate-tracking-content-grid__full {
     grid-column: 1 / -1;
   }
 
-  .associate-tracking-section-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.5rem;
+  .data-table-surface table.associate-tracking-table,
+  .app-table table.associate-tracking-table {
+    table-layout: fixed;
   }
 
-  .associate-tracking-section-body {
+  .associate-tracking-table :is(th, td) {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+    vertical-align: top;
+  }
+
+  .associate-tracking-table tbody td {
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(1) {
+    width: 31%;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(2) {
+    width: 15%;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(3) {
+    width: 13%;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(4) {
+    width: 19%;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(5) {
+    width: 11%;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(6) {
+    width: 11%;
+    min-width: 6.5rem;
+  }
+
+  .associate-tracking-table--associates :is(th, td):nth-child(1) {
+    width: 31%;
+  }
+
+  .associate-tracking-table--associates :is(th, td):nth-child(2) {
+    width: 18%;
+  }
+
+  .associate-tracking-table--associates :is(th, td):nth-child(3) {
+    width: 18%;
+  }
+
+  .associate-tracking-table--associates :is(th, td):nth-child(4) {
+    width: 15%;
+  }
+
+  .associate-tracking-table--associates :is(th, td):nth-child(5) {
+    width: 10%;
+  }
+
+  .associate-tracking-table--associates :is(th, td):nth-child(6) {
+    width: 8%;
+    min-width: 6.5rem;
+  }
+
+  .associate-tracking-table--activity :is(th, td):nth-child(1) {
+    width: 18%;
+  }
+
+  .associate-tracking-table--activity :is(th, td):nth-child(2) {
+    width: 24%;
+  }
+
+  .associate-tracking-table--activity :is(th, td):nth-child(3) {
+    width: 14%;
+  }
+
+  .associate-tracking-table--activity :is(th, td):nth-child(4) {
+    width: 14%;
+  }
+
+  .associate-tracking-table--activity :is(th, td):nth-child(5) {
+    width: 30%;
+  }
+
+  .associate-tracking-row-title,
+  .associate-tracking-cell-primary {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-weight: 760;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .associate-tracking-row-stack {
     display: flex;
+    min-width: 0;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
-  .associate-tracking-inline-table {
+  .associate-tracking-row-meta {
+    margin-top: 0.1rem;
+    max-width: 100%;
+    color: var(--text-secondary);
+    font-size: 0.83rem;
+    line-height: 1.28;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .associate-tracking-row-detail {
+    color: var(--text-secondary);
+    font-size: 0.83rem;
+    line-height: 1.28;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .associate-tracking-table--associates .associate-tracking-row-title {
+    display: -webkit-box;
+    overflow-wrap: anywhere;
+    text-overflow: initial;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+  }
+
+  .associate-tracking-table--associates .associate-tracking-row-meta {
+    margin-top: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    overflow: hidden;
+  }
+
+  .associate-tracking-table--associates .associate-tracking-row-detail,
+  .associate-tracking-table--obligations .associate-tracking-row-detail,
+  .associate-tracking-table--activity .associate-tracking-row-detail {
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .associate-tracking-table--associates .associate-tracking-row-stack,
+  .associate-tracking-table--activity .associate-tracking-row-stack,
+  .associate-tracking-table--obligations .associate-tracking-row-stack {
+    gap: 0.18rem;
+  }
+
+  .associate-tracking-row-detail--danger {
+    color: #dc2626;
+    font-weight: 760;
+  }
+
+  .associate-tracking-row-detail--success {
+    color: #15803d;
+    font-weight: 700;
+  }
+
+  .associate-tracking-table tbody td.table-cell-actions,
+  .associate-tracking-table thead th.table-cell-actions {
+    vertical-align: middle;
+  }
+
+  .associate-tracking-table tbody td.table-cell-actions [role="toolbar"] {
+    gap: 0.35rem;
+  }
+
+  .associate-tracking-modal {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .associate-tracking-modal__metrics.insight-strip {
+    box-shadow: none;
+  }
+
+  .associate-tracking-modal__grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .associate-tracking-modal__facts {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .associate-tracking-modal__facts dt {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .associate-tracking-modal__facts dd {
+    margin-top: 0.25rem;
+    font-size: 0.95rem;
+    font-weight: 750;
+    color: var(--text-primary);
+  }
+
+  .associate-tracking-modal__obligations {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .associate-tracking-modal__obligation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.85rem;
+    padding: 0.8rem 0.9rem;
     background: color-mix(in srgb, var(--bg-surface) 94%, var(--bg-base) 6%);
   }
 
@@ -895,6 +1122,11 @@
       grid-template-columns: minmax(18rem, 1.4fr) minmax(12rem, 14rem);
     }
 
+    .associate-tracking-modal__grid {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      align-items: start;
+    }
+
     .settings-config-form {
       align-items: flex-end;
     }
@@ -934,7 +1166,7 @@
 
   @media (min-width: 1600px) {
     .associate-tracking-content-grid {
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+      grid-template-columns: minmax(0, 1fr);
       align-items: start;
     }
   }
@@ -1494,6 +1726,39 @@
   .report-metrics-section__more-btn {
     min-height: 2.5rem;
     font-weight: 600;
+  }
+
+  .report-dashboard-kpi-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 768px) {
+    .report-dashboard-kpi-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .report-dashboard-kpi-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .report-dashboard-kpi-grid .metric-card {
+      padding: 0.85rem 0.9rem;
+    }
+
+    .report-dashboard-kpi-grid .metric-card-icon {
+      width: 2.25rem;
+      height: 2.25rem;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    .report-dashboard-kpi-grid {
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+    }
   }
 
   .insight-strip--modal-grid {
