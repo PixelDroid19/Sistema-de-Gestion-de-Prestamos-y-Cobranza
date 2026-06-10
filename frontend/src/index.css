@@ -508,6 +508,19 @@
     min-width: 0;
   }
 
+  .associate-detail-movement-actions {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  @media (min-width: 640px) {
+    .associate-detail-movement-actions {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    }
+  }
+
   .associate-detail-summary-strip.insight-strip--count-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

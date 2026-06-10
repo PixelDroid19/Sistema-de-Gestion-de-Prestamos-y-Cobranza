@@ -252,6 +252,7 @@ export const associatesEn = {
 'associateDetails.header.subtitle': '{name} · Return {interestRate} · {debtStatus}.',
 'associateDetails.toolbar.consultationGroup': 'Queries',
 'associateDetails.toolbar.movementGroup': 'Movements',
+'associateDetails.toolbar.moreMovements': 'More movements',
 'associateDetails.toolbar.readOnlySummary': 'Review history, calendar, and scheduled payments. Financial movements are still recorded from the operations desk.',
 'associateDetails.cta.viewHistory': 'View history',
 'associateDetails.cta.viewInstallments': 'View installments',

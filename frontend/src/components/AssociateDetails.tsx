@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle, History } from 'lucide-react';
+import { ArrowLeft, Wallet, Download, Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
@@ -10,6 +10,7 @@ import { toast } from '../lib/toast';
 import { getPaymentMethodLabel } from '../constants/paymentTypes';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
+import { AssociateDetailToolbar, type AssociateMoneyActionType } from './associateDetails/AssociateDetailToolbar';
 import { useSessionStore } from '../store/sessionStore';
 import {
   ActionButton,
@@ -23,7 +24,6 @@ import {
   PageShell,
   SectionSurface,
   AppInput,
-  ToolbarSurface,
   ViewTabs,
 } from './shared/Surfaces';
 import {
@@ -36,10 +36,8 @@ import {
 } from './shared/tables';
 
 type TabType = 'overview' | 'installments' | 'calendar';
-type AssociateMoneyActionType = 'contribution' | 'distribution' | 'capitalReturn' | 'reinvestment';
 
 const formatAssociateCurrency = (value: unknown) => formatLocaleCurrency(value);
-const detailActionButtonClassName = 'min-h-[3rem] justify-start px-4 py-3 text-left whitespace-normal leading-5';
 
 const formatSignedCurrency = (value: unknown, type?: string, status?: string) => {
   const numericValue = Number(value || 0);
@@ -99,7 +97,6 @@ export default function AssociateDetails() {
   const associateId = Number(id);
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
-  const isReadOnlyBackoffice = user?.role === 'employee';
 
   const [calendarFilters, setCalendarFilters] = useState({ startDate: '', endDate: '' });
   const updateCalendarFilter = (key: 'startDate' | 'endDate', value: string) => {
@@ -137,25 +134,21 @@ export default function AssociateDetails() {
     notes: '',
   });
   const [actionAmounts, setActionAmounts] = useState<Record<AssociateMoneyActionType, string>>({
-    contribution: '',
     distribution: '',
     capitalReturn: '',
     reinvestment: '',
   });
   const [actionErrors, setActionErrors] = useState<Record<AssociateMoneyActionType, string>>({
-    contribution: '',
     distribution: '',
     capitalReturn: '',
     reinvestment: '',
   });
   const [actionDates, setActionDates] = useState<Record<AssociateMoneyActionType, string>>({
-    contribution: getTodayDateInputValue(),
     distribution: getTodayDateInputValue(),
     capitalReturn: getTodayDateInputValue(),
     reinvestment: getTodayDateInputValue(),
   });
   const [actionNotes, setActionNotes] = useState<Record<AssociateMoneyActionType, string>>({
-    contribution: '',
     distribution: '',
     capitalReturn: '',
     reinvestment: '',
@@ -267,13 +260,7 @@ export default function AssociateDetails() {
 
     setIsSubmitting(true);
     try {
-      if (showModal === 'contribution') {
-        await createContribution.mutateAsync({
-          amount: parsedAmount,
-          contributionDate: actionDates.contribution,
-          notes: actionNotes.contribution.trim() || undefined,
-        });
-      } else if (showModal === 'distribution') {
+      if (showModal === 'distribution') {
         await createDistribution.mutateAsync({
           amount: parsedAmount,
           distributionDate: actionDates.distribution,
@@ -741,92 +728,14 @@ export default function AssociateDetails() {
         )}
       />
 
-      <ToolbarSurface className="associate-detail-action-panel" data-tour="associate-details-actions">
-        <div className="associate-detail-actions-grid">
-            <div className="associate-detail-action-group associate-detail-action-group--consultation space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                {tTerm('associateDetails.toolbar.consultationGroup')}
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-              <ActionButton
-                onClick={() => setContributionModalMode('history')}
-                icon={<History size={16} />}
-                className={detailActionButtonClassName}
-                fullWidth
-              >
-                {tTerm('associateDetails.cta.viewInterestHistory')}
-              </ActionButton>
-              <ActionButton
-                onClick={() => setShowInstallmentsModal(true)}
-                icon={<Clock size={16} />}
-                className={detailActionButtonClassName}
-                fullWidth
-              >
-                {tTerm('associateDetails.cta.viewInterestSchedule')}
-              </ActionButton>
-            </div>
-          </div>
-          {isAdmin ? (
-            <div className="associate-detail-action-group associate-detail-action-group--movement space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                {tTerm('associateDetails.toolbar.movementGroup')}
-              </p>
-              <div className="grid gap-2">
-                <ActionButton
-                  onClick={() => setContributionModalMode('create')}
-                  icon={<Wallet size={16} />}
-                  variant="primary"
-                  className={detailActionButtonClassName}
-                  fullWidth
-                >
-                  {tTerm('associateDetails.cta.registerCapitalContribution')}
-                </ActionButton>
-                <ActionButton
-                  onClick={() => setActiveTab('installments')}
-                  icon={<CheckCircle size={16} />}
-                  variant="secondary"
-                  className={detailActionButtonClassName}
-                  fullWidth
-                >
-                  {tTerm('associateDetails.cta.registerInterestPayment')}
-                </ActionButton>
-                <ActionButton
-                  onClick={() => openMoneyActionModal('capitalReturn')}
-                  icon={<Download size={16} />}
-                  className={detailActionButtonClassName}
-                  fullWidth
-                >
-                  {tTerm('associateDetails.cta.registerCapitalReturn')}
-                </ActionButton>
-                <ActionButton
-                  onClick={() => openMoneyActionModal('distribution')}
-                  icon={<Download size={16} />}
-                  className={detailActionButtonClassName}
-                  fullWidth
-                >
-                  {tTerm('associateDetails.cta.registerInterestWithdrawal')}
-                </ActionButton>
-                <ActionButton
-                  onClick={() => openMoneyActionModal('reinvestment')}
-                  icon={<RefreshCw size={16} />}
-                  className={detailActionButtonClassName}
-                  fullWidth
-                >
-                  {tTerm('associateDetails.cta.registerInterestReinvestment')}
-                </ActionButton>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </ToolbarSurface>
-
-      {isReadOnlyBackoffice && (
-        <SectionSurface className="py-4">
-          <p className="text-sm leading-6 text-text-secondary">
-          {tTerm('associateDetails.readOnlyNotice')}
-          </p>
-        </SectionSurface>
-      )}
+      <AssociateDetailToolbar
+        isAdmin={isAdmin}
+        onOpenContributionHistory={() => setContributionModalMode('history')}
+        onOpenInterestSchedule={() => setShowInstallmentsModal(true)}
+        onOpenCapitalContribution={() => setContributionModalMode('create')}
+        onOpenInterestPayments={() => setActiveTab('installments')}
+        onOpenMoneyAction={openMoneyActionModal}
+      />
 
       {/* Tabs */}
       <ViewTabs
@@ -850,9 +759,7 @@ export default function AssociateDetails() {
 
       {showModal && (
         <ModalShell
-          title={showModal === 'contribution'
-            ? tTerm('associateDetails.modal.title.contribution')
-            : showModal === 'capitalReturn'
+          title={showModal === 'capitalReturn'
               ? tTerm('associateDetails.modal.title.capitalReturn')
             : showModal === 'distribution'
               ? tTerm('associateDetails.modal.title.distribution')

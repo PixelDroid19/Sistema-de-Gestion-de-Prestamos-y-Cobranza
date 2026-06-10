@@ -257,6 +257,7 @@ export const associatesEs = {
 'associateDetails.header.subtitle': '{name} · Rentabilidad {interestRate} · {debtStatus}.',
 'associateDetails.toolbar.consultationGroup': 'Consultas',
 'associateDetails.toolbar.movementGroup': 'Movimientos',
+'associateDetails.toolbar.moreMovements': 'Más movimientos',
 'associateDetails.toolbar.readOnlySummary': 'Consulta historial, calendario y pagos programados. Los movimientos financieros se siguen registrando desde la mesa operativa.',
 'associateDetails.cta.viewHistory': 'Ver historial',
 'associateDetails.cta.viewInstallments': 'Ver cuotas',

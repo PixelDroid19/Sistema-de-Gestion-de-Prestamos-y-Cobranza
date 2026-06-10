@@ -142,6 +142,10 @@ const buildDetailsResponse = () => ({
   payInstallment: { mutateAsync: vi.fn() },
 });
 
+const openAssociateMoreMovementsMenu = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Más movimientos' }));
+};
+
 describe('AssociateDetails behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -158,9 +162,13 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByRole('button', { name: 'Volver a socios' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar aporte de capital' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gestionar pagos de intereses' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar devolución de capital' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar pago manual de rentabilidad' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reinvertir intereses' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Más movimientos' })).toBeInTheDocument();
+
+    openAssociateMoreMovementsMenu();
+
+    expect(screen.getByRole('menuitem', { name: 'Registrar devolución de capital' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Registrar pago manual de rentabilidad' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Reinvertir intereses' })).toBeInTheDocument();
   });
 
   it('presents associate records as administrative details, not a portal', () => {
@@ -183,10 +191,8 @@ describe('AssociateDetails behavior', () => {
 
     expect(screen.queryByRole('button', { name: 'Registrar aporte de capital' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Gestionar pagos de intereses' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar devolución de capital' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar pago manual de rentabilidad' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reinvertir intereses' })).not.toBeInTheDocument();
-    expect(screen.getByText(/los movimientos financieros se registran desde la mesa operativa/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Más movimientos' })).not.toBeInTheDocument();
+    expect(screen.getByText(/los movimientos financieros se siguen registrando desde la mesa operativa/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Pagos de intereses' }));
 
@@ -372,7 +378,8 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reinvertir intereses' }));
+    openAssociateMoreMovementsMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reinvertir intereses' }));
     fireEvent.change(screen.getByLabelText('Monto', { selector: '#associate-action-reinvestment-amount' }), { target: { value: '100e2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
@@ -487,7 +494,8 @@ describe('AssociateDetails behavior', () => {
 
     const { container } = render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago manual de rentabilidad' }));
+    openAssociateMoreMovementsMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Registrar pago manual de rentabilidad' }));
     fireEvent.change(container.querySelector('#associate-action-distribution-amount') as HTMLInputElement, {
       target: { value: '1200000' },
     });
@@ -495,7 +503,8 @@ describe('AssociateDetails behavior', () => {
     expect(container.querySelector('#associate-action-distribution-amount')).toHaveValue('1.200.000');
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reinvertir intereses' }));
+    openAssociateMoreMovementsMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reinvertir intereses' }));
 
     expect(container.querySelector('#associate-action-reinvestment-amount')).toHaveValue('');
   });
@@ -510,7 +519,8 @@ describe('AssociateDetails behavior', () => {
 
     const { container } = render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar devolución de capital' }));
+    openAssociateMoreMovementsMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Registrar devolución de capital' }));
     fireEvent.change(container.querySelector('#associate-action-capitalReturn-amount') as HTMLInputElement, {
       target: { value: '500000' },
     });
