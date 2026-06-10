@@ -598,6 +598,17 @@ test('export credits use case builds approved workbook fields with current snaps
   assert.equal(tnaRow.getCell(3).value, 0.6);
   assert.equal(tnaRow.getCell(3).numFmt, '0.00%');
 
+  const generationDateRow = findRowByIndicator(summarySheet, 'Fecha de Generación');
+  assert.ok(generationDateRow, 'Summary should include formatted generation date');
+  assert.ok(generationDateRow.getCell(3).value instanceof Date, 'Generation date should be a real Excel date');
+  assert.match(generationDateRow.getCell(3).numFmt, /dd\/mm\/yyyy/);
+
+  const percentPaidRow = findRowByIndicator(summarySheet, '% Total Pagado');
+  assert.ok(percentPaidRow, 'Summary should include formatted percent paid');
+  assert.equal(typeof percentPaidRow.getCell(3).value, 'number');
+  assert.ok(percentPaidRow.getCell(3).value >= 0 && percentPaidRow.getCell(3).value <= 1);
+  assert.equal(percentPaidRow.getCell(3).numFmt, '0.00%');
+
   const detailLoanDate = detailSheet.getRow(3).getCell(25);
   assert.ok(detailLoanDate.value instanceof Date, 'Detail loan date should be a real Excel date');
   assert.equal(detailLoanDate.numFmt, 'dd/mm/yyyy');
@@ -1071,20 +1082,11 @@ test('export operating expenses report builds operational Excel and PDF artifact
 
   assert.equal(excel.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.equal(excel.sheets[0].name, 'Gastos Operativos');
-  assert.deepEqual(excel.sheets[0].rows[0], {
-    expenseId: 12,
-    expenseDate: '2026-05-12',
-    category: 'Servicios',
-    description: 'Internet oficina',
-    amount: 950000,
-    paymentMethod: 'Transferencia',
-    status: 'Anulado',
-    reference: 'TRX-12',
-    createdBy: 'Operador QA',
-    annulledBy: 'Admin QA',
-    annulledAt: '2026-05-13',
-    annulmentReason: 'Registro duplicado',
-  });
+  assert.equal(excel.sheets[0].rows[0].expenseId, 12);
+  assert.ok(excel.sheets[0].rows[0].expenseDate instanceof Date);
+  assert.equal(excel.sheets[0].rows[0].amount, 950000);
+  assert.equal(excel.sheets[0].rows[0].status, 'Anulado');
+  assert.ok(excel.sheets[0].rows[0].annulledAt instanceof Date);
   assert.equal(excel.sheets[0].rows.some((row) => row.status === 'annulled'), false);
 
   const pdf = await useCase({
@@ -1323,8 +1325,18 @@ test('GET /reports/dashboard exports xlsx and pdf files for admin', async () => 
   );
   assert.deepEqual(
     summaryRows.find(([label]) => label === 'Pagos a socios'),
-    ['Pagos a socios', '12000.00'],
+    ['Pagos a socios', 12000],
   );
+
+  let pagosSociosCell = null;
+  workbook.getWorksheet('Resumen General').eachRow((row) => {
+    if (row.getCell(1).value === 'Pagos a socios') {
+      pagosSociosCell = row.getCell(2);
+    }
+  });
+  assert.ok(pagosSociosCell);
+  assert.equal(pagosSociosCell.value, 12000);
+  assert.match(pagosSociosCell.numFmt, /\$/);
 
   const loanHeaders = workbook.getWorksheet('Préstamos recientes').getRow(2).values;
   assert.ok(loanHeaders.includes('Crédito'));

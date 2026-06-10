@@ -9,6 +9,7 @@ const { formatOperationalStatus } = require('@/modules/reports/application/repor
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { buildDateRangeMessage } = require('@/modules/shared/dateUtils');
 const { ValidationError } = require('@/utils/errorHandler');
+const { roundMoney, toExcelDate } = require('@/modules/reports/application/excelExportFormats');
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_STATUSES = new Set(['completed', 'annulled']);
@@ -27,15 +28,6 @@ const EXPENSE_COLUMNS = [
   { header: 'Fecha de Anulación', key: 'annulledAt', width: 22, numFmt: 'dd/mm/yyyy' },
   { header: 'Motivo de Anulación', key: 'annulmentReason', width: 34 },
 ];
-
-const formatIsoDate = (value) => {
-  if (!value) {
-    return '';
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
-};
 
 const toNumber = (value) => {
   const number = Number(value || 0);
@@ -93,16 +85,16 @@ const pickUserName = (user) => user?.name || user?.email || 'N/A';
 
 const buildExpenseRows = (expenses = []) => expenses.map((expense) => ({
   expenseId: expense.id,
-  expenseDate: formatIsoDate(expense.expenseDate),
+  expenseDate: toExcelDate(expense.expenseDate),
   category: expense.category || 'N/A',
   description: expense.description || 'N/A',
-  amount: toNumber(expense.amount),
+  amount: roundMoney(expense.amount),
   paymentMethod: expense.paymentMethod || 'N/A',
   status: formatOperationalStatus(expense.status),
   reference: expense.reference || '',
   createdBy: pickUserName(expense.createdBy),
   annulledBy: expense.annulledBy ? pickUserName(expense.annulledBy) : '',
-  annulledAt: formatIsoDate(expense.annulledAt),
+  annulledAt: toExcelDate(expense.annulledAt),
   annulmentReason: expense.annulmentReason || '',
 }));
 

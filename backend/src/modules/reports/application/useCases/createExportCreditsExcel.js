@@ -6,6 +6,18 @@ const {
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const {
+  MONEY_FORMAT,
+  PERCENT_FORMAT,
+  DATE_FORMAT,
+  DATE_TIME_FORMAT,
+  INTEGER_FORMAT,
+  TNA_FORMAT,
+  summaryRow,
+  creditInfoRow,
+  roundMoney,
+  toExcelDate,
+} = require('@/modules/reports/application/excelExportFormats');
 const { normalizeOptionalOperationalDate, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 
 const toPlainLoan = (loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan);
@@ -99,13 +111,6 @@ const matchesFilters = (loan, filters) => {
   return true;
 };
 
-const MONEY_FORMAT = '"$" #,##0.00;[Red]-"$" #,##0.00;"-"';
-const PERCENT_FORMAT = '0.00%';
-const DATE_FORMAT = 'dd/mm/yyyy';
-const DATE_TIME_FORMAT = 'dd/mm/yyyy h:mm AM/PM';
-const INTEGER_FORMAT = '#,##0';
-const TNA_FORMAT = '0.00"%"';
-
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: MONEY_FORMAT });
 const percentColumn = (header, key, width = 15) => ({ header, key, width, numFmt: PERCENT_FORMAT });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: DATE_FORMAT });
@@ -164,15 +169,8 @@ const PAYMENT_COLUMNS = [
 ];
 
 const roundPercent = (value) => Math.round(Number(value || 0) * 10000) / 10000;
-const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
 
-const toDateValue = (value) => {
-  if (!value || value === 'N/A') {
-    return '';
-  }
-
-  return toOperationalDateOrNull(value) || '';
-};
+const toDateValue = (value) => toExcelDate(value);
 
 const getLoanCustomer = (loan) => loan?.Customer || loan?.customer || {};
 
@@ -194,21 +192,6 @@ const getPaymentMethod = (payment = {}) => (
   formatPaymentMethod(payment.paymentMethod)
 );
 
-const formattedRow = (row, formats = {}) => ({
-  ...row,
-  __formats: Object.entries(formats).reduce((acc, [key, numFmt]) => {
-    if (numFmt) {
-      acc[key] = { numFmt };
-    }
-    return acc;
-  }, {}),
-});
-
-const summaryRow = (section, indicator, value, valueFormat) => formattedRow(
-  { section, indicator, value },
-  { value: valueFormat },
-);
-
 const compactRepeatedSections = (rows = []) => {
   let lastSection = null;
 
@@ -224,11 +207,6 @@ const compactRepeatedSections = (rows = []) => {
     };
   });
 };
-
-const creditInfoRow = (campo, valor, valueFormat) => formattedRow(
-  { campo, valor },
-  { valor: valueFormat },
-);
 
 const buildSummaryRows = (rows) => {
   const totalCustomers = new Set(rows.map((row) => row.customerId).filter(Boolean)).size;

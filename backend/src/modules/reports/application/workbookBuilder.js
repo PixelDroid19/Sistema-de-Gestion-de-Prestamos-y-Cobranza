@@ -1,4 +1,10 @@
 const ExcelJS = require('exceljs');
+const {
+  DATE_TIME_FORMAT,
+  isDateExcelFormat,
+  isNumericExcelFormat,
+  parseExcelNumber,
+} = require('@/modules/reports/application/excelExportFormats');
 
 const MAX_SHEET_NAME_LENGTH = 31;
 
@@ -79,78 +85,41 @@ const normalizeCellValue = (value) => {
   return stringifyForCell(value) || '';
 };
 
-const isNumericExcelFormat = (numFmt) => {
-  const format = String(numFmt || '').toLowerCase();
-  return Boolean(format)
-    && /[#0]/.test(format)
-    && !/(dd|mm|yyyy|yy|hh|ss)/.test(format);
-};
-
-const parseFormattedNumber = (value, { isPercentFormat = false } = {}) => {
-  if (typeof value === 'number') {
-    return value;
+const coerceDateValue = (value) => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : value;
   }
 
-  if (typeof value !== 'string') {
-    return value;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === '-' || /^n\/?a$/i.test(trimmed)) {
-    return value;
-  }
-
-  const hasPercentSymbol = trimmed.includes('%');
-  const isParenthesesNegative = /^\(.*\)$/.test(trimmed);
-  let sanitized = trimmed
-    .replace(/[^\d,.\-()]/g, '')
-    .replace(/[()]/g, '');
-
-  if (!sanitized || sanitized === '-' || sanitized === '.' || sanitized === ',') {
-    return value;
-  }
-
-  const lastComma = sanitized.lastIndexOf(',');
-  const lastDot = sanitized.lastIndexOf('.');
-
-  if (lastComma >= 0 && lastDot >= 0) {
-    sanitized = lastComma > lastDot
-      ? sanitized.replace(/\./g, '').replace(',', '.')
-      : sanitized.replace(/,/g, '');
-  } else if (lastComma >= 0) {
-    const parts = sanitized.split(',');
-    const lastPart = parts[parts.length - 1];
-    sanitized = parts.length === 2 && lastPart.length <= 2
-      ? `${parts[0]}.${lastPart}`
-      : sanitized.replace(/,/g, '');
-  } else if (lastDot >= 0) {
-    const parts = sanitized.split('.');
-    const lastPart = parts[parts.length - 1];
-    if (parts.length > 2 && lastPart.length === 3) {
-      sanitized = sanitized.replace(/\./g, '');
-    } else if (parts.length > 2) {
-      sanitized = `${parts.slice(0, -1).join('')}.${lastPart}`;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === 'N/A') {
+      return '';
     }
+
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? value : date;
   }
 
-  const parsed = Number(sanitized);
-  if (!Number.isFinite(parsed)) {
-    return value;
-  }
-
-  const signedValue = isParenthesesNegative ? -Math.abs(parsed) : parsed;
-  return isPercentFormat && hasPercentSymbol ? signedValue / 100 : signedValue;
+  return value;
 };
 
-const normalizeCellValueForColumn = (value, column = {}) => {
-  const normalizedValue = normalizeCellValue(value);
-  if (!isNumericExcelFormat(column.numFmt)) {
+const normalizeCellValueForColumn = (value, column = {}, rowFormats = {}) => {
+  const effectiveNumFmt = rowFormats?.numFmt || column.numFmt;
+  let normalizedValue = normalizeCellValue(value);
+
+  if (isDateExcelFormat(effectiveNumFmt)) {
+    return coerceDateValue(normalizedValue);
+  }
+
+  if (!isNumericExcelFormat(effectiveNumFmt)) {
     return normalizedValue;
   }
 
-  return parseFormattedNumber(normalizedValue, {
-    isPercentFormat: String(column.numFmt || '').includes('%'),
+  const parsedValue = parseExcelNumber(normalizedValue, {
+    isPercentFormat: String(effectiveNumFmt || '').includes('%'),
   });
+
+  return typeof parsedValue === 'number' ? parsedValue : normalizedValue;
 };
 
 const resolveColumns = ({ rows = [], columns = [] }) => {
@@ -198,41 +167,38 @@ const applyCellBorder = (cell) => {
   };
 };
 
-const applyColumnFormats = ({ worksheet, columns = [], rowNumber }) => {
-  columns.forEach((column, index) => {
-    const cell = worksheet.getRow(rowNumber).getCell(index + 1);
-    if (column.numFmt) {
-      cell.numFmt = column.numFmt;
-    }
-    if (column.alignment) {
-      cell.alignment = column.alignment;
-    }
-    applyCellBorder(cell);
-  });
+const applyCellNumFmt = (cell, numFmt) => {
+  if (!numFmt) {
+    return;
+  }
+
+  cell.numFmt = numFmt;
+  cell.style = { ...(cell.style || {}), numFmt };
 };
 
-const applyRowCellFormats = ({ worksheetRow, columns = [], row = {} }) => {
-  const cellFormats = row.__formats && typeof row.__formats === 'object'
-    ? row.__formats
-    : {};
+const applyCellPresentation = ({ cell, column = {}, row = {}, key }) => {
+  const rowFormat = row.__formats?.[key];
+  const numFmt = rowFormat?.numFmt || column.numFmt;
 
-  columns.forEach((column, index) => {
-    const format = cellFormats[column.key];
-    if (!format || typeof format !== 'object') {
-      return;
-    }
+  if (numFmt) {
+    applyCellNumFmt(cell, numFmt);
+  } else if (cell.value instanceof Date) {
+    applyCellNumFmt(cell, DATE_TIME_FORMAT);
+  }
 
-    const cell = worksheetRow.getCell(index + 1);
-    if (format.numFmt) {
-      cell.numFmt = format.numFmt;
-    }
-    if (format.alignment) {
-      cell.alignment = { ...(cell.alignment || {}), ...format.alignment };
-    }
-    if (format.font) {
-      cell.font = { ...(cell.font || {}), ...format.font };
-    }
-  });
+  if (rowFormat?.alignment || column.alignment) {
+    cell.alignment = {
+      ...(cell.alignment || {}),
+      ...(column.alignment || {}),
+      ...(rowFormat?.alignment || {}),
+    };
+  }
+
+  if (rowFormat?.font) {
+    cell.font = { ...(cell.font || {}), ...rowFormat.font };
+  }
+
+  applyCellBorder(cell);
 };
 
 const addWorksheetTitle = ({
@@ -293,10 +259,12 @@ const addRowsTable = ({
   rows.forEach((row) => {
     const worksheetRow = worksheet.getRow(currentRow);
     keys.forEach((key, index) => {
-      worksheetRow.getCell(index + 1).value = normalizeCellValueForColumn(row[key], resolvedColumns[index]);
+      const column = resolvedColumns[index];
+      const rowFormat = row.__formats?.[key];
+      const cell = worksheetRow.getCell(index + 1);
+      cell.value = normalizeCellValueForColumn(row[key], column, rowFormat);
+      applyCellPresentation({ cell, column, row, key });
     });
-    applyColumnFormats({ worksheet, columns: resolvedColumns, rowNumber: currentRow });
-    applyRowCellFormats({ worksheetRow, columns: resolvedColumns, row });
     currentRow += 1;
   });
 

@@ -9,6 +9,7 @@ const {
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const { roundMoney, toExcelDate } = require('@/modules/reports/application/excelExportFormats');
 
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
@@ -43,6 +44,8 @@ const formatIsoDate = (value) => {
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
 };
 
+const toWorkbookMoney = (value) => roundMoney(value);
+
 const normalizePayoutExportFilters = (filters = {}) => {
   const dateRange = parseDateRange({
     fromDate: filters.fromDate ?? filters.startDate,
@@ -72,14 +75,6 @@ const parseMoneyValue = (value) => {
 };
 
 const sumRowsByMoneyKey = (rows, key) => rows.reduce((sum, row) => sum + parseMoneyValue(row[key]), 0);
-const toWorkbookDate = (value) => {
-  if (!value || value === 'N/A') {
-    return '';
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date;
-};
 
 const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
   const normalizedFilters = normalizePayoutExportFilters(filters);
@@ -109,11 +104,11 @@ const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
       customerName: customer?.name || 'N/A',
       customerEmail: customer?.email || 'N/A',
       paymentDate: formatIsoDate(payment.paymentDate),
-      amount: formatMoney(payment.amount),
-      principalApplied: formatMoney(payment.principalApplied),
-      interestApplied: formatMoney(payment.interestApplied),
-      penaltyApplied: formatMoney(payment.penaltyApplied),
-      remainingBalanceAfterPayment: formatMoney(payment.remainingBalanceAfterPayment),
+      amount: toWorkbookMoney(payment.amount),
+      principalApplied: toWorkbookMoney(payment.principalApplied),
+      interestApplied: toWorkbookMoney(payment.interestApplied),
+      penaltyApplied: toWorkbookMoney(payment.penaltyApplied),
+      remainingBalanceAfterPayment: toWorkbookMoney(payment.remainingBalanceAfterPayment),
       paymentType: formatPaymentType(payment.paymentType),
       paymentMethod: formatPaymentMethod(payment.paymentMethod),
       status: formatOperationalStatus(payment.status),
@@ -150,8 +145,8 @@ const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filt
         columns: PAYOUT_WORKBOOK_COLUMNS,
         rows: rows.map((row) => ({
           ...row,
-          paymentDate: toWorkbookDate(row.paymentDate),
-          createdAt: toWorkbookDate(row.createdAt),
+          paymentDate: toExcelDate(row.paymentDate),
+          createdAt: toExcelDate(row.createdAt),
         })),
       }],
     },

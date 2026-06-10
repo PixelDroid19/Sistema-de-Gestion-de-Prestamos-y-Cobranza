@@ -10,6 +10,13 @@ const {
   dateColumn,
 } = require('@/modules/reports/application/reportInternals');
 const {
+  MONEY_FORMAT,
+  PERCENT_FORMAT,
+  indicatorRow,
+  roundMoney,
+  toExcelDate,
+} = require('@/modules/reports/application/excelExportFormats');
+const {
   normalizeAssociateRecord,
   normalizeParticipationPercentage,
 } = require('./useCases');
@@ -65,9 +72,9 @@ const DETAIL_COLUMNS = [
 
 const STATUS_COLUMNS = [
   { header: 'Estado', key: 'status', width: 18 },
-  { header: 'Cantidad', key: 'count', width: 14 },
+  { header: 'Cantidad', key: 'count', width: 14, numFmt: '#,##0' },
   moneyColumn('Monto Total', 'amount'),
-  { header: 'Porcentaje', key: 'percentage', width: 14 },
+  { header: 'Porcentaje', key: 'percentage', width: 14, numFmt: PERCENT_FORMAT },
 ];
 
 const SECTION_COLUMNS = [
@@ -251,7 +258,8 @@ const buildAssociateSheets = (rows) => {
     return map;
   }, new Map()).values()).map((row) => ({
     ...row,
-    percentage: rows.length > 0 ? `${((row.count / rows.length) * 100).toFixed(2)}%` : '0.00%',
+    amount: roundMoney(row.amount),
+    percentage: rows.length > 0 ? row.count / rows.length : 0,
   }));
   const bySection = Array.from(rows.reduce((map, row) => {
     const section = row.section || 'N/A';
@@ -260,7 +268,10 @@ const buildAssociateSheets = (rows) => {
     current.amount += parseMoney(row.amount);
     map.set(section, current);
     return map;
-  }, new Map()).values());
+  }, new Map()).values()).map((row) => ({
+    ...row,
+    amount: roundMoney(row.amount),
+  }));
 
   return [
     {
@@ -270,12 +281,12 @@ const buildAssociateSheets = (rows) => {
       headerFill: STYLE_COLORS.green,
       columns: SUMMARY_COLUMNS,
       rows: [
-        { indicator: 'Total de Socios', value: associateIds.size, unit: 'socios', description: 'Número total de socios incluidos en el reporte' },
-        { indicator: 'Aportes Totales', value: totalContributed, unit: '$', description: 'Suma de aportes registrados' },
-        { indicator: 'Distribuciones Totales', value: totalDistributed, unit: '$', description: 'Intereses o utilidades reconocidas al socio' },
-        { indicator: 'Capital Devuelto', value: totalCapitalReturned, unit: '$', description: 'Capital reintegrado al socio' },
-        { indicator: 'Interés Pagado', value: totalInterestPaid, unit: '$', description: 'Intereses pagados a socios' },
-        { indicator: 'Deuda con Socios', value: totalInterestDebt, unit: '$', description: 'Intereses programados pendientes de pago' },
+        { ...indicatorRow('Total de Socios', associateIds.size, '#,##0'), unit: 'socios', description: 'Número total de socios incluidos en el reporte' },
+        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), unit: '$', description: 'Suma de aportes registrados' },
+        { ...indicatorRow('Distribuciones Totales', roundMoney(totalDistributed), MONEY_FORMAT), unit: '$', description: 'Intereses o utilidades reconocidas al socio' },
+        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), unit: '$', description: 'Capital reintegrado al socio' },
+        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), unit: '$', description: 'Intereses pagados a socios' },
+        { ...indicatorRow('Deuda con Socios', roundMoney(totalInterestDebt), MONEY_FORMAT), unit: '$', description: 'Intereses programados pendientes de pago' },
       ],
       autoFilter: false,
     },
@@ -310,12 +321,20 @@ const buildAssociateSheets = (rows) => {
       headerFill: STYLE_COLORS.headerBlue,
       columns: SUMMARY_COLUMNS,
       rows: [
-        { indicator: 'Aportes Totales', value: totalContributed, unit: '$', description: 'Capital aportado por socios' },
-        { indicator: 'Distribuciones Totales', value: totalDistributed, unit: '$', description: 'Utilidad repartida' },
-        { indicator: 'Capital Devuelto', value: totalCapitalReturned, unit: '$', description: 'Capital reintegrado a socios' },
-        { indicator: 'Interés Pagado', value: totalInterestPaid, unit: '$', description: 'Pagos de intereses ejecutados' },
-        { indicator: 'Interés Pendiente', value: totalInterestDebt, unit: '$', description: 'Estado de deuda con socios' },
-        { indicator: 'Rentabilidad sobre Aportes', value: totalContributed > 0 ? `${((totalDistributed / totalContributed) * 100).toFixed(2)}%` : '0.00%', unit: '%', description: 'Distribuciones sobre aportes' },
+        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), unit: '$', description: 'Capital aportado por socios' },
+        { ...indicatorRow('Distribuciones Totales', roundMoney(totalDistributed), MONEY_FORMAT), unit: '$', description: 'Utilidad repartida' },
+        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), unit: '$', description: 'Capital reintegrado a socios' },
+        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), unit: '$', description: 'Pagos de intereses ejecutados' },
+        { ...indicatorRow('Interés Pendiente', roundMoney(totalInterestDebt), MONEY_FORMAT), unit: '$', description: 'Estado de deuda con socios' },
+        {
+          ...indicatorRow(
+            'Rentabilidad sobre Aportes',
+            totalContributed > 0 ? totalDistributed / totalContributed : 0,
+            PERCENT_FORMAT,
+          ),
+          unit: '%',
+          description: 'Distribuciones sobre aportes',
+        },
       ],
       autoFilter: false,
     },
@@ -326,11 +345,11 @@ const buildAssociateSheets = (rows) => {
       headerFill: STYLE_COLORS.headerBlue,
       columns: SECTION_COLUMNS,
       rows: [
-        { section: 'Aportes', count: contributionRows.length, amount: totalContributed },
-        { section: 'Distribuciones', count: distributionRows.length, amount: totalDistributed },
-        { section: 'Devoluciones de capital', count: capitalReturnRows.length, amount: totalCapitalReturned },
-        { section: 'Intereses pagados', count: interestRows.filter((row) => row.status === 'Pagado').length, amount: totalInterestPaid },
-        { section: 'Intereses pendientes', count: interestRows.filter((row) => row.status !== 'Pagado').length, amount: totalInterestDebt },
+        { section: 'Aportes', count: contributionRows.length, amount: roundMoney(totalContributed) },
+        { section: 'Distribuciones', count: distributionRows.length, amount: roundMoney(totalDistributed) },
+        { section: 'Devoluciones de capital', count: capitalReturnRows.length, amount: roundMoney(totalCapitalReturned) },
+        { section: 'Intereses pagados', count: interestRows.filter((row) => row.status === 'Pagado').length, amount: roundMoney(totalInterestPaid) },
+        { section: 'Intereses pendientes', count: interestRows.filter((row) => row.status !== 'Pagado').length, amount: roundMoney(totalInterestDebt) },
       ],
     },
   ];
@@ -390,9 +409,9 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
       const baseFields = {
         interestType: formatInterestType(associate.interestType),
         interestRate: associate.interestRate || '0.0000',
-        interestDebt: formatMoney(interestDebt),
-        totalInterestPaid: formatMoney(totalInterestPaid),
-        nextInterestPaymentDate: formatIsoDate(nextInterestPayment?.dueDate),
+        interestDebt: roundMoney(interestDebt),
+        totalInterestPaid: roundMoney(totalInterestPaid),
+        nextInterestPaymentDate: toExcelDate(nextInterestPayment?.dueDate),
       };
 
       const contributionRows = filteredContributions.map((contribution) => ({
@@ -402,8 +421,8 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
         section: ASSOCIATE_EXPORT_SECTIONS.contribution,
         entryId: contribution.id,
         reference: '',
-        amount: formatMoney(contribution.amount),
-        date: formatIsoDate(contribution.contributionDate),
+        amount: roundMoney(contribution.amount),
+        date: toExcelDate(contribution.contributionDate),
         status: formatOperationalStatus(contribution.status || 'completed'),
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
         contributionInterestType: contribution.interestTypeSnapshot ? formatInterestType(contribution.interestTypeSnapshot) : 'N/A',
@@ -425,8 +444,8 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
           section,
           entryId: distribution.id,
           reference: distribution.loanId || '',
-          amount: formatMoney(distribution.amount),
-          date: formatIsoDate(distribution.distributionDate),
+          amount: roundMoney(distribution.amount),
+          date: toExcelDate(distribution.distributionDate),
           status: formatOperationalStatus(distribution.status),
           participationPercentage: distribution.participationPercentage || normalizeParticipationPercentage(associate.participationPercentage),
           contributionInterestType: '',
@@ -447,8 +466,8 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
           section: operationalStatus === 'paid' ? ASSOCIATE_EXPORT_SECTIONS.interestPaid : ASSOCIATE_EXPORT_SECTIONS.interestDue,
           entryId: installment.id,
           reference: installment.installmentNumber || '',
-          amount: formatMoney(installment.amount),
-          date: formatIsoDate(operationalStatus === 'paid' ? installment.paidAt : installment.dueDate),
+          amount: roundMoney(installment.amount),
+          date: toExcelDate(operationalStatus === 'paid' ? installment.paidAt : installment.dueDate),
           status: formatOperationalStatus(operationalStatus),
           participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
           contributionInterestType: '',

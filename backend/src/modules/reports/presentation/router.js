@@ -6,6 +6,15 @@ const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/s
 const { buildPdfBuffer, formatMoney } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer, STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const {
+  MONEY_FORMAT,
+  PERCENT_FORMAT,
+  INTEGER_FORMAT,
+  dashboardRow,
+  parseExcelMoney,
+  parseExcelPercent,
+  toExcelDate,
+} = require('@/modules/reports/application/excelExportFormats');
 
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
@@ -62,14 +71,7 @@ const DASHBOARD_NOTIFICATION_COLUMNS = [
   { header: 'Descripción', key: 'description', width: 38 },
 ];
 
-const formatExcelDate = (value) => {
-  if (!value) {
-    return '';
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
-};
+const formatExcelDate = (value) => toExcelDate(value);
 
 const pickCustomerName = (record = {}) => (
   record.customerName
@@ -225,30 +227,30 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     const summary = dashboardPayload?.summary || {};
     const collections = dashboardPayload?.collections || {};
     return [
-      { indicador: 'Créditos totales', valor: summary.totalLoans ?? 0 },
-      { indicador: 'Clientes registrados', valor: summary.totalCustomers ?? 0 },
-      { indicador: 'Créditos activos', valor: summary.activeLoans ?? 0 },
-      { indicador: 'Créditos finalizados', valor: summary.finalizedLoans ?? summary.recoveredLoans ?? 0 },
-      { indicador: 'Créditos en mora', valor: summary.delinquentLoans ?? summary.defaultedLoans ?? 0 },
-      { indicador: 'Créditos recuperados', valor: summary.recoveredLoans ?? 0 },
-      { indicador: 'Capital colocado', valor: summary.totalPortfolioAmount ?? '0.00' },
-      { indicador: 'Capital recuperado', valor: summary.totalRecoveredAmount ?? '0.00' },
-      { indicador: 'Capital actualmente prestado', valor: summary.totalOutstandingPrincipal ?? '0.00' },
-      { indicador: 'Interés generado', valor: summary.totalInterestGenerated ?? '0.00' },
-      { indicador: 'Interés pagado', valor: summary.totalInterestPaid ?? '0.00' },
-      { indicador: 'Interés pendiente', valor: summary.totalInterestPending ?? '0.00' },
-      { indicador: 'Pagos a socios', valor: summary.totalAssociatePayments ?? '0.00' },
-      { indicador: 'Cuotas pendientes', valor: summary.pendingInstallments ?? 0 },
-      { indicador: 'Cuotas vencidas', valor: summary.overdueInstallments ?? 0 },
-      { indicador: 'Saldo pendiente', valor: summary.totalOutstandingAmount ?? '0.00' },
-      { indicador: 'Tasa de recuperación', valor: summary.recoveryRate ?? '0.00%' },
-      { indicador: 'Porcentaje de mora', valor: summary.arrearsRate ?? '0.00%' },
-      { indicador: 'Caja disponible', valor: summary.availableCash ?? '0.00' },
-      { indicador: 'Ganancia del período', valor: summary.periodProfit ?? '0.00' },
-      { indicador: 'Pérdida del período', valor: summary.periodLoss ?? '0.00' },
-      { indicador: 'Alertas vencidas', valor: collections.overdueAlerts ?? 0 },
-      { indicador: 'Compromisos pendientes', valor: collections.pendingPromises ?? 0 },
-      { indicador: 'Notificaciones no leídas', valor: collections.unreadNotifications ?? 0 },
+      dashboardRow('Créditos totales', Number(summary.totalLoans ?? 0), INTEGER_FORMAT),
+      dashboardRow('Clientes registrados', Number(summary.totalCustomers ?? 0), INTEGER_FORMAT),
+      dashboardRow('Créditos activos', Number(summary.activeLoans ?? 0), INTEGER_FORMAT),
+      dashboardRow('Créditos finalizados', Number(summary.finalizedLoans ?? summary.recoveredLoans ?? 0), INTEGER_FORMAT),
+      dashboardRow('Créditos en mora', Number(summary.delinquentLoans ?? summary.defaultedLoans ?? 0), INTEGER_FORMAT),
+      dashboardRow('Créditos recuperados', Number(summary.recoveredLoans ?? 0), INTEGER_FORMAT),
+      dashboardRow('Capital colocado', parseExcelMoney(summary.totalPortfolioAmount), MONEY_FORMAT),
+      dashboardRow('Capital recuperado', parseExcelMoney(summary.totalRecoveredAmount), MONEY_FORMAT),
+      dashboardRow('Capital actualmente prestado', parseExcelMoney(summary.totalOutstandingPrincipal), MONEY_FORMAT),
+      dashboardRow('Interés generado', parseExcelMoney(summary.totalInterestGenerated), MONEY_FORMAT),
+      dashboardRow('Interés pagado', parseExcelMoney(summary.totalInterestPaid), MONEY_FORMAT),
+      dashboardRow('Interés pendiente', parseExcelMoney(summary.totalInterestPending), MONEY_FORMAT),
+      dashboardRow('Pagos a socios', parseExcelMoney(summary.totalAssociatePayments), MONEY_FORMAT),
+      dashboardRow('Cuotas pendientes', Number(summary.pendingInstallments ?? 0), INTEGER_FORMAT),
+      dashboardRow('Cuotas vencidas', Number(summary.overdueInstallments ?? 0), INTEGER_FORMAT),
+      dashboardRow('Saldo pendiente', parseExcelMoney(summary.totalOutstandingAmount), MONEY_FORMAT),
+      dashboardRow('Tasa de recuperación', parseExcelPercent(summary.recoveryRate), PERCENT_FORMAT),
+      dashboardRow('Porcentaje de mora', parseExcelPercent(summary.arrearsRate), PERCENT_FORMAT),
+      dashboardRow('Caja disponible', parseExcelMoney(summary.availableCash), MONEY_FORMAT),
+      dashboardRow('Ganancia del período', parseExcelMoney(summary.periodProfit), MONEY_FORMAT),
+      dashboardRow('Pérdida del período', parseExcelMoney(summary.periodLoss), MONEY_FORMAT),
+      dashboardRow('Alertas vencidas', Number(collections.overdueAlerts ?? 0), INTEGER_FORMAT),
+      dashboardRow('Compromisos pendientes', Number(collections.pendingPromises ?? 0), INTEGER_FORMAT),
+      dashboardRow('Notificaciones no leídas', Number(collections.unreadNotifications ?? 0), INTEGER_FORMAT),
     ];
   };
 
