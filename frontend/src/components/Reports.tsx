@@ -43,6 +43,7 @@ import { requestInput } from '../lib/confirmModal';
 import { toast } from '../lib/toast';
 import {
   ActionButton,
+  EmptyState,
   PageHeader,
   PageShell,
   ViewTabs,
@@ -222,7 +223,6 @@ export default function Reports() {
   const {
     items: profitabilityItems,
     customerAnalytics,
-    isLoading: isProfitabilityLoading,
   } = useCustomerProfitability(profitabilityDateRange);
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
   const [cashFlowRange, setCashFlowRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
@@ -310,7 +310,7 @@ export default function Reports() {
   const monthlyData = monthlyPerformance ?? [];
   const statusData = statusBreakdown ?? [];
   const profitabilityData = profitabilityItems;
-  const isLoading = isReportsLoading || isProfitabilityLoading;
+  const isLoading = isReportsLoading;
   const creditHistoryFinancialProductOptions = useMemo(
     () => creditHistoryFinancialProducts.map((product) => ({ value: product.id, label: product.name })),
     [creditHistoryFinancialProducts],
@@ -624,14 +624,33 @@ export default function Reports() {
   // ─── Loading / Error states ───────────────────────────────────────────────
 
   if (isLoading) {
-    return <div className="p-8 text-center text-text-secondary">{tTerm('reports.state.loading')}</div>;
+    return (
+      <PageShell data-tour="reports-page">
+        <PageHeader
+          title={tTerm('reports.module.title')}
+          subtitle={tTerm('reports.module.subtitle')}
+          guideKey="reports"
+          tourId="reports-header"
+        />
+        <EmptyState compact title={tTerm('reports.state.loading')} />
+      </PageShell>
+    );
   }
 
   if (isError) {
     return (
-      <div className="p-8 text-center text-red-500">
-        {getSafeErrorText(error, { domain: 'reports', action: 'reports.load' })}
-      </div>
+      <PageShell data-tour="reports-page">
+        <PageHeader
+          title={tTerm('reports.module.title')}
+          subtitle={tTerm('reports.module.subtitle')}
+          guideKey="reports"
+          tourId="reports-header"
+        />
+        <EmptyState
+          compact
+          title={getSafeErrorText(error, { domain: 'reports', action: 'reports.load' })}
+        />
+      </PageShell>
     );
   }
 
@@ -715,13 +734,13 @@ export default function Reports() {
                 onExport={handleExportReport}
               />
               <ActionButton
-                variant="secondary"
+                variant="ghost"
                 onClick={() => setContextualExportOpen(true)}
                 disabled={!reportExportGuard.executable}
-                title={reportExportGuard.executable ? tTerm('reports.cta.openExports') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+                title={reportExportGuard.executable ? tTerm('reports.cta.exportContextual') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
                 icon={<Download size={16} />}
               >
-                {tTerm('reports.cta.openExports')}
+                {tTerm('reports.cta.exportContextual')}
               </ActionButton>
             </>
           ) : null}

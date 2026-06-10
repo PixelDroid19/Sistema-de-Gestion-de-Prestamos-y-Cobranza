@@ -27,7 +27,7 @@ export default function ReportMetricsDetailModal({
       maxWidthClassName="max-w-4xl"
       onClose={onClose}
       footer={(
-        <ActionButton type="button" variant="primary" onClick={onClose} fullWidth>
+        <ActionButton type="button" variant="primary" onClick={onClose}>
           {tTerm('common.cta.close')}
         </ActionButton>
       )}

@@ -68,7 +68,7 @@ export const reportsEs = {
 'reports.chart.disbursementRecovery.emptyWithKpiHint': 'Cambie el rango del gráfico para comparar periodos con actividad reciente.',
 'reports.state.loading': 'Cargando reportes…',
 'reports.cta.exportDashboard': 'Exportar dashboard general',
-'reports.cta.exportContextual': 'Exportar reporte contextual',
+'reports.cta.exportContextual': 'Exportación contextual',
 'reports.cta.exportCredits': 'Exportar historial',
 'reports.cta.exportAnalytics': 'Exportar analítica',
 'reports.cta.exportProfitability': 'Exportar rentabilidad',

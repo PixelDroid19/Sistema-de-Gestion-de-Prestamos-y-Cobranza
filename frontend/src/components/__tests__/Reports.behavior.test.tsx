@@ -800,7 +800,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('exports contextual report by selected type and date range', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-01-01' } });
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-01-31' } });
     fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'payouts' } });
@@ -887,7 +887,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('clears contextual customer and credit selection when the operator clears the selectors', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
 
     const customerSelect = document.getElementById('report-customer')!;
     const creditSelect = document.getElementById('report-loan')!;
@@ -914,7 +914,7 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
     fireEvent.change(screen.getByLabelText('Tipo de crédito'), { target: { value: 'prod-personal' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar historial' }));
 
@@ -936,7 +936,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
     fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'payouts' } });
 
     expect(screen.queryByLabelText('Registrado por')).not.toBeInTheDocument();
@@ -946,7 +946,7 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar datos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
 
     const reportType = screen.getByLabelText('Tipo de reporte');
     expect(reportType).toBeInTheDocument();
@@ -1680,12 +1680,12 @@ describe('Reports behavioral parity scenarios', () => {
     renderReports();
 
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Exportar datos' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportación contextual' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Flujo de caja' }));
 
     expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Exportar datos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportación contextual' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument();
   });
 
@@ -2354,11 +2354,15 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
   });
 
-  it('shows the dashboard control indicators from canonical report metrics', () => {
+  it('shows the dashboard control indicators from canonical report metrics', async () => {
     renderReports();
 
     expect(screen.getByText('Capital recuperado')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Indicadores de control' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Indicadores de control' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Más indicadores (14)' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Indicadores financieros complementarios' })).toBeInTheDocument();
     expect(screen.getByText('Clientes')).toBeInTheDocument();
     expect(screen.getByText('Créditos finalizados')).toBeInTheDocument();
     expect(screen.getAllByText('Créditos en mora').length).toBeGreaterThan(0);
@@ -2378,7 +2382,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('shows complementary dashboard financial indicators from canonical summary data', async () => {
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Más indicadores (6)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Más indicadores (14)' }));
 
     expect(await screen.findByRole('dialog', { name: 'Indicadores financieros complementarios' })).toBeInTheDocument();
     expect(screen.getByText('Capital actualmente prestado')).toBeInTheDocument();

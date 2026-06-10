@@ -40,7 +40,6 @@ export function ReportMetricsSection({
             <ReportMetricsMoreTrigger
               count={secondaryItems!.length}
               onClick={() => setDetailOpen(true)}
-              fullWidth
             />
           </div>
         ) : null}

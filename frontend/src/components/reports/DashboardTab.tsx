@@ -6,13 +6,13 @@ import { tTerm } from '../../i18n/terminology';
 import MeasuredChart from '../shared/MeasuredChart';
 import {
   EmptyState,
-  MetricCard,
   OperationalSelect,
   SectionSurface,
 } from '../shared/Surfaces';
 import { HelpTooltip } from '../shared/HelpSupport';
 import { getLoanStatusLabel } from '../credits/creditsHelpers';
 import { ReportMetricsSection } from './ReportMetricsSection';
+import { ReportTabPanel } from './ReportTabPanel';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
@@ -141,106 +141,105 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
       icon: <AlertTriangle size={18} />,
       accent: Number(metrics.arrearsRate || 0) > 0 ? 'rose' as const : 'emerald' as const,
     },
+    {
+      id: 'reports-customers',
+      label: tTerm('reports.kpi.customers.label'),
+      value: metrics.totalCustomers,
+      helper: tTerm('reports.kpi.customers.helper'),
+      icon: <Users size={18} />,
+      accent: 'blue' as const,
+    },
+    {
+      id: 'reports-finalized-loans',
+      label: tTerm('reports.kpi.finalizedLoans.label'),
+      value: metrics.totalFinalizedLoans,
+      helper: tTerm('reports.kpi.finalizedLoans.helper'),
+      icon: <CheckCircle size={18} />,
+      accent: 'emerald' as const,
+    },
+    {
+      id: 'reports-overdue-loans',
+      label: tTerm('reports.kpi.overdueLoans.label'),
+      value: metrics.totalOverdueLoans,
+      helper: tTerm('reports.kpi.overdueLoans.helper'),
+      icon: <AlertTriangle size={18} />,
+      accent: 'rose' as const,
+    },
+    {
+      id: 'reports-pending-installments',
+      label: tTerm('reports.kpi.pendingInstallments.label'),
+      value: metrics.totalPendingInstallments,
+      helper: tTerm('reports.kpi.pendingInstallments.helper'),
+      icon: <CalendarClock size={18} />,
+      accent: 'slate' as const,
+    },
+    {
+      id: 'reports-overdue-installments',
+      label: tTerm('reports.kpi.overdueInstallments.label'),
+      value: metrics.totalOverdueInstallments,
+      helper: tTerm('reports.kpi.overdueInstallments.helper'),
+      icon: <AlertTriangle size={18} />,
+      accent: 'rose' as const,
+    },
+    {
+      id: 'reports-available-cash',
+      label: tTerm('reports.kpi.availableCash.label'),
+      value: formatMoney(metrics.availableCash),
+      helper: tTerm('reports.kpi.availableCash.helper'),
+      icon: <DollarSign size={18} />,
+      accent: 'blue' as const,
+    },
+    {
+      id: 'reports-period-profit',
+      label: tTerm('reports.kpi.periodProfit.label'),
+      value: formatMoney(metrics.periodProfit),
+      helper: tTerm('reports.kpi.periodProfit.helper'),
+      icon: <TrendingUp size={18} />,
+      accent: 'emerald' as const,
+    },
+    {
+      id: 'reports-period-loss',
+      label: tTerm('reports.kpi.periodLoss.label'),
+      value: formatMoney(metrics.periodLoss),
+      helper: tTerm('reports.kpi.periodLoss.helper'),
+      icon: <AlertTriangle size={18} />,
+      accent: 'amber' as const,
+    },
   ]), [
     metrics.arrearsRate,
+    metrics.availableCash,
+    metrics.periodLoss,
+    metrics.periodProfit,
     metrics.recoveryRate,
     metrics.totalCurrentLent,
+    metrics.totalCustomers,
+    metrics.totalFinalizedLoans,
     metrics.totalInterestGenerated,
     metrics.totalInterestPending,
+    metrics.totalOverdueInstallments,
+    metrics.totalOverdueLoans,
     metrics.totalPendingCollection,
+    metrics.totalPendingInstallments,
   ]);
 
   return (
     <div className="report-tab-layout">
-      {headerActions ? (
-        <div className="report-tab-actions">
-          {headerActions}
-        </div>
-      ) : null}
+      <ReportTabPanel headerActions={headerActions}>
+        <ReportMetricsSection
+          primaryAriaLabel={tTerm('reports.summary.aria')}
+          secondaryAriaLabel={tTerm('reports.dashboard.summary.moreAria')}
+          detailModalTitle={tTerm('reports.dashboard.summary.moreTitle')}
+          detailModalSubtitle={tTerm('reports.dashboard.summary.moreSubtitle')}
+          primaryItems={summaryPrimaryItems}
+          secondaryItems={summarySecondaryItems}
+        />
+      </ReportTabPanel>
 
-      <ReportMetricsSection
-        primaryAriaLabel={tTerm('reports.summary.aria')}
-        secondaryAriaLabel={tTerm('reports.dashboard.summary.moreAria')}
-        detailModalTitle={tTerm('reports.dashboard.summary.moreTitle')}
-        detailModalSubtitle={tTerm('reports.dashboard.summary.moreSubtitle')}
-        primaryItems={summaryPrimaryItems}
-        secondaryItems={summarySecondaryItems}
-      />
       {hasKpiTotals && !chartHasData ? (
         <p className="text-xs text-text-secondary">
           <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
         </p>
       ) : null}
-
-      <SectionSurface
-        title={tTerm('reports.dashboard.operationalIndicators.title')}
-        subtitle={tTerm('reports.dashboard.operationalIndicators.subtitle')}
-        bodyClassName="report-dashboard-kpi-grid"
-      >
-        <MetricCard
-          label={tTerm('reports.kpi.customers.label')}
-          value={metrics.totalCustomers}
-          helper={tTerm('reports.kpi.customers.helper')}
-          icon={<Users size={18} />}
-          accent="blue"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.finalizedLoans.label')}
-          value={metrics.totalFinalizedLoans}
-          helper={tTerm('reports.kpi.finalizedLoans.helper')}
-          icon={<CheckCircle size={18} />}
-          accent="emerald"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.overdueLoans.label')}
-          value={metrics.totalOverdueLoans}
-          helper={tTerm('reports.kpi.overdueLoans.helper')}
-          icon={<AlertTriangle size={18} />}
-          accent="rose"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.interestPending.label')}
-          value={formatMoney(metrics.totalInterestPending)}
-          helper={tTerm('reports.kpi.interestPending.helper')}
-          icon={<Wallet size={18} />}
-          accent="amber"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.pendingInstallments.label')}
-          value={metrics.totalPendingInstallments}
-          helper={tTerm('reports.kpi.pendingInstallments.helper')}
-          icon={<CalendarClock size={18} />}
-          accent="slate"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.overdueInstallments.label')}
-          value={metrics.totalOverdueInstallments}
-          helper={tTerm('reports.kpi.overdueInstallments.helper')}
-          icon={<AlertTriangle size={18} />}
-          accent="rose"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.availableCash.label')}
-          value={formatMoney(metrics.availableCash)}
-          helper={tTerm('reports.kpi.availableCash.helper')}
-          icon={<DollarSign size={18} />}
-          accent="blue"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.periodProfit.label')}
-          value={formatMoney(metrics.periodProfit)}
-          helper={tTerm('reports.kpi.periodProfit.helper')}
-          icon={<TrendingUp size={18} />}
-          accent="emerald"
-        />
-        <MetricCard
-          label={tTerm('reports.kpi.periodLoss.label')}
-          value={formatMoney(metrics.periodLoss)}
-          helper={tTerm('reports.kpi.periodLoss.helper')}
-          icon={<AlertTriangle size={18} />}
-          accent="amber"
-        />
-      </SectionSurface>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <SectionSurface className="lg:col-span-2">
