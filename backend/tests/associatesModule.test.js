@@ -1496,3 +1496,106 @@ test('createGetAssociateCalendar rejects inverted date ranges before reading cal
     endDate: '2026-01-01',
   }), /fecha inicial debe ser anterior o igual a la fecha final/i);
 });
+
+test('createCreateAssociateContribution rejects inactive associates', async () => {
+  const createContribution = createCreateAssociateContribution({
+    associateRepository: {
+      async findById() {
+        return {
+          id: 3,
+          status: 'inactive',
+          interestType: 'monthly',
+          interestRate: '2.5000',
+          interestPaymentDay: 1,
+        };
+      },
+    },
+  });
+
+  await assert.rejects(() => createContribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 3,
+    payload: { amount: 100000 },
+  }), /socio inactivo/i);
+});
+
+test('createUpdateAssociate reprojects pending interest installments when scheduling terms change', async () => {
+  const calls = [];
+  const updateAssociate = createUpdateAssociate({
+    associateRepository: {
+      async findById() {
+        return {
+          id: 4,
+          status: 'active',
+          email: 'socio@test.local',
+          phone: '3001234567',
+          interestType: 'monthly',
+          interestRate: '2.0000',
+          interestPaymentDay: 1,
+          interestPaymentMonth: null,
+        };
+      },
+      async update(_associate, payload) {
+        return { id: 4, status: 'active', ...payload };
+      },
+      async listContributionsByAssociate() {
+        return [{ id: 10, amount: 1000000, contributionDate: '2026-01-01T00:00:00.000Z' }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [{
+          id: 20,
+          installmentNumber: 1,
+          amount: 20000,
+          dueDate: '2026-07-15T00:00:00.000Z',
+          status: 'pending',
+        }];
+      },
+      async updateInstallmentProjection(installmentId, payload) {
+        calls.push(['updateInstallmentProjection', installmentId, payload]);
+        return { id: installmentId, ...payload };
+      },
+      async createInstallment() {
+        return null;
+      },
+    },
+  });
+
+  await updateAssociate({
+    associateId: 4,
+    payload: { interestRate: '3.0000' },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'updateInstallmentProjection');
+  assert.equal(Number(calls[0][2].amount), 30000);
+});
+
+test('createGetAssociateCalendar counts overdue installments as pending in summary', async () => {
+  const getCalendar = createGetAssociateCalendar({
+    associateRepository: {
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+      async findCalendarEvents() {
+        return {
+          contributions: [],
+          distributions: [],
+          installments: [
+            { id: 1, type: 'installment', amount: 1000, dueDate: new Date('2026-01-01'), status: 'overdue' },
+            { id: 2, type: 'installment', amount: 1000, dueDate: new Date('2026-07-01'), status: 'paid' },
+          ],
+        };
+      },
+    },
+  });
+
+  const result = await getCalendar({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+  });
+
+  assert.equal(result.summary.pendingInstallments, 1);
+});

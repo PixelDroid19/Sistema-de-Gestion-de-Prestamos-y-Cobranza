@@ -200,8 +200,22 @@ const associateRepository = {
     });
 
     if (existingInstallment) {
-      return existingInstallment;
+    const status = String(existingInstallment.status || '').toLowerCase();
+    if (status === 'pending' || status === 'overdue') {
+      return existingInstallment.update({
+        amount: payload.amount,
+        dueDate: payload.dueDate,
+        capitalBase: payload.capitalBase,
+        interestRate: payload.interestRate,
+        interestType: payload.interestType,
+        periodStartDate: payload.periodStartDate,
+        periodEndDate: payload.periodEndDate,
+        notes: payload.notes ?? existingInstallment.notes,
+      }, { transaction });
     }
+
+    return existingInstallment;
+  }
 
     return AssociateInstallment.create(payload, { transaction });
   },
@@ -340,6 +354,7 @@ const associateRepository = {
         date: d.distributionDate,
         notes: d.notes,
         createdBy: d.createdBy,
+        distributionKind: d?.basis?.type ?? null,
         displayType: d?.basis?.type === 'capital-return'
           ? 'Devolución de capital'
           : (d?.basis?.type === 'reinvestment' ? 'Reinversión' : 'Pago manual de rentabilidad'),

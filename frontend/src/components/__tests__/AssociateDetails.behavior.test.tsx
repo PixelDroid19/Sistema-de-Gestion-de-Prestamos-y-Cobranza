@@ -161,7 +161,7 @@ describe('AssociateDetails behavior', () => {
 
     expect(screen.getByRole('button', { name: 'Volver a socios' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar aporte de capital' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Gestionar pagos de intereses' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver pagos de intereses' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Más movimientos' })).toBeInTheDocument();
 
     openAssociateMoreMovementsMenu();
@@ -190,7 +190,7 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.queryByRole('button', { name: 'Registrar aporte de capital' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Gestionar pagos de intereses' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ver pagos de intereses' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Más movimientos' })).not.toBeInTheDocument();
     expect(screen.getByText(/los movimientos financieros se siguen registrando desde la mesa operativa/i)).toBeInTheDocument();
 
@@ -316,7 +316,7 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Gestionar pagos de intereses' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver pagos de intereses' }));
 
     expect(screen.getByRole('tab', { name: 'Pagos de intereses' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Pagos de intereses programados')).toBeInTheDocument();

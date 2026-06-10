@@ -31,7 +31,7 @@ type OverflowMenuItem = {
 };
 
 type AssociateDetailToolbarProps = {
-  isAdmin: boolean;
+  canManageMovements: boolean;
   onOpenContributionHistory: () => void;
   onOpenInterestSchedule: () => void;
   onOpenCapitalContribution: () => void;
@@ -162,7 +162,7 @@ function MovementOverflowMenu({ items }: { items: OverflowMenuItem[] }) {
 }
 
 export function AssociateDetailToolbar({
-  isAdmin,
+  canManageMovements,
   onOpenContributionHistory,
   onOpenInterestSchedule,
   onOpenCapitalContribution,
@@ -217,7 +217,7 @@ export function AssociateDetailToolbar({
           </div>
         </div>
 
-        {isAdmin ? (
+        {canManageMovements ? (
           <div className="associate-detail-action-group associate-detail-action-group--movement space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
               {tTerm('associateDetails.toolbar.movementGroup')}

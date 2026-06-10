@@ -1,4 +1,4 @@
-const { AuthorizationError } = require('@/utils/errorHandler');
+const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const { toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 const { ensureAdmin, formatMoney, assertDateRangeOrder } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
@@ -539,7 +539,7 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
 
   const associate = await associateRepository.findById(associateId);
   if (!associate) {
-    throw new AuthorizationError(ASSOCIATE_PROFITABILITY_ACCESS_REQUIRED_MESSAGE);
+    throw new NotFoundError('Associate');
   }
 
   const [contributions, distributions] = await Promise.all([

@@ -244,88 +244,94 @@
 
   .data-table-surface table.associate-tracking-table,
   .app-table table.associate-tracking-table {
-    table-layout: fixed;
+    width: 100%;
+    table-layout: auto;
   }
 
-  .associate-tracking-table :is(th, td) {
-    padding-left: 0.9rem;
-    padding-right: 0.9rem;
-    vertical-align: top;
+  .associate-tracking-table thead th {
+    white-space: nowrap;
+    line-height: 1.25;
   }
 
-  .associate-tracking-table tbody td {
-    padding-top: 0.8rem;
-    padding-bottom: 0.8rem;
+  .associate-tracking-table--obligations :is(th, td):nth-child(1),
+  .associate-tracking-table--associates :is(th, td):nth-child(1),
+  .associate-tracking-table--activity :is(th, td):nth-child(2) {
+    min-width: 8rem;
+    max-width: 14rem;
   }
 
-  .associate-tracking-table--obligations :is(th, td):nth-child(1) {
-    width: 31%;
-  }
-
-  .associate-tracking-table--obligations :is(th, td):nth-child(2) {
-    width: 15%;
-  }
-
-  .associate-tracking-table--obligations :is(th, td):nth-child(3) {
-    width: 13%;
-  }
-
-  .associate-tracking-table--obligations :is(th, td):nth-child(4) {
-    width: 19%;
-  }
-
-  .associate-tracking-table--obligations :is(th, td):nth-child(5) {
-    width: 11%;
-  }
-
-  .associate-tracking-table--obligations :is(th, td):nth-child(6) {
-    width: 11%;
-    min-width: 6.5rem;
-  }
-
-  .associate-tracking-table--associates :is(th, td):nth-child(1) {
-    width: 31%;
-  }
-
-  .associate-tracking-table--associates :is(th, td):nth-child(2) {
-    width: 18%;
-  }
-
-  .associate-tracking-table--associates :is(th, td):nth-child(3) {
-    width: 18%;
-  }
-
+  .associate-tracking-table--obligations :is(th, td):nth-child(2),
   .associate-tracking-table--associates :is(th, td):nth-child(4) {
-    width: 15%;
+    min-width: 6.75rem;
+    white-space: nowrap;
   }
 
-  .associate-tracking-table--associates :is(th, td):nth-child(5) {
-    width: 10%;
-  }
-
-  .associate-tracking-table--associates :is(th, td):nth-child(6) {
-    width: 8%;
+  .associate-tracking-table--obligations :is(th, td):nth-child(3),
+  .associate-tracking-table--associates :is(th, td):nth-child(2),
+  .associate-tracking-table--activity :is(th, td):nth-child(4) {
     min-width: 6.5rem;
+    white-space: nowrap;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(4),
+  .associate-tracking-table--associates :is(th, td):nth-child(3) {
+    min-width: 7.5rem;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(5),
+  .associate-tracking-table--associates :is(th, td):nth-child(5) {
+    width: 1%;
+    min-width: 6.5rem;
+    white-space: nowrap;
+  }
+
+  .associate-tracking-table--obligations :is(th, td):nth-child(6),
+  .associate-tracking-table--associates :is(th, td):nth-child(6) {
+    width: 1%;
+    min-width: 7rem;
+    white-space: nowrap;
+  }
+
+  .associate-tracking-table .associate-tracking-cell-primary {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
   }
 
   .associate-tracking-table--activity :is(th, td):nth-child(1) {
-    width: 18%;
-  }
-
-  .associate-tracking-table--activity :is(th, td):nth-child(2) {
-    width: 24%;
+    min-width: 8rem;
   }
 
   .associate-tracking-table--activity :is(th, td):nth-child(3) {
-    width: 14%;
-  }
-
-  .associate-tracking-table--activity :is(th, td):nth-child(4) {
-    width: 14%;
+    min-width: 7rem;
+    white-space: nowrap;
   }
 
   .associate-tracking-table--activity :is(th, td):nth-child(5) {
-    width: 30%;
+    min-width: 8rem;
+  }
+
+  .app-table.associate-tracking-table-shell > .overflow-x-auto {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  @media (min-width: 900px) {
+    .app-table.associate-tracking-table-shell > .overflow-x-auto {
+      overflow-x: visible;
+    }
+  }
+
+  .app-table.associate-tracking-table-shell > .border-t {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+  }
+
+  .app-table.associate-tracking-table-shell > .border-t > .flex.flex-wrap {
+    margin-left: auto;
   }
 
   .associate-tracking-row-title,
@@ -408,13 +414,28 @@
     font-weight: 700;
   }
 
+  .associate-tracking-table :is(th, td) {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+    vertical-align: top;
+  }
+
+  .associate-tracking-table tbody td {
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+  }
+
   .associate-tracking-table tbody td.table-cell-actions,
   .associate-tracking-table thead th.table-cell-actions {
     vertical-align: middle;
+    overflow: visible;
   }
 
   .associate-tracking-table tbody td.table-cell-actions [role="toolbar"] {
     gap: 0.35rem;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    max-width: 100%;
   }
 
   .associate-tracking-modal {

@@ -85,7 +85,7 @@ function TrackingTableSection({
       <TableSectionIntro embedded title={title} description={subtitle} aside={aside} />
       <AppTable
         variant="operational"
-        className={TABLE_EMBEDDED_SHELL_CLASS}
+        className={`associate-tracking-table-shell ${TABLE_EMBEDDED_SHELL_CLASS}`}
         surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         statePresentation="shell"
         isLoading={isLoading}
@@ -97,7 +97,7 @@ function TrackingTableSection({
         pagination={pagination}
         recordsLabel={recordsLabel}
         tableClassName={tableClassName}
-        minWidthClassName={minWidthClassName}
+        minWidthClassName={minWidthClassName ?? 'min-w-0 w-full'}
       >
         {children}
       </AppTable>
@@ -628,22 +628,6 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
             <option value="all">{tTerm('associates.filter.allStatuses')}</option>
           </OperationalSelect>
         </FormField>
-        <div className="associate-tracking-toolbar__summary" aria-label={tTerm('associateTracking.filters.summaryAria')}>
-          {renderCountChip(
-            tTerm('associateTracking.metrics.associatesShort'),
-            associates.length,
-          )}
-          {renderCountChip(
-            tTerm('associateTracking.metrics.obligationsShort'),
-            obligations.length,
-            obligations.length > 0 ? 'warning' : 'success',
-          )}
-          {renderCountChip(
-            tTerm('associateTracking.metrics.activityShort'),
-            recentActivityCount,
-            hasRecentActivity ? 'info' : 'neutral',
-          )}
-        </div>
       </ToolbarSurface>
 
       <ViewTabs
@@ -688,13 +672,12 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
           )}
           recordsLabel={tTerm('associateTracking.obligations.recordsLabel')}
           pagination={obligationPagination}
-          tableClassName="associate-tracking-table associate-tracking-table--obligations w-full text-sm text-left"
-          minWidthClassName="min-w-[980px]"
+          tableClassName="associate-tracking-table associate-tracking-table--obligations w-full min-w-0 text-sm text-left"
         >
           <thead>
             <tr>
               <th>{tTerm('associateTracking.table.associate')}</th>
-              <th>{tTerm('associateTracking.table.dueDate')}</th>
+              <th>{tTerm('associateTracking.table.dueDateShort')}</th>
               <th>{tTerm('associateTracking.table.amount')}</th>
               <th>{tTerm('associateTracking.table.rate')}</th>
               <th>{tTerm('associateTracking.table.status')}</th>
@@ -736,7 +719,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
                 <TableActionsCell>
                   <RowActionsWithOverflow
                     variant="icon"
-                    maxInline={1}
+                    maxInline={2}
                     ariaLabel={tTerm('associates.table.actions')}
                     items={[
                       {
@@ -780,8 +763,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
           )}
           recordsLabel={tTerm('associates.table.recordsLabel')}
           pagination={associatePagination}
-          tableClassName="associate-tracking-table associate-tracking-table--associates w-full text-sm text-left"
-          minWidthClassName="min-w-[1120px]"
+          tableClassName="associate-tracking-table associate-tracking-table--associates w-full min-w-0 text-sm text-left"
         >
           <thead>
             <tr>
@@ -905,8 +887,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
           )}
           recordsLabel={tTerm('associateTracking.activity.recordsLabel')}
           pagination={activityPagination}
-          tableClassName="associate-tracking-table associate-tracking-table--activity w-full text-sm text-left"
-          minWidthClassName="min-w-[920px]"
+          tableClassName="associate-tracking-table associate-tracking-table--activity w-full min-w-0 text-sm text-left"
         >
           <thead>
             <tr>

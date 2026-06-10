@@ -26,6 +26,7 @@ const ALLOWED_ASSOCIATE_CONTRIBUTION_STATUSES = new Set(['completed', 'pending',
 const DEFAULT_INTEREST_PAYMENT_DAY = 1;
 const DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH = 1;
 const ASSOCIATE_PAYMENT_ALERT_WINDOW_DAYS = 7;
+const INACTIVE_ASSOCIATE_FINANCIAL_OPERATION_MESSAGE = 'No se pueden registrar movimientos financieros para un socio inactivo.';
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const ASSOCIATE_CURRENCY_FIELD_LABELS = {
   initialCapital: 'El capital inicial',
@@ -131,6 +132,22 @@ const normalizeAssociateContributionStatus = (value) => {
   }
 
   return normalizedValue;
+};
+
+const ensureAssociateAcceptsFinancialOperations = (associate) => {
+  if (String(associate?.status || '').toLowerCase() === 'inactive') {
+    throw new ValidationError(INACTIVE_ASSOCIATE_FINANCIAL_OPERATION_MESSAGE);
+  }
+};
+
+const associateInterestSchedulingFieldsChanged = (associate, normalizedPayload, payload) => {
+  const schedulingFields = ['interestType', 'interestRate', 'interestPaymentDay', 'interestPaymentMonth'];
+  return schedulingFields.some((field) => {
+    if (!hasOwn(payload, field)) {
+      return false;
+    }
+    return String(normalizedPayload[field] ?? '') !== String(associate[field] ?? '');
+  });
 };
 
 const normalizePaymentDay = (value) => {
@@ -669,13 +686,13 @@ const ensureNextInterestInstallment = async ({
       : [],
   ]);
 
-  const pendingInstallments = rawInstallments
+  const openInstallments = rawInstallments
     .filter((installment) => (
-      installment.status === 'pending'
+      ['pending', 'overdue'].includes(String(installment.status || '').toLowerCase())
         && Number(installment.installmentNumber) !== Number(excludeInstallmentNumber)
     ))
     .sort((left, right) => sortRowsByOperationalDateAsc(left, right, (row) => row.dueDate));
-  const pendingInstallment = pendingInstallments[0] || null;
+  const pendingInstallment = openInstallments[0] || null;
 
   const interestBasis = buildInterestInstallmentBasis({
     associate,
@@ -684,8 +701,8 @@ const ensureNextInterestInstallment = async ({
     capitalBaseOverride,
   });
   if (interestBasis.capitalBase <= 0 || interestBasis.amount <= 0) {
-    if (pendingInstallments.length > 0 && typeof associateRepository.deleteInstallmentById === 'function') {
-      await Promise.all(pendingInstallments.map((installment) => associateRepository.deleteInstallmentById(
+    if (openInstallments.length > 0 && typeof associateRepository.deleteInstallmentById === 'function') {
+      await Promise.all(openInstallments.map((installment) => associateRepository.deleteInstallmentById(
         installment.id,
         { transaction },
       )));
@@ -1082,7 +1099,24 @@ const createUpdateAssociate = ({ associateRepository, auditService }) => {
       excludeId: associate.id,
     });
 
-    return normalizeAssociateRecord(await associateRepository.update(associate, normalizedPayload));
+    const shouldReprojectInterestInstallments = associateInterestSchedulingFieldsChanged(
+      associate,
+      normalizedPayload,
+      payload,
+    );
+    const updatedAssociate = normalizeAssociateRecord(
+      await associateRepository.update(associate, normalizedPayload),
+    );
+
+    if (shouldReprojectInterestInstallments) {
+      await ensureNextInterestInstallment({
+        associateRepository,
+        associate: updatedAssociate,
+        fromDate: new Date(),
+      });
+    }
+
+    return updatedAssociate;
   };
 
   if (auditService) {
@@ -1534,6 +1568,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
     if (!associate) {
       throw new NotFoundError('Associate');
     }
+    ensureAssociateAcceptsFinancialOperations(associate);
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
@@ -1575,6 +1610,7 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
     if (!associate) {
       throw new NotFoundError('Associate');
     }
+    ensureAssociateAcceptsFinancialOperations(associate);
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
@@ -1608,6 +1644,7 @@ const createCreateAssociateCapitalReturn = ({ associateRepository, auditService 
     if (!associate) {
       throw new NotFoundError('Associate');
     }
+    ensureAssociateAcceptsFinancialOperations(associate);
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
@@ -1686,6 +1723,7 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
     if (!associate) {
       throw new NotFoundError('Associate');
     }
+    ensureAssociateAcceptsFinancialOperations(associate);
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
@@ -1951,7 +1989,8 @@ const createGetAssociateInstallments = ({ associateRepository, clock = () => new
  */
 const createPayAssociateInstallment = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, installmentNumber, payload }) => {
-    await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
+    const associate = await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
+    ensureAssociateAcceptsFinancialOperations(associate);
 
     const installments = await associateRepository.findInstallmentsByAssociateId(associateId);
     const installment = installments.find(
@@ -1979,15 +2018,12 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       payload?.notes ? String(payload.notes).trim() : null,
     );
 
-    const associate = await associateRepository.findById(associateId);
-    if (associate) {
-      await ensureNextInterestInstallment({
-        associateRepository,
-        associate,
-        afterDate: installment.dueDate,
-        excludeInstallmentNumber: installmentNumber,
-      });
-    }
+    await ensureNextInterestInstallment({
+      associateRepository,
+      associate,
+      afterDate: installment.dueDate,
+      excludeInstallmentNumber: installmentNumber,
+    });
 
     const updatedInstallment = {
       ...installment.toJSON(),
@@ -2064,7 +2100,9 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
       contributionCount: events.contributions.length,
       distributionCount: events.distributions.length,
       installmentCount: events.installments.length,
-      pendingInstallments: events.installments.filter((i) => i.status === 'pending').length,
+      pendingInstallments: events.installments.filter((installment) => (
+        ['pending', 'overdue'].includes(String(installment.status || '').toLowerCase())
+      )).length,
     },
   };
 };

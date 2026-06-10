@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 
-const { AuthorizationError } = require('@/utils/errorHandler');
+const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const {
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
@@ -83,8 +83,8 @@ test('createGetAssociateProfitabilityReport rejects missing associate access wit
     actor: { id: 1, role: 'admin' },
     associateId: 12,
   }), (error) => {
-    assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'El acceso a la rentabilidad del socio no está configurado para este usuario.');
+    assert.ok(error instanceof NotFoundError);
+    assert.equal(error.message, 'El socio no existe.');
     return true;
   });
 });

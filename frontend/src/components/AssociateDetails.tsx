@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, Download, Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Wallet, Calendar, CheckCircle, Clock, AlertCircle, CircleDollarSign } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
@@ -12,6 +12,8 @@ import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { AssociateDetailToolbar, type AssociateMoneyActionType } from './associateDetails/AssociateDetailToolbar';
 import { useSessionStore } from '../store/sessionStore';
+import { PERMISSION } from '../constants/permissionNames';
+import { useResolvedPermissionNames } from '../services/permissionsService';
 import {
   ActionButton,
   DataTableSurface,
@@ -71,6 +73,25 @@ const getInstallmentStatusPresentation = (installment: any) => {
   };
 };
 
+const getCalendarEventBadgeClass = (event: any) => {
+  if (event?.type === 'contribution') {
+    return 'bg-emerald-100 text-emerald-700';
+  }
+  if (event?.type === 'installment') {
+    return 'bg-amber-100 text-amber-700';
+  }
+  if (event?.type === 'distribution') {
+    if (event?.distributionKind === 'capital-return') {
+      return 'bg-blue-100 text-blue-700';
+    }
+    if (event?.distributionKind === 'reinvestment') {
+      return 'bg-violet-100 text-violet-700';
+    }
+    return 'bg-sky-100 text-sky-700';
+  }
+  return 'bg-slate-100 text-slate-700';
+};
+
 const getCalendarEventTypeLabel = (event: any) => {
   if (event?.displayType) return event.displayType;
   if (event?.type === 'contribution') return tTerm('associateDetails.calendar.eventType.contribution');
@@ -96,7 +117,12 @@ export default function AssociateDetails() {
   const navigate = useNavigate();
   const associateId = Number(id);
   const { user } = useSessionStore();
-  const isAdmin = user?.role === 'admin';
+  const resolvedPermissions = useResolvedPermissionNames(user);
+  const permissionSet = new Set(resolvedPermissions.map((permission) => permission.toUpperCase()));
+  const hasPermission = (permission: string) => (
+    user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission)
+  );
+  const canManageAssociateMovements = hasPermission(PERMISSION.SOCIOS_UPDATE);
 
   const [calendarFilters, setCalendarFilters] = useState({ startDate: '', endDate: '' });
   const updateCalendarFilter = (key: 'startDate' | 'endDate', value: string) => {
@@ -568,7 +594,7 @@ export default function AssociateDetails() {
                     </span>
                   </td>
                   <TableActionsCell>
-                    {isAdmin && ['pending', 'overdue'].includes(String(inst.status || '').toLowerCase()) ? (
+                    {canManageAssociateMovements && ['pending', 'overdue'].includes(String(inst.status || '').toLowerCase()) ? (
                       <RowActionsWithOverflow
                         variant="icon"
                         align="center"
@@ -612,7 +638,7 @@ export default function AssociateDetails() {
             label: tTerm('associateDetails.calendar.metric.distributions'),
             value: formatNumber(calendarData.summary.distributionCount),
             helper: tTerm('associateDetails.calendar.metric.distributionsHelper'),
-            icon: <Download size={18} />,
+            icon: <CircleDollarSign size={18} />,
             accent: 'emerald',
           },
           {
@@ -681,15 +707,7 @@ export default function AssociateDetails() {
                 <tr key={`${event.type}-${event.id ?? 'no-id'}-${event.date}-${event.displayAmount ?? event.amount}-${event.notes ?? ''}`}>
                   <td>{formatAssociateDate(event.date)}</td>
                   <td>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      event.type === 'contribution' 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : String(getCalendarEventTypeLabel(event)).toLowerCase().includes('devol')
-                          ? 'bg-blue-100 text-blue-700'
-                          : event.type === 'distribution'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-amber-100 text-amber-700'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs ${getCalendarEventBadgeClass(event)}`}>
                       {getCalendarEventTypeLabel(event)}
                     </span>
                   </td>
@@ -729,7 +747,7 @@ export default function AssociateDetails() {
       />
 
       <AssociateDetailToolbar
-        isAdmin={isAdmin}
+        canManageMovements={canManageAssociateMovements}
         onOpenContributionHistory={() => setContributionModalMode('history')}
         onOpenInterestSchedule={() => setShowInstallmentsModal(true)}
         onOpenCapitalContribution={() => setContributionModalMode('create')}
@@ -904,16 +922,16 @@ export default function AssociateDetails() {
         </ModalShell>
       )}
 
-      {contributionModalMode !== null && contributions !== undefined && (
+      {contributionModalMode !== null && (
         <ContributionModal
-          contributions={contributions}
+          contributions={contributions ?? []}
           isLoading={false}
           initialAddFormOpen={contributionModalMode === 'create'}
           onAddContribution={async (data) => {
             await createContribution.mutateAsync(data);
           }}
           onClose={() => setContributionModalMode(null)}
-          canAddContribution={isAdmin}
+          canAddContribution={canManageAssociateMovements}
         />
       )}
 
