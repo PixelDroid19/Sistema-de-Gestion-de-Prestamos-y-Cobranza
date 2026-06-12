@@ -349,12 +349,7 @@ export default function CreditDetails() {
   const installmentQuote = installmentQuoteQuery.data?.data?.quote;
 
   const installmentRows = useMemo(() => {
-    const initial = Number(
-      currentFinancialSnapshot?.outstandingPrincipal
-      ?? loan?.principalOutstanding
-      ?? loan?.amount
-      ?? 0,
-    );
+    const initial = Number(loan?.amount ?? 0);
     return calendarEntries.reduce((rows: any[], inst: any, idx: number) => {
       const sp = inst.scheduledPayment ?? 0;
       const ic = inst.interestComponent ?? inst.remainingInterest ?? 0;
@@ -377,7 +372,7 @@ export default function CreditDetails() {
       });
       return rows;
     }, []);
-  }, [calendarEntries, currentFinancialSnapshot?.outstandingPrincipal, loan?.amount, loan?.principalOutstanding]);
+  }, [calendarEntries, loan?.amount]);
 
   const completedCapitalPrepaymentTotal = useMemo(() => paymentHistoryEntries.reduce((total: number, entry: any) => {
     const paymentType = String(entry.paymentType || '').toLowerCase();
@@ -908,7 +903,7 @@ export default function CreditDetails() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" data-tour="credit-detail-calendar">
               <CalendarTab
                 installmentRows={installmentRows} installmentColumnTotals={installmentColumnTotals}
-                loanAmount={Number(currentFinancialSnapshot?.outstandingPrincipal ?? loan.principalOutstanding ?? loan.amount)}
+                loanAmount={Number(loan.amount ?? 0)}
                 showInstallmentActionColumn={showInstallmentActionColumn}
                 nextPayableInstallmentNumber={nextPayableInstallmentNumber}
                 calendarSnapshot={calendarSnapshot} formatCurrency={formatCurrency}

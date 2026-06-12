@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import CreditDetails from '../CreditDetails';
 import { downloadVoucher } from '../../services/paymentService';
 import { exportCreditExcel } from '../../services/reportService';
@@ -364,12 +364,24 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(renderedText).toMatch(/\$\s*550\.000/);
     expect(renderedText).toMatch(/\$\s*90\.000/);
     expect(renderedText).toMatch(/\$\s*460\.000/);
-    expect(calendarTableText).toMatch(/\$\s*390\.000/);
+    expect(calendarTableText).toMatch(/\$\s*540\.000/);
     expect(calendarTableText).not.toMatch(/\$\s*750\.000/);
   });
 
   it('includes completed capital prepayments in calendar totals after reducing term', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockLoan = {
+      ...mockLoan,
+      amount: 2000000,
+      paymentContext: {
+        ...mockLoan.paymentContext,
+        snapshot: {
+          ...mockLoan.paymentContext.snapshot,
+          outstandingPrincipal: 125651.18,
+          outstandingBalance: 131933.74,
+        },
+      },
+    };
     historyPayments = [
       {
         id: 9001,
@@ -421,7 +433,11 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     const calendarTable = screen.getAllByRole('table')[0];
     const calendarTableText = calendarTable.textContent?.replace(/\s+/g, ' ') || '';
+    const calendarRows = within(calendarTable).getAllByRole('row');
+    const startRowText = calendarRows[1].textContent?.replace(/\s+/g, ' ') || '';
 
+    expect(startRowText).toMatch(/\$\s*2\.000\.000/);
+    expect(startRowText).not.toMatch(/\$\s*125\.651/);
     expect(calendarTableText).toMatch(/\$\s*2\.106\.283/);
     expect(calendarTableText).toMatch(/\$\s*106\.283/);
     expect(calendarTableText).toMatch(/\$\s*2\.000\.000/);

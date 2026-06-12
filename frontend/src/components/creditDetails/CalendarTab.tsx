@@ -102,7 +102,7 @@ export function CalendarTab({
                   <dd className="mt-1 text-sm font-medium text-rose-600 dark:text-rose-300">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('credits.modal.amortizedPrincipal')}</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('schedule.table.header.principal')}</dt>
                   <dd className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">{formatCurrency(row.principalComponent)}</dd>
                 </div>
                 <div>
@@ -152,7 +152,7 @@ export function CalendarTab({
             <th className="text-right">{tTerm('creditDetails.label.installment')}</th>
             <th className="text-right">{tTerm('creditDetails.label.interest')}</th>
             <th className="text-right">{tTerm('creditDetails.label.lateFee')}</th>
-            <th className="text-right">{tTerm('credits.modal.amortizedPrincipal')}</th>
+            <th className="text-right">{tTerm('schedule.table.header.principal')}</th>
             <th className="text-right">{tTerm('creditDetails.label.remainingPrincipal')}</th>
             <th className="text-center">{tTerm('credits.filter.status')}</th>
             {showInstallmentActionColumn && (
