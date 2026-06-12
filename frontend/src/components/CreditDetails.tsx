@@ -399,13 +399,48 @@ export default function CreditDetails() {
       acc.principalComponent += Number(row.principalComponent || 0);
       return acc;
     }, { scheduledPayment: 0, interestComponent: 0, lateFeeDue: 0, principalComponent: 0 });
+    const outstandingPrincipal = Number(currentFinancialSnapshot?.outstandingPrincipal);
+    const outstandingInterest = Number(currentFinancialSnapshot?.outstandingInterest);
+    const outstandingLateFee = Number(
+      currentFinancialSnapshot?.outstandingLateFee
+      ?? currentFinancialSnapshot?.outstandingPenalty
+      ?? 0,
+    );
+    const outstandingBalance = Number(currentFinancialSnapshot?.outstandingBalance);
+    if (
+      completedCapitalPrepaymentTotal > 0
+      && Number.isFinite(outstandingPrincipal)
+      && Number.isFinite(outstandingBalance)
+    ) {
+      const pendingInterest = Number.isFinite(outstandingInterest)
+        ? outstandingInterest
+        : Math.max(0, outstandingBalance - outstandingPrincipal - (Number.isFinite(outstandingLateFee) ? outstandingLateFee : 0));
+      return {
+        scheduledPayment: outstandingBalance,
+        interestComponent: pendingInterest,
+        lateFeeDue: Number.isFinite(outstandingLateFee) ? outstandingLateFee : 0,
+        principalComponent: outstandingPrincipal,
+        closingBalance: outstandingPrincipal,
+        footerLabelKey: 'creditDetails.calendar.pendingTotal',
+      };
+    }
+
     totals.scheduledPayment += completedCapitalPrepaymentTotal;
     totals.principalComponent += completedCapitalPrepaymentTotal;
     const lastClosingBalance = installmentRows.length > 0
       ? Number(installmentRows[installmentRows.length - 1]?.closingBalance || 0)
       : Number(currentFinancialSnapshot?.outstandingPrincipal ?? loan?.amount ?? 0);
-    return { ...totals, closingBalance: lastClosingBalance };
-  }, [completedCapitalPrepaymentTotal, currentFinancialSnapshot?.outstandingPrincipal, installmentRows, loan?.amount]);
+    return { ...totals, closingBalance: lastClosingBalance, footerLabelKey: 'creditDetails.calendar.total' };
+  }, [
+    completedCapitalPrepaymentTotal,
+    currentFinancialSnapshot?.outstandingBalance,
+    currentFinancialSnapshot?.outstandingInterest,
+    currentFinancialSnapshot?.outstandingLateFee,
+    currentFinancialSnapshot?.outstandingPenalty,
+    currentFinancialSnapshot?.outstandingPrincipal,
+    installmentRows,
+    loan?.amount,
+  ]);
 
   // -------------------------------------------------------------------------
   // Early returns

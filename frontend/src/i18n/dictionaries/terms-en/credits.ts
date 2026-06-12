@@ -259,6 +259,7 @@ export const creditsEn = {
 'creditDetails.calendar.noPending': 'No pending installments',
 'creditDetails.calendar.outstandingBalance': 'Outstanding balance: {amount}',
 'creditDetails.calendar.total': 'Total',
+'creditDetails.calendar.pendingTotal': 'Pending',
 'creditDetails.calendar.table.number': 'No.',
 'creditDetails.label.installment': 'Installment',
 'creditDetails.label.noDate': 'No date',

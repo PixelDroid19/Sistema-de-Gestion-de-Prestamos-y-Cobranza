@@ -195,7 +195,9 @@ export function CalendarTab({
         </tbody>
         <tfoot>
           <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
-            <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.calendar.total')}</td>
+            <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+              {tTerm(installmentColumnTotals.footerLabelKey || 'creditDetails.calendar.total')}
+            </td>
             <td></td>
             <td className="text-right font-bold text-text-primary">{formatCurrency(installmentColumnTotals.scheduledPayment)}</td>
             <td className="text-right font-bold text-text-secondary">{formatCurrency(installmentColumnTotals.interestComponent)}</td>

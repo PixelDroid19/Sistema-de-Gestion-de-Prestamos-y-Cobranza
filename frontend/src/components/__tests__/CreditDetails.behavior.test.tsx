@@ -40,6 +40,7 @@ let historyPayments: any[] = [...defaultHistoryPayments];
 let mockCalendarEntries: any[] = [
   { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending', dueDate: '2026-03-25', outstandingAmount: 250000 },
 ];
+let mockCalendarSnapshot: any = { outstandingBalance: 750000 };
 let mockAlerts: any[] = [];
 let mockPromises: any[] = [];
 let mockPayoffQuote: any = null;
@@ -170,7 +171,7 @@ vi.mock('../../services/loanService', () => {
     }),
     useLoanDetails: () => ({
       calendar: mockCalendarEntries,
-      calendarSnapshot: { outstandingBalance: 750000 },
+      calendarSnapshot: mockCalendarSnapshot,
       alerts: mockAlerts,
       promises: mockPromises,
       payoffQuote: mockPayoffQuote,
@@ -231,6 +232,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     mockCalendarEntries = [
       { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending', dueDate: '2026-03-25', outstandingAmount: 250000 },
     ];
+    mockCalendarSnapshot = { outstandingBalance: 750000 };
     mockAlerts = [];
     mockPromises = [];
   });
@@ -428,6 +430,11 @@ describe('CreditDetails behavioral parity scenarios', () => {
         dueDate: '2026-08-10',
       },
     ];
+    mockCalendarSnapshot = {
+      outstandingBalance: 131933.74,
+      outstandingPrincipal: 125651.18,
+      outstandingInterest: 6282.56,
+    };
 
     renderCreditDetails();
 
@@ -435,13 +442,17 @@ describe('CreditDetails behavioral parity scenarios', () => {
     const calendarTableText = calendarTable.textContent?.replace(/\s+/g, ' ') || '';
     const calendarRows = within(calendarTable).getAllByRole('row');
     const startRowText = calendarRows[1].textContent?.replace(/\s+/g, ' ') || '';
+    const footerRowText = calendarRows[calendarRows.length - 1].textContent?.replace(/\s+/g, ' ') || '';
 
     expect(startRowText).toMatch(/\$\s*2\.000\.000/);
     expect(startRowText).not.toMatch(/\$\s*125\.651/);
-    expect(calendarTableText).toMatch(/\$\s*2\.106\.283/);
-    expect(calendarTableText).toMatch(/\$\s*106\.283/);
     expect(calendarTableText).toMatch(/\$\s*2\.000\.000/);
-    expect(calendarTableText).toMatch(/\$\s*0/);
+    expect(footerRowText).toMatch(/Pendiente/);
+    expect(footerRowText).toMatch(/\$\s*131\.934/);
+    expect(footerRowText).toMatch(/\$\s*6\.283/);
+    expect(footerRowText).toMatch(/\$\s*125\.651/);
+    expect(footerRowText).not.toMatch(/\$\s*2\.000\.000/);
+    expect(footerRowText).not.toMatch(/\$\s*0/);
   });
 
   it('routes top-level payment CTA to the next payable installment', async () => {
