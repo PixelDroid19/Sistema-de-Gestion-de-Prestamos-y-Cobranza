@@ -614,14 +614,21 @@ test('export credits use case builds approved workbook fields with current snaps
   assert.equal(detailLoanDate.numFmt, 'dd/mm/yyyy');
 
   let creditAmountRow = null;
+  let creditRateRow = null;
   creditSheet.eachRow((row) => {
     if (row.getCell(1).value === 'Monto Préstamo') {
       creditAmountRow = row;
+    }
+    if (row.getCell(1).value === 'Tasa del crédito') {
+      creditRateRow = row;
     }
   });
   assert.ok(creditAmountRow, 'Credit-specific sheet should include formatted credit amount');
   assert.equal(creditAmountRow.getCell(2).value, 5000000);
   assert.match(creditAmountRow.getCell(2).numFmt, /\$/);
+  assert.ok(creditRateRow, 'Credit-specific sheet should include the loan rate');
+  assert.equal(creditRateRow.getCell(2).value, 0.6);
+  assert.equal(creditRateRow.getCell(2).numFmt, '0.00%');
 });
 
 test('export credits use case includes every credit for the same customer', async () => {

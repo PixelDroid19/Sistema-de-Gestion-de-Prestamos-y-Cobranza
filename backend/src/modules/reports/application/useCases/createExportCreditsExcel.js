@@ -266,6 +266,7 @@ const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
     creditInfoRow('Estado Cliente', detailRow.customerState),
     creditInfoRow('Estado Crédito', detailRow.creditStatus),
     creditInfoRow('Monto Préstamo', detailRow.loanAmount, MONEY_FORMAT),
+    creditInfoRow('Tasa del crédito', Number(detailRow.tna || 0) / 100, PERCENT_FORMAT),
     creditInfoRow('Total con Intereses', detailRow.totalAmount, MONEY_FORMAT),
     creditInfoRow('Saldo Pendiente', detailRow.remainingAmount, MONEY_FORMAT),
     creditInfoRow('Total Pagado', detailRow.totalPaid, MONEY_FORMAT),
