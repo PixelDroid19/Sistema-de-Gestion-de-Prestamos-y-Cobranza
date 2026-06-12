@@ -359,8 +359,12 @@ export default function CreditDetails() {
       const sp = inst.scheduledPayment ?? 0;
       const ic = inst.interestComponent ?? inst.remainingInterest ?? 0;
       const pc = inst.principalComponent ?? Math.max(0, sp - ic);
-      const ob = idx === 0 ? initial : rows[idx - 1].closingBalance;
-      const cb = Number.isFinite(Number(inst.remainingBalance)) ? Number(inst.remainingBalance) : Math.max(0, ob - pc);
+      const canonicalOpeningBalance = Number(inst.openingBalance);
+      const ob = Number.isFinite(canonicalOpeningBalance)
+        ? canonicalOpeningBalance
+        : (idx === 0 ? initial : rows[idx - 1].closingBalance);
+      const canonicalClosingBalance = Number(inst.remainingBalance ?? inst.closingBalance);
+      const cb = Number.isFinite(canonicalClosingBalance) ? canonicalClosingBalance : Math.max(0, ob - pc);
       const n = Number(inst.installmentNumber);
       rows.push({
         installmentNumber: Number.isFinite(n) ? n : inst.installmentNumber,
@@ -375,6 +379,23 @@ export default function CreditDetails() {
     }, []);
   }, [calendarEntries, currentFinancialSnapshot?.outstandingPrincipal, loan?.amount, loan?.principalOutstanding]);
 
+  const completedCapitalPrepaymentTotal = useMemo(() => paymentHistoryEntries.reduce((total: number, entry: any) => {
+    const paymentType = String(entry.paymentType || '').toLowerCase();
+    const paymentStatus = String(entry.paymentStatus || '').toLowerCase();
+    if (
+      paymentType !== 'capital'
+      || paymentStatus === 'reversed'
+      || paymentStatus === 'annulled'
+      || paymentStatus === 'cancelled'
+      || paymentStatus === 'canceled'
+    ) {
+      return total;
+    }
+
+    const principalApplied = Number(entry.principalApplied ?? entry.amount ?? 0);
+    return total + (Number.isFinite(principalApplied) ? principalApplied : 0);
+  }, 0), [paymentHistoryEntries]);
+
   const installmentColumnTotals = useMemo(() => {
     const totals = installmentRows.reduce((acc: any, row: any) => {
       acc.scheduledPayment += Number(row.scheduledPayment || 0);
@@ -383,11 +404,13 @@ export default function CreditDetails() {
       acc.principalComponent += Number(row.principalComponent || 0);
       return acc;
     }, { scheduledPayment: 0, interestComponent: 0, lateFeeDue: 0, principalComponent: 0 });
+    totals.scheduledPayment += completedCapitalPrepaymentTotal;
+    totals.principalComponent += completedCapitalPrepaymentTotal;
     const lastClosingBalance = installmentRows.length > 0
       ? Number(installmentRows[installmentRows.length - 1]?.closingBalance || 0)
       : Number(currentFinancialSnapshot?.outstandingPrincipal ?? loan?.amount ?? 0);
     return { ...totals, closingBalance: lastClosingBalance };
-  }, [currentFinancialSnapshot?.outstandingPrincipal, installmentRows, loan?.amount]);
+  }, [completedCapitalPrepaymentTotal, currentFinancialSnapshot?.outstandingPrincipal, installmentRows, loan?.amount]);
 
   // -------------------------------------------------------------------------
   // Early returns

@@ -36,15 +36,8 @@ const defaultHistoryPayments = [
 ];
 let routeLoanId = '101';
 let creditDetailPaymentMethods: any[] = [...defaultCreditDetailPaymentMethods];
-let historyPayments = [...defaultHistoryPayments];
-let mockCalendarEntries: Array<{
-  installmentNumber: number | string;
-  scheduledPayment: number;
-  remainingInterest: number;
-  status: string;
-  dueDate?: string;
-  outstandingAmount?: number;
-}> = [
+let historyPayments: any[] = [...defaultHistoryPayments];
+let mockCalendarEntries: any[] = [
   { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending', dueDate: '2026-03-25', outstandingAmount: 250000 },
 ];
 let mockAlerts: any[] = [];
@@ -373,6 +366,66 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(renderedText).toMatch(/\$\s*460\.000/);
     expect(calendarTableText).toMatch(/\$\s*390\.000/);
     expect(calendarTableText).not.toMatch(/\$\s*750\.000/);
+  });
+
+  it('includes completed capital prepayments in calendar totals after reducing term', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    historyPayments = [
+      {
+        id: 9001,
+        amount: 225651,
+        paymentDate: '2026-07-10T00:00:00.000Z',
+        paymentType: 'installment',
+        paymentMethod: 'transfer',
+        status: 'completed',
+        reconciled: false,
+        principalApplied: 125651,
+        interestApplied: 100000,
+      },
+      {
+        id: 9002,
+        amount: 1748698,
+        paymentDate: '2026-07-15T00:00:00.000Z',
+        paymentType: 'capital',
+        paymentMethod: 'transfer',
+        status: 'completed',
+        reconciled: false,
+        principalApplied: 1748698,
+        interestApplied: 0,
+      },
+    ];
+    mockCalendarEntries = [
+      {
+        installmentNumber: 1,
+        scheduledPayment: 225651,
+        principalComponent: 125651,
+        interestComponent: 100000,
+        openingBalance: 2000000,
+        remainingBalance: 1874349,
+        status: 'paid',
+        dueDate: '2026-07-10',
+      },
+      {
+        installmentNumber: 2,
+        scheduledPayment: 131934,
+        principalComponent: 125651,
+        interestComponent: 6283,
+        openingBalance: 125651,
+        remainingBalance: 0,
+        status: 'pending',
+        dueDate: '2026-08-10',
+      },
+    ];
+
+    renderCreditDetails();
+
+    const calendarTable = screen.getAllByRole('table')[0];
+    const calendarTableText = calendarTable.textContent?.replace(/\s+/g, ' ') || '';
+
+    expect(calendarTableText).toMatch(/\$\s*2\.106\.283/);
+    expect(calendarTableText).toMatch(/\$\s*106\.283/);
+    expect(calendarTableText).toMatch(/\$\s*2\.000\.000/);
+    expect(calendarTableText).toMatch(/\$\s*0/);
   });
 
   it('routes top-level payment CTA to the next payable installment', async () => {

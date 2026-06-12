@@ -516,8 +516,6 @@ No resetear una base de datos remota como atajo. Solo hacerlo cuando se haya ped
 
 ## Instrucciones para agentes
 
-`AGENTS.md` es la fuente canónica para Codex y otros agentes de desarrollo. `agent.md` existe como compatibilidad y apunta al mismo contrato.
+`AGENTS.md` es la fuente canónica para y otros agentes de desarrollo. `agent.md` existe como compatibilidad y apunta al mismo contrato.
 
-La guía oficial de OpenAI indica que Codex descubre instrucciones mediante archivos `AGENTS.md` por capas desde el alcance global hasta el directorio actual. Por eso las reglas específicas de este repo deben mantenerse en `AGENTS.md`.
-
-Referencia: https://developers.openai.com/codex/guides/agents-md
+La guía oficial indica que descubre instrucciones mediante archivos `AGENTS.md` por capas desde el alcance global hasta el directorio actual. Por eso las reglas específicas de este repo deben mantenerse en `AGENTS.md`.

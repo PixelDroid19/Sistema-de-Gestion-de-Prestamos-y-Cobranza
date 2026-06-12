@@ -538,10 +538,20 @@ test('applyCapitalPayment reduce_payment rebuilds the remaining principal with t
   });
 
   const futureRows = savedLoan.emiSchedule.slice(1);
+  const expectedSchedule = buildAmortizationSchedule({
+    amount: roundCurrency(startingSnapshot.outstandingPrincipal - 300),
+    interestRate: loan.interestRate,
+    termMonths: 6,
+    startDate: '2026-06-01T00:00:00.000Z',
+    calculationMethod: loan.calculationMethod,
+  });
   assert.equal(result.allocation.strategyApplied, 'reduce_payment');
   assert.equal(result.allocation.newTermMonths, 6);
   assert.equal(result.allocation.newRemainingInstallments, 6);
   assert.equal(futureRows.length, 6);
+  assert.equal(result.allocation.newInstallmentAmount, expectedSchedule[0].scheduledPayment);
+  assert.equal(futureRows[0].interestComponent, expectedSchedule[0].interestComponent);
+  assert.equal(futureRows[0].principalComponent, expectedSchedule[0].principalComponent);
   assert.ok(result.allocation.newInstallmentAmount < result.allocation.previousInstallmentAmount);
   assert.ok(futureRows.every((row) => row.status === 'pending'));
   assert.ok(futureRows.every((row) => row.paidTotal === 0));

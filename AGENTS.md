@@ -2,11 +2,9 @@
 
 ## Purpose
 
-This file is the canonical repository guidance for Codex while working in this project.
+This file is the canonical repository guidance for while working in this project.
 
-Codex resolves instructions by combining global guidance with repository and directory-level `AGENTS.md` files. Keep durable repository rules here. If a subdirectory ever needs different behavior, add a closer `AGENTS.md` or `AGENTS.override.md` instead of overloading this file.
-
-Reference: https://developers.openai.com/codex/guides/agents-md
+ resolves instructions by combining global guidance with repository and directory-level `AGENTS.md` files. Keep durable repository rules here. If a subdirectory ever needs different behavior, add a closer `AGENTS.md` or `AGENTS.override.md` instead of overloading this file.
 
 ## Product Identity
 
