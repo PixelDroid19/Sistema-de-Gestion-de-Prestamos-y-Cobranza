@@ -2,6 +2,11 @@ const DECIMAL_MONEY_PATTERN = /^(?:\d+|\d+\.\d{1,2}|\.\d{1,2})$/;
 const DECIMAL_RATE_PATTERN = /^(?:\d+|\d+\.\d+)$/;
 const FORMATTED_WHOLE_MONEY_FORBIDDEN_PATTERN = /[A-Za-z+\-]/;
 
+const stripCurrencyDecorators = (value: string) => value
+  .trim()
+  .replace(/\bCOP\b/gi, '')
+  .replace(/[$\s]/g, '');
+
 type NumericRangeOptions = {
   allowZero?: boolean;
   min?: number;
@@ -106,7 +111,7 @@ export const parsePositiveMoneyInput = (value: unknown): number | null => {
 };
 
 export const normalizeWholeMoneyInput = (value: unknown): string | null => {
-  const rawValue = String(value ?? '').trim();
+  const rawValue = stripCurrencyDecorators(String(value ?? ''));
   if (!rawValue) {
     return '';
   }
@@ -126,8 +131,6 @@ export const formatWholeMoneyInput = (value: unknown): string => {
   }
   return formatDigitGroups(normalizedValue);
 };
-
-const stripCurrencyDecorators = (value: string) => value.trim().replace(/[$\s]/g, '');
 
 /**
  * Converts operator-facing decimal money text (es-CO grouping) into a canonical

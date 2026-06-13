@@ -5,7 +5,7 @@ const {
   RATE_POLICY_CATEGORY,
   LATE_FEE_POLICY_CATEGORY,
 } = require('@/modules/config/infrastructure/repositories');
-const { validateCurrencyPrecision } = require('@/modules/shared/money');
+const { BASE_CURRENCY_CODE, validateCurrencyPrecision } = require('@/modules/shared/money');
 const { validateInterestRate } = require('@/modules/shared/validators');
 const { ROLES } = require('@/modules/shared/roles');
 
@@ -56,6 +56,15 @@ const ADMIN_CATALOGS = {
   paymentVisibilities: ['customer', 'internal'],
   paymentDocumentCategories: ['voucher', 'receipt', 'transfer', 'note'],
 };
+
+const BASE_CURRENCY_SETTING = Object.freeze({
+  id: null,
+  key: 'base-currency',
+  label: 'Moneda base',
+  value: BASE_CURRENCY_CODE,
+  description: 'Moneda operativa fija del sistema.',
+  updatedAt: null,
+});
 
 const normalizeKey = (value) => String(value || '')
   .trim()
@@ -569,7 +578,9 @@ const createDeletePaymentMethod = ({ configRepository }) => async (paymentMethod
 
 const createListSettings = ({ configRepository }) => async () => {
   const entries = await configRepository.listByCategory(BUSINESS_SETTING_CATEGORY);
-  return entries.map(buildSetting);
+  const settings = entries.map(buildSetting);
+  const hasBaseCurrency = settings.some((setting) => ['base-currency', 'base_currency'].includes(setting.key));
+  return hasBaseCurrency ? settings : [BASE_CURRENCY_SETTING, ...settings];
 };
 
 const createListRatePolicies = ({ configRepository }) => async () => {
@@ -741,6 +752,9 @@ const createUpsertSetting = ({ configRepository }) => async (settingKey, { label
   const normalizedKey = normalizeKey(settingKey);
   if (!normalizedKey) {
     throw new ValidationError(`${getConfigFieldLabel('settingKey')} es obligatorio.`);
+  }
+  if (['base-currency', 'base-currency-code', 'base-currency-label'].includes(normalizedKey)) {
+    throw new ValidationError('La moneda base es fija en COP en esta versión.');
   }
 
   const existing = await configRepository.findByCategoryAndKey(BUSINESS_SETTING_CATEGORY, normalizedKey);

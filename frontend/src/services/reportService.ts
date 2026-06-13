@@ -669,41 +669,50 @@ export const useNextMonthProjection = () => {
   };
 };
 
-// Combined hook for financial analytics dashboard
+// Combined hook for financial analytics dashboard.
+// The six overlapping analytics endpoints are fetched as a single consolidated
+// bundle (`/reports/financial-analytics`) in one round-trip; the earnings
+// series keep their own queries since they feed other tabs too.
 export const useFinancialAnalytics = (year?: number) => {
   const creditEarnings = useCreditEarnings();
   const interestEarnings = useInterestEarnings(year);
   const monthlyEarnings = useMonthlyEarnings(year);
   const monthlyInterest = useMonthlyInterest(year);
-  const performanceAnalysis = usePerformanceAnalysis(year);
-  const executiveDashboard = useExecutiveDashboard();
-  const comprehensiveAnalytics = useComprehensiveAnalytics(year);
-  const comparativeAnalysis = useComparativeAnalysis(year);
-  const forecastAnalysis = useForecastAnalysis(year);
-  const nextMonthProjection = useNextMonthProjection();
+
+  const analyticsBundle = useQuery({
+    queryKey: queryKeys.reports.financialAnalytics(year),
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/financial-analytics', { params });
+      return data;
+    },
+  });
+
+  const bundle = analyticsBundle.data?.data;
+  const section = (value: any) => ({
+    data: value?.data,
+    isLoading: analyticsBundle.isLoading,
+    isError: analyticsBundle.isError,
+    error: analyticsBundle.error,
+  });
 
   return {
     creditEarnings,
     interestEarnings,
     monthlyEarnings,
     monthlyInterest,
-    performanceAnalysis,
-    executiveDashboard,
-    comprehensiveAnalytics,
-    comparativeAnalysis,
-    forecastAnalysis,
-    nextMonthProjection,
+    performanceAnalysis: section(bundle?.performanceAnalysis),
+    executiveDashboard: section(bundle?.executiveDashboard),
+    comprehensiveAnalytics: section(bundle?.comprehensiveAnalytics),
+    comparativeAnalysis: section(bundle?.comparativeAnalysis),
+    forecastAnalysis: section(bundle?.forecastAnalysis),
+    nextMonthProjection: section(bundle?.nextMonthProjection),
     isLoading:
       creditEarnings.isLoading ||
       interestEarnings.isLoading ||
       monthlyEarnings.isLoading ||
       monthlyInterest.isLoading ||
-      performanceAnalysis.isLoading ||
-      executiveDashboard.isLoading ||
-      comprehensiveAnalytics.isLoading ||
-      comparativeAnalysis.isLoading ||
-      forecastAnalysis.isLoading ||
-      nextMonthProjection.isLoading,
+      analyticsBundle.isLoading,
   };
 };
 

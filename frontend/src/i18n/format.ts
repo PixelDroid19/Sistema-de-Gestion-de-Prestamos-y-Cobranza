@@ -3,6 +3,10 @@ import { getIntlLocaleTag } from './index';
 type DateOptions = Intl.DateTimeFormatOptions;
 type NumberOptions = Intl.NumberFormatOptions;
 
+export const BASE_CURRENCY_CODE = 'COP' as const;
+export const BASE_CURRENCY_LABEL = 'COP - Peso colombiano' as const;
+export const BASE_CURRENCY_SYMBOL = '$' as const;
+
 const MIN_OPERATIONAL_YEAR = 1900;
 const MAX_OPERATIONAL_YEAR = 2199;
 const DATE_ONLY_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
@@ -56,11 +60,12 @@ export const isValidOperationalDateOnly = (value: unknown): boolean => {
 
 export const formatCurrency = (value: unknown, options: NumberOptions = {}): string => {
   return new Intl.NumberFormat(getIntlLocaleTag(), {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
     ...options,
-  }).format(toNumber(value));
+    style: 'currency',
+    currency: BASE_CURRENCY_CODE,
+    currencyDisplay: options.currencyDisplay ?? 'code',
+    maximumFractionDigits: options.maximumFractionDigits ?? 0,
+  }).format(toNumber(value)).replace(/\u00a0/g, ' ');
 };
 
 export const formatNumber = (value: unknown, options: NumberOptions = {}): string => {

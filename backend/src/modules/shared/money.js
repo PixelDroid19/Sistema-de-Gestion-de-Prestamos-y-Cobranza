@@ -10,6 +10,14 @@
  * @module shared/money
  */
 
+const BASE_CURRENCY_CODE = 'COP';
+const BASE_CURRENCY_LABEL = 'COP - Peso colombiano';
+
+const currencyDisplayFormatter = new Intl.NumberFormat('es-CO', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 /**
  * Round a numeric value to 2 decimal places (banker-safe currency rounding).
  * @param {number|string} value - Raw numeric value.
@@ -23,6 +31,18 @@ const roundCurrency = (value) => Number.parseFloat((Number(value) || 0).toFixed(
  * @returns {string} Formatted string e.g. "1234.56".
  */
 const formatCurrency = (value) => roundCurrency(value).toFixed(2);
+
+/**
+ * Format a numeric value for operator-facing COP displays.
+ * @param {number|string} value - Raw numeric value.
+ * @returns {string} Formatted display string e.g. "COP 1.234,56".
+ */
+const formatCurrencyDisplay = (value) => {
+  const numericValue = Number(value);
+  const safeValue = Number.isFinite(numericValue) ? roundCurrency(numericValue) : 0;
+  const sign = safeValue < 0 ? '-' : '';
+  return `${sign}${BASE_CURRENCY_CODE} ${currencyDisplayFormatter.format(Math.abs(safeValue))}`;
+};
 
 /**
  * Check whether a numeric/string value has at most N decimal places.
@@ -93,8 +113,11 @@ const compareWithinTolerance = (left, right, tolerance = 0.01) => {
 };
 
 module.exports = {
+  BASE_CURRENCY_CODE,
+  BASE_CURRENCY_LABEL,
   roundCurrency,
   formatCurrency,
+  formatCurrencyDisplay,
   hasDecimalPrecision,
   validateCurrencyPrecision,
   parsePositiveCurrencyAmount,

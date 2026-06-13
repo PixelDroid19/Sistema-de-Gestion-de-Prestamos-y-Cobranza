@@ -155,8 +155,8 @@ describe('CustomerDetails behavior', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Créditos' }));
 
     expect(screen.getByText('Saldo Pendiente')).toBeInTheDocument();
-    expect(screen.getByText(/\$\s*0/)).toBeInTheDocument();
-    expect(screen.queryByText(/-\$/)).not.toBeInTheDocument();
+    expect(screen.getByText(/COP\s*0/)).toBeInTheDocument();
+    expect(screen.queryByText(/-COP/)).not.toBeInTheDocument();
   });
 
   it('keeps internal customer and loan identifiers out of detail surfaces', () => {

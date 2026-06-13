@@ -1,4 +1,8 @@
-const { ensureAdmin, formatMoney, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
+const {
+  ensureAdmin,
+  formatDisplayMoney,
+  buildPdfBuffer,
+} = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const {
@@ -8,9 +12,9 @@ const {
   toOperationalDateOrNull,
 } = require('@/modules/shared/dateUtils');
 const { buildInvalidIntegerIdMessage } = require('@/modules/shared/validators');
+const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
 const { BadRequestError } = require('@/utils/errorHandler');
 
-const MONEY_FORMAT = '"$" #,##0.00;[Red]-"$" #,##0.00;"-"';
 const DATE_FORMAT = 'dd/mm/yyyy';
 const INTEGER_FORMAT = '#,##0';
 
@@ -512,7 +516,7 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
   ].join(' a ');
   const monthlyDetailLines = report.months.flatMap((month, index) => [
     ...(index === 0 ? ['Detalle mensual'] : []),
-    `${month.month} - prestado ${formatMoney(month.createdPrincipal)} - recibido ${formatMoney(month.paymentsReceived)} - gastos ${formatMoney(month.operatingExpenses)} - caja ${formatMoney(month.availableCash)}`,
+    `${month.month} - prestado ${formatDisplayMoney(month.createdPrincipal)} - recibido ${formatDisplayMoney(month.paymentsReceived)} - gastos ${formatDisplayMoney(month.operatingExpenses)} - caja ${formatDisplayMoney(month.availableCash)}`,
   ]);
 
   return {
@@ -524,17 +528,17 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
         `Periodo: ${range}`,
         `Créditos creados: ${report.summary.creditsCreated}`,
         `Cuotas recibidas: ${report.summary.installmentsReceived}`,
-        `Capital prestado: ${formatMoney(report.summary.totalPrincipalCreated)}`,
-        `Total recibido: ${formatMoney(report.summary.totalPaymentsReceived)}`,
-        `Gastos operativos: ${formatMoney(report.summary.totalOperatingExpenses)}`,
-        `Capital recuperado: ${formatMoney(report.summary.totalCapitalRecovered)}`,
-        `Capital vivo: ${formatMoney(report.summary.totalPrincipalOutstanding)}`,
-        `Intereses cobrados: ${formatMoney(report.summary.totalInterestCollected)}`,
-        `Mora cobrada: ${formatMoney(report.summary.totalPenaltiesCollected)}`,
+        `Capital prestado: ${formatDisplayMoney(report.summary.totalPrincipalCreated)}`,
+        `Total recibido: ${formatDisplayMoney(report.summary.totalPaymentsReceived)}`,
+        `Gastos operativos: ${formatDisplayMoney(report.summary.totalOperatingExpenses)}`,
+        `Capital recuperado: ${formatDisplayMoney(report.summary.totalCapitalRecovered)}`,
+        `Capital vivo: ${formatDisplayMoney(report.summary.totalPrincipalOutstanding)}`,
+        `Intereses cobrados: ${formatDisplayMoney(report.summary.totalInterestCollected)}`,
+        `Mora cobrada: ${formatDisplayMoney(report.summary.totalPenaltiesCollected)}`,
         `Créditos vencidos: ${report.summary.overdueCredits}`,
-        `Pérdidas/Riesgo: ${formatMoney(report.summary.lossesAtRisk)}`,
-        `Ganancias: ${formatMoney(report.summary.gains)}`,
-        `Caja disponible: ${formatMoney(report.summary.availableCash)}`,
+        `Pérdidas/Riesgo: ${formatDisplayMoney(report.summary.lossesAtRisk)}`,
+        `Ganancias: ${formatDisplayMoney(report.summary.gains)}`,
+        `Caja disponible: ${formatDisplayMoney(report.summary.availableCash)}`,
         ...monthlyDetailLines,
       ],
     }),

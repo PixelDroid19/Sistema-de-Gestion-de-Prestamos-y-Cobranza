@@ -18,6 +18,7 @@ const baseConfigState: {
   paymentMethods: any[];
   ratePolicies: any[];
   lateFeePolicies: any[];
+  businessSettings: Record<string, string>;
 } = {
   paymentMethods: [
     {
@@ -69,6 +70,9 @@ const baseConfigState: {
       isActive: true,
     },
   ],
+  businessSettings: {
+    base_currency: 'COP',
+  },
 };
 const mockConfigState = structuredClone(baseConfigState);
 const baseUsers = [
@@ -96,6 +100,7 @@ vi.mock('../../services/configService', () => ({
     paymentMethods: mockConfigState.paymentMethods,
     ratePolicies: mockConfigState.ratePolicies,
     lateFeePolicies: mockConfigState.lateFeePolicies,
+    businessSettings: mockConfigState.businessSettings,
     isLoading: false,
     createPaymentMethod: { mutateAsync: mockCreatePaymentMethod, isPending: false },
     updatePaymentMethod: { mutateAsync: mockUpdatePaymentMethod, isPending: false },
@@ -157,6 +162,7 @@ describe('Settings operational configuration', () => {
     mockConfigState.paymentMethods = structuredClone(baseConfigState.paymentMethods);
     mockConfigState.ratePolicies = structuredClone(baseConfigState.ratePolicies);
     mockConfigState.lateFeePolicies = structuredClone(baseConfigState.lateFeePolicies);
+    mockConfigState.businessSettings = structuredClone(baseConfigState.businessSettings);
     mockUsers = structuredClone(baseUsers);
   });
 
@@ -168,7 +174,20 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('tab', { name: /Tasas de crédito/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^Políticas de mora\s*1$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Empleados y permisos/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Moneda base/i })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Ajustes Generales/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the base currency as a locked Colombian peso setting', () => {
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Moneda base/i }));
+
+    expect(screen.getByRole('heading', { name: 'Moneda base' })).toBeInTheDocument();
+    expect(screen.getByText('COP - Peso colombiano')).toBeInTheDocument();
+    expect(screen.getByText('Los créditos, pagos, socios y reportes se registran en pesos colombianos.')).toBeInTheDocument();
+    expect(screen.getByText('La selección de otras monedas requiere una configuración contable multi-moneda.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Guardar moneda/i })).not.toBeInTheDocument();
   });
 
   it('lets admins create employees and manage employee access status from settings', async () => {
@@ -623,8 +642,8 @@ describe('Settings operational configuration', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
 
     expect(screen.getByText('Hay montos sin tasa configurada.')).toBeInTheDocument();
-    expect(screen.getByText(/Falta cubrir:.*\$ 0.*\$ 999\.999/)).toBeInTheDocument();
-    expect(screen.getByText(/Falta cubrir:.*Desde.*\$ 5\.000\.001/)).toBeInTheDocument();
+    expect(screen.getByText(/Falta cubrir:.*COP 0.*COP 999\.999/)).toBeInTheDocument();
+    expect(screen.getByText(/Falta cubrir:.*Desde.*COP 5\.000\.001/)).toBeInTheDocument();
     expect(screen.getAllByText('61% EA').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('5,08% mensual').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Crédito operativo').length).toBeGreaterThanOrEqual(1);

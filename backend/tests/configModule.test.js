@@ -13,6 +13,7 @@ const {
   createCreateLateFeePolicy,
   createDeleteLateFeePolicy,
   createResolveLateFeePolicy,
+  createListSettings,
   createUpsertSetting,
   createListAdminCatalogs,
   createListRoles,
@@ -74,6 +75,26 @@ test('createCreatePaymentMethod normalizes keys and persists payment-method meta
     createdAt: '2026-03-22T00:00:00.000Z',
     updatedAt: '2026-03-22T00:00:00.000Z',
   });
+});
+
+test('createListSettings exposes the locked COP base currency by default', async () => {
+  const listSettings = createListSettings({
+    configRepository: {
+      async listByCategory(category) {
+        assert.equal(category, 'business_setting');
+        return [];
+      },
+    },
+  });
+
+  assert.deepEqual(await listSettings(), [{
+    id: null,
+    key: 'base-currency',
+    label: 'Moneda base',
+    value: 'COP',
+    description: 'Moneda operativa fija del sistema.',
+    updatedAt: null,
+  }]);
 });
 
 test('config payment-method mutations reject duplicates and missing records', async () => {
@@ -1072,6 +1093,28 @@ test('createUpsertSetting preserves existing setting label and description when 
     description: 'Visible para comunicaciones operativas',
     updatedAt: '2026-03-22T00:00:00.000Z',
   });
+});
+
+test('createUpsertSetting keeps base currency read-only in this phase', async () => {
+  const upsertSetting = createUpsertSetting({
+    configRepository: {
+      async findByCategoryAndKey() {
+        throw new Error('base currency should be rejected before repository access');
+      },
+      async update() {
+        throw new Error('update should not be called for base currency');
+      },
+      async create() {
+        throw new Error('create should not be called for base currency');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => upsertSetting('base-currency', { value: 'USD' }),
+    (error) => error instanceof ValidationError
+      && error.message === 'La moneda base es fija en COP en esta versión.',
+  );
 });
 
 test('createConfigModule consumes shared auth context and registers the config surface', () => {

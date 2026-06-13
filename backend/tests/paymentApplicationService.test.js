@@ -341,6 +341,73 @@ test('applyCapitalPayment reduce_term rebuilds the open schedule without marking
   assert.equal(savedPayment.paymentMetadata.after.outstandingPrincipal, savedLoan.financialSnapshot.outstandingPrincipal);
 });
 
+test('applyCapitalPayment reduce_term keeps the installment fixed, shortens the term, and preserves total principal', async () => {
+  // Regression for the operator report: a capital prepayment with "reducción de
+  // tiempo" must keep the scheduled installment unchanged while shrinking the term,
+  // and the loan must keep its original principal in the financial snapshot so the
+  // calendar reconciles (capital amortizado + capital vivo == original amount).
+  let savedLoan;
+  const schedule = buildAmortizationSchedule({
+    amount: 2000000,
+    interestRate: 60,
+    termMonths: 12,
+    startDate: '2026-06-10T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  const originalInstallment = schedule[0].scheduledPayment;
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 3301,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 2000000,
+    interestRate: 60,
+    termMonths: 12,
+    calculationMethod: 'FRENCH',
+    installmentAmount: originalInstallment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() { savedLoan = this; return this; },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => ({ id: 890, ...payload }));
+
+  const result = await createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 3301,
+    amount: 500000,
+    paymentDate: '2026-07-10T00:00:00.000Z',
+    strategy: 'reduce_term',
+  });
+
+  const view = loanViewService.getCanonicalLoanView(savedLoan);
+  const pendingRows = view.schedule.filter((row) => row.status !== 'paid');
+
+  // Term shrinks
+  assert.ok(result.allocation.newRemainingInstallments < result.allocation.previousRemainingInstallments);
+  // Installment stays fixed for every pending row except the smaller final one
+  pendingRows.slice(0, -1).forEach((row) => {
+    assert.equal(row.scheduledPayment, originalInstallment);
+  });
+  assert.ok(pendingRows[pendingRows.length - 1].scheduledPayment <= originalInstallment + 0.01);
+  // Schedule closes exactly to zero
+  assert.equal(view.schedule[view.schedule.length - 1].remainingBalance, 0);
+  // Original principal is preserved so the calendar reconciles
+  assert.equal(view.snapshot.totalPrincipal, 2000000);
+  assert.equal(savedLoan.amount, 2000000);
+});
+
 test('applyCapitalPayment stores the operator who registered the capital movement', async () => {
   let savedPayment;
   const schedule = buildAmortizationSchedule({

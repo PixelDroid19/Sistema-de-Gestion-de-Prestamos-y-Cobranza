@@ -1,6 +1,11 @@
-const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
-const { toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
-const { ensureAdmin, formatMoney, assertDateRangeOrder } = require('@/modules/reports/application/reportHelpers');
+const { NotFoundError } = require('@/utils/errorHandler');
+const { toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
+const {
+  ensureAdmin,
+  formatMoney,
+  formatDisplayMoney,
+  assertDateRangeOrder,
+} = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer, STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const {
@@ -21,8 +26,6 @@ const {
   normalizeAssociateRecord,
   normalizeParticipationPercentage,
 } = require('./useCases');
-
-const ASSOCIATE_PROFITABILITY_ACCESS_REQUIRED_MESSAGE = 'El acceso a la rentabilidad del socio no está configurado para este usuario.';
 
 const ASSOCIATE_DISTRIBUTION_TYPE_LABELS = {
   proportional: 'Proporcional',
@@ -195,20 +198,9 @@ const formatAssociateDistributionType = (value) => (
   ASSOCIATE_DISTRIBUTION_TYPE_LABELS[String(value || '').trim().toLowerCase()] || (value ? 'Tipo de distribución no clasificado' : '')
 );
 
-const formatIsoDate = (value) => {
-  if (!value) {
-    return 'N/A';
-  }
-
-  return toDateOnlyOrNull(value) || 'N/A';
-};
-
 const formatInterestType = (value) => (value === 'annual' ? 'Anual' : 'Mensual');
 
-const formatPdfMoney = (value) => `$${Number(value || 0).toLocaleString('en-US', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})}`;
+const formatPdfMoney = (value) => formatDisplayMoney(value);
 
 const isOverdueInterestInstallment = (installment, asOfDate = new Date()) => {
   if (installment?.status === 'overdue') {
@@ -486,7 +478,7 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
         entryId: '',
         reference: '',
         amount: formatMoney(totalContributed),
-        date: `Distribuido: ${formatMoney(totalDistributed)} · Devuelto: ${formatMoney(totalCapitalReturned)}`,
+        date: `Distribuido: ${formatDisplayMoney(totalDistributed)} · Devuelto: ${formatDisplayMoney(totalCapitalReturned)}`,
         status: formatOperationalStatus(associate.status),
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
         contributionInterestType: '',
@@ -521,10 +513,10 @@ const buildAssociatesPdfLines = (rows = []) => {
   const totalInterestPaid = interestPaidRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestDue = interestDueRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const paidLines = interestPaidRows.slice(0, 5).map((row) => (
-    `Pagado: ${row.associateName || 'Socio sin nombre'} - ${row.date || 'Sin fecha'} - ${row.amount || '$0.00'}`
+    `Pagado: ${row.associateName || 'Socio sin nombre'} - ${row.date || 'Sin fecha'} - ${formatPdfMoney(row.amount)}`
   ));
   const pendingScheduleLines = interestDueRows.slice(0, 8).map((row) => (
-    `Pendiente: ${row.associateName || 'Socio sin nombre'} - ${row.date || 'Sin fecha'} - ${row.amount || '$0.00'}`
+    `Pendiente: ${row.associateName || 'Socio sin nombre'} - ${row.date || 'Sin fecha'} - ${formatPdfMoney(row.amount)}`
   ));
 
   return [

@@ -1,6 +1,6 @@
 const {
   ensureAdmin,
-  formatMoney,
+  formatDisplayMoney,
   parseDateRange,
   buildPdfBuffer,
   parseOptionalReportId,
@@ -9,7 +9,7 @@ const { formatOperationalStatus } = require('@/modules/reports/application/repor
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { buildDateRangeMessage } = require('@/modules/shared/dateUtils');
 const { ValidationError } = require('@/utils/errorHandler');
-const { roundMoney, toExcelDate } = require('@/modules/reports/application/excelExportFormats');
+const { MONEY_FORMAT, roundMoney, toExcelDate } = require('@/modules/reports/application/excelExportFormats');
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_STATUSES = new Set(['completed', 'annulled']);
@@ -19,7 +19,7 @@ const EXPENSE_COLUMNS = [
   { header: 'Fecha', key: 'expenseDate', width: 18, numFmt: 'dd/mm/yyyy' },
   { header: 'Categoría', key: 'category', width: 24 },
   { header: 'Descripción', key: 'description', width: 34 },
-  { header: 'Monto', key: 'amount', width: 18, numFmt: '"$"#,##0.00' },
+  { header: 'Monto', key: 'amount', width: 18, numFmt: MONEY_FORMAT },
   { header: 'Medio de Pago', key: 'paymentMethod', width: 20 },
   { header: 'Estado', key: 'status', width: 16 },
   { header: 'Referencia', key: 'reference', width: 22 },
@@ -111,9 +111,9 @@ const buildOperatingExpensePdf = (rows) => {
   const total = rows.reduce((sum, row) => sum + toNumber(row.amount), 0);
   const lines = [
     `Registros incluidos: ${rows.length}`,
-    `Total reportado: $${formatMoney(total)}`,
+    `Total reportado: ${formatDisplayMoney(total)}`,
     '',
-    ...rows.map((row) => `${row.expenseDate || 'Sin fecha'} - ${row.category}: $${formatMoney(row.amount)} - ${row.status}`),
+    ...rows.map((row) => `${row.expenseDate || 'Sin fecha'} - ${row.category}: ${formatDisplayMoney(row.amount)} - ${row.status}`),
   ].slice(0, 42);
 
   return buildPdfBuffer({

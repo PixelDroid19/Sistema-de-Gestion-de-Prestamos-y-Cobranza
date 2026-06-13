@@ -1,4 +1,5 @@
 const PDFDocument = require('pdfkit');
+const { formatCurrencyDisplay } = require('@/modules/shared/money');
 
 const PAYMENT_METHOD_LABELS = Object.freeze({
   cash: 'Efectivo',
@@ -26,14 +27,7 @@ const VoucherService = {
    * @returns {string}
    */
   formatCurrency(amount) {
-    if (typeof amount !== 'number' || Number.isNaN(amount)) {
-      return '$0.00';
-    }
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 2,
-    }).format(amount);
+    return formatCurrencyDisplay(amount);
   },
 
   formatPaymentMethod(method) {

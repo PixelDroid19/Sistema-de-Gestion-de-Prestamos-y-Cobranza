@@ -1,8 +1,8 @@
-const { ensureAdmin, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
+const { ensureAdmin, buildPdfBuffer, formatDisplayMoney } = require('@/modules/reports/application/reportHelpers');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const { MONEY_FORMAT, parseExcelMoney } = require('@/modules/reports/application/excelExportFormats');
 const { ValidationError } = require('@/utils/errorHandler');
 
-const MONEY_FORMAT = '"$"#,##0.00';
 const PERCENT_FORMAT = '0.00%';
 const MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
 
@@ -32,6 +32,14 @@ const toNumber = (value) => {
 
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatReportMoney = (value) => {
+  const text = String(value ?? '').trim();
+  if (text.startsWith('COP ')) {
+    return text;
+  }
+  return formatDisplayMoney(parseExcelMoney(value));
 };
 
 const toPercentDecimal = (value) => toNumber(value) / 100;
@@ -302,30 +310,30 @@ const buildAnalyticsPdf = ({
 
   const lines = [
     `Año analizado: ${targetYear}`,
-    `Ganancia total: $${summary.totalEarnings || '0.00'}`,
-    `Intereses cobrados: $${summary.totalInterest || '0.00'}`,
-    `Mora cobrada: $${summary.totalPenalties || '0.00'}`,
+    `Ganancia total: ${formatReportMoney(summary.totalEarnings)}`,
+    `Intereses cobrados: ${formatReportMoney(summary.totalInterest)}`,
+    `Mora cobrada: ${formatReportMoney(summary.totalPenalties)}`,
     `Pagos registrados: ${summary.paymentCount || 0}`,
     `Créditos evaluados: ${summary.totalLoans || 0}`,
-    `Capital desembolsado: $${summary.totalLoanAmount || '0.00'}`,
+    `Capital desembolsado: ${formatReportMoney(summary.totalLoanAmount)}`,
     '',
     'Comparativo anual:',
-    `Ganancias: $${comparison.earnings?.current || '0.00'} vs $${comparison.earnings?.previous || '0.00'} (${comparison.earnings?.changePercent || 0}%)`,
-    `Intereses: $${comparison.interest?.current || '0.00'} vs $${comparison.interest?.previous || '0.00'} (${comparison.interest?.changePercent || 0}%)`,
-    `Mora: $${comparison.penalties?.current || '0.00'} vs $${comparison.penalties?.previous || '0.00'} (${comparison.penalties?.changePercent || 0}%)`,
+    `Ganancias: ${formatReportMoney(comparison.earnings?.current)} vs ${formatReportMoney(comparison.earnings?.previous)} (${comparison.earnings?.changePercent || 0}%)`,
+    `Intereses: ${formatReportMoney(comparison.interest?.current)} vs ${formatReportMoney(comparison.interest?.previous)} (${comparison.interest?.changePercent || 0}%)`,
+    `Mora: ${formatReportMoney(comparison.penalties?.current)} vs ${formatReportMoney(comparison.penalties?.previous)} (${comparison.penalties?.changePercent || 0}%)`,
     `Pagos: ${comparison.payments?.current || 0} vs ${comparison.payments?.previous || 0}`,
     '',
     'Proyección:',
     `Periodo estimado: ${projectionSnapshot.projectedMonth}`,
-    `Ingreso proyectado: $${projectionSnapshot.projectedEarnings || '0.00'}`,
-    `Promedio de referencia: $${projectionSnapshot.averageEarnings || '0.00'}`,
-    `Último periodo observado: $${projectionSnapshot.lastMonthEarnings || '0.00'}`,
+    `Ingreso proyectado: ${formatReportMoney(projectionSnapshot.projectedEarnings)}`,
+    `Promedio de referencia: ${formatReportMoney(projectionSnapshot.averageEarnings)}`,
+    `Último periodo observado: ${formatReportMoney(projectionSnapshot.lastMonthEarnings)}`,
     `Tendencia: ${getTrendLabel(projectionSnapshot.trend)}`,
     `Confianza: ${getConfidenceLabel(projectionSnapshot.confidenceLevel)}`,
     '',
     'Tendencia mensual:',
     ...monthlyRows.map((row) => (
-      `${row.month}: ganancias $${row.totalEarnings || '0.00'} · intereses $${row.totalInterest || '0.00'} · mora $${row.totalPenalties || '0.00'}`
+      `${row.month}: ganancias ${formatReportMoney(row.totalEarnings)} · intereses ${formatReportMoney(row.totalInterest)} · mora ${formatReportMoney(row.totalPenalties)}`
     )),
   ].slice(0, 42);
 

@@ -7,23 +7,22 @@ describe('VoucherService', () => {
   describe('formatCurrency', () => {
     test('formats positive numbers as COP currency', () => {
       const result = VoucherService.formatCurrency(100000);
-      assert.ok(result.includes('100.000') || result.includes('100,000') || result.includes('100000'), 
-        `Expected formatted currency, got: ${result}`);
+      assert.equal(result, 'COP 100.000,00');
     });
 
     test('formats zero as zero currency', () => {
       const result = VoucherService.formatCurrency(0);
-      assert.ok(result.includes('0'), `Expected formatted zero, got: ${result}`);
+      assert.equal(result, 'COP 0,00');
     });
 
-    test('returns $0.00 for NaN', () => {
+    test('returns explicit COP zero for NaN', () => {
       const result = VoucherService.formatCurrency(NaN);
-      assert.equal(result, '$0.00');
+      assert.equal(result, 'COP 0,00');
     });
 
-    test('returns $0.00 for non-number input', () => {
+    test('returns explicit COP zero for non-number input', () => {
       const result = VoucherService.formatCurrency('invalid');
-      assert.equal(result, '$0.00');
+      assert.equal(result, 'COP 0,00');
     });
   });
 

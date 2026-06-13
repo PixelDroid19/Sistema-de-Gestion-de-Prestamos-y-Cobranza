@@ -317,13 +317,13 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   const firstReceivedCell = historySheet.getRow(3).getCell(5);
   const firstGainsCell = historySheet.getRow(3).getCell(12);
   const firstAvailableCashCell = historySheet.getRow(3).getCell(13);
-  assert.equal(firstCapitalCell.value, '$ 2.000.000,00');
-  assert.equal(firstReceivedCell.value, '$ 2.000.000,00');
-  assert.equal(firstGainsCell.value, '$ 500.000,00');
-  assert.equal(firstAvailableCashCell.value, '-$ 100.000,00');
-  assert.match(firstCapitalCell.numFmt, /\$/);
-  assert.match(firstGainsCell.numFmt, /\$/);
-  assert.match(firstAvailableCashCell.numFmt, /\$/);
+  assert.equal(firstCapitalCell.value, 'COP 2.000.000,00');
+  assert.equal(firstReceivedCell.value, 'COP 2.000.000,00');
+  assert.equal(firstGainsCell.value, 'COP 500.000,00');
+  assert.equal(firstAvailableCashCell.value, '-COP 100.000,00');
+  assert.match(firstCapitalCell.numFmt, /COP/);
+  assert.match(firstGainsCell.numFmt, /COP/);
+  assert.match(firstAvailableCashCell.numFmt, /COP/);
 
   const summarySheet = workbook.getWorksheet('Resumen Auditoría');
   let capitalVivoRow = null;
@@ -333,8 +333,8 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
     }
   });
   assert.ok(capitalVivoRow, 'Resumen Auditoría should include Capital vivo');
-  assert.equal(capitalVivoRow.getCell(2).value, '$ 500.000,00');
-  assert.match(capitalVivoRow.getCell(2).numFmt, /\$/);
+  assert.equal(capitalVivoRow.getCell(2).value, 'COP 500.000,00');
+  assert.match(capitalVivoRow.getCell(2).numFmt, /COP/);
 
   const pdf = await createExportCreditHistoryAuditPdf(dependencies)({ actor: { role: 'admin' }, filters: {} });
   assert.equal(pdf.contentType, 'application/pdf');
@@ -343,7 +343,7 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.match(pdf.buffer.toString('utf8'), /Historial de créditos/);
   assert.match(pdf.buffer.toString('utf8'), /Gastos operativos/);
   assert.match(pdf.buffer.toString('utf8'), /Detalle mensual/);
-  assert.match(pdf.buffer.toString('utf8'), /2026-01 - prestado 2000000.00 - recibido 2000000.00 - gastos 100000.00 - caja -100000.00/);
+  assert.match(pdf.buffer.toString('utf8'), /2026-01 - prestado COP 2\.000\.000,00 - recibido COP 2\.000\.000,00 - gastos COP 100\.000,00 - caja -COP 100\.000,00/);
 });
 
 test('reports router exposes advanced credit history JSON, Excel and PDF routes', async () => {

@@ -703,9 +703,9 @@ test('customer profitability Excel export uses the same values shown in profitab
   assert.equal(sheet.getRow(2).values.includes('Mora Cobrada'), true);
   assert.equal(sheet.getRow(2).values.includes('Rentabilidad Total'), true);
   assert.equal(sheet.getRow(3).getCell(2).value, 'Ana');
-  assert.equal(sheet.getRow(3).getCell(12).value, '$ 90,00');
-  assert.equal(sheet.getRow(3).getCell(13).value, '$ 10,00');
-  assert.equal(sheet.getRow(3).getCell(14).value, '$ 100,00');
+  assert.equal(sheet.getRow(3).getCell(12).value, 'COP 90,00');
+  assert.equal(sheet.getRow(3).getCell(13).value, 'COP 10,00');
+  assert.equal(sheet.getRow(3).getCell(14).value, 'COP 100,00');
   assert.equal(sheet.getRow(3).getCell(16).value, 'Al día');
   assert.equal(sheet.getRow(3).getCell(17).value, 'Bajo');
 });

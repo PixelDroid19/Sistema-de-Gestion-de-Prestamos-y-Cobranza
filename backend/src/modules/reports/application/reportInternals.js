@@ -11,6 +11,7 @@
 const { formatCurrency } = require('@/modules/shared/money');
 const { buildPaginationMeta, paginateArray } = require('@/modules/shared/pagination');
 const { toDateOnlyOrNull } = require('@/modules/shared/dateUtils');
+const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
 
 // ─── PDF Generation ─────────────────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ const formatIsoDate = (value) => {
 
 // ─── Excel Column Helpers ───────────────────────────────────────────────────
 
-const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: MONEY_FORMAT });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
 
 // ─── Monthly Performance ────────────────────────────────────────────────────

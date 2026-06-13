@@ -2,6 +2,7 @@ const {
   assertDateRangeOrder,
   ensureAdmin,
   formatMoney,
+  formatDisplayMoney,
   buildPdfBuffer,
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
@@ -537,15 +538,15 @@ const buildPdfSummaryLines = (rows) => {
     `Créditos activos: ${counts.Activos}`,
     `Créditos cerrados: ${counts.Cerrados}`,
     `Créditos vencidos: ${counts.Vencidos}`,
-    `Total prestado (capital): ${formatMoney(totalLoanAmount)}`,
-    `Cuotas recibidas (total cobrado): ${formatMoney(totalPaid)}`,
-    `Capital recuperado: ${formatMoney(totalCapitalPaid)}`,
-    `Intereses cobrados: ${formatMoney(totalInterestPaid)}`,
-    `Intereses generados: ${formatMoney(totalInterestGenerated)}`,
-    `Mora cobrada: ${formatMoney(totalLate)}`,
-    `Saldo pendiente: ${formatMoney(totalRemaining)}`,
-    `Ganancia (intereses + mora): ${formatMoney(profit)}`,
-    `Caja disponible (cobrado - prestado): ${formatMoney(availableCash)}`,
+    `Total prestado (capital): ${formatDisplayMoney(totalLoanAmount)}`,
+    `Cuotas recibidas (total cobrado): ${formatDisplayMoney(totalPaid)}`,
+    `Capital recuperado: ${formatDisplayMoney(totalCapitalPaid)}`,
+    `Intereses cobrados: ${formatDisplayMoney(totalInterestPaid)}`,
+    `Intereses generados: ${formatDisplayMoney(totalInterestGenerated)}`,
+    `Mora cobrada: ${formatDisplayMoney(totalLate)}`,
+    `Saldo pendiente: ${formatDisplayMoney(totalRemaining)}`,
+    `Ganancia (intereses + mora): ${formatDisplayMoney(profit)}`,
+    `Caja disponible (cobrado - prestado): ${formatDisplayMoney(availableCash)}`,
   ];
 };
 

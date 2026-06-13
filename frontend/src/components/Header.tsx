@@ -4,7 +4,6 @@ import { APP_BRAND, getRoleLabel, getShellDestinationsForUser } from '../constan
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useUnreadNotificationsCount } from '../services/notificationService';
 import { useMyPermissions } from '../services/permissionsService';
-import { formatDate as formatDateValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { useSessionStore } from '../store/sessionStore';
@@ -87,14 +86,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
       .slice(0, 6);
   }, [normalizedQuery, shellDestinations]);
 
-  const displayDate = formatDateValue(new Date(), {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-
   const userLabel = user?.name?.trim() || tTerm('header.user.fallbackName');
-  const userHandle = user?.email || tTerm('header.user.fallbackHandle');
   const roleLabel = getRoleLabel(user?.role);
   const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
 
@@ -127,17 +119,13 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
 
           <ClickableSurface
             variant="list"
-            className="hidden min-w-0 items-center gap-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-hover-bg sm:flex"
+            className="hidden min-w-0 items-center rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-hover-bg sm:flex"
             onClick={() => setCurrentView(homeView)}
+            title={APP_BRAND.name}
           >
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary">
-                {APP_BRAND.name}
-              </span>
-              <span className="truncate text-base font-semibold text-text-primary lg:text-lg">
-                {APP_BRAND.workspace}
-              </span>
-            </div>
+            <span className="truncate text-[0.95rem] font-semibold tracking-tight text-text-primary lg:text-base">
+              {APP_BRAND.workspace}
+            </span>
           </ClickableSurface>
         </div>
 
@@ -206,62 +194,56 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             )}
           </div>
 
-          <IconActionButton
-            onClick={toggleTheme}
-            title={isDark ? t('header.lightMode') : t('header.darkMode')}
-            label={isDark ? t('header.lightMode') : t('header.darkMode')}
-            icon={isDark ? <Sun size={18} /> : <Moon size={18} />}
-            className="rounded-full"
-          />
+          <div className="flex items-center gap-1 rounded-full border border-border-subtle bg-bg-surface/70 p-1">
+            <IconActionButton
+              onClick={toggleTheme}
+              title={isDark ? t('header.lightMode') : t('header.darkMode')}
+              label={isDark ? t('header.lightMode') : t('header.darkMode')}
+              icon={isDark ? <Sun size={18} /> : <Moon size={18} />}
+              className="rounded-full"
+            />
 
-          <IconActionButton
-            onClick={() => setLocale(locale === 'es' ? 'en' : 'es')}
-            title={t('header.languageSwitcher')}
-            label={t('header.languageSwitcher')}
-            icon={<Languages size={18} />}
-            className="rounded-full"
-          />
+            <IconActionButton
+              onClick={() => setLocale(locale === 'es' ? 'en' : 'es')}
+              title={t('header.languageSwitcher')}
+              label={t('header.languageSwitcher')}
+              icon={<Languages size={18} />}
+              className="rounded-full"
+            />
 
-          <ClickableSurface
-            variant="list"
-            onClick={() => setCurrentView('notifications')}
-            className="relative flex shrink-0 items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-3 py-2 text-sm transition-colors hover:bg-hover-bg sm:px-4"
-            aria-label={unreadCount > 0 ? tTerm('header.notifications.aria.new', { count: unreadCount }) : tTerm('header.notifications.aria.none')}
-          >
-            <Bell size={16} className="text-text-secondary" />
-            {unreadCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-            <span className="hidden xl:inline">
-              {unreadCount > 0 ? t('header.notificationsNew', { count: unreadCount }) : t('header.noNews')}
-            </span>
-          </ClickableSurface>
-
-          <div className="hidden items-center rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-text-secondary 2xl:flex">
-            {tTerm('header.date.today')} · {displayDate}
+            <button
+              type="button"
+              onClick={() => setCurrentView('notifications')}
+              className="action-button action-button--ghost relative h-9 w-9 !min-h-0 rounded-full !p-0"
+              title={unreadCount > 0 ? tTerm('header.notifications.aria.new', { count: unreadCount }) : tTerm('header.notifications.aria.none')}
+              aria-label={unreadCount > 0 ? tTerm('header.notifications.aria.new', { count: unreadCount }) : tTerm('header.notifications.aria.none')}
+            >
+              <span className="action-button-icon" aria-hidden="true"><Bell size={18} /></span>
+              {unreadCount > 0 && (
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-bg-surface">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
           </div>
 
+          <span className="hidden h-7 w-px shrink-0 bg-border-subtle sm:block" aria-hidden="true" />
+
           <ClickableSurface
             variant="list"
-            className="flex min-w-0 items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-hover-bg md:gap-3 md:p-2"
+            className="flex min-w-0 items-center gap-2.5 rounded-full p-1 pr-1 transition-colors hover:bg-hover-bg sm:pr-3"
             onClick={() => setCurrentView('profile')}
           >
             <img
               src="https://i.pravatar.cc/150?u=admin"
               alt={tTerm('header.user.avatarAlt')}
-              className="size-9 shrink-0 rounded-full border border-border-strong md:h-10 md:w-10"
+              className="size-9 shrink-0 rounded-full border border-border-strong object-cover"
             />
-            <div className="hidden min-w-0 max-w-[14rem] flex-col sm:flex">
-              <div className="flex items-center gap-1">
-                <span className="truncate text-sm font-medium">{roleLabel}</span>
-                <ChevronDown size={14} className="shrink-0 text-text-secondary" />
-              </div>
-              <span className="truncate text-xs text-text-secondary">
-                {userLabel} · {userHandle}
-              </span>
+            <div className="hidden min-w-0 max-w-[12rem] flex-col sm:flex">
+              <span className="truncate text-sm font-semibold leading-tight text-text-primary">{userLabel}</span>
+              <span className="truncate text-xs leading-tight text-text-secondary">{roleLabel}</span>
             </div>
+            <ChevronDown size={16} className="hidden shrink-0 text-text-secondary sm:block" />
           </ClickableSurface>
         </div>
       </div>

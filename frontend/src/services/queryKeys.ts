@@ -178,6 +178,7 @@ export const queryKeys = {
     comparativeAnalysis: (year?: number) => ['reports.comparativeAnalysis', year] as const,
     forecastAnalysis: (year?: number) => ['reports.forecastAnalysis', year] as const,
     nextMonthProjection: ['reports.nextMonthProjection'] as const,
+    financialAnalytics: (year?: number) => ['reports.financialAnalytics', year] as const,
     payoutsRoot: ['reports.payouts'] as const,
     payouts: (filters: object, page: number, pageSize: number) =>
       ['reports.payouts', filters, page, pageSize] as const,

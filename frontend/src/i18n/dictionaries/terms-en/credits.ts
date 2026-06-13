@@ -260,6 +260,8 @@ export const creditsEn = {
 'creditDetails.calendar.chart.interest': 'Interest',
 'creditDetails.calendar.chart.balance': 'Outstanding principal',
 'creditDetails.calendar.chart.installmentAxis': 'Installment {number}',
+'creditDetails.calendar.composition.share': 'Breakdown',
+'creditDetails.calendar.composition.aria': 'Principal and interest breakdown per installment',
 'creditDetails.calendar.installment': 'Installment #{number}',
 'creditDetails.calendar.nextPayable': 'Next operable installment: {number}',
 'creditDetails.calendar.noPending': 'No pending installments',

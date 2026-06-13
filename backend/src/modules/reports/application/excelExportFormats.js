@@ -1,5 +1,7 @@
-const MONEY_FORMAT = '"$" #,##0.00;[Red]-"$" #,##0.00;"-"';
-const MONEY_FORMAT_COMPACT = '"$"#,##0.00';
+const { BASE_CURRENCY_CODE, formatCurrencyDisplay } = require('@/modules/shared/money');
+
+const MONEY_FORMAT = `"${BASE_CURRENCY_CODE}" #,##0.00;[Red]-"${BASE_CURRENCY_CODE}" #,##0.00;"-"`;
+const MONEY_FORMAT_COMPACT = `"${BASE_CURRENCY_CODE}" #,##0.00`;
 const PERCENT_FORMAT = '0.00%';
 const DATE_FORMAT = 'dd/mm/yyyy';
 const DATE_TIME_FORMAT = 'dd/mm/yyyy h:mm AM/PM';
@@ -43,12 +45,7 @@ const parseDisplayNumber = (value, options = {}) => {
 
 const formatMoneyDisplay = (value) => {
   const parsed = parseDisplayNumber(value);
-  if (!parsed.ok) {
-    return parsed.value;
-  }
-
-  const sign = parsed.value < 0 ? '-' : '';
-  return `${sign}$ ${decimalFormatter.format(Math.abs(parsed.value))}`;
+  return parsed.ok ? formatCurrencyDisplay(parsed.value) : parsed.value;
 };
 
 const formatDecimalDisplay = (value) => {
@@ -129,7 +126,10 @@ const isDateTimeExcelFormat = (numFmt) => {
   return isDateExcelFormat(format) && /(h|am\/pm|ss)/.test(format);
 };
 
-const isMoneyExcelFormat = (numFmt) => String(numFmt || '').includes('$');
+const isMoneyExcelFormat = (numFmt) => {
+  const format = String(numFmt || '');
+  return format.includes('$') || format.includes(BASE_CURRENCY_CODE);
+};
 const isLiteralPercentExcelFormat = (numFmt) => String(numFmt || '').includes('"%"');
 
 const formatExcelDisplayValue = (value, numFmt) => {
@@ -291,6 +291,7 @@ const isNumericExcelFormat = (numFmt) => {
 module.exports = {
   MONEY_FORMAT,
   MONEY_FORMAT_COMPACT,
+  BASE_CURRENCY_CODE,
   PERCENT_FORMAT,
   DATE_FORMAT,
   DATE_TIME_FORMAT,

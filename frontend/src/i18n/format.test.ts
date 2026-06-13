@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime, isValidOperationalDateOnly } from './format';
+import { formatCurrency, formatDate, formatDateTime, isValidOperationalDateOnly } from './format';
+
+describe('currency formatting', () => {
+  it('renders Colombian pesos with an explicit COP code', () => {
+    expect(formatCurrency(2000000)).toBe('COP 2.000.000');
+    expect(formatCurrency(120554.5, { minimumFractionDigits: 2, maximumFractionDigits: 2 })).toBe('COP 120.554,50');
+  });
+});
 
 describe('date formatting safety', () => {
   it('formats valid operational dates', () => {

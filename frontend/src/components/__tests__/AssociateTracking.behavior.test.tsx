@@ -175,7 +175,7 @@ describe('AssociateTracking behavior', () => {
     render(<AssociateTracking setCurrentView={vi.fn()} />);
 
     expect(screen.getAllByText('Capital vigente').length).toBeGreaterThan(0);
-    expect(screen.getByText('$ 5.500.000')).toBeInTheDocument();
+    expect(screen.getByText('COP 5.500.000')).toBeInTheDocument();
     expect(screen.getByText('Próximo vencimiento')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Obligaciones 1' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Obligaciones con socios' })).toBeInTheDocument();
@@ -404,9 +404,9 @@ describe('AssociateTracking behavior', () => {
     await user.click(screen.getByRole('tab', { name: 'Socios 1' }));
 
     expect(screen.getByText('Socio Sin Redundancia')).toBeInTheDocument();
-    expect(screen.queryByText('Aportado $ 1.000.000')).not.toBeInTheDocument();
-    expect(screen.getByText(/Pendiente \$\s?20\.000/)).toBeInTheDocument();
-    expect(screen.queryByText('Pagado $ 0')).not.toBeInTheDocument();
+    expect(screen.queryByText('Aportado COP 1.000.000')).not.toBeInTheDocument();
+    expect(screen.getByText(/Pendiente COP\s?20\.000/)).toBeInTheDocument();
+    expect(screen.queryByText('Pagado COP 0')).not.toBeInTheDocument();
   });
 
   it('paginates open obligations instead of rendering the full obligation list', async () => {

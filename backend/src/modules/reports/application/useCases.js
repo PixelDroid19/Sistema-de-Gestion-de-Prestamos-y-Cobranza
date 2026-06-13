@@ -3,6 +3,7 @@ const { buildWorkbookBuffer, STYLE_COLORS } = require('./workbookBuilder');
 const {
   ensureAdmin,
   formatMoney,
+  formatDisplayMoney,
   parseDateRange,
 } = require('./reportHelpers');
 const {
@@ -21,6 +22,7 @@ const {
   buildLoansWithDetails,
   paginateCollection,
 } = require('./reportInternals');
+const { MONEY_FORMAT } = require('./excelExportFormats');
 const { formatOperationalStatus, formatPaymentType } = require('./reportLabels');
 
 const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
@@ -599,10 +601,10 @@ const createExportCustomerCreditProfile = ({ reportRepository }) => async ({ act
         `Pagos completados: ${summary.completedPayments || 0}`,
         `Alertas de mora: ${summary.delinquentAlerts || 0}`,
         `Promesas incumplidas: ${summary.brokenPromises || 0}`,
-        `Total pagado: ${summary.totalPaid || '0.00'}`,
+        `Total pagado: ${formatDisplayMoney(summary.totalPaid || 0)}`,
         `Perfil completo: ${formatYesNo(completeness.isComplete)}`,
         `Secciones pendientes: ${missingSections}`,
-        `Rentabilidad total: ${profitability?.totalProfit || 'N/A'}`,
+        `Rentabilidad total: ${profitability ? formatDisplayMoney(profitability.totalProfit || 0) : 'N/A'}`,
       ],
     }),
   };
@@ -638,8 +640,8 @@ const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService,
       lines: [
         `ID cliente: ${history.loan.customerId || 'N/A'}`,
         `Estado del crédito: ${formatOperationalStatus(history.loan.status)}`,
-        `Saldo pendiente: ${formatMoney(history.snapshot?.outstandingBalance || 0)}`,
-        `Total pagado: ${formatMoney(history.snapshot?.totalPaid || 0)}`,
+        `Saldo pendiente: ${formatDisplayMoney(history.snapshot?.outstandingBalance || 0)}`,
+        `Total pagado: ${formatDisplayMoney(history.snapshot?.totalPaid || 0)}`,
         `Pagos registrados: ${history.payments?.length || 0}`,
         `Pagos totales registrados: ${history.payoffHistory?.length || 0}`,
         `Motivo de cierre: ${formatOperationalStatus(history.closure?.closureReason)}`,
@@ -674,9 +676,9 @@ const RECOVERY_EXPORT_COLUMNS = [
   { header: 'Sección', key: 'section', width: 16 },
   { header: 'ID Crédito', key: 'creditId', width: 12 },
   { header: 'Cliente', key: 'customer', width: 28 },
-  { header: 'Monto Préstamo', key: 'amount', width: 18, numFmt: '"$"#,##0.00' },
-  { header: 'Total Pagado', key: 'paid', width: 18, numFmt: '"$"#,##0.00' },
-  { header: 'Saldo Pendiente', key: 'outstanding', width: 18, numFmt: '"$"#,##0.00' },
+  { header: 'Monto Préstamo', key: 'amount', width: 18, numFmt: MONEY_FORMAT },
+  { header: 'Total Pagado', key: 'paid', width: 18, numFmt: MONEY_FORMAT },
+  { header: 'Saldo Pendiente', key: 'outstanding', width: 18, numFmt: MONEY_FORMAT },
   { header: 'Estado de Recuperación', key: 'recoveryStatus', width: 24 },
 ];
 
@@ -715,8 +717,8 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
           `Créditos totales: ${report.summary.totalLoans}`,
           `Créditos recuperados: ${report.summary.recoveredLoans}`,
           `Créditos pendientes: ${report.summary.outstandingLoans}`,
-          `Monto total recuperado: ${report.summary.totalRecoveredAmount}`,
-          `Saldo total pendiente: ${report.summary.totalOutstandingAmount}`,
+          `Monto total recuperado: ${formatDisplayMoney(report.summary.totalRecoveredAmount || 0)}`,
+          `Saldo total pendiente: ${formatDisplayMoney(report.summary.totalOutstandingAmount || 0)}`,
           `Tasa de recuperación: ${report.summary.recoveryRate}`,
         ],
       }),
@@ -831,12 +833,12 @@ const buildCustomerProfitabilityPdfLines = ({ report, rows }) => {
     `Clientes analizados: ${analyticsSummary.customerCount ?? rows.length}`,
     `Clientes morosos: ${analyticsSummary.delinquentCustomerCount ?? delinquentRows.length}`,
     `Clientes riesgo alto: ${analyticsSummary.highRiskCustomerCount ?? 0}`,
-    `Rentabilidad total: ${summary.totalProfit || '0.00'}`,
-    `Interés y mora cobrados: ${summary.totalCollected || '0.00'}`,
-    `Saldo pendiente en cartera: ${summary.totalOutstandingBalance || '0.00'}`,
+    `Rentabilidad total: ${formatDisplayMoney(summary.totalProfit || 0)}`,
+    `Interés y mora cobrados: ${formatDisplayMoney(summary.totalCollected || 0)}`,
+    `Saldo pendiente en cartera: ${formatDisplayMoney(summary.totalOutstandingBalance || 0)}`,
     'Clientes con mayor saldo pendiente:',
     ...(topOutstanding.length > 0
-      ? topOutstanding.map((row) => `${row.customerName} | Saldo: ${formatMoney(row.outstandingBalance)} | Créditos: ${row.loanCount} | Riesgo: ${row.riskLevel}`)
+      ? topOutstanding.map((row) => `${row.customerName} | Saldo: ${formatDisplayMoney(row.outstandingBalance)} | Créditos: ${row.loanCount} | Riesgo: ${row.riskLevel}`)
       : ['Sin clientes con saldo pendiente.']),
     'Clientes morosos:',
     ...(delinquentRows.length > 0
@@ -961,6 +963,7 @@ module.exports = {
   createGetComparativeAnalysis: require('./useCases/createGetComparativeAnalysis').createGetComparativeAnalysis,
   createGetForecastAnalysis: require('./useCases/createGetForecastAnalysis').createGetForecastAnalysis,
   createGetNextMonthProjection: require('./useCases/createGetNextMonthProjection').createGetNextMonthProjection,
+  createGetFinancialAnalytics: require('./useCases/createGetFinancialAnalytics').createGetFinancialAnalytics,
   createExportFinancialAnalyticsReport: require('./useCases/createExportFinancialAnalyticsReport').createExportFinancialAnalyticsReport,
   // Excel export use cases
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,

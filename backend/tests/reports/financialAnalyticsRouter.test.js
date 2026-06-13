@@ -67,6 +67,21 @@ const buildMockUseCases = (calls = []) => ({
     calls.push(['getNextMonthProjection', input.actor.role]);
     return { success: true, data: { projection: { month: '2026-04', projectedEarnings: '5500.00', confidenceLevel: 'medium' }, model: { slope: 100, intercept: 4000 }, historicalSummary: {} } };
   },
+  async getFinancialAnalytics(input) {
+    calls.push(['getFinancialAnalytics', input.actor.role, input.year]);
+    return {
+      success: true,
+      data: {
+        year: input.year || 2026,
+        performanceAnalysis: { success: true, data: { year: 2026, summary: { totalEarnings: '60000.00' } } },
+        executiveDashboard: { success: true, data: { period: 2026, summary: {} } },
+        comprehensiveAnalytics: { success: true, data: { year: 2026, yearOverYear: {}, monthlyDetails: [] } },
+        comparativeAnalysis: { success: true, data: { currentYear: 2026, comparison: {} } },
+        forecastAnalysis: { success: true, data: { forecast: { nextMonthEarnings: '5500.00' } } },
+        nextMonthProjection: { success: true, data: { projection: { projectedEarnings: '5500.00' } } },
+      },
+    };
+  },
   async exportFinancialAnalyticsReport(input) {
     calls.push(['exportFinancialAnalyticsReport', input.actor.role, input.year, input.format]);
     if (String(input.format || 'xlsx').toLowerCase() === 'pdf') {
@@ -423,6 +438,53 @@ test('GET /analytics/export streams the analytics workbook and preserves year/fo
   assert.match(String(response.headers['content-disposition'] || ''), /analitica-financiera-2026\.pdf/);
   assert.equal(response.body.toString('utf8'), '%PDF-1.4 analytics');
   assert.deepEqual(calls[calls.length - 1], ['exportFinancialAnalyticsReport', 'admin', 2026, 'pdf']);
+});
+
+test('GET /financial-analytics returns the consolidated analytics bundle in one call', async () => {
+  const calls = [];
+  const useCases = buildMockUseCases(calls);
+  const router = createReportsRouter({ authMiddleware: roleAwareAuth, useCases });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/financial-analytics?year=2026',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.year, 2026);
+  // All six sections present in a single payload
+  assert.ok(response.body.data.performanceAnalysis?.data?.summary);
+  assert.ok(response.body.data.executiveDashboard?.data);
+  assert.ok(response.body.data.comprehensiveAnalytics?.data);
+  assert.ok(response.body.data.comparativeAnalysis?.data);
+  assert.ok(response.body.data.forecastAnalysis?.data?.forecast);
+  assert.ok(response.body.data.nextMonthProjection?.data?.projection);
+  // Exactly one use-case invocation (the consolidator), not six round-trips
+  assert.deepEqual(calls, [['getFinancialAnalytics', 'admin', 2026]]);
+});
+
+test('GET /financial-analytics rejects non-admin roles', async () => {
+  const calls = [];
+  const useCases = buildMockUseCases(calls);
+  const router = createReportsRouter({ authMiddleware: roleAwareAuth, useCases });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/financial-analytics?year=2026',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+  });
+
+  assert.equal(response.statusCode, 403);
 });
 
 test('All 11 financial analytics routes are accessible', async () => {

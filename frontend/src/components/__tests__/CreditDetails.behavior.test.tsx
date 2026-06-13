@@ -362,12 +362,12 @@ describe('CreditDetails behavioral parity scenarios', () => {
     const calendarTable = screen.getAllByRole('table')[0];
     const calendarTableText = calendarTable.textContent?.replace(/\s+/g, ' ') || '';
 
-    expect(screen.getByText('Total')).toBeInTheDocument();
-    expect(renderedText).toMatch(/\$\s*550\.000/);
-    expect(renderedText).toMatch(/\$\s*90\.000/);
-    expect(renderedText).toMatch(/\$\s*460\.000/);
-    expect(calendarTableText).toMatch(/\$\s*540\.000/);
-    expect(calendarTableText).not.toMatch(/\$\s*750\.000/);
+    expect(within(calendarTable).getByText('Total')).toBeInTheDocument();
+    expect(renderedText).toMatch(/COP\s*550\.000/);
+    expect(renderedText).toMatch(/COP\s*90\.000/);
+    expect(renderedText).toMatch(/COP\s*460\.000/);
+    expect(calendarTableText).toMatch(/COP\s*540\.000/);
+    expect(calendarTableText).not.toMatch(/COP\s*750\.000/);
   });
 
   it('includes completed capital prepayments in calendar totals after reducing term', async () => {
@@ -444,13 +444,13 @@ describe('CreditDetails behavioral parity scenarios', () => {
     const startRowText = calendarRows[1].textContent?.replace(/\s+/g, ' ') || '';
     const footerRowText = calendarRows[calendarRows.length - 1].textContent?.replace(/\s+/g, ' ') || '';
 
-    expect(startRowText).toMatch(/\$\s*2\.000\.000/);
-    expect(startRowText).not.toMatch(/\$\s*125\.651/);
-    expect(calendarTableText).toMatch(/\$\s*2\.000\.000/);
+    expect(startRowText).toMatch(/COP\s*2\.000\.000/);
+    expect(startRowText).not.toMatch(/COP\s*125\.651/);
+    expect(calendarTableText).toMatch(/COP\s*2\.000\.000/);
     expect(footerRowText).toMatch(/Pendiente/);
-    expect(footerRowText).toMatch(/\$\s*131\.934/);
-    expect(footerRowText).toMatch(/\$\s*6\.283/);
-    expect(footerRowText).toMatch(/\$\s*125\.651/);
+    expect(footerRowText).toMatch(/COP\s*131\.934/);
+    expect(footerRowText).toMatch(/COP\s*6\.283/);
+    expect(footerRowText).toMatch(/COP\s*125\.651/);
     expect(footerRowText).not.toMatch(/\$\s*2\.000\.000/);
     expect(footerRowText).not.toMatch(/\$\s*0/);
   });

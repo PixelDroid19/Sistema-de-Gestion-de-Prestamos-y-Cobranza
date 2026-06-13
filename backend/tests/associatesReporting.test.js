@@ -140,10 +140,10 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
       participationRow = row;
     }
   });
-  assert.equal(totalContributedRow?.getCell(2).value, '$ 1.000,00');
+  assert.equal(totalContributedRow?.getCell(2).value, 'COP 1.000,00');
   assert.equal(participationRow?.getCell(2).value, '25,00%');
-  assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, '$ 1.000,00');
-  assert.equal(workbook.getWorksheet('Distribuciones').getRow(3).getCell(3).value, '$ 150,00');
+  assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, 'COP 1.000,00');
+  assert.equal(workbook.getWorksheet('Distribuciones').getRow(3).getCell(3).value, 'COP 150,00');
 });
 
 test('createExportAssociateProfitabilityReport rejects socio export requests', async () => {

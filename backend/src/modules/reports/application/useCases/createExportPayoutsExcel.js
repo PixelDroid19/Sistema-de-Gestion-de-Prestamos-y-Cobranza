@@ -1,6 +1,6 @@
 const {
   ensureAdmin,
-  formatMoney,
+  formatDisplayMoney,
   parseDateRange,
   buildPaymentDateWhere,
   parseOptionalReportId,
@@ -9,9 +9,9 @@ const {
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
-const { roundMoney, toExcelDate } = require('@/modules/reports/application/excelExportFormats');
+const { MONEY_FORMAT, roundMoney, toExcelDate } = require('@/modules/reports/application/excelExportFormats');
 
-const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: MONEY_FORMAT });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
 
 const PAYOUT_WORKBOOK_COLUMNS = [
@@ -159,13 +159,13 @@ const createExportPayoutsPdf = ({ paymentRepository }) => async ({ actor, filter
   const rows = await buildPayoutExportRows({ paymentRepository, filters });
   const lines = [
     `Pagos incluidos: ${rows.length}`,
-    `Total recibido: ${formatMoney(sumRowsByMoneyKey(rows, 'amount'))}`,
-    `Capital aplicado: ${formatMoney(sumRowsByMoneyKey(rows, 'principalApplied'))}`,
-    `Interes aplicado: ${formatMoney(sumRowsByMoneyKey(rows, 'interestApplied'))}`,
-    `Mora aplicada: ${formatMoney(sumRowsByMoneyKey(rows, 'penaltyApplied'))}`,
+    `Total recibido: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'amount'))}`,
+    `Capital aplicado: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'principalApplied'))}`,
+    `Interes aplicado: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'interestApplied'))}`,
+    `Mora aplicada: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'penaltyApplied'))}`,
     'Detalle operativo:',
     ...rows.slice(0, 20).map((row) => (
-      `Pago ${row.paymentId} | Credito ${row.loanId} | ${row.customerName} | ${row.paymentDate} | ${row.amount} | ${row.paymentType} | ${row.status} | ${row.createdBy}`
+      `Pago ${row.paymentId} | Credito ${row.loanId} | ${row.customerName} | ${row.paymentDate} | ${formatDisplayMoney(row.amount)} | ${row.paymentType} | ${row.status} | ${row.createdBy}`
     )),
   ];
 

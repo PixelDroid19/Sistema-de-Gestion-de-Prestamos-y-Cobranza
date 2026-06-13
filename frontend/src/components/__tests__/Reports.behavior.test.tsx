@@ -1115,7 +1115,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getAllByText('Ana Mora').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('3 créditos').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('2 activos · 1 finalizados').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('$ 1.200.000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('COP 1.200.000').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('2 en mora').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Crítico').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Alto').length).toBeGreaterThanOrEqual(1);
@@ -1202,7 +1202,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(within(dialog).getByText('Riesgo')).toBeInTheDocument();
     expect(within(dialog).getByText('Actividad reciente')).toBeInTheDocument();
     expect(within(dialog).getByText('Pago')).toBeInTheDocument();
-    expect(within(dialog).getByText('$ 250.000')).toBeInTheDocument();
+    expect(within(dialog).getByText('COP 250.000')).toBeInTheDocument();
     expect(within(dialog).getByText('Seguimiento por mora activa')).toBeInTheDocument();
     expect(within(dialog).getAllByText('Crítico').length).toBeGreaterThan(0);
     expect(within(dialog).getAllByText('Alto').length).toBeGreaterThan(0);
@@ -1651,13 +1651,13 @@ describe('Reports behavioral parity scenarios', () => {
 
     await screen.findByRole('heading', { name: 'Analítica financiera' });
     expect(screen.getByText('2026-07 · Base histórica de 6 meses')).toBeInTheDocument();
-    expect(screen.getAllByText('$ 359.282').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('COP 359.282').length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText('Año analítico'), { target: { value: '2025' } });
 
     await waitFor(() => {
       expect(screen.getByText('2026-01 · Proyección con la serie del año analítico.')).toBeInTheDocument();
-      expect(screen.getAllByText('$ 150.000').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('COP 150.000').length).toBeGreaterThan(0);
     });
   });
 

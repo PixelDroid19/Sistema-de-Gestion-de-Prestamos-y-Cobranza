@@ -62,6 +62,7 @@ describe('formatted decimal money input', () => {
   it('normalizes es-CO grouped decimals into canonical dot values', () => {
     expect(normalizeDecimalMoneyInput('120.554,50')).toBe('120554.50');
     expect(normalizeDecimalMoneyInput('$ 120.554,50')).toBe('120554.50');
+    expect(normalizeDecimalMoneyInput('COP 120.554,50')).toBe('120554.50');
     expect(formatDecimalMoneyInput('120554.50')).toBe('120.554,50');
     expect(parsePositiveMoneyInput('120554.50')).toBe(120554.5);
   });
@@ -126,6 +127,7 @@ describe('formatted decimal money input', () => {
 describe('formatted whole money input', () => {
   it('normalizes readable money values while preserving a canonical numeric string', () => {
     expect(normalizeWholeMoneyInput('$ 2.000.000')).toBe('2000000');
+    expect(normalizeWholeMoneyInput('COP 2.000.000')).toBe('2000000');
     expect(normalizeWholeMoneyInput('2,000,000')).toBe('2000000');
     expect(formatWholeMoneyInput('2000000')).toBe('2.000.000');
     expect(parseFormattedPositiveMoneyInput('2.000.000')).toBe(2000000);

@@ -3,7 +3,7 @@ const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload } = require('@/modules/shared/http');
 const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
-const { buildPdfBuffer, formatMoney } = require('@/modules/reports/application/reportHelpers');
+const { buildPdfBuffer, formatDisplayMoney } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer, STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const {
@@ -16,7 +16,7 @@ const {
   toExcelDate,
 } = require('@/modules/reports/application/excelExportFormats');
 
-const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: MONEY_FORMAT });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
 
 const DASHBOARD_EVOLUTION_COLUMNS = [
@@ -330,7 +330,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
       lines.push('', 'Evolución reciente:');
       monthlyPerformance.slice(-6).forEach((row) => {
         lines.push(
-          `${row.period || row.month || row.date || 'Periodo'}: desembolsado ${formatMoney(row.disbursed || row.totalDisbursed || 0)} · recuperado ${formatMoney(row.recovered || row.totalRecovered || 0)}`,
+          `${row.period || row.month || row.date || 'Periodo'}: desembolsado ${formatDisplayMoney(row.disbursed || row.totalDisbursed || 0)} · recuperado ${formatDisplayMoney(row.recovered || row.totalRecovered || 0)}`,
         );
       });
     }
@@ -618,6 +618,12 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/next-month-projection', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getNextMonthProjection({ actor: req.user }));
+  }));
+
+  // Consolidated analytics bundle: one round-trip for the Analytics tab instead
+  // of six overlapping requests reconciled on the client.
+  router.get('/financial-analytics', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    res.json(await useCases.getFinancialAnalytics({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.get('/analytics/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {

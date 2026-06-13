@@ -1,5 +1,5 @@
 const { AuthorizationError, ValidationError } = require('@/utils/errorHandler');
-const { formatCurrency } = require('@/modules/shared/money');
+const { formatCurrency, formatCurrencyDisplay } = require('@/modules/shared/money');
 const { buildDateRangeMessage, normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
 const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
 
@@ -24,6 +24,7 @@ const ensureAdmin = (actor, message = 'Solo usuarios administrativos autorizados
 };
 
 const formatMoney = formatCurrency;
+const formatDisplayMoney = formatCurrencyDisplay;
 
 const assertDateRangeOrder = ({ fromDate, toDate }, { fromLabel = 'fromDate', toLabel = 'toDate' } = {}) => {
   if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
@@ -165,6 +166,7 @@ module.exports = {
   ensureAdmin,
   assertDateRangeOrder,
   formatMoney,
+  formatDisplayMoney,
   parseDateRange,
   buildPaymentDateWhere,
   parseOptionalReportId,

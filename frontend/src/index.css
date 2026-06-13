@@ -186,6 +186,8 @@
     align-items: end;
     gap: 0.875rem 1rem;
     padding: 0.75rem 0.9rem;
+    /* Filter bars read as light control strips, not content cards. */
+    box-shadow: none;
   }
 
   .associate-tracking-toolbar__field {
@@ -720,6 +722,64 @@
 
   .credit-detail-tab-panel {
     min-width: 0;
+  }
+
+  /* Capital/interest proportion bar for the installment composition table. */
+  .composition-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    height: 0.55rem;
+    border-radius: 9999px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--border-subtle) 55%, transparent);
+  }
+
+  .composition-bar__segment {
+    height: 100%;
+    min-width: 0;
+    transition: width 0.2s ease;
+  }
+
+  .composition-bar__segment--capital {
+    background: #10b981;
+  }
+
+  .composition-bar__segment--interest {
+    background: #3b82f6;
+  }
+
+  .composition-bar--legend {
+    height: auto;
+    gap: 0.5rem;
+    background: transparent;
+    overflow: visible;
+    justify-content: flex-start;
+  }
+
+  .composition-bar__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .composition-bar__chip::before {
+    content: '';
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 9999px;
+  }
+
+  .composition-bar__chip--capital::before {
+    background: #10b981;
+  }
+
+  .composition-bar__chip--interest::before {
+    background: #3b82f6;
   }
 
   .credit-detail-chip {
@@ -1481,15 +1541,12 @@
     gap: 1rem;
   }
 
+  /* Lightweight heading + filter bar (no card chrome) so report tabs read as
+     "section heading → filter bar → content cards" instead of card-in-card. */
   .report-tab-panel {
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
-    border: 1px solid var(--border-subtle);
-    border-radius: 1rem;
-    background: var(--bg-surface);
-    box-shadow: var(--shadow-card);
-    padding: 0.95rem 1rem 1rem;
+    gap: 0.75rem;
   }
 
   .report-tab-panel__title {
@@ -1555,8 +1612,9 @@
   }
 
   .report-tab-panel__secondary-filters {
-    border-top: 1px solid var(--border-subtle);
-    padding-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .report-collapsible-filters {
@@ -1716,8 +1774,10 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem;
-    border-top: 1px solid var(--border-subtle);
-    padding-top: 0.85rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 1rem;
+    background: var(--bg-surface);
+    padding: 0.8rem 0.9rem;
   }
 
   @media (min-width: 640px) {
@@ -1748,8 +1808,6 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     justify-content: flex-start;
-    border-top: 1px solid var(--border-subtle);
-    padding-top: 0.85rem;
   }
 
   @media (min-width: 640px) {
@@ -1798,7 +1856,7 @@
   .report-metrics-section__panel {
     overflow: hidden;
     border: 1px solid var(--border-subtle);
-    border-radius: 1.25rem;
+    border-radius: 1rem;
     background: var(--bg-surface);
     box-shadow: var(--shadow-card);
   }

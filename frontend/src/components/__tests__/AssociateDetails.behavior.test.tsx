@@ -241,7 +241,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Devolución de capital')).toBeInTheDocument();
     expect(screen.getByText('Operador Socios')).toBeInTheDocument();
     expect(screen.getByText('Tesorería')).toBeInTheDocument();
-    expect(screen.getAllByText(/\$\s*125[,.]000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/COP\s*125[,.]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('Transferencia')).toBeInTheDocument();
     expect(screen.queryByText('transfer')).not.toBeInTheDocument();
   });

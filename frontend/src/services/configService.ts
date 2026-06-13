@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { useInvalidatingMutation } from './crudHooks';
+import { BASE_CURRENCY_CODE } from '../i18n/format';
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
@@ -25,6 +26,22 @@ const mapPaymentMethod = (pm: any) => ({
   name: pm.name ?? pm.label ?? '',
   type: normalizePaymentMethodType(pm.type ?? pm.metadata?.type ?? pm.key),
 });
+
+const mapBusinessSettings = (settings: unknown) => {
+  const mapped = toArray<any>(settings).reduce<Record<string, string>>((acc, setting) => {
+    const key = String(setting?.key || '').trim();
+    if (key) {
+      acc[key] = String(setting?.value ?? '');
+    }
+    return acc;
+  }, {});
+  const baseCurrency = mapped['base-currency'] || mapped.base_currency || BASE_CURRENCY_CODE;
+  return {
+    ...mapped,
+    'base-currency': baseCurrency,
+    base_currency: baseCurrency,
+  };
+};
 
 type UseConfigOptions = {
   enabled?: boolean;
@@ -53,6 +70,15 @@ export const useConfig = ({ enabled = true }: UseConfigOptions = {}) => {
     queryKey: queryKeys.config.lateFeePolicies,
     queryFn: async () => {
       const { data } = await apiClient.get('/config/late-fee-policies');
+      return data;
+    },
+    enabled,
+  });
+
+  const getSettings = useQuery({
+    queryKey: queryKeys.config.settings,
+    queryFn: async () => {
+      const { data } = await apiClient.get('/config/settings');
       return data;
     },
     enabled,
@@ -131,8 +157,9 @@ export const useConfig = ({ enabled = true }: UseConfigOptions = {}) => {
     paymentMethods: toArray(getPaymentMethods.data?.data?.paymentMethods).map(mapPaymentMethod),
     ratePolicies: toArray(getRatePolicies.data?.data?.policies),
     lateFeePolicies: toArray(getLateFeePolicies.data?.data?.policies),
-    isLoading: getPaymentMethods.isLoading || getRatePolicies.isLoading || getLateFeePolicies.isLoading,
-    isError: getPaymentMethods.isError || getRatePolicies.isError || getLateFeePolicies.isError,
+    businessSettings: mapBusinessSettings(getSettings.data?.data?.settings),
+    isLoading: getPaymentMethods.isLoading || getRatePolicies.isLoading || getLateFeePolicies.isLoading || getSettings.isLoading,
+    isError: getPaymentMethods.isError || getRatePolicies.isError || getLateFeePolicies.isError || getSettings.isError,
     createPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,

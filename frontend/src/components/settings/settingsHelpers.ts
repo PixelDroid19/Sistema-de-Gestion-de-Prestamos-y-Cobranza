@@ -15,7 +15,7 @@ import {
 
 // --- Types ---
 
-export type SettingsTab = 'employees' | 'payment-methods' | 'rate-policies' | 'late-fee-policies';
+export type SettingsTab = 'employees' | 'payment-methods' | 'rate-policies' | 'late-fee-policies' | 'base-currency';
 
 export type PaymentMethodDraft = {
   name: string;

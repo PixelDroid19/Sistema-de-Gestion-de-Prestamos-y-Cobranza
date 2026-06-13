@@ -155,7 +155,7 @@ describe('Associates behavior', () => {
     expect(screen.getByText('Interés estimado')).toBeInTheDocument();
     expect(screen.getByText('Socios activos')).toBeInTheDocument();
     expect(screen.getAllByText('Participación').length).toBeGreaterThan(0);
-    expect(screen.getByText('$ 2.500.000')).toBeInTheDocument();
+    expect(screen.getByText('COP 2.500.000')).toBeInTheDocument();
   });
 
   it('reactivates inactive associates through the active status patch flow', async () => {

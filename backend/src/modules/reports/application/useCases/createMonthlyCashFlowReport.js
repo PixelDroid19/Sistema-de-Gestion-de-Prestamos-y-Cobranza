@@ -1,9 +1,14 @@
-const { ensureAdmin, formatMoney, parseDateRange } = require('@/modules/reports/application/reportHelpers');
+const {
+  ensureAdmin,
+  formatMoney,
+  formatDisplayMoney,
+  parseDateRange,
+} = require('@/modules/reports/application/reportHelpers');
 const { toDateOnlyOrNull } = require('@/modules/shared/dateUtils');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
 
 const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
-const MONEY_FORMAT = '"$"#,##0.00';
 const DISBURSED_STATUSES = new Set(['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted']);
 const LOSS_RISK_STATUSES = new Set(['overdue', 'defaulted']);
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -736,17 +741,17 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
   const report = response.data;
   const title = `Flujo de caja mensual ${report.year}`;
   const lines = [
-    `Entradas por cuotas: $${report.summary.totalInflows}`,
-    `Salidas por préstamos: $${report.summary.totalOutflows}`,
-    `Pagos a socios: $${report.summary.totalAssociatePayments}`,
-    `Gastos operativos: $${report.summary.totalOperatingExpenses}`,
-    `Caja disponible: $${report.summary.availableCash}`,
-    `Ganancia cobrada: $${report.summary.totalCollectedProfit}`,
-    `Pérdidas en riesgo: $${report.summary.lossesAtRisk}`,
-    `Resultado neto: $${report.summary.netProfitIndicator}`,
+    `Entradas por cuotas: ${formatDisplayMoney(report.summary.totalInflows)}`,
+    `Salidas por préstamos: ${formatDisplayMoney(report.summary.totalOutflows)}`,
+    `Pagos a socios: ${formatDisplayMoney(report.summary.totalAssociatePayments)}`,
+    `Gastos operativos: ${formatDisplayMoney(report.summary.totalOperatingExpenses)}`,
+    `Caja disponible: ${formatDisplayMoney(report.summary.availableCash)}`,
+    `Ganancia cobrada: ${formatDisplayMoney(report.summary.totalCollectedProfit)}`,
+    `Pérdidas en riesgo: ${formatDisplayMoney(report.summary.lossesAtRisk)}`,
+    `Resultado neto: ${formatDisplayMoney(report.summary.netProfitIndicator)}`,
     '',
     'Historial mensual:',
-    ...report.months.map((month) => `${month.month}: entradas $${month.inflows} - prestamos $${month.outflows} - socios $${month.associatePayments} - gastos $${month.operatingExpenses} = caja $${month.availableCash}`),
+    ...report.months.map((month) => `${month.month}: entradas ${formatDisplayMoney(month.inflows)} - prestamos ${formatDisplayMoney(month.outflows)} - socios ${formatDisplayMoney(month.associatePayments)} - gastos ${formatDisplayMoney(month.operatingExpenses)} = caja ${formatDisplayMoney(month.availableCash)}`),
   ].slice(0, 42);
 
   return {

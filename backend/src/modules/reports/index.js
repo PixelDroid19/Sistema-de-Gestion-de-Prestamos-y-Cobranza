@@ -25,6 +25,7 @@ const {
   createGetComparativeAnalysis,
   createGetForecastAnalysis,
   createGetNextMonthProjection,
+  createGetFinancialAnalytics,
   createExportFinancialAnalyticsReport,
   createExportCreditsExcel,
   createExportCreditsPdf,
@@ -64,6 +65,14 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
   const getComparativeAnalysis = createGetComparativeAnalysis({ reportRepository });
   const getForecastAnalysis = createGetForecastAnalysis({ reportRepository });
   const getNextMonthProjection = createGetNextMonthProjection({ reportRepository });
+  const getFinancialAnalytics = createGetFinancialAnalytics({
+    getPerformanceAnalysis,
+    getExecutiveDashboard,
+    getComprehensiveAnalytics,
+    getComparativeAnalysis,
+    getForecastAnalysis,
+    getNextMonthProjection,
+  });
   const exportFinancialAnalyticsReport = createExportFinancialAnalyticsReport({
     getComprehensiveAnalytics,
     getComparativeAnalysis,
@@ -96,6 +105,7 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getComparativeAnalysis,
     getForecastAnalysis,
     getNextMonthProjection,
+    getFinancialAnalytics,
     exportFinancialAnalyticsReport,
     // Credits Excel export and summary
     exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
