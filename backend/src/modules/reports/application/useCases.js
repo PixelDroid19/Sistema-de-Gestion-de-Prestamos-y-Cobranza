@@ -965,7 +965,6 @@ module.exports = {
   // Excel export use cases
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,
   createExportCreditsPdf: require('./useCases/createExportCreditsExcel').createExportCreditsPdf,
-  createGetCreditsSummary: require('./useCases/createGetCreditsSummary').createGetCreditsSummary,
   createExportPayoutsExcel: require('./useCases/createExportPayoutsExcel').createExportPayoutsExcel,
   createExportPayoutsPdf: require('./useCases/createExportPayoutsExcel').createExportPayoutsPdf,
   // Enhanced reports use cases

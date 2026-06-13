@@ -248,7 +248,8 @@ const buildAssociateSheets = (rows) => {
   const totalCapitalReturned = capitalReturnRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestPaid = interestRows.filter((row) => row.status === 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestDebt = interestRows.filter((row) => row.status !== 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
-  const byStatus = Array.from(rows.reduce((map, row) => {
+  const movementRows = rows.filter((row) => row.section !== ASSOCIATE_EXPORT_SECTIONS.summary);
+  const byStatus = Array.from(movementRows.reduce((map, row) => {
     const status = row.status || 'N/A';
     const current = map.get(status) || { status, count: 0, amount: 0 };
     current.count += 1;
@@ -258,9 +259,9 @@ const buildAssociateSheets = (rows) => {
   }, new Map()).values()).map((row) => ({
     ...row,
     amount: roundMoney(row.amount),
-    percentage: rows.length > 0 ? row.count / rows.length : 0,
+    percentage: movementRows.length > 0 ? row.count / movementRows.length : 0,
   }));
-  const bySection = Array.from(rows.reduce((map, row) => {
+  const bySection = Array.from(movementRows.reduce((map, row) => {
     const section = row.section || 'N/A';
     const current = map.get(section) || { section, count: 0, amount: 0 };
     current.count += 1;

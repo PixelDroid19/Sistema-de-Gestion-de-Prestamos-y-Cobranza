@@ -3,11 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import CreditsCalendarView from '../credits/CreditsCalendarView';
 import type { CalendarOverviewResponse, InstallmentEvent } from '../credits/creditsHelpers';
 
-vi.mock('react-big-calendar', () => ({
-  Calendar: () => <div data-testid="calendar-grid" />,
-  dateFnsLocalizer: () => ({}),
-}));
-
 const selectedEvent: InstallmentEvent = {
   id: '77-1',
   loanId: 77,

@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "react-grid-layout/css/styles.css";
 @import "react-resizable/css/styles.css";
-@import "react-big-calendar/lib/css/react-big-calendar.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -1259,6 +1258,54 @@
     color: var(--text-primary);
     border-color: var(--border-subtle);
     background: var(--hover-bg);
+    box-shadow: none;
+  }
+
+  .reports-navigation {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  .reports-subnav.view-tabs {
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent;
+    border-color: transparent;
+    background: color-mix(in srgb, var(--bg-surface) 55%, transparent);
+    box-shadow: none;
+    padding: 0.25rem;
+    gap: 0.25rem;
+  }
+
+  .reports-subnav.view-tabs::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .reports-subnav.view-tabs::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  }
+
+  .reports-subnav .view-tab {
+    flex: 0 0 auto;
+    min-height: 2.1rem;
+    padding-inline: 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .reports-subnav .view-tab--active {
+    color: var(--brand-primary);
+    border-color: color-mix(in srgb, var(--brand-primary) 35%, transparent);
+    background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
     box-shadow: none;
   }
 
@@ -3267,88 +3314,6 @@
 .field-hint:hover .field-hint-tooltip,
 .field-hint:focus-within .field-hint-tooltip {
   display: block;
-}
-
-/* Custom styles for react-big-calendar to support dark mode */
-.rbc-calendar {
-  font-family: inherit;
-}
-
-.rbc-header {
-  padding: 8px;
-  font-weight: 500;
-  border-bottom: 1px solid var(--border-subtle) !important;
-  border-left: 1px solid var(--border-subtle) !important;
-}
-
-.rbc-month-view, .rbc-time-view, .rbc-agenda-view {
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: 8px;
-  overflow: hidden;
-  background-color: var(--bg-surface);
-}
-
-.rbc-month-row, .rbc-day-bg, .rbc-time-header-content {
-  border-color: var(--border-subtle) !important;
-}
-
-.rbc-off-range-bg {
-  background-color: var(--bg-base) !important;
-}
-
-.rbc-today {
-  background-color: var(--hover-bg) !important;
-}
-
-.rbc-event {
-  padding: 2px 5px !important;
-  border: 0 !important;
-  box-shadow: none !important;
-}
-
-.rbc-button-link {
-  color: var(--text-primary) !important;
-}
-
-.rbc-toolbar button {
-  color: var(--text-primary) !important;
-  border-color: var(--border-strong) !important;
-}
-
-.rbc-toolbar button:hover, .rbc-toolbar button:active, .rbc-toolbar button.rbc-active {
-  background-color: var(--hover-bg) !important;
-  color: var(--text-primary) !important;
-  box-shadow: none !important;
-}
-
-.rbc-time-content {
-  border-top: 1px solid var(--border-subtle) !important;
-}
-
-.rbc-timeslot-group {
-  border-bottom: 1px solid var(--border-subtle) !important;
-}
-
-.rbc-time-slot {
-  border-top: 1px solid var(--border-subtle) !important;
-}
-
-.rbc-agenda-view table.rbc-agenda-table {
-  border: 1px solid var(--border-subtle) !important;
-}
-
-.rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
-  border-top: 1px solid var(--border-subtle) !important;
-  white-space: normal !important;
-}
-
-.rbc-agenda-view table.rbc-agenda-table thead > tr > th {
-  border-bottom: 1px solid var(--border-subtle) !important;
-}
-
-.rbc-agenda-event-cell {
-  min-width: 9rem;
-  white-space: normal !important;
 }
 
 

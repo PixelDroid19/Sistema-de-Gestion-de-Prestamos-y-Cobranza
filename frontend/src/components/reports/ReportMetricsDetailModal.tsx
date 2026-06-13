@@ -60,7 +60,7 @@ export function ReportMetricsMoreTrigger({
       variant="ghost"
       onClick={onClick}
       fullWidth={fullWidth}
-      className={fullWidth ? 'report-metrics-section__more-btn' : undefined}
+      className="report-metrics-section__more-btn"
       icon={<BarChart3 size={16} />}
     >
       {label}

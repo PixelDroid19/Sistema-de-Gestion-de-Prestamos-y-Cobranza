@@ -28,7 +28,6 @@ const {
   createExportFinancialAnalyticsReport,
   createExportCreditsExcel,
   createExportCreditsPdf,
-  createGetCreditsSummary,
   createExportPayoutsExcel,
   createExportPayoutsPdf,
   createGetPayoutsReport,
@@ -101,7 +100,6 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     // Credits Excel export and summary
     exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
     exportCreditsPdf: createExportCreditsPdf({ reportRepository, paymentRepository, loanViewService }),
-    getCreditsSummary: createGetCreditsSummary({ reportRepository, paymentRepository, loanViewService }),
     exportPayoutsExcel: createExportPayoutsExcel({ paymentRepository }),
     exportPayoutsPdf: createExportPayoutsPdf({ paymentRepository }),
     // Enhanced reports - payouts and payment schedule

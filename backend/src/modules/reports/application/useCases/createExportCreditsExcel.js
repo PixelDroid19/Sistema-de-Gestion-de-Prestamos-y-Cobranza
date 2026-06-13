@@ -211,9 +211,13 @@ const compactRepeatedSections = (rows = []) => {
 const buildSummaryRows = (rows) => {
   const totalCustomers = new Set(rows.map((row) => row.customerId).filter(Boolean)).size;
   const totalCredits = rows.length;
-  const activeCredits = rows.filter((row) => !['closed', 'completed', 'paid', 'end'].includes(String(row.creditStatus || '').toLowerCase())).length;
+  const normalizeRowStatus = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === 'n/a' ? '' : normalized;
+  };
+  const activeCredits = rows.filter((row) => !['closed', 'completed', 'paid', 'end'].includes(normalizeRowStatus(row.status))).length;
   const completedCredits = totalCredits - activeCredits;
-  const lateCredits = rows.filter((row) => ['late', 'defaulted', 'overdue'].includes(String(row.recoveryStatus || row.creditStatus || '').toLowerCase())).length;
+  const lateCredits = rows.filter((row) => ['late', 'defaulted', 'overdue'].includes(normalizeRowStatus(row.recoveryStatus) || normalizeRowStatus(row.status))).length;
   const sum = (key) => roundMoney(rows.reduce((total, row) => total + Number(row[key] || 0), 0));
   const totalLoanAmount = sum('loanAmount');
   const totalAmountWithInterest = sum('totalAmount');

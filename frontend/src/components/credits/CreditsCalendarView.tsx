@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -9,9 +9,6 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react';
-import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
-import { enUS, es } from 'date-fns/locale';
 import { useTranslation } from '../../i18n';
 import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
@@ -24,24 +21,14 @@ import {
   SectionSurface,
 } from '../shared/Surfaces';
 import { AppInput, OperationalSelect } from '../shared/Surfaces';
+import AppCalendar, { toCalendarDayKey, type CalendarEvent } from '../shared/AppCalendar';
 import {
   type CalendarOverviewAgendaItem,
   type CalendarOverviewResponse,
   type InstallmentEvent,
-  eventStyleGetter,
   getCalendarStatusLabel,
   parseDueDate,
 } from './creditsHelpers';
-
-const locales = { es, en: enUS };
-
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
 
 type CalendarFilters = {
   search: string;
@@ -96,28 +83,26 @@ export default function CreditsCalendarView({
 }: CreditsCalendarViewProps) {
   const { locale } = useTranslation();
   const formatCurrency = (value: number) => formatCurrencyValue(value);
-
-  const initialCalendarView = useMemo(() => (
-    typeof window !== 'undefined' && window.innerWidth < 760 ? 'agenda' : 'month'
-  ), []);
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
 
   const defaultCalendarDate = useMemo(() => buildDefaultCalendarDate({
     nextAction: calendarOverview.nextAction,
     events: calendarEvents,
   }), [calendarEvents, calendarOverview.nextAction]);
 
-  const calendarMessages = useMemo(() => ({
-    next: tTerm('credits.calendar.nav.next'),
-    previous: tTerm('credits.calendar.nav.previous'),
-    today: tTerm('credits.calendar.nav.today'),
-    month: tTerm('credits.calendar.nav.month'),
-    week: tTerm('credits.calendar.nav.week'),
-    day: tTerm('credits.calendar.nav.day'),
-    agenda: tTerm('credits.calendar.nav.agenda'),
-    date: tTerm('credits.calendar.nav.date'),
-    time: tTerm('credits.calendar.nav.time'),
-    event: tTerm('credits.calendar.nav.event'),
-  }), [locale]);
+  const appCalendarEvents = useMemo<CalendarEvent[]>(() => calendarEvents.map((event) => ({
+    id: event.id,
+    date: event.start,
+    title: event.title,
+    meta: formatCurrency(event.payableAmount || event.amountToPay),
+    tone: event.type === 'paid' ? 'success' : event.type === 'overdue' ? 'danger' : 'info',
+  })), [calendarEvents, locale]);
+
+  const selectedDayEvents = useMemo(() => (
+    selectedDayKey
+      ? calendarEvents.filter((event) => toCalendarDayKey(event.start) === selectedDayKey)
+      : []
+  ), [calendarEvents, selectedDayKey]);
 
   const visibleAgenda = calendarOverview.agenda;
   const hasFilters = Boolean(filters.search || filters.status || filters.startDate || filters.endDate);
@@ -294,41 +279,48 @@ export default function CreditsCalendarView({
                 {tTerm('credits.calendar.loading')}
               </div>
             ) : (
-              <Calendar
-                key={`${defaultCalendarDate.toISOString()}-${filters.search}-${filters.status}-${filters.startDate}-${filters.endDate}`}
-                localizer={localizer}
-                events={calendarEvents}
-                startAccessor="start"
-                endAccessor="end"
-                defaultDate={defaultCalendarDate}
-                defaultView={initialCalendarView}
-                style={{ height: 540 }}
-                messages={calendarMessages}
-                culture={locale}
-                eventPropGetter={eventStyleGetter}
-                components={{
-                  event: ({ event }: { event: InstallmentEvent }) => (
-                    <button
-                      type="button"
-                      className="flex w-full flex-col gap-0.5 text-left focus:outline-none focus:ring-2 focus:ring-white/80"
-                      onClick={(clickEvent) => {
-                        clickEvent.stopPropagation();
-                        onSelectEvent(event);
-                      }}
-                    >
-                      <span className="truncate font-semibold">{event.title}</span>
-                      <span className="truncate opacity-90">{formatCurrency(event.amountToPay)}</span>
-                      {event.arrears > 0 && (
-                        <span className="truncate font-bold text-red-100">
-                          {tTerm('credits.calendar.event.lateFee', { amount: formatCurrency(event.arrears) })}
+              <>
+                <AppCalendar
+                  key={defaultCalendarDate.toISOString()}
+                  events={appCalendarEvents}
+                  initialDate={defaultCalendarDate}
+                  selectedDate={selectedDayKey}
+                  onSelectDate={(dayKey) => setSelectedDayKey((current) => (current === dayKey ? null : dayKey))}
+                  onSelectEvent={(eventId) => {
+                    const event = calendarEvents.find((candidate) => candidate.id === eventId);
+                    if (event) onSelectEvent(event);
+                  }}
+                  className="min-h-[520px]"
+                />
+                {selectedDayKey && selectedDayEvents.length > 0 && (
+                  <div className="mt-3 space-y-2 rounded-2xl border border-border-subtle bg-surface p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                      {getEventDateLabel(selectedDayEvents[0].start)}
+                    </div>
+                    {selectedDayEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-border-subtle bg-bg-base px-3 py-2 text-left transition hover:border-brand-primary/40"
+                        onClick={() => onSelectEvent(event)}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-text-primary">{event.title}</span>
+                          <span className="block truncate text-xs text-text-secondary">
+                            {tTerm('credits.modal.installmentOf', { number: event.installmentNumber, total: event.totalInstallments })}
+                          </span>
                         </span>
-                      )}
-                    </button>
-                  ),
-                }}
-                onSelectEvent={(event) => onSelectEvent(event as InstallmentEvent)}
-                className="dark:text-text-primary"
-              />
+                        <span className="flex shrink-0 flex-col items-end">
+                          <span className="text-sm font-semibold text-text-primary">{formatCurrency(event.payableAmount || event.amountToPay)}</span>
+                          <span className={getChipClassName(getInstallmentStatusTone(event.status))}>
+                            {getCalendarStatusLabel(event.status)}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

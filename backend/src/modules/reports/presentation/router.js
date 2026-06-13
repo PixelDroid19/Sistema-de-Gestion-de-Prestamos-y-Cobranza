@@ -706,10 +706,6 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.get('/credits/summary', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getCreditsSummary({ actor: req.user }));
-  }));
-
   // === Enhanced Reports: Payouts and Payment Schedule ===
 
   // GET /reports/payouts - List all payouts across credits (admin only)

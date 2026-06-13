@@ -46,8 +46,8 @@ import {
   EmptyState,
   PageHeader,
   PageShell,
-  ViewTabs,
 } from './shared/Surfaces';
+import ReportsNavigation, { type ReportGroup } from './reports/ReportsNavigation';
 import DashboardTab from './reports/DashboardTab';
 import AnalyticsTab from './reports/AnalyticsTab';
 import CashflowTab from './reports/CashflowTab';
@@ -596,20 +596,48 @@ export default function Reports() {
     return success;
   };
 
-  const reportTabs = useMemo(() => [
-    { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
-    { id: 'analytics', label: tTerm('reports.tab.analytics'), title: tTerm('reports.tab.analytics.title') },
-    { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
-    { id: 'creditHistory', label: tTerm('reports.tab.creditHistory'), title: tTerm('reports.tab.creditHistory.title') },
-    { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
-    { id: 'profitability', label: tTerm('reports.tab.profitability') },
-    { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
-    ...(canViewOperatingExpensesTab
-      ? [{ id: 'expenses', label: tTerm('reports.tab.expenses'), title: tTerm('reports.tab.expenses.title') }]
-      : []),
-    ...(canViewPaymentScheduleTab
-      ? [{ id: 'schedule', label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') }]
-      : []),
+  const reportGroups = useMemo<ReportGroup[]>(() => [
+    {
+      id: 'overview',
+      label: tTerm('reports.group.overview'),
+      title: tTerm('reports.group.overview.title'),
+      leaves: [
+        { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
+      ],
+    },
+    {
+      id: 'performance',
+      label: tTerm('reports.group.performance'),
+      title: tTerm('reports.group.performance.title'),
+      leaves: [
+        { id: 'analytics', label: tTerm('reports.tab.analytics'), title: tTerm('reports.tab.analytics.title') },
+        { id: 'profitability', label: tTerm('reports.tab.profitability') },
+      ],
+    },
+    {
+      id: 'cashflow',
+      label: tTerm('reports.tab.cashflow'),
+      title: tTerm('reports.tab.cashflow.title'),
+      leaves: [
+        { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
+      ],
+    },
+    {
+      id: 'operations',
+      label: tTerm('reports.group.operations'),
+      title: tTerm('reports.group.operations.title'),
+      leaves: [
+        { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
+        { id: 'creditHistory', label: tTerm('reports.tab.creditHistory'), title: tTerm('reports.tab.creditHistory.title') },
+        { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
+        ...(canViewOperatingExpensesTab
+          ? [{ id: 'expenses', label: tTerm('reports.tab.expenses'), title: tTerm('reports.tab.expenses.title') }]
+          : []),
+        ...(canViewPaymentScheduleTab
+          ? [{ id: 'schedule', label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') }]
+          : []),
+      ],
+    },
   ], [canViewOperatingExpensesTab, canViewPaymentScheduleTab]);
 
   useEffect(() => {
@@ -665,13 +693,13 @@ export default function Reports() {
         tourId="reports-header"
       />
 
-      <ViewTabs
+      <ReportsNavigation
         data-tour="reports-tabs"
         activeTab={activeTab}
         onChange={handleReportsTabChange}
-        tabs={reportTabs}
-        className="reports-page-tabs"
-        ariaLabel={tTerm('reports.tabs.aria')}
+        groups={reportGroups}
+        primaryAriaLabel={tTerm('reports.tabs.aria')}
+        secondaryAriaLabel={tTerm('reports.subtabs.aria')}
       />
 
       {contextualExportOpen && reportExportGuard.visible && (

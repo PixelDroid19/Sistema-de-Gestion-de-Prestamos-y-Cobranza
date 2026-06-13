@@ -116,6 +116,13 @@ const normalizeCellValueForColumn = (value, column = {}, rowFormats = {}) => {
     return normalizedValue;
   }
 
+  const isBlankPlaceholder = normalizedValue == null
+    || (typeof normalizedValue === 'string'
+      && (!normalizedValue.trim() || /^n\/?a$/i.test(normalizedValue.trim())));
+  if (isBlankPlaceholder) {
+    return '';
+  }
+
   const parsedValue = parseExcelNumber(normalizedValue, {
     isPercentFormat: String(effectiveNumFmt || '').includes('%'),
   });

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Calendar } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
+import AmortizationChart from '../shared/AmortizationChart';
 import {
   AppTable,
   CREDIT_CALENDAR_COLUMN_WIDTHS,
@@ -14,6 +15,11 @@ import {
 } from '../shared/tables';
 import { TabEmptyState } from './CreditDetailsTabs';
 import { getInstallmentRowKey, getInstallmentStatusInfo } from './creditDetailsHelpers';
+
+const toChartNumber = (value: unknown) => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 type CalendarTabProps = {
   installmentRows: any[];
@@ -65,8 +71,38 @@ export function CalendarTab({
     </>
   );
 
+  const scheduleChartData = installmentRows.map((row: any) => ({
+    label: `#${row.installmentNumber}`,
+    capital: toChartNumber(row.principalComponent),
+    interest: toChartNumber(row.interestComponent),
+    balance: toChartNumber(row.closingBalance),
+  }));
+
   return (
     <div className="credit-detail-tab-panel space-y-4">
+      {scheduleChartData.length > 0 && (
+        <div className="data-table-surface hidden md:block">
+          <TableSectionIntro
+            embedded
+            compact
+            title={tTerm('creditDetails.calendar.chart.title')}
+            description={tTerm('creditDetails.calendar.chart.subtitle')}
+            aside={calendarAside}
+          />
+          <div className="px-3 pb-4 pt-1">
+            <AmortizationChart
+              data={scheduleChartData}
+              formatCurrency={(value) => formatCurrency(value)}
+              labels={{
+                capital: tTerm('creditDetails.calendar.chart.capital'),
+                interest: tTerm('creditDetails.calendar.chart.interest'),
+                balance: tTerm('creditDetails.calendar.chart.balance'),
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="md:hidden">
         <TableSectionIntro
           compact

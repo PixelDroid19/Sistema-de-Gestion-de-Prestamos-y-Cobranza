@@ -41,11 +41,6 @@ let currentUser: SessionUser = {
   permissions: ['*'],
 };
 
-vi.mock('react-big-calendar', () => ({
-  Calendar: () => null,
-  dateFnsLocalizer: () => ({}),
-}));
-
 vi.mock('../../api/client', () => ({
   apiClient: {
     get: (...args: unknown[]) => mockApiGet(...args),

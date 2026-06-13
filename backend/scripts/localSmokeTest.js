@@ -208,7 +208,6 @@ const runAdminSmoke = async (summary) => {
   await expectStatus('permissions catalog', { path: '/api/permissions', token });
   await expectStatus('audit stats', { path: '/api/audits/stats', token });
   await expectStatus('reports dashboard', { path: '/api/reports/dashboard', token });
-  await expectStatus('reports credits summary', { path: '/api/reports/credits/summary', token });
   await expectStatus('payments list', { path: '/api/payments?page=1&pageSize=5', token });
 
   summary.admin = 'authenticated core modules passed';

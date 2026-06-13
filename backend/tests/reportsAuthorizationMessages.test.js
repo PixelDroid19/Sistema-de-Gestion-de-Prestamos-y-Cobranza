@@ -7,7 +7,6 @@ const { createExportPayoutsExcel, createExportPayoutsPdf } = require('@/modules/
 const { createGetComparativeAnalysis } = require('@/modules/reports/application/useCases/createGetComparativeAnalysis');
 const { createGetComprehensiveAnalytics } = require('@/modules/reports/application/useCases/createGetComprehensiveAnalytics');
 const { createGetCreditEarnings } = require('@/modules/reports/application/useCases/createGetCreditEarnings');
-const { createGetCreditsSummary } = require('@/modules/reports/application/useCases/createGetCreditsSummary');
 const { createGetDailyCashFlow, createGetMonthlyCashFlow } = require('@/modules/reports/application/useCases/createMonthlyCashFlowReport');
 const { createGetExecutiveDashboard } = require('@/modules/reports/application/useCases/createGetExecutiveDashboard');
 const { createGetForecastAnalysis } = require('@/modules/reports/application/useCases/createGetForecastAnalysis');
@@ -56,11 +55,6 @@ test('financial analytics report use cases reject unsupported actors with Spanis
 
 test('specialized report use cases reject unsupported actors with Spanish messages', async () => {
   const cases = [
-    {
-      name: 'credits summary',
-      useCase: createGetCreditsSummary({ reportRepository, paymentRepository, loanViewService }),
-      expectedMessage: 'Solo usuarios administrativos autorizados pueden acceder al resumen de créditos.',
-    },
     {
       name: 'payouts report',
       useCase: createGetPayoutsReport({ reportRepository, paymentRepository }),
