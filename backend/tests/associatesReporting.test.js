@@ -128,6 +128,8 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
   assert.match(serializedWorkbookValues, /Proporcional/);
   assert.doesNotMatch(serializedWorkbookValues, /proportional|distributionType|proportional-participation/);
   const summarySheet = workbook.getWorksheet('Resumen General');
+  const summaryHeaders = summarySheet.getRow(2).values;
+  assert.equal(summaryHeaders.includes('Unidad'), false);
   let totalContributedRow = null;
   let participationRow = null;
   summarySheet.eachRow((row) => {

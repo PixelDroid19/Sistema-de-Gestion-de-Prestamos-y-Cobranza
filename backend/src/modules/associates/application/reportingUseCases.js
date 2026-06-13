@@ -44,7 +44,6 @@ const ASSOCIATE_EXPORT_SECTIONS = {
 const SUMMARY_COLUMNS = [
   { header: 'Indicador', key: 'indicator', width: 34 },
   { header: 'Valor', key: 'value', width: 22 },
-  { header: 'Unidad', key: 'unit', width: 15 },
   { header: 'Descripción', key: 'description', width: 42 },
 ];
 
@@ -87,7 +86,6 @@ const SECTION_COLUMNS = [
 const ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS = [
   { header: 'Indicador', key: 'indicator', width: 34 },
   { header: 'Valor', key: 'value', width: 22 },
-  { header: 'Unidad', key: 'unit', width: 15 },
 ];
 
 const ASSOCIATE_CONTRIBUTION_COLUMNS = [
@@ -282,12 +280,12 @@ const buildAssociateSheets = (rows) => {
       headerFill: STYLE_COLORS.green,
       columns: SUMMARY_COLUMNS,
       rows: [
-        { ...indicatorRow('Total de Socios', associateIds.size, '#,##0'), unit: 'socios', description: 'Número total de socios incluidos en el reporte' },
-        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), unit: '$', description: 'Suma de aportes registrados' },
-        { ...indicatorRow('Distribuciones Totales', roundMoney(totalDistributed), MONEY_FORMAT), unit: '$', description: 'Intereses o utilidades reconocidas al socio' },
-        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), unit: '$', description: 'Capital reintegrado al socio' },
-        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), unit: '$', description: 'Intereses pagados a socios' },
-        { ...indicatorRow('Deuda con Socios', roundMoney(totalInterestDebt), MONEY_FORMAT), unit: '$', description: 'Intereses programados pendientes de pago' },
+        { ...indicatorRow('Total de Socios', associateIds.size, '#,##0'), description: 'Número total de socios incluidos en el reporte' },
+        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), description: 'Suma de aportes registrados' },
+        { ...indicatorRow('Distribuciones Totales', roundMoney(totalDistributed), MONEY_FORMAT), description: 'Intereses o utilidades reconocidas al socio' },
+        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), description: 'Capital reintegrado al socio' },
+        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), description: 'Intereses pagados a socios' },
+        { ...indicatorRow('Deuda con Socios', roundMoney(totalInterestDebt), MONEY_FORMAT), description: 'Intereses programados pendientes de pago' },
       ],
       autoFilter: false,
     },
@@ -322,18 +320,17 @@ const buildAssociateSheets = (rows) => {
       headerFill: STYLE_COLORS.headerBlue,
       columns: SUMMARY_COLUMNS,
       rows: [
-        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), unit: '$', description: 'Capital aportado por socios' },
-        { ...indicatorRow('Distribuciones Totales', roundMoney(totalDistributed), MONEY_FORMAT), unit: '$', description: 'Utilidad repartida' },
-        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), unit: '$', description: 'Capital reintegrado a socios' },
-        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), unit: '$', description: 'Pagos de intereses ejecutados' },
-        { ...indicatorRow('Interés Pendiente', roundMoney(totalInterestDebt), MONEY_FORMAT), unit: '$', description: 'Estado de deuda con socios' },
+        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), description: 'Capital aportado por socios' },
+        { ...indicatorRow('Distribuciones Totales', roundMoney(totalDistributed), MONEY_FORMAT), description: 'Utilidad repartida' },
+        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), description: 'Capital reintegrado a socios' },
+        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), description: 'Pagos de intereses ejecutados' },
+        { ...indicatorRow('Interés Pendiente', roundMoney(totalInterestDebt), MONEY_FORMAT), description: 'Estado de deuda con socios' },
         {
           ...indicatorRow(
             'Rentabilidad sobre Aportes',
             totalContributed > 0 ? totalDistributed / totalContributed : 0,
             PERCENT_FORMAT,
           ),
-          unit: '%',
           description: 'Distribuciones sobre aportes',
         },
       ],
@@ -662,15 +659,15 @@ const createExportAssociateProfitabilityReport = ({ associateRepository }) => as
         headerFill: STYLE_COLORS.green,
         columns: ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS,
         rows: [
-          { indicator: 'Socio', value: report.associate.name, unit: '' },
-          { indicator: 'ID Socio', value: report.associate.id, unit: '' },
-          { indicator: 'Aportes Totales', value: Number(report.summary.totalContributed || 0), unit: '$', __formats: { value: { numFmt: MONEY_FORMAT } } },
-          { indicator: 'Distribuciones Totales', value: Number(report.summary.totalDistributed || 0), unit: '$', __formats: { value: { numFmt: MONEY_FORMAT } } },
-          { indicator: 'Capital Devuelto', value: Number(report.summary.totalCapitalReturned || 0), unit: '$', __formats: { value: { numFmt: MONEY_FORMAT } } },
-          { indicator: 'Ganancia Neta', value: Number(report.summary.netProfit || 0), unit: '$', __formats: { value: { numFmt: MONEY_FORMAT } } },
-          { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0, unit: 'movimientos' },
-          { indicator: 'Cantidad de Distribuciones', value: report.summary.distributionCount || 0, unit: 'movimientos' },
-          { indicator: 'Participación', value: report.summary.participationPercentage || '0.0000', unit: '%', __formats: { value: { numFmt: TNA_FORMAT } } },
+          { indicator: 'Socio', value: report.associate.name },
+          { indicator: 'ID Socio', value: report.associate.id },
+          { indicator: 'Aportes Totales', value: Number(report.summary.totalContributed || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+          { indicator: 'Distribuciones Totales', value: Number(report.summary.totalDistributed || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+          { indicator: 'Capital Devuelto', value: Number(report.summary.totalCapitalReturned || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+          { indicator: 'Ganancia Neta', value: Number(report.summary.netProfit || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+          { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0 },
+          { indicator: 'Cantidad de Distribuciones', value: report.summary.distributionCount || 0 },
+          { indicator: 'Participación', value: report.summary.participationPercentage || '0.0000', __formats: { value: { numFmt: TNA_FORMAT } } },
         ],
         autoFilter: false,
       },

@@ -120,6 +120,8 @@ test('export associates use case builds approved operational sheet structure', a
     'Análisis de Rentabilidad',
     'Rangos de Inversión',
   ]);
+  assert.equal(result.data.sheets[0].columns.some((column) => column.header === 'Unidad'), false);
+  assert.equal(result.data.sheets[4].columns.some((column) => column.header === 'Unidad'), false);
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'ID Socio'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Participación %'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tipo de Interés'));
