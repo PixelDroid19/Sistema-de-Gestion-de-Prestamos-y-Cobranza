@@ -4,6 +4,7 @@ const {
   isDateExcelFormat,
   isNumericExcelFormat,
   parseExcelNumber,
+  formatExcelDisplayValue,
 } = require('@/modules/reports/application/excelExportFormats');
 
 const MAX_SHEET_NAME_LENGTH = 31;
@@ -120,6 +121,23 @@ const normalizeCellValueForColumn = (value, column = {}, rowFormats = {}) => {
   });
 
   return typeof parsedValue === 'number' ? parsedValue : normalizedValue;
+};
+
+const resolveCellNumFmt = ({ value, column = {}, rowFormat = {} }) => {
+  const explicitNumFmt = rowFormat?.numFmt || column.numFmt;
+  if (explicitNumFmt) {
+    return explicitNumFmt;
+  }
+
+  return value instanceof Date ? DATE_TIME_FORMAT : null;
+};
+
+const normalizeWorkbookCellValue = ({ value, column = {}, rowFormat = {} }) => {
+  const normalizedValue = normalizeCellValueForColumn(value, column, rowFormat);
+  const numFmt = resolveCellNumFmt({ value: normalizedValue, column, rowFormat });
+  const displayValue = formatExcelDisplayValue(value, numFmt);
+
+  return displayValue.shouldDisplay ? displayValue.value : normalizedValue;
 };
 
 const resolveColumns = ({ rows = [], columns = [] }) => {
@@ -262,7 +280,7 @@ const addRowsTable = ({
       const column = resolvedColumns[index];
       const rowFormat = row.__formats?.[key];
       const cell = worksheetRow.getCell(index + 1);
-      cell.value = normalizeCellValueForColumn(row[key], column, rowFormat);
+      cell.value = normalizeWorkbookCellValue({ value: row[key], column, rowFormat });
       applyCellPresentation({ cell, column, row, key });
     });
     currentRow += 1;

@@ -127,6 +127,21 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
   const serializedWorkbookValues = JSON.stringify(workbook.worksheets.map((sheet) => sheet.getSheetValues()));
   assert.match(serializedWorkbookValues, /Proporcional/);
   assert.doesNotMatch(serializedWorkbookValues, /proportional|distributionType|proportional-participation/);
+  const summarySheet = workbook.getWorksheet('Resumen General');
+  let totalContributedRow = null;
+  let participationRow = null;
+  summarySheet.eachRow((row) => {
+    if (row.getCell(1).value === 'Aportes Totales') {
+      totalContributedRow = row;
+    }
+    if (row.getCell(1).value === 'Participación') {
+      participationRow = row;
+    }
+  });
+  assert.equal(totalContributedRow?.getCell(2).value, '$ 1.000,00');
+  assert.equal(participationRow?.getCell(2).value, '25,00%');
+  assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, '$ 1.000,00');
+  assert.equal(workbook.getWorksheet('Distribuciones').getRow(3).getCell(3).value, '$ 150,00');
 });
 
 test('createExportAssociateProfitabilityReport rejects socio export requests', async () => {

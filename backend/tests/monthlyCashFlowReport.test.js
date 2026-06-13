@@ -388,6 +388,10 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   assert.ok(headers.includes('Pagos a Socios'));
   assert.ok(headers.includes('Gastos Operativos'));
   assert.ok(headers.includes('Caja Disponible'));
+  assert.equal(history.getRow(3).getCell(2).value, '$ 50.000.000,00');
+  assert.equal(history.getRow(3).getCell(3).value, '$ 40.000.000,00');
+  assert.equal(history.getRow(3).getCell(4).value, '$ 3.000.000,00');
+  assert.equal(workbook.getWorksheet('Resumen Financiero').getRow(3).getCell(2).value, '$ 50.000.000,00');
 
   const pdf = await pdfUseCase({ actor: { role: 'admin' }, year: 2026 });
   assert.equal(pdf.contentType, 'application/pdf');

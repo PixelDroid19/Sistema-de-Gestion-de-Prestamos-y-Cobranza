@@ -24,6 +24,37 @@ afterEach(async () => {
   activeServer = null;
 });
 
+test('shared workbook builder writes display-ready values for formatted report cells', async () => {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildWorkbookBuffer([{
+    name: 'Formato QA',
+    columns: [
+      { header: 'Fecha', key: 'date', numFmt: 'dd/mm/yyyy' },
+      { header: 'Fecha Registro', key: 'dateTime', numFmt: 'dd/mm/yyyy h:mm AM/PM' },
+      { header: 'Monto', key: 'amount', numFmt: '"$"#,##0.00' },
+      { header: 'Porcentaje', key: 'percent', numFmt: '0.00%' },
+      { header: 'TNA', key: 'tna', numFmt: '0.00"%"' },
+      { header: 'Años', key: 'years', numFmt: '0.00' },
+    ],
+    rows: [{
+      date: '2026-06-12',
+      dateTime: '2026-06-12T22:13:00.000Z',
+      amount: 8500000,
+      percent: 0.65,
+      tna: 60,
+      years: 1.5,
+    }],
+  }]));
+
+  const row = workbook.getWorksheet('Formato QA').getRow(2);
+  assert.equal(row.getCell(1).value, '12/06/2026');
+  assert.equal(row.getCell(2).value, '12/06/2026 5:13 p. m.');
+  assert.equal(row.getCell(3).value, '$ 8.500.000,00');
+  assert.equal(row.getCell(4).value, '65,00%');
+  assert.equal(row.getCell(5).value, '60,00%');
+  assert.equal(row.getCell(6).value, '1,50');
+});
+
 test('report labels use operational fallbacks instead of raw enum-like values', () => {
   assert.equal(formatOperationalStatus('manual_hold'), 'Estado no clasificado');
   assert.equal(formatPaymentType('adjustment_fee'), 'Tipo de pago no clasificado');
@@ -590,28 +621,23 @@ test('export credits use case builds approved workbook fields with current snaps
 
   const totalPrestadoRow = findRowByIndicator(summarySheet, 'Total Prestado (Capital)');
   assert.ok(totalPrestadoRow, 'Summary should include formatted capital total');
-  assert.equal(totalPrestadoRow.getCell(3).value, 5000000);
-  assert.match(totalPrestadoRow.getCell(3).numFmt, /\$/);
+  assert.equal(totalPrestadoRow.getCell(3).value, '$ 5.000.000,00');
 
   const tnaRow = findRowByIndicator(summarySheet, 'TNA Promedio');
   assert.ok(tnaRow, 'Summary should include formatted TNA');
-  assert.equal(tnaRow.getCell(3).value, 0.6);
-  assert.equal(tnaRow.getCell(3).numFmt, '0.00%');
+  assert.equal(tnaRow.getCell(3).value, '60,00%');
 
   const generationDateRow = findRowByIndicator(summarySheet, 'Fecha de Generación');
   assert.ok(generationDateRow, 'Summary should include formatted generation date');
-  assert.ok(generationDateRow.getCell(3).value instanceof Date, 'Generation date should be a real Excel date');
-  assert.match(generationDateRow.getCell(3).numFmt, /dd\/mm\/yyyy/);
+  assert.match(String(generationDateRow.getCell(3).value), /^\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} [ap]\. m\.$/);
 
   const percentPaidRow = findRowByIndicator(summarySheet, '% Total Pagado');
   assert.ok(percentPaidRow, 'Summary should include formatted percent paid');
-  assert.equal(typeof percentPaidRow.getCell(3).value, 'number');
-  assert.ok(percentPaidRow.getCell(3).value >= 0 && percentPaidRow.getCell(3).value <= 1);
-  assert.equal(percentPaidRow.getCell(3).numFmt, '0.00%');
+  assert.match(String(percentPaidRow.getCell(3).value), /^\d{1,3},\d{2}%$/);
+  assert.doesNotMatch(String(percentPaidRow.getCell(3).value), /^0\./);
 
   const detailLoanDate = detailSheet.getRow(3).getCell(25);
-  assert.ok(detailLoanDate.value instanceof Date, 'Detail loan date should be a real Excel date');
-  assert.equal(detailLoanDate.numFmt, 'dd/mm/yyyy');
+  assert.equal(detailLoanDate.value, '29/04/2026');
 
   let creditAmountRow = null;
   let creditRateRow = null;
@@ -624,11 +650,26 @@ test('export credits use case builds approved workbook fields with current snaps
     }
   });
   assert.ok(creditAmountRow, 'Credit-specific sheet should include formatted credit amount');
-  assert.equal(creditAmountRow.getCell(2).value, 5000000);
-  assert.match(creditAmountRow.getCell(2).numFmt, /\$/);
+  assert.equal(creditAmountRow.getCell(2).value, '$ 5.000.000,00');
   assert.ok(creditRateRow, 'Credit-specific sheet should include the loan rate');
-  assert.equal(creditRateRow.getCell(2).value, 0.6);
-  assert.equal(creditRateRow.getCell(2).numFmt, '0.00%');
+  assert.equal(creditRateRow.getCell(2).value, '60,00%');
+
+  let amortizationHeaderRow = null;
+  let paymentHeaderRow = null;
+  creditSheet.eachRow((row) => {
+    if (row.getCell(1).value === 'Número de Cuota') {
+      amortizationHeaderRow = row;
+    }
+    if (row.getCell(1).value === 'Fecha de Pago') {
+      paymentHeaderRow = row;
+    }
+  });
+  assert.ok(amortizationHeaderRow, 'Credit-specific sheet should include amortization rows');
+  assert.equal(creditSheet.getRow(amortizationHeaderRow.number + 2).getCell(2).value, '$ 2.600.000,00');
+  assert.equal(creditSheet.getRow(amortizationHeaderRow.number + 2).getCell(3).value, '$ 250.000,00');
+  assert.ok(paymentHeaderRow, 'Credit-specific sheet should include payment history rows');
+  assert.equal(creditSheet.getRow(paymentHeaderRow.number + 1).getCell(1).value, '29/05/2026');
+  assert.equal(creditSheet.getRow(paymentHeaderRow.number + 1).getCell(2).value, '$ 2.600.000,00');
 });
 
 test('export credits use case includes every credit for the same customer', async () => {
@@ -885,7 +926,7 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
                 { header: 'Crédito', key: 'loanId' },
                 { header: 'Referencia cliente', key: 'customerId' },
                 { header: 'Cliente', key: 'customerName' },
-                { header: 'Fecha de Pago', key: 'paymentDate' },
+                { header: 'Fecha de Pago', key: 'paymentDate', numFmt: 'dd/mm/yyyy' },
                 { header: 'Monto', key: 'amount', numFmt: '"$"#,##0.00' },
                 { header: 'Interés Aplicado', key: 'interestApplied', numFmt: '"$"#,##0.00' },
               ],
@@ -934,9 +975,9 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
   assert.equal(headers.includes('paymentId'), false);
   assert.equal(headers.includes('paymentMetadata'), false);
   const amountCell = payoutSheet.getRow(3).getCell(6);
-  assert.equal(amountCell.value, 100);
-  assert.equal(typeof amountCell.value, 'number');
+  assert.equal(amountCell.value, '$ 100,00');
   assert.match(amountCell.numFmt, /\$/);
+  assert.equal(payoutSheet.getRow(3).getCell(5).value, '14/02/2026');
 });
 
 test('export payouts use case builds workbook sheets with operational headers and typed dates', async () => {
@@ -1190,7 +1231,7 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
             title: 'REPORTE DE GASTOS OPERATIVOS',
             columns: [
               { header: 'Gasto', key: 'expenseId', width: 12 },
-              { header: 'Fecha', key: 'expenseDate', width: 18 },
+              { header: 'Fecha', key: 'expenseDate', width: 18, numFmt: 'dd/mm/yyyy' },
               { header: 'Categoría', key: 'category', width: 24 },
               { header: 'Descripción', key: 'description', width: 32 },
               { header: 'Monto', key: 'amount', width: 18, numFmt: '"$"#,##0.00' },
@@ -1234,7 +1275,8 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
   assert.ok(headers.includes('Categoría'));
   assert.ok(headers.includes('Monto'));
   assert.equal(headers.includes('expenseId'), false);
-  assert.equal(sheet.getRow(3).getCell(5).value, 850000);
+  assert.equal(sheet.getRow(3).getCell(2).value, '10/05/2026');
+  assert.equal(sheet.getRow(3).getCell(5).value, '$ 850.000,00');
 
   const pdfResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?format=pdf&fromDate=2026-05-01&toDate=2026-05-31&status=completed&employeeId=7`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
@@ -1332,7 +1374,7 @@ test('GET /reports/dashboard exports xlsx and pdf files for admin', async () => 
   );
   assert.deepEqual(
     summaryRows.find(([label]) => label === 'Pagos a socios'),
-    ['Pagos a socios', 12000],
+    ['Pagos a socios', '$ 12.000,00'],
   );
 
   let pagosSociosCell = null;
@@ -1342,7 +1384,7 @@ test('GET /reports/dashboard exports xlsx and pdf files for admin', async () => 
     }
   });
   assert.ok(pagosSociosCell);
-  assert.equal(pagosSociosCell.value, 12000);
+  assert.equal(pagosSociosCell.value, '$ 12.000,00');
   assert.match(pagosSociosCell.numFmt, /\$/);
 
   const loanHeaders = workbook.getWorksheet('Préstamos recientes').getRow(2).values;
@@ -1490,8 +1532,8 @@ test('GET /associates/export returns xlsx file for admin', async () => {
                 { header: 'ID Socio', key: 'associateId' },
                 { header: 'Socio', key: 'associateName' },
                 { header: 'Tipo de Interés', key: 'interestType' },
-                { header: 'Deuda con Socio', key: 'interestDebt' },
-                { header: 'Participación %', key: 'participationPercentage' },
+                { header: 'Deuda con Socio', key: 'interestDebt', numFmt: '"$"#,##0.00' },
+                { header: 'Participación %', key: 'participationPercentage', numFmt: '0.00"%"' },
               ],
               rows: [{
                 associateId: 1,
@@ -1528,6 +1570,8 @@ test('GET /associates/export returns xlsx file for admin', async () => {
   assert.ok(headers.includes('Tipo de Interés'));
   assert.ok(headers.includes('Deuda con Socio'));
   assert.equal(headers.includes('associateId'), false);
+  assert.equal(workbook.getWorksheet('Detalle de Socios').getRow(3).getCell(4).value, '$ 1.000,00');
+  assert.equal(workbook.getWorksheet('Detalle de Socios').getRow(3).getCell(5).value, '25,00%');
 });
 
 test('GET /associates/export returns pdf file for admin', async () => {

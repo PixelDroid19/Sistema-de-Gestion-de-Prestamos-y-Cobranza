@@ -8,6 +8,163 @@ const TNA_FORMAT = '0.00"%"';
 
 const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
 
+const decimalFormatter = new Intl.NumberFormat('es-CO', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const normalizeDisplayWhitespace = (value) => String(value).replace(/\u00a0/g, ' ');
+
+const isBlankDisplayValue = (value) => value === undefined || value === null || value === '';
+
+const isTextPlaceholder = (value) => (
+  typeof value === 'string'
+  && (/^n\/?a$/i.test(value.trim()) || value.trim() === '-')
+);
+
+const parseDisplayNumber = (value, options = {}) => {
+  if (isBlankDisplayValue(value)) {
+    return { ok: false, value: '' };
+  }
+
+  if (isTextPlaceholder(value)) {
+    return { ok: false, value: value.trim() };
+  }
+
+  if (typeof value === 'string' && !/\d/.test(value)) {
+    return { ok: false, value };
+  }
+
+  const parsed = parseExcelNumber(value, options);
+  return Number.isFinite(parsed)
+    ? { ok: true, value: parsed }
+    : { ok: false, value: String(value) };
+};
+
+const formatMoneyDisplay = (value) => {
+  const parsed = parseDisplayNumber(value);
+  if (!parsed.ok) {
+    return parsed.value;
+  }
+
+  const sign = parsed.value < 0 ? '-' : '';
+  return `${sign}$ ${decimalFormatter.format(Math.abs(parsed.value))}`;
+};
+
+const formatDecimalDisplay = (value) => {
+  const parsed = parseDisplayNumber(value);
+  return parsed.ok ? decimalFormatter.format(parsed.value) : parsed.value;
+};
+
+const formatPercentRatioDisplay = (value) => {
+  const parsed = parseDisplayNumber(value, { isPercentFormat: true });
+  return parsed.ok ? `${decimalFormatter.format(parsed.value * 100)}%` : parsed.value;
+};
+
+const formatLiteralPercentDisplay = (value) => {
+  const parsed = parseDisplayNumber(value);
+  return parsed.ok ? `${decimalFormatter.format(parsed.value)}%` : parsed.value;
+};
+
+const toDisplayDate = (value) => {
+  if (isBlankDisplayValue(value)) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDateDisplay = (value) => {
+  if (isBlankDisplayValue(value)) {
+    return '';
+  }
+
+  if (isTextPlaceholder(value)) {
+    return value.trim();
+  }
+
+  const date = toDisplayDate(value);
+  if (!date) {
+    return String(value);
+  }
+
+  return [
+    String(date.getUTCDate()).padStart(2, '0'),
+    String(date.getUTCMonth() + 1).padStart(2, '0'),
+    date.getUTCFullYear(),
+  ].join('/');
+};
+
+const formatDateTimeDisplay = (value) => {
+  if (isBlankDisplayValue(value)) {
+    return '';
+  }
+
+  if (isTextPlaceholder(value)) {
+    return value.trim();
+  }
+
+  const date = toDisplayDate(value);
+  if (!date) {
+    return String(value);
+  }
+
+  return normalizeDisplayWhitespace(new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)).replace(',', '');
+};
+
+const isDateTimeExcelFormat = (numFmt) => {
+  const format = String(numFmt || '').toLowerCase();
+  return isDateExcelFormat(format) && /(h|am\/pm|ss)/.test(format);
+};
+
+const isMoneyExcelFormat = (numFmt) => String(numFmt || '').includes('$');
+const isLiteralPercentExcelFormat = (numFmt) => String(numFmt || '').includes('"%"');
+
+const formatExcelDisplayValue = (value, numFmt) => {
+  const format = String(numFmt || '').trim();
+  if (!format) {
+    return { shouldDisplay: false, value };
+  }
+
+  if (isDateExcelFormat(format)) {
+    return {
+      shouldDisplay: true,
+      value: isDateTimeExcelFormat(format) ? formatDateTimeDisplay(value) : formatDateDisplay(value),
+    };
+  }
+
+  if (isMoneyExcelFormat(format)) {
+    return { shouldDisplay: true, value: formatMoneyDisplay(value) };
+  }
+
+  if (format === '0.00') {
+    return { shouldDisplay: true, value: formatDecimalDisplay(value) };
+  }
+
+  if (format.includes('%')) {
+    return {
+      shouldDisplay: true,
+      value: isLiteralPercentExcelFormat(format)
+        ? formatLiteralPercentDisplay(value)
+        : formatPercentRatioDisplay(value),
+    };
+  }
+
+  return { shouldDisplay: false, value };
+};
+
 const formattedRow = (row, formats = {}) => ({
   ...row,
   __formats: Object.entries(formats).reduce((acc, [key, numFmt]) => {
@@ -152,4 +309,5 @@ module.exports = {
   parseExcelPercent,
   isDateExcelFormat,
   isNumericExcelFormat,
+  formatExcelDisplayValue,
 };
