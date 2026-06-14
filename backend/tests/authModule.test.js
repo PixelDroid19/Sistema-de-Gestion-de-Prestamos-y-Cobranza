@@ -102,6 +102,9 @@ test('createLoginUser returns sanitized employee sessions', async () => {
 
 test('createRefreshToken renews employee access tokens', async () => {
   let tokenPairArgs;
+  const transactionToken = { id: 'tx-refresh' };
+  let revokeOptions;
+  let createOptions;
   const refreshToken = createRefreshToken({
     tokenService: {
       async verifyRefreshToken() {
@@ -116,10 +119,15 @@ test('createRefreshToken renews employee access tokens', async () => {
       },
     },
     refreshTokenRepository: {
-      async revoke() {
+      async findByTokenHash() {
+        return { userId: 3, revokedAt: null };
+      },
+      async revoke(tokenHash, options) {
+        revokeOptions = options;
         return true;
       },
-      async create() {
+      async create(payload, options) {
+        createOptions = options;
         return true;
       },
     },
@@ -133,6 +141,7 @@ test('createRefreshToken renews employee access tokens', async () => {
         };
       },
     },
+    runInTransaction: async (callback) => callback(transactionToken),
   });
 
   const result = await refreshToken({ refreshToken: 'refresh-token' });
@@ -146,6 +155,46 @@ test('createRefreshToken renews employee access tokens', async () => {
       name: 'QA Employee',
     },
   });
+  assert.deepEqual(revokeOptions, { transaction: transactionToken });
+  assert.deepEqual(createOptions, { transaction: transactionToken });
+});
+
+test('createRefreshToken revokes all user sessions when a revoked refresh token is replayed', async () => {
+  let revokedUserId = null;
+  const refreshToken = createRefreshToken({
+    tokenService: {
+      async verifyRefreshToken() {
+        throw new AuthenticationError('La sesión no es válida o expiró. Inicia sesión de nuevo.');
+      },
+      generateTokenPair() {
+        throw new Error('generateTokenPair should not be called for replayed tokens');
+      },
+    },
+    refreshTokenRepository: {
+      async findByTokenHash() {
+        return {
+          userId: 9,
+          revokedAt: new Date(),
+        };
+      },
+      async revokeAllForUser(userId) {
+        revokedUserId = userId;
+        return 4;
+      },
+    },
+    userRepository: {
+      async findById() {
+        throw new Error('findById should not be called for replayed tokens');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => refreshToken({ refreshToken: 'revoked-refresh-token' }),
+    /La sesión no es válida o expiró\. Inicia sesión de nuevo\./,
+  );
+
+  assert.equal(revokedUserId, 9);
 });
 
 test('createRegisterUser provisions employee accounts without customer profile side effects', async () => {

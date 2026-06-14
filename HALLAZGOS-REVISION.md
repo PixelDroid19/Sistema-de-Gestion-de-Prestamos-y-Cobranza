@@ -39,8 +39,16 @@
 | 19 | BAJA | poor-impl | `backend/src/modules/credits/composition.js:1-55` | La composición construía un `paymentRouter` interno que nunca se exponía ni se consumía; el router real se volvía a crear en `presentation/router.js` | Se eliminó el router interno muerto y se fijó con prueba de composición |
 | 20 | BAJA | poor-impl | `backend/src/modules/credits/index.js:43-58` | `createCreditsModule` destructuraba `_userRepository` desde la composición aunque el puerto real es `userRepository` y ese valor no participaba en ningún flujo | Se retiró la destructuración muerta para evitar ruido y falsos positivos en revisiones |
 | 21 | BAJA | funcional | `backend/src/modules/credits/infrastructure/outboxEventRepository.js:22-30` | `markAsProcessing` dejaba `_deliveryAttempts` en `NaN` cuando el payload traía un valor truthy inválido, contaminando los reintentos del outbox | La normalización ahora cae correctamente a `0` y quedó cubierta con prueba dedicada del repositorio |
+| 22 | MEDIA | funcional/operación | `backend/src/workers/auditRetentionWorker.js:50-82` + `backend/src/server.js:35-85` | El worker de retención existía pero no se iniciaba al arrancar el backend, así que la purga periódica de auditoría nunca corría | `startServer` ahora crea, inicia y detiene el `auditRetentionWorker` junto al outbox; además quedó verificado en tests de bootstrap y en runtime de Railway con `audit.retention.started` |
+| 23 | MEDIA | funcional/auditoría | `backend/src/modules/audit/application/auditDecorator.js:17-46` | `withAudit` emitía `credits.*`, `customers.*` y `associates.*`, pero el bus resuelve categorías por prefijos singulares (`credit.`, `customer.`, `associate.`); esos eventos caían como `TECHNICAL` y desalineaban el bridge de auditoría | El decorador ahora normaliza módulos conocidos a prefijos canónicos del bus antes de emitir el evento de dominio, con prueba dedicada para créditos, clientes y socios |
+| 24 | MEDIA | funcional/auditoría | `backend/src/modules/shared/events/eventAuditBridge.js:1-126` + `backend/src/bootstrap/index.js:39-136` | `wireEventAuditBridge` estaba exportado para persistir eventos de negocio/seguridad/auditoría, pero bootstrap no lo cableaba; además podía suscribirse más de una vez en el mismo proceso | Bootstrap lo conecta explícitamente con `auditService`, y tanto el bridge como el logger quedaron idempotentes por bus para evitar listeners duplicados |
+| 25 | BAJA | poor-impl | `backend/src/modules/auth/application/useCases.js:17-22` | La configuración de delay de login arrastraba `maxAttempts`, pero el cálculo real ya satura por `maxDelayMs` con la fórmula exponencial y ese campo no participaba en nada | Se eliminó el campo muerto y se conserva el tope real por `maxDelayMs` |
+| 26 | BAJA | poor-impl | `backend/src/modules/auth/application/useCases.js:592-603` + `backend/src/modules/auth/index.js:1-56` | `createRevokeRefreshToken` se componía en el módulo pero no tenía endpoint, caller ni integración real | Se retiró del surface del módulo para evitar código muerto y falsas rutas mentales en mantenimiento |
+| 27 | BAJA | poor-impl | `backend/src/modules/auth/infrastructure/refreshTokenRepository.js:1-91` | Existía un repositorio de refresh tokens duplicado del archivo canónico `infrastructure/repositories.js`, sin importadores | Se eliminó el módulo duplicado para dejar una sola fuente de verdad |
+| 28 | MEDIA | seguridad/funcional | `backend/src/modules/auth/application/useCases.js:546-593` + `backend/src/modules/auth/infrastructure/repositories.js:66-111` | La rotación de refresh token hacía `revoke` y luego `create` fuera de transacción, y si un token revocado se reusaba el sistema solo devolvía error genérico sin invalidar las demás sesiones activas del usuario | La rotación ahora se ejecuta dentro de una transacción compartida y el reúso de un token ya revocado fuerza `revokeAllForUser` antes de rechazar la sesión |
+| 29 | BAJA | poor-impl | `backend/src/modules/associates/application/reportingUseCases.js:587-592` | El export de rentabilidad volvía a consultar aportes y distribuciones aunque `createGetAssociateProfitabilityReport` ya devolvía ese mismo dataset | El export ahora reutiliza `report.data.contributions` y `report.data.distributions`; quedó cubierto asegurando que el repositorio solo se lee una vez por dataset |
 
-**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, `reportsExcelExport`, `reportsModule`, `creditsModule`, `paymentApplicationService`, `credits/composition`, `credits/outboxEventRepository`, `credits/loanLifecycle`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde.
+**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, `associatesReporting`, `reportsExcelExport`, `reportsModule`, `creditsModule`, `paymentApplicationService`, `credits/composition`, `credits/outboxEventRepository`, `credits/loanLifecycle`, `bootstrap`, `auditInjection`, `authModule`, `authRouter`, `tokenService`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde. En Railway producción el backend también quedó verificado arrancando `OutboxRelay` y registrando `audit.retention.started`.
 
 ---
 
@@ -50,6 +58,7 @@
 |---|-----|-----------|---------|--------------|-----------|
 | A | MEDIA | fecha/export | `backend/src/modules/reports/application/excelExportFormats.js:93-121` | La fecha `dd/mm/yyyy` usa extracción UTC a propósito para preservar el día operativo cuando el origen llega como `YYYY-MM-DD` o `00:00:00Z`; la fecha-hora sí se localiza a `America/Bogota` | Se conserva la implementación actual y se añadió cobertura que fija ambos comportamientos en `reportsExcelExport.test.js` |
 | B | BAJA | cálculo/mora | `backend/src/modules/credits/domain/calculation/lateFeeCalculator.js:22-59` | El motor conserva ramas `FLAT` y `TIERED`, pero la configuración operativa, las validaciones y el contrato OpenAPI solo aceptan `NONE`, `SIMPLE` y `COMPOUND`; además `configModule.test.js` ya cubre el rechazo explícito de `FLAT/TIERED` | No es un bug activo del producto: esos modos no soportados se bloquean antes de persistirse, así que no se cambia el motor en esta pasada |
+| C | BAJA | socios/calendario | `backend/src/modules/associates/application/useCases.js:2096-2111` | El `displayAmount` del calendario sí se consume en frontend (`AssociateDetails.tsx` lo usa en la key de fila y otros flujos de socios mantienen el campo), mientras que el monto visible del calendario ya se renderiza con el formateo centralizado del frontend (`formatSignedCurrency`) | No se cambia en backend en esta pasada; el reporte de “código muerto” era incorrecto y la presentación visible sigue centralizada en UI |
 
 ---
 
@@ -66,25 +75,13 @@
 |-----|---------------|---------------|
 
 ### Auditoría / eventos
-| Sev | Archivo:línea | Qué comprobar |
-|-----|---------------|---------------|
-| MEDIA | `backend/src/workers/auditRetentionWorker.js:55-82` | El worker de retención nunca se arranca → los logs no se purgan (¿desactivado a propósito?) |
-| MEDIA | `audit/application/auditDecorator.js:25-29` | Eventos mal categorizados como TECHNICAL por desajuste plural/singular del prefijo de módulo |
-| MEDIA | `shared/events/eventAuditBridge.js:69-110` | `wireEventAuditBridge` exportado e intencionado para persistir auditoría pero nunca cableado en bootstrap |
+Sin hallazgos pendientes en esta categoría por ahora; bootstrap, bridge y decorador ya quedaron verificados contra el código real y con cobertura.
 
 ### Auth
-| Sev | Archivo:línea | Qué comprobar |
-|-----|---------------|---------------|
-| MEDIA | `auth/application/useCases.js:549-585` | Rotación de refresh token revoke-then-create no transaccional y sin detección de reúso |
-| BAJA | `auth/application/useCases.js:17-22` | Config de delay de login con topes inalcanzables y campo muerto; el delay máximo nunca dispara |
-| BAJA | `auth/application/useCases.js:594-603` | `createRevokeRefreshToken` cableado pero nunca alcanzable (endpoint muerto) |
-| BAJA | `auth/infrastructure/refreshTokenRepository.js:1-91` | Módulo duplicado sin importadores (código muerto) |
+Sin hallazgos pendientes en esta categoría por ahora; refresh token, código muerto y delay de login ya quedaron verificados/corregidos en backend.
 
 ### Socios
-| Sev | Archivo:línea | Qué comprobar |
-|-----|---------------|---------------|
-| BAJA | `associates/application/reportingUseCases.js:587-592` | El export de rentabilidad re-consulta contribuciones/distribuciones ya devueltas por el reporte |
-| BAJA | `associates/application/useCases.js:2078-2090` | `displayAmount` del calendario es código muerto y salta el formateo COP centralizado |
+Sin hallazgos pendientes en esta categoría por ahora; el export duplicado ya se corrigió y el `displayAmount` del calendario quedó reclasificado con verificación de uso real.
 
 ### Notificaciones
 | Sev | Archivo:línea | Qué comprobar |

@@ -586,10 +586,8 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
 
 const createExportAssociateProfitabilityReport = ({ associateRepository }) => async ({ actor, associateId, format = 'xlsx' }) => {
   const report = await createGetAssociateProfitabilityReport({ associateRepository })({ actor, associateId });
-  const [contributions, distributions] = await Promise.all([
-    associateRepository.listContributionsByAssociate(report.associate.id),
-    associateRepository.listProfitDistributionsByAssociate(report.associate.id),
-  ]);
+  const contributions = Array.isArray(report.data?.contributions) ? report.data.contributions : [];
+  const distributions = Array.isArray(report.data?.distributions) ? report.data.distributions : [];
 
   const contributionRows = (contributions || []).map((entry) => ({
     contributionId: entry.id,

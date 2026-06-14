@@ -1,7 +1,11 @@
-const { test, mock, describe } = require('node:test');
+const { test, mock, describe, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { withAudit, createAuditRouterHelpers } = require('@/modules/audit/application/auditDecorator');
+
+afterEach(() => {
+  mock.restoreAll();
+});
 
 describe('withAudit decorator', () => {
   test('wraps use case and logs audit event on success', async () => {
@@ -103,6 +107,31 @@ describe('withAudit decorator', () => {
 
     assert.equal(result.id, 42);
     assert.equal(useCase.mock.callCount(), 1);
+  });
+
+  test('emits canonical singular event prefixes for plural audit modules', async () => {
+    const mockAuditService = {
+      log: mock.fn(() => Promise.resolve({ id: 1 })),
+    };
+    const { domainEventBus } = require('@/modules/shared/events');
+    const emitMock = mock.method(domainEventBus, 'emit', () => {});
+
+    const modules = new Map([
+      ['credits', 'credit.created'],
+      ['customers', 'customer.created'],
+      ['associates', 'associate.created'],
+    ]);
+
+    for (const [module, expectedEventType] of modules.entries()) {
+      const decoratedUseCase = withAudit({
+        auditService: mockAuditService,
+        action: 'CREATE',
+        module,
+      })(async () => ({ id: 42 }));
+
+      await decoratedUseCase({});
+      assert.equal(emitMock.mock.calls.at(-1).arguments[0], expectedEventType);
+    }
   });
 });
 

@@ -22,8 +22,29 @@ const ACTION_TO_VERB = {
   EXPORT: 'exported',
 };
 
+const MODULE_TO_EVENT_PREFIX = {
+  auth: 'auth',
+  credits: 'credit',
+  creditos: 'credit',
+  payments: 'payment',
+  pagos: 'payment',
+  customers: 'customer',
+  clientes: 'customer',
+  associates: 'associate',
+  socios: 'associate',
+  config: 'config',
+  configuracion: 'config',
+  'configuración': 'config',
+  users: 'user',
+  usuarios: 'user',
+  notifications: 'notification',
+  notificaciones: 'notification',
+  system: 'system',
+};
+
 const resolveEventType = (module, action) => {
-  const prefix = String(module || 'unknown').toLowerCase();
+  const normalizedModule = String(module || 'unknown').trim().toLowerCase();
+  const prefix = MODULE_TO_EVENT_PREFIX[normalizedModule] || normalizedModule;
   const verb = ACTION_TO_VERB[String(action).toUpperCase()] || String(action).toLowerCase();
   return `${prefix}.${verb}`;
 };

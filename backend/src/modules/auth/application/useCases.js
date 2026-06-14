@@ -1,6 +1,7 @@
 const { ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError } = require('@/utils/errorHandler');
 const { isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
 const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
+const { withTransaction } = require('@/modules/shared/transactions');
 
 const PRIVILEGED_ROLES = new Set(['admin']);
 const EMPLOYEE_ROLE = 'employee';
@@ -8,6 +9,7 @@ const DUPLICATE_USER_EMAIL_MESSAGE = 'Ya existe un usuario con ese correo electr
 const ADMIN_ACCOUNT_CREATION_REQUIRED_MESSAGE = 'Solo un administrador puede crear cuentas administrativas.';
 const PASSWORD_REQUIREMENTS_MESSAGE = 'La contraseña no cumple los requisitos.';
 const INVALID_LOGIN_MESSAGE = 'Correo o contraseña incorrectos.';
+const INVALID_REFRESH_TOKEN_MESSAGE = 'La sesión no es válida o expiró. Inicia sesión de nuevo.';
 const INACTIVE_ACCOUNT_MESSAGE = 'Esta cuenta está inactiva.';
 const CHANGE_PASSWORD_REQUIRED_MESSAGE = 'Ingresa la contraseña actual y la nueva contraseña.';
 const CURRENT_PASSWORD_INCORRECT_MESSAGE = 'La contraseña actual es incorrecta.';
@@ -18,7 +20,6 @@ const PERMISSIONS_ASSIGN_REQUIRED_MESSAGE = 'Solo un administrador puede asignar
 const LOGIN_DELAY_CONFIG = {
   baseDelayMs: 100,        // Base delay: 100ms
   maxDelayMs: 30000,      // Maximum delay cap: 30 seconds
-  maxAttempts: 10,         // After this many attempts, delay caps at max
 };
 
 // Password strength requirements
@@ -543,16 +544,30 @@ const createChangePassword = ({ userRepository, passwordHasher, auditService }) 
 /**
  * Create the refresh token use case that rotates refresh tokens.
  * On successful refresh, the old token is revoked and a new token pair is issued.
- * @param {{ tokenService: object, refreshTokenRepository: object, userRepository: object }} dependencies
+ * @param {{ tokenService: object, refreshTokenRepository: object, userRepository: object, runInTransaction?: Function }} dependencies
  * @returns {Function}
  */
-const createRefreshToken = ({ tokenService, refreshTokenRepository, userRepository }) => async ({ refreshToken }) => {
-  // Verify the incoming refresh token
-  const { userId } = await tokenService.verifyRefreshToken(refreshToken);
+const createRefreshToken = ({
+  tokenService,
+  refreshTokenRepository,
+  userRepository,
+  runInTransaction = withTransaction,
+}) => async ({ refreshToken }) => {
+  const { hashRefreshToken, calculateRefreshTokenExpiry } = require('@/modules/shared/auth/tokenService');
+  const tokenHash = hashRefreshToken(refreshToken);
 
-  // Revoke the old refresh token (rotation)
-  const tokenHash = require('@/modules/auth/infrastructure/repositories').hashRefreshToken(refreshToken);
-  await refreshTokenRepository.revoke(tokenHash);
+  let userId;
+  try {
+    ({ userId } = await tokenService.verifyRefreshToken(refreshToken));
+  } catch (error) {
+    if (error instanceof AuthenticationError && typeof refreshTokenRepository.findByTokenHash === 'function') {
+      const storedToken = await refreshTokenRepository.findByTokenHash(tokenHash);
+      if (storedToken?.revokedAt && storedToken.userId && typeof refreshTokenRepository.revokeAllForUser === 'function') {
+        await refreshTokenRepository.revokeAllForUser(storedToken.userId);
+      }
+    }
+    throw error;
+  }
 
   // Get the user to include roles in the new access token
   const user = await userRepository.findById(userId);
@@ -569,13 +584,20 @@ const createRefreshToken = ({ tokenService, refreshTokenRepository, userReposito
   });
 
   // Hash and store the new refresh token
-  const newTokenHash = require('@/modules/auth/infrastructure/repositories').hashRefreshToken(newRefreshToken);
-  const expiresAt = require('@/modules/shared/auth/tokenService').calculateRefreshTokenExpiry();
-  
-  await refreshTokenRepository.create({
-    tokenHash: newTokenHash,
-    userId,
-    expiresAt,
+  const newTokenHash = hashRefreshToken(newRefreshToken);
+  const expiresAt = calculateRefreshTokenExpiry();
+
+  await runInTransaction(async (transaction) => {
+    const revokedToken = await refreshTokenRepository.revoke(tokenHash, { transaction });
+    if (!revokedToken) {
+      throw new AuthenticationError(INVALID_REFRESH_TOKEN_MESSAGE);
+    }
+
+    await refreshTokenRepository.create({
+      tokenHash: newTokenHash,
+      userId,
+      expiresAt,
+    }, { transaction });
   });
 
   return {
@@ -583,23 +605,6 @@ const createRefreshToken = ({ tokenService, refreshTokenRepository, userReposito
     refreshToken: newRefreshToken,
     expiresIn: 900, // 15 minutes in seconds
   };
-};
-
-/**
- * Create the revoke refresh token use case.
- * Revokes a specific refresh token by its hash.
- * @param {{ refreshTokenRepository: object }} dependencies
- * @returns {Function}
- */
-const createRevokeRefreshToken = ({ refreshTokenRepository }) => async ({ refreshToken }) => {
-  const tokenHash = require('@/modules/auth/infrastructure/repositories').hashRefreshToken(refreshToken);
-  const revoked = await refreshTokenRepository.revoke(tokenHash);
-  
-  if (!revoked) {
-    throw new NotFoundError('Refresh token');
-  }
-
-  return { success: true };
 };
 
 /**
@@ -754,7 +759,6 @@ module.exports = {
   createUpdateProfile,
   createChangePassword,
   createRefreshToken,
-  createRevokeRefreshToken,
   createRevokeAllUserTokens,
   createRegisterWithPermissions,
 };

@@ -8,7 +8,6 @@ const {
   createUpdateProfile,
   createChangePassword,
   createRefreshToken,
-  createRevokeRefreshToken,
   createRevokeAllUserTokens,
   createRegisterWithPermissions,
 } = require('./application/useCases');
@@ -48,7 +47,6 @@ const createAuthModule = ({ sharedRuntime, auditService } = {}) => {
     }),
     changePassword: createChangePassword({ userRepository, passwordHasher, auditService }),
     refreshToken: createRefreshToken({ tokenService, refreshTokenRepository, userRepository }),
-    revokeRefreshToken: createRevokeRefreshToken({ refreshTokenRepository }),
     revokeAllUserTokens: createRevokeAllUserTokens({ refreshTokenRepository, auditService }),
     registerWithPermissions: createRegisterWithPermissions({
       userRepository,

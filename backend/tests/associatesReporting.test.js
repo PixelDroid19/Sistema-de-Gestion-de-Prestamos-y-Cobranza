@@ -90,6 +90,8 @@ test('createGetAssociateProfitabilityReport rejects missing associate access wit
 });
 
 test('createExportAssociateProfitabilityReport returns xlsx workbook for associate datasets', async () => {
+  let contributionReads = 0;
+  let distributionReads = 0;
   const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
     reportRepository: {
       async getAssociateExportDataset() {
@@ -106,9 +108,11 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
         return { id, name: 'Partner One', participationPercentage: '25.0000' };
       },
       async listContributionsByAssociate() {
+        contributionReads += 1;
         return [{ id: 1, amount: 1000 }];
       },
       async listProfitDistributionsByAssociate() {
+        distributionReads += 1;
         return [{ id: 2, amount: 150 }];
       },
       async listLoansByAssociate() {
@@ -144,6 +148,8 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
   assert.equal(participationRow?.getCell(2).value, '25,00%');
   assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, 'COP 1.000,00');
   assert.equal(workbook.getWorksheet('Distribuciones').getRow(3).getCell(3).value, 'COP 150,00');
+  assert.equal(contributionReads, 1);
+  assert.equal(distributionReads, 1);
 });
 
 test('createExportAssociateProfitabilityReport rejects socio export requests', async () => {

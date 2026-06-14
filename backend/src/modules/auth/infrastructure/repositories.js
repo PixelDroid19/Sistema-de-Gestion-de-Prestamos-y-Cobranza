@@ -75,33 +75,33 @@ const passwordHasher = {
  * Repository for managing refresh tokens in the database.
  */
 const refreshTokenRepository = {
-  async create({ tokenHash, userId, expiresAt }) {
+  async create({ tokenHash, userId, expiresAt }, { transaction } = {}) {
     return RefreshToken.create({
       tokenHash,
       userId,
       expiresAt,
       revokedAt: null,
-    });
+    }, { transaction });
   },
 
-  findByTokenHash(tokenHash) {
-    return RefreshToken.findOne({ where: { tokenHash } });
+  findByTokenHash(tokenHash, { transaction } = {}) {
+    return RefreshToken.findOne({ where: { tokenHash }, transaction });
   },
 
-  findByUserId(userId) {
-    return RefreshToken.findAll({ where: { userId } });
+  findByUserId(userId, { transaction } = {}) {
+    return RefreshToken.findAll({ where: { userId }, transaction });
   },
 
-  async revoke(tokenHash) {
-    const token = await RefreshToken.findOne({ where: { tokenHash } });
+  async revoke(tokenHash, { transaction } = {}) {
+    const token = await RefreshToken.findOne({ where: { tokenHash }, transaction });
     if (!token) {
       return null;
     }
-    await token.update({ revokedAt: new Date() });
+    await token.update({ revokedAt: new Date() }, { transaction });
     return token;
   },
 
-  async revokeAllForUser(userId) {
+  async revokeAllForUser(userId, { transaction } = {}) {
     const [updatedCount] = await RefreshToken.update(
       { revokedAt: new Date() },
       {
@@ -109,6 +109,7 @@ const refreshTokenRepository = {
           userId,
           revokedAt: null,
         },
+        transaction,
       }
     );
     return updatedCount;
