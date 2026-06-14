@@ -350,7 +350,7 @@ const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, exe
 /**
  * Build partial payment payload (free amount, goes to interest then principal)
  */
-const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, interestApplied, remainingBalanceAfterPayment, paymentMethod, actorId = null }) => ({
+const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, interestApplied, penaltyApplied = 0, remainingBalanceAfterPayment, paymentMethod, actorId = null }) => ({
   loanId: loan.id,
   amount,
   paymentDate,
@@ -358,12 +358,13 @@ const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principal
   paymentType: PARTIAL_PAYMENT_TYPE,
   principalApplied,
   interestApplied,
+  penaltyApplied,
   overpaymentAmount: 0,
   remainingBalanceAfterPayment,
   allocationBreakdown: [],
   paymentMethod: paymentMethod || null,
   createdByUserId: actorId || null,
-  paymentMetadata: { partial: true },
+  paymentMetadata: { partial: true, penaltyApplied },
 });
 
 /**
@@ -831,7 +832,10 @@ const createPaymentApplicationService = ({
         loan,
         amount: numericAmount,
         paymentDate: normalizedPaymentDate,
-        principalApplied: totalPrincipalApplied,
+        // Scheduled principal only; the capital paid via overpayment is reported
+        // under overpaymentAmount so allocation integrity (principal + interest +
+        // penalty + overpayment === amount) holds.
+        principalApplied: roundCurrency(totalPrincipalApplied - additionalPrincipalApplied),
         interestApplied: totalInterestApplied,
         penaltyApplied,
         additionalPrincipalApplied,
@@ -947,10 +951,10 @@ const createPaymentApplicationService = ({
       let remainingPayment = numericAmount;
       let totalPrincipalApplied = 0;
       let totalInterestApplied = 0;
+      let penaltyAppliedPartial = 0;
 
       if (hasOverdue) {
         // Penalizaciones por mora: pay late fees on overdue installments first
-        let penaltyAppliedPartial = 0;
         for (const row of schedule) {
           if (remainingPayment <= 0) break;
 
@@ -1034,6 +1038,7 @@ const createPaymentApplicationService = ({
         paymentDate: normalizedPaymentDate,
         principalApplied: totalPrincipalApplied,
         interestApplied: totalInterestApplied,
+        penaltyApplied: penaltyAppliedPartial,
         remainingBalanceAfterPayment: snapshot.outstandingBalance,
         paymentMethod: normalizedPaymentMethod,
         actorId,
@@ -1046,6 +1051,7 @@ const createPaymentApplicationService = ({
           amount: numericAmount,
           principalApplied: totalPrincipalApplied,
           interestApplied: totalInterestApplied,
+          penaltyApplied: penaltyAppliedPartial,
           remainingBalance: snapshot.outstandingBalance,
           installmentNumber: schedule.find((r) => (r.paidPrincipal > 0 || r.paidInterest > 0))?.installmentNumber || null,
         },
