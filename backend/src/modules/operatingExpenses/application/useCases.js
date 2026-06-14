@@ -1,4 +1,5 @@
 const { BusinessRuleViolationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
+const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
 const { buildDateRangeMessage, normalizeOperationalDate, normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
 const { buildInvalidIntegerIdMessage, validateIntegerId } = require('@/modules/shared/validators');
@@ -125,36 +126,62 @@ const createListOperatingExpenses = ({ operatingExpenseRepository }) => ({ filte
   })
 );
 
-const createCreateOperatingExpense = ({ operatingExpenseRepository }) => async ({ actor, payload }) => {
-  const normalizedPayload = normalizeExpensePayload(payload, actor);
-  return operatingExpenseRepository.create(normalizedPayload);
+const createCreateOperatingExpense = ({ operatingExpenseRepository, auditService }) => {
+  const useCase = async ({ actor, payload }) => {
+    const normalizedPayload = normalizeExpensePayload(payload, actor);
+    return operatingExpenseRepository.create(normalizedPayload);
+  };
+
+  if (auditService) {
+    return withAudit({
+      auditService,
+      action: 'CREATE',
+      module: 'operatingExpenses',
+      getEntityId: (result) => result?.id,
+      getEntityType: () => 'OperatingExpense',
+    })(useCase);
+  }
+
+  return useCase;
 };
 
-const createAnnulOperatingExpense = ({ operatingExpenseRepository }) => async ({ actor, expenseId, payload = {} }) => {
-  const expense = await operatingExpenseRepository.findById(expenseId);
-  if (!expense) {
-    throw new NotFoundError('Operating expense');
-  }
+const createAnnulOperatingExpense = ({ operatingExpenseRepository, auditService }) => {
+  const useCase = async ({ actor, expenseId, payload = {} }) => {
+    const expense = await operatingExpenseRepository.findById(expenseId);
+    if (!expense) {
+      throw new NotFoundError('Operating expense');
+    }
 
-  if (expense.status === 'annulled') {
-    throw new BusinessRuleViolationError(OPERATING_EXPENSE_ALREADY_ANNULLED_MESSAGE, {
-      code: 'OPERATING_EXPENSE_ALREADY_ANNULLED',
+    if (expense.status === 'annulled') {
+      throw new BusinessRuleViolationError(OPERATING_EXPENSE_ALREADY_ANNULLED_MESSAGE, {
+        code: 'OPERATING_EXPENSE_ALREADY_ANNULLED',
+      });
+    }
+
+    const reason = normalizeText(payload.reason, 'reason', { maxLength: 1000 });
+    return expense.update({
+      status: 'annulled',
+      annulledAt: new Date(),
+      annulledByUserId: actor?.id || null,
+      annulmentReason: reason,
     });
+  };
+
+  if (auditService) {
+    return withAudit({
+      auditService,
+      action: 'UPDATE',
+      module: 'operatingExpenses',
+      getEntityId: (params) => params?.expenseId,
+      getEntityType: () => 'OperatingExpense',
+    })(useCase);
   }
 
-  const reason = normalizeText(payload.reason, 'reason', { maxLength: 1000 });
-  return expense.update({
-    status: 'annulled',
-    annulledAt: new Date(),
-    annulledByUserId: actor?.id || null,
-    annulmentReason: reason,
-  });
+  return useCase;
 };
 
 module.exports = {
   createListOperatingExpenses,
   createCreateOperatingExpense,
   createAnnulOperatingExpense,
-  normalizeExpensePayload,
-  normalizeListFilters,
 };

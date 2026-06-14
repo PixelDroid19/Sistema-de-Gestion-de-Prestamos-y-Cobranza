@@ -1,5 +1,6 @@
 const { Notification, User } = require('@/models');
 const { NotFoundError } = require('@/utils/errorHandler');
+const { logger } = require('@/utils/logger');
 const { createPushProviderRegistry } = require('../infrastructure/push/providerRegistry');
 const { createResendEmailProvider } = require('../infrastructure/email/providers/resendEmailProvider');
 
@@ -55,16 +56,6 @@ class SequelizeNotificationService extends NotificationService {
 
     if (providerRegistry) {
       this.providerRegistry = providerRegistry;
-    }
-  }
-
-  setEmailDeliveryDependencies({ emailProvider, userModel } = {}) {
-    if (emailProvider) {
-      this.emailProvider = emailProvider;
-    }
-
-    if (userModel) {
-      this.userModel = userModel;
     }
   }
 
@@ -128,6 +119,10 @@ class SequelizeNotificationService extends NotificationService {
         const provider = this.providerRegistry.resolve(subscription);
 
         if (!provider) {
+          await this.pushSubscriptionRepository.recordDeliveryResult(subscription.id, {
+            status: 'invalid',
+            detail: 'unsupported_push_provider',
+          });
           continue;
         }
 
@@ -164,8 +159,14 @@ class SequelizeNotificationService extends NotificationService {
       }
 
       await this.emailProvider.send({ notification, recipient });
-    } catch (_error) {
-      // Notification persistence must not fail because an external email provider is unavailable.
+    } catch (error) {
+      logger.warn('Notification email delivery failed', {
+        category: 'technical',
+        notificationId: notification.id,
+        userId: notification.userId,
+        type: notification.type,
+        error: error?.message || 'email_delivery_failed',
+      });
     }
   }
 

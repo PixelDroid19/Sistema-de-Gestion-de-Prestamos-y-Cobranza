@@ -358,10 +358,10 @@ test('createNotificationsRouter rejects mismatched provider and channel combinat
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.body.success, false);
-  assert.match(JSON.stringify(response.body.error.validationErrors), /Las suscripciones webpush deben usar el canal web/);
+  assert.match(JSON.stringify(response.body.error.validationErrors), /deben usar el canal web/);
 });
 
-test('createNotificationsRouter rejects mobile subscription registration without deviceToken', async () => {
+test('createNotificationsRouter rejects unsupported mobile providers during subscription registration', async () => {
   const { notificationValidation } = require('@/middleware/validation');
 
   const router = createNotificationsRouter({
@@ -412,7 +412,7 @@ test('createNotificationsRouter rejects mobile subscription registration without
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.body.success, false);
-  assert.match(JSON.stringify(response.body.error.validationErrors), /Las suscripciones móviles requieren el token del dispositivo/);
+  assert.match(JSON.stringify(response.body.error.validationErrors), /no está soportado por el sistema/);
 });
 
 test('createNotificationsRouter rejects webpush deletion without endpoint identifier', async () => {
@@ -471,7 +471,7 @@ test('createNotificationsRouter rejects webpush deletion without endpoint identi
   );
 });
 
-test('createNotificationsRouter rejects mobile subscription deletion without operator-facing implementation labels', async () => {
+test('createNotificationsRouter rejects unsupported mobile providers during subscription deletion', async () => {
   const { notificationValidation } = require('@/middleware/validation');
 
   const router = createNotificationsRouter({
@@ -523,6 +523,6 @@ test('createNotificationsRouter rejects mobile subscription deletion without ope
   assert.equal(response.body.success, false);
   assert.match(
     response.body.error.validationErrors.map((entry) => entry.message).join(' '),
-    /Las suscripciones móviles requieren el token del dispositivo/,
+    /no está soportado por el sistema/,
   );
 });

@@ -1,7 +1,12 @@
-const test = require('node:test');
+const { test, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { SequelizeNotificationService } = require('@/modules/notifications/application/notificationService');
+const { logger } = require('@/utils/logger');
+
+afterEach(() => {
+  mock.restoreAll();
+});
 
 test('SequelizeNotificationService reuses unread notifications with the same dedupe key', async () => {
   const created = [];
@@ -126,8 +131,8 @@ test('SequelizeNotificationService deactivates invalid subscriptions after provi
   assert.deepEqual(deliveryResults, [[12, 'invalid', 'subscription expired']]);
 });
 
-test('SequelizeNotificationService skips unsupported providers without failing persistence', async () => {
-  let recordDeliveryCalled = false;
+test('SequelizeNotificationService invalidates unsupported providers without failing persistence', async () => {
+  const deliveryResults = [];
   const service = new SequelizeNotificationService({
     notificationModel: {
       async findOne() {
@@ -148,8 +153,8 @@ test('SequelizeNotificationService skips unsupported providers without failing p
       async listActiveByUser(userId) {
         return [{ id: 18, userId, providerKey: 'fcm', channel: 'mobile', deviceToken: 'device-token' }];
       },
-      async recordDeliveryResult() {
-        recordDeliveryCalled = true;
+      async recordDeliveryResult(subscriptionId, result) {
+        deliveryResults.push([subscriptionId, result.status, result.detail]);
       },
     },
     providerRegistry: {
@@ -162,7 +167,7 @@ test('SequelizeNotificationService skips unsupported providers without failing p
   const notification = await service.sendNotification(8, 'Assigned', 'loan_assignment', { loanId: 12 });
 
   assert.equal(notification.id, 30);
-  assert.equal(recordDeliveryCalled, false);
+  assert.deepEqual(deliveryResults, [[18, 'invalid', 'unsupported_push_provider']]);
 });
 
 test('SequelizeNotificationService records transient provider failures without throwing', async () => {
@@ -334,6 +339,7 @@ test('SequelizeNotificationService skips email for notification types that do no
 });
 
 test('SequelizeNotificationService never fails persistence when email delivery fails', async () => {
+  const warnMock = mock.method(logger, 'warn', () => {});
   const service = new SequelizeNotificationService({
     notificationModel: {
       async findOne() {
@@ -366,4 +372,11 @@ test('SequelizeNotificationService never fails persistence when email delivery f
   const notification = await service.sendNotification(8, 'Payment received', 'payment_registered', { loanId: 12 });
 
   assert.equal(notification.id, 43);
+  assert.equal(warnMock.mock.callCount(), 1);
+  const [message, meta] = warnMock.mock.calls[0].arguments;
+  assert.equal(message, 'Notification email delivery failed');
+  assert.equal(meta.notificationId, 43);
+  assert.equal(meta.userId, 8);
+  assert.equal(meta.type, 'payment_registered');
+  assert.equal(meta.error, 'resend timeout');
 });

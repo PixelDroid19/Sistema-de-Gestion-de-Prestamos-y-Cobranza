@@ -404,10 +404,15 @@ const assertNoAmbiguousRatePolicy = async ({
   }
 };
 
-const assertNoAmbiguousLateFeePolicy = async ({ configRepository, normalized, currentId = null }) => {
+const assertNoAmbiguousLateFeePolicy = async ({
+  configRepository,
+  normalized,
+  currentId = null,
+  options = {},
+}) => {
   if (normalized.isActive === false) return;
 
-  const entries = await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY);
+  const entries = await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY, options);
   const duplicate = entries
     .map(buildLateFeePolicy)
     .find((policy) => (
@@ -634,25 +639,28 @@ const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) =>
 };
 
 const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payload = {}) => {
-  const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY);
-  if (!existing) throw new NotFoundError('Rate policy');
+  return runConfigMutation(configRepository, async (options) => {
+    const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY, options);
+    if (!existing) throw new NotFoundError('Rate policy');
 
-  const normalized = normalizeRatePolicyPayload(payload, existing);
-  const duplicate = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
-  if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
-    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyKeyExists);
-  }
-  await assertUniqueLabel({
-    configRepository,
-    category: RATE_POLICY_CATEGORY,
-    label: normalized.label,
-    currentId: existing.id,
-    entityName: 'Rate policy',
+    const normalized = normalizeRatePolicyPayload(payload, existing);
+    const duplicate = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key, options);
+    if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
+      throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyKeyExists);
+    }
+    await assertUniqueLabel({
+      configRepository,
+      category: RATE_POLICY_CATEGORY,
+      label: normalized.label,
+      currentId: existing.id,
+      entityName: 'Rate policy',
+      options,
+    });
+    await assertNoAmbiguousRatePolicy({ configRepository, normalized, currentId: existing.id, options });
+
+    const updated = await configRepository.update(existing.id, normalized, options);
+    return buildRatePolicy(updated);
   });
-  await assertNoAmbiguousRatePolicy({ configRepository, normalized, currentId: existing.id });
-
-  const updated = await configRepository.update(existing.id, normalized);
-  return buildRatePolicy(updated);
 };
 
 const createDeleteRatePolicy = ({ configRepository }) => async (policyId) => {
@@ -690,44 +698,50 @@ const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {})
   const normalized = normalizeLateFeePolicyPayload(payload);
   if (!normalized.key) throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
 
-  const existing = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key);
-  if (existing) throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyKeyExists);
-  await assertUniqueLabel({
-    configRepository,
-    category: LATE_FEE_POLICY_CATEGORY,
-    label: normalized.label,
-    entityName: 'Late fee policy',
-  });
-  await assertNoAmbiguousLateFeePolicy({ configRepository, normalized });
+  return runConfigMutation(configRepository, async (options) => {
+    const existing = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key, options);
+    if (existing) throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyKeyExists);
+    await assertUniqueLabel({
+      configRepository,
+      category: LATE_FEE_POLICY_CATEGORY,
+      label: normalized.label,
+      entityName: 'Late fee policy',
+      options,
+    });
+    await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, options });
 
-  const entry = await configRepository.create({
-    category: LATE_FEE_POLICY_CATEGORY,
-    ...normalized,
-  });
+    const entry = await configRepository.create({
+      category: LATE_FEE_POLICY_CATEGORY,
+      ...normalized,
+    }, options);
 
-  return buildLateFeePolicy(entry);
+    return buildLateFeePolicy(entry);
+  });
 };
 
 const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, payload = {}) => {
-  const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY);
-  if (!existing) throw new NotFoundError('Late fee policy');
+  return runConfigMutation(configRepository, async (options) => {
+    const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY, options);
+    if (!existing) throw new NotFoundError('Late fee policy');
 
-  const normalized = normalizeLateFeePolicyPayload(payload, existing);
-  const duplicate = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key);
-  if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
-    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyKeyExists);
-  }
-  await assertUniqueLabel({
-    configRepository,
-    category: LATE_FEE_POLICY_CATEGORY,
-    label: normalized.label,
-    currentId: existing.id,
-    entityName: 'Late fee policy',
+    const normalized = normalizeLateFeePolicyPayload(payload, existing);
+    const duplicate = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key, options);
+    if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
+      throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyKeyExists);
+    }
+    await assertUniqueLabel({
+      configRepository,
+      category: LATE_FEE_POLICY_CATEGORY,
+      label: normalized.label,
+      currentId: existing.id,
+      entityName: 'Late fee policy',
+      options,
+    });
+    await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, currentId: existing.id, options });
+
+    const updated = await configRepository.update(existing.id, normalized, options);
+    return buildLateFeePolicy(updated);
   });
-  await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, currentId: existing.id });
-
-  const updated = await configRepository.update(existing.id, normalized);
-  return buildLateFeePolicy(updated);
 };
 
 const createDeleteLateFeePolicy = ({ configRepository }) => async (policyId) => {

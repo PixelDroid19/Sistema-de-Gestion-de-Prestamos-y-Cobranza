@@ -11,6 +11,7 @@ const {
   createDeleteRatePolicy,
   createResolveRatePolicy,
   createCreateLateFeePolicy,
+  createUpdateLateFeePolicy,
   createDeleteLateFeePolicy,
   createResolveLateFeePolicy,
   createListSettings,
@@ -732,6 +733,162 @@ test('rate policy creation archives the seeded catch-all when the first explicit
   assert.equal(archivedPayload.isActive, false);
   assert.equal(archivedPayload.value.metadata.seeded, true);
   assert.equal(archivedPayload.value.metadata.replacedByExplicitRateRange, true);
+});
+
+test('rate policy updates run inside the shared configuration transaction', async () => {
+  let transactionCalled = false;
+  const transaction = { id: 'rate-policy-update-tx' };
+  const existingPolicy = {
+    id: 14,
+    key: 'credito-estandar',
+    label: 'Crédito estándar',
+    isActive: true,
+    value: {
+      minAmount: 0,
+      maxAmount: 1000000,
+      annualEffectiveRate: 36,
+      priority: 'medium',
+      description: '',
+      metadata: {},
+    },
+  };
+
+  const updateRatePolicy = createUpdateRatePolicy({
+    configRepository: {
+      async runInTransaction(work) {
+        transactionCalled = true;
+        return work(transaction);
+      },
+      async findByIdAndCategory(id, category, options = {}) {
+        assert.equal(id, 14);
+        assert.equal(category, 'rate_policy');
+        assert.equal(options.transaction, transaction);
+        return existingPolicy;
+      },
+      async findByCategoryAndKey(_category, _key, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return null;
+      },
+      async listByCategory(_category, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return [existingPolicy];
+      },
+      async update(id, payload, options = {}) {
+        assert.equal(id, 14);
+        assert.equal(options.transaction, transaction);
+        return {
+          ...existingPolicy,
+          ...payload,
+          value: {
+            ...existingPolicy.value,
+            ...payload.value,
+          },
+        };
+      },
+    },
+  });
+
+  const updated = await updateRatePolicy(14, {
+    annualEffectiveRate: 42,
+    description: 'Tasa actualizada',
+  });
+
+  assert.equal(transactionCalled, true);
+  assert.equal(updated.annualEffectiveRate, 42);
+  assert.equal(updated.description, 'Tasa actualizada');
+});
+
+test('late-fee policy create and update reuse the shared configuration transaction', async () => {
+  const transaction = { id: 'late-fee-policy-tx' };
+  let createTransactionCalled = false;
+  let updateTransactionCalled = false;
+  const existingPolicy = {
+    id: 33,
+    key: 'mora-simple',
+    label: 'Mora simple',
+    isActive: true,
+    value: {
+      annualEffectiveRate: 24,
+      lateFeeMode: 'SIMPLE',
+      priority: 'medium',
+      description: '',
+      metadata: {},
+    },
+  };
+
+  const createLateFeePolicy = createCreateLateFeePolicy({
+    configRepository: {
+      async runInTransaction(work) {
+        createTransactionCalled = true;
+        return work(transaction);
+      },
+      async findByCategoryAndKey(_category, _key, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return null;
+      },
+      async listByCategory(_category, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return [];
+      },
+      async create(payload, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return { id: 34, ...payload };
+      },
+    },
+  });
+
+  const created = await createLateFeePolicy({
+    label: 'Mora compuesta',
+    annualEffectiveRate: 30,
+    lateFeeMode: 'COMPOUND',
+    priority: 'high',
+  });
+
+  const updateLateFeePolicy = createUpdateLateFeePolicy({
+    configRepository: {
+      async runInTransaction(work) {
+        updateTransactionCalled = true;
+        return work(transaction);
+      },
+      async findByIdAndCategory(id, category, options = {}) {
+        assert.equal(id, 33);
+        assert.equal(category, 'late_fee_policy');
+        assert.equal(options.transaction, transaction);
+        return existingPolicy;
+      },
+      async findByCategoryAndKey(_category, _key, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return null;
+      },
+      async listByCategory(_category, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return [existingPolicy];
+      },
+      async update(id, payload, options = {}) {
+        assert.equal(id, 33);
+        assert.equal(options.transaction, transaction);
+        return {
+          ...existingPolicy,
+          ...payload,
+          value: {
+            ...existingPolicy.value,
+            ...payload.value,
+          },
+        };
+      },
+    },
+  });
+
+  const updated = await updateLateFeePolicy(33, {
+    annualEffectiveRate: 28,
+    description: 'Ajuste operativo',
+  });
+
+  assert.equal(createTransactionCalled, true);
+  assert.equal(updateTransactionCalled, true);
+  assert.equal(created.annualEffectiveRate, 30);
+  assert.equal(updated.annualEffectiveRate, 28);
+  assert.equal(updated.description, 'Ajuste operativo');
 });
 
 test('late-fee policies reject modes that are not configurable from the operational UI', async () => {

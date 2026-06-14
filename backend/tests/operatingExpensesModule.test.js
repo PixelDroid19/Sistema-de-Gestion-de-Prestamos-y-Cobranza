@@ -62,6 +62,7 @@ test('operating expense use cases create, list, and annul traceable expenses', a
   assert.equal(typeof createAnnulOperatingExpense, 'function');
 
   const calls = [];
+  const auditCalls = [];
   const repository = {
     async create(payload) {
       calls.push(['create', payload]);
@@ -87,7 +88,13 @@ test('operating expense use cases create, list, and annul traceable expenses', a
     },
   };
 
-  const created = await createCreateOperatingExpense({ operatingExpenseRepository: repository })({
+  const auditService = {
+    async log(entry) {
+      auditCalls.push(entry);
+    },
+  };
+
+  const created = await createCreateOperatingExpense({ operatingExpenseRepository: repository, auditService })({
     actor: { id: 9, role: 'admin' },
     payload: {
       amount: '250000.50',
@@ -103,7 +110,7 @@ test('operating expense use cases create, list, and annul traceable expenses', a
     filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'completed' },
     pagination: { page: 1, pageSize: 20, limit: 20, offset: 0 },
   });
-  const annulled = await createAnnulOperatingExpense({ operatingExpenseRepository: repository })({
+  const annulled = await createAnnulOperatingExpense({ operatingExpenseRepository: repository, auditService })({
     actor: { id: 9, role: 'admin' },
     expenseId: 4,
     payload: { reason: 'Registro duplicado' },
@@ -117,6 +124,10 @@ test('operating expense use cases create, list, and annul traceable expenses', a
   assert.equal(annulled.status, 'annulled');
   assert.equal(annulled.annulledByUserId, 9);
   assert.equal(annulled.annulmentReason, 'Registro duplicado');
+  assert.deepEqual(auditCalls.map((entry) => [entry.action, entry.module, entry.entityId, entry.entityType]), [
+    ['CREATE', 'operatingExpenses', '4', 'OperatingExpense'],
+    ['UPDATE', 'operatingExpenses', '4', 'OperatingExpense'],
+  ]);
   assert.deepEqual(calls[1], ['listPage', {
     filters: {
       fromDate: new Date('2026-05-01T00:00:00.000Z'),

@@ -17,6 +17,12 @@ const {
   validateAssociateInterestRate,
 } = require('@/modules/shared/validators');
 const { isValidDateOnly } = require('@/modules/shared/dateUtils');
+const {
+  PUSH_PROVIDER_CHANNELS,
+  PUSH_PROVIDER_KEYS,
+  PUSH_CHANNELS,
+  PUSH_CHANNEL_LABELS,
+} = require('@/modules/notifications/infrastructure/push/providerContracts');
 
 const buildValidationError = (errors, message = 'Corrige los errores indicados') => {
   const error = new ValidationError(message);
@@ -594,19 +600,6 @@ const associateValidation = {
   },
 };
 
-const PUSH_PROVIDER_CHANNELS = {
-  webpush: 'web',
-  fcm: 'mobile',
-  apns: 'mobile',
-};
-
-const PUSH_PROVIDER_KEYS = new Set(Object.keys(PUSH_PROVIDER_CHANNELS));
-const PUSH_CHANNELS = new Set(['web', 'mobile']);
-const PUSH_CHANNEL_LABELS = {
-  web: 'web',
-  mobile: 'móvil',
-};
-
 const notificationValidation = {
   /** @type {import('express').RequestHandler} */
   registerSubscription: (req, res, next) => {
@@ -620,7 +613,7 @@ const notificationValidation = {
     const errors = [];
 
     if (!PUSH_PROVIDER_KEYS.has(providerKey)) {
-      errors.push({ field: 'providerKey', message: 'El proveedor debe ser uno de: webpush, fcm, apns' });
+      errors.push({ field: 'providerKey', message: 'El proveedor de notificaciones no está soportado por el sistema' });
     }
 
     if (!PUSH_CHANNELS.has(channel)) {
@@ -632,7 +625,7 @@ const notificationValidation = {
       if (expectedChannel !== channel) {
         errors.push({
           field: 'channel',
-          message: `Las suscripciones ${providerKey} deben usar el canal ${PUSH_CHANNEL_LABELS[expectedChannel]}`,
+          message: `Las suscripciones del proveedor seleccionado deben usar el canal ${PUSH_CHANNEL_LABELS[expectedChannel]}`,
         });
       }
     }
@@ -667,7 +660,7 @@ const notificationValidation = {
     const errors = [];
 
     if (!PUSH_PROVIDER_KEYS.has(providerKey)) {
-      errors.push({ field: 'providerKey', message: 'El proveedor debe ser uno de: webpush, fcm, apns' });
+      errors.push({ field: 'providerKey', message: 'El proveedor de notificaciones no está soportado por el sistema' });
     }
 
     if (!endpoint && !deviceToken) {
@@ -676,10 +669,6 @@ const notificationValidation = {
 
     if (providerKey === 'webpush' && !endpoint) {
       errors.push({ field: 'endpoint', message: 'Las suscripciones web requieren el identificador web de la suscripción' });
-    }
-
-    if ((providerKey === 'fcm' || providerKey === 'apns') && !deviceToken) {
-      errors.push({ field: 'deviceToken', message: 'Las suscripciones móviles requieren el token del dispositivo' });
     }
 
     if (errors.length > 0) {

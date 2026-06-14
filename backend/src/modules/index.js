@@ -27,7 +27,7 @@ const buildModuleRegistry = ({ sharedRuntime = createSharedRuntime() } = {}) => 
   createCreditsModule({ sharedRuntime, auditService }),
   createPayoutsModule({ sharedRuntime, auditService }),
   createReportsModule({ sharedRuntime }),
-  createOperatingExpensesModule({ sharedRuntime }),
+  createOperatingExpensesModule({ sharedRuntime, auditService }),
   createNotificationsModule({ sharedRuntime }),
   createUsersModule({ sharedRuntime }),
   createConfigModule({ sharedRuntime, auditService }),

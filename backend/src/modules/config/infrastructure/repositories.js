@@ -60,24 +60,9 @@ const configRepository = {
     return serializeConfigEntry(entry);
   },
 
-  async findById(id, options = {}) {
-    const entry = await ConfigEntry.findByPk(id, withTransaction(options));
-    return serializeConfigEntry(entry);
-  },
-
   async findByCategoryAndKey(category, key, options = {}) {
     const entry = await ConfigEntry.findOne({
       where: { category, key },
-      ...withTransaction(options),
-    });
-
-    return serializeConfigEntry(entry);
-  },
-
-  async findActiveByCategoryAndKey(category, key, options = {}) {
-    const entry = await ConfigEntry.findOne({
-      where: { category, key, isActive: true },
-      order: [['updatedAt', 'DESC'], ['createdAt', 'DESC']],
       ...withTransaction(options),
     });
 

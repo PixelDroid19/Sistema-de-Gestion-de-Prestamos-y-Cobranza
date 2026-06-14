@@ -1,8 +1,27 @@
 const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
+const {
+  isSupportedPushProvider,
+  getExpectedPushChannel,
+} = require('../infrastructure/push/providerContracts');
 
 const ensureSubscriptionIdentifier = ({ endpoint, deviceToken }) => {
   if (!endpoint && !deviceToken) {
     throw new ValidationError('Debe indicar el identificador de la suscripción o el token del dispositivo');
+  }
+};
+
+const ensureSupportedPushProvider = ({ providerKey, channel = null }) => {
+  if (!isSupportedPushProvider(providerKey)) {
+    throw new ValidationError('El proveedor de notificaciones no está soportado por el sistema');
+  }
+
+  if (!channel) {
+    return;
+  }
+
+  const expectedChannel = getExpectedPushChannel(providerKey);
+  if (expectedChannel && expectedChannel !== channel) {
+    throw new ValidationError(`Las suscripciones del proveedor seleccionado deben usar el canal ${expectedChannel}`);
   }
 };
 
@@ -96,6 +115,7 @@ const createClearNotifications = ({ notificationRepository }) => async ({ actor 
  * @returns {Function}
  */
 const createRegisterPushSubscription = ({ pushSubscriptionRepository }) => async ({ actor, payload }) => {
+  ensureSupportedPushProvider(payload);
   ensureSubscriptionIdentifier(payload);
 
   const subscription = await pushSubscriptionRepository.upsert({
@@ -116,6 +136,7 @@ const createRegisterPushSubscription = ({ pushSubscriptionRepository }) => async
  * @returns {Function}
  */
 const createDeletePushSubscription = ({ pushSubscriptionRepository }) => async ({ actor, payload }) => {
+  ensureSupportedPushProvider(payload);
   ensureSubscriptionIdentifier(payload);
 
   const removed = await pushSubscriptionRepository.deactivate({

@@ -9,15 +9,15 @@ const { createOperatingExpensesRouter } = require('./presentation/router');
 
 /**
  * Compose the operating expenses module for traceable administrative cash outflows.
- * @param {{ sharedRuntime?: object }} [options]
+ * @param {{ sharedRuntime?: object, auditService?: object }} [options]
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createOperatingExpensesModule = ({ sharedRuntime } = {}) => {
+const createOperatingExpensesModule = ({ sharedRuntime, auditService } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {
     listOperatingExpenses: createListOperatingExpenses({ operatingExpenseRepository }),
-    createOperatingExpense: createCreateOperatingExpense({ operatingExpenseRepository }),
-    annulOperatingExpense: createAnnulOperatingExpense({ operatingExpenseRepository }),
+    createOperatingExpense: createCreateOperatingExpense({ operatingExpenseRepository, auditService }),
+    annulOperatingExpense: createAnnulOperatingExpense({ operatingExpenseRepository, auditService }),
   };
 
   return createModule({

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
+const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const {
   createGetNotifications,
   createMarkAsRead,
@@ -184,10 +184,55 @@ test('push subscription use cases reject payloads without endpoint or device tok
   await assert.rejects(() => registerPushSubscription({
     actor: { id: 8, role: 'admin' },
     payload: {
-      providerKey: 'fcm',
-      channel: 'mobile',
+      providerKey: 'webpush',
+      channel: 'web',
     },
   }), /Debe indicar el identificador de la suscripción o el token del dispositivo/);
+});
+
+test('push subscription use cases reject unsupported providers even if validation middleware is bypassed', async () => {
+  const registerPushSubscription = createRegisterPushSubscription({
+    pushSubscriptionRepository: {
+      async upsert() {
+        throw new Error('upsert should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => registerPushSubscription({
+    actor: { id: 8, role: 'admin' },
+    payload: {
+      providerKey: 'fcm',
+      channel: 'mobile',
+      deviceToken: 'device-token',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'El proveedor de notificaciones no está soportado por el sistema');
+    return true;
+  });
+});
+
+test('push subscription deletion rejects unsupported providers even if validation middleware is bypassed', async () => {
+  const deletePushSubscription = createDeletePushSubscription({
+    pushSubscriptionRepository: {
+      async deactivate() {
+        throw new Error('deactivate should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => deletePushSubscription({
+    actor: { id: 8, role: 'admin' },
+    payload: {
+      providerKey: 'apns',
+      deviceToken: 'device-token',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'El proveedor de notificaciones no está soportado por el sistema');
+    return true;
+  });
 });
 
 test('createNotificationsModule publishes notification ports to the shared runtime', () => {
