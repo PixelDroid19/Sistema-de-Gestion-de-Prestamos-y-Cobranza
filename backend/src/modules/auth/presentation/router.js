@@ -55,7 +55,7 @@ const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
   }));
 
   // Refresh token endpoint - exchanges old refresh token for new token pair
-  router.post('/refresh', asyncHandler(async (req, res) => {
+  router.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
     const { refreshToken } = req.body;
     if (!refreshToken) {
       return res.status(400).json({

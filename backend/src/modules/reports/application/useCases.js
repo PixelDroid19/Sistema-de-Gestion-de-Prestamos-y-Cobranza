@@ -32,8 +32,12 @@ const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanView
     : await reportRepository.listRecoveredLoans();
   const rawLoans = recoveredLoans.items || recoveredLoans;
   const loansWithDetails = await buildLoansWithDetails({ loans: rawLoans, paymentRepository, loanViewService });
-  const totalRecoveredAmount = loansWithDetails.reduce((sum, loan) => sum + parseFloat(loan.totalPaid), 0);
-  const totalLoansCount = recoveredLoans.pagination?.totalItems ?? loansWithDetails.length;
+  // Summary totals must span the whole dataset, not just the current page.
+  const summaryLoans = recoveredLoans.pagination
+    ? await buildLoansWithDetails({ loans: await reportRepository.listRecoveredLoans(), paymentRepository, loanViewService })
+    : loansWithDetails;
+  const totalRecoveredAmount = summaryLoans.reduce((sum, loan) => sum + parseFloat(loan.totalPaid), 0);
+  const totalLoansCount = recoveredLoans.pagination?.totalItems ?? summaryLoans.length;
   const paged = paginateCollection(loansWithDetails, recoveredLoans.pagination);
 
   return {
@@ -56,10 +60,16 @@ const createGetOutstandingLoans = ({ reportRepository, paymentRepository, loanVi
   const rawLoans = outstandingLoans.items || outstandingLoans;
   const loansWithDetails = await buildLoansWithDetails({ loans: rawLoans, paymentRepository, loanViewService });
   const outstandingLoansFiltered = loansWithDetails.filter((loan) => loan.recoveryBucket === 'outstanding');
-  const totalOutstandingAmount = outstandingLoansFiltered.reduce((sum, loan) => sum + parseFloat(loan.outstandingAmount), 0);
-  const totalLoansCount = outstandingLoans.pagination?.totalItems ?? outstandingLoansFiltered.length;
-  const pendingCount = outstandingLoansFiltered.filter((loan) => loan.recoveryStatus === 'pending').length;
-  const inProgressCount = outstandingLoansFiltered.filter((loan) => loan.recoveryStatus === 'in_progress').length;
+  // Summary totals/counts must span the whole dataset (and the outstanding bucket),
+  // not just the current page, so they don't disagree with the row data.
+  const summaryLoans = outstandingLoans.pagination
+    ? (await buildLoansWithDetails({ loans: await reportRepository.listOutstandingLoans(), paymentRepository, loanViewService }))
+        .filter((loan) => loan.recoveryBucket === 'outstanding')
+    : outstandingLoansFiltered;
+  const totalOutstandingAmount = summaryLoans.reduce((sum, loan) => sum + parseFloat(loan.outstandingAmount), 0);
+  const totalLoansCount = summaryLoans.length;
+  const pendingCount = summaryLoans.filter((loan) => loan.recoveryStatus === 'pending').length;
+  const inProgressCount = summaryLoans.filter((loan) => loan.recoveryStatus === 'in_progress').length;
   const paged = paginateCollection(outstandingLoansFiltered, outstandingLoans.pagination);
 
   return {
@@ -321,7 +331,9 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
         },
       },
     };
-  } catch (_error) {
+  } catch (error) {
+    const { logger } = require('@/utils/logger');
+    logger.error('Failed to build dashboard summary; returning empty payload', { error: error?.message, stack: error?.stack });
     return emptyResponse;
   }
 };

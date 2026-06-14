@@ -170,11 +170,13 @@ const createAuditService = ({ auditLogRepository: repo } = {}) => {
    * @param {{ userId?: number, action?: string, module?: string, entityId?: string, entityType?: string, ip?: string, dateFrom?: string, dateTo?: string, limit?: number, offset?: number }} filters
    * @returns {Promise<{ items: Array<object>, totalItems: number }>}
    */
-  const query = async ({ userId, action, module, entityId, entityType, ip, dateFrom, dateTo, limit = 100, offset = 0 } = {}) => {
+  const query = async ({ userId, action, module, category, severity, entityId, entityType, ip, dateFrom, dateTo, limit = 100, offset = 0 } = {}) => {
     const result = await repository.findWithFilters({
       userId,
       action: action ? normalizeAuditAction(action) : action,
       module: module ? normalizeAuditModule(module) : module,
+      category,
+      severity,
       entityId,
       entityType,
       ip,

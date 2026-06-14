@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { tTerm } from '../i18n/terminology';
+import { useSessionStore } from '../store/sessionStore';
 import type { AuditStreamEvent } from '../types/audit';
 
 const MAX_BUFFER = 200;
@@ -42,7 +43,13 @@ export function useAuditStream({
     }
 
     const connect = () => {
-      const es = new EventSource('/api/audits/stream');
+      // EventSource cannot send an Authorization header, so the bearer token is
+      // passed as a query param (the backend auth middleware accepts access_token).
+      const accessToken = useSessionStore.getState().accessToken;
+      const url = accessToken
+        ? `/api/audits/stream?access_token=${encodeURIComponent(accessToken)}`
+        : '/api/audits/stream';
+      const es = new EventSource(url);
       esRef.current = es;
 
       es.addEventListener('connected', () => {

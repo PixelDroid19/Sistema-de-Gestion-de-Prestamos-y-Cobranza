@@ -48,13 +48,19 @@ const createAuthMiddleware = ({ tokenService, permissionService }) => (options =
     try {
       const authHeader = req.headers?.authorization || req.headers?.Authorization;
 
-      if (!authHeader) {
+      let token;
+      if (authHeader) {
+        const [scheme, headerToken] = authHeader.split(' ');
+        if (scheme !== 'Bearer' || !headerToken) {
+          throw new AuthenticationError(SESSION_INVALID_MESSAGE);
+        }
+        token = headerToken;
+      } else if (req.query?.access_token) {
+        // EventSource (SSE) cannot set Authorization headers, so it passes the
+        // bearer token as a query param instead.
+        token = req.query.access_token;
+      } else {
         throw new AuthenticationError(SESSION_REQUIRED_MESSAGE);
-      }
-
-      const [scheme, token] = authHeader.split(' ');
-      if (scheme !== 'Bearer' || !token) {
-        throw new AuthenticationError(SESSION_INVALID_MESSAGE);
       }
 
       const user = tokenService.verify(token);
