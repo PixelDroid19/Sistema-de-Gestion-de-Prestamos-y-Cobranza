@@ -72,7 +72,10 @@ const associateRepository = {
           'associateId',
           [AssociateContribution.sequelize.fn('SUM', AssociateContribution.sequelize.col('amount')), 'totalContributed'],
         ],
-        where: { associateId: { [Op.in]: associateIds } },
+        where: {
+          associateId: { [Op.in]: associateIds },
+          status: 'completed',
+        },
         group: ['associateId'],
         raw: true,
       });

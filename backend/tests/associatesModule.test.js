@@ -481,6 +481,36 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
   assert.equal(Object.hasOwn(report, 'loans'), false);
 });
 
+test('createListAssociateFinancialDetails excludes non-completed contributions from capital totals', async () => {
+  const listAssociateFinancialDetails = createListAssociateFinancialDetails({
+    associateRepository: {
+      async findById(id) {
+        return { id, name: 'Partner One', participationPercentage: '25.0000', interestType: 'monthly', interestRate: '2.0000' };
+      },
+      async listContributionsByAssociate() {
+        return [
+          { id: 1, amount: 1000, status: 'completed', contributionDate: new Date('2026-04-01T00:00:00.000Z') },
+          { id: 2, amount: 500, status: 'pending', contributionDate: new Date('2026-04-10T00:00:00.000Z') },
+          { id: 3, amount: 250, status: 'annulled', contributionDate: new Date('2026-04-12T00:00:00.000Z') },
+          { id: 4, amount: 125, status: 'manual_hold', contributionDate: new Date('2026-04-14T00:00:00.000Z') },
+        ];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+    },
+  });
+
+  const report = await listAssociateFinancialDetails({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.equal(report.summary.totalContributed, 1000);
+  assert.equal(report.summary.currentCapital, 1000);
+  assert.equal(report.contributions.length, 4);
+});
+
 test('createGetAssociateTracking aggregates investor obligations inside associates module', async () => {
   let forwardedFilters = null;
   const getAssociateTracking = createGetAssociateTracking({
@@ -556,6 +586,50 @@ test('createGetAssociateTracking aggregates investor obligations inside associat
   assert.equal(tracking.recentCapitalReturns[0].amount, 500000);
   assert.equal(tracking.recentCapitalReturns[0].createdBy.name, 'Tesorería');
   assert.equal(tracking.recentContributions[0].status, 'completed');
+});
+
+test('createGetAssociateTracking excludes non-completed contributions from capital tracking totals', async () => {
+  const getAssociateTracking = createGetAssociateTracking({
+    clock: () => new Date('2026-05-10T00:00:00.000Z'),
+    associateRepository: {
+      async getTrackingDataset() {
+        return {
+          associates: [
+            {
+              id: 12,
+              name: 'Socio Imagen',
+              status: 'active',
+              participationPercentage: '50.0000',
+              interestType: 'monthly',
+              interestRate: '2.0000',
+              interestPaymentDay: 15,
+              interestPaymentMonth: null,
+            },
+          ],
+          contributions: [
+            { id: 1, associateId: 12, amount: 1000, status: 'completed', contributionDate: new Date('2026-04-01T00:00:00.000Z') },
+            { id: 2, associateId: 12, amount: 500, status: 'pending', contributionDate: new Date('2026-04-02T00:00:00.000Z') },
+            { id: 3, associateId: 12, amount: 250, status: 'annulled', contributionDate: new Date('2026-04-03T00:00:00.000Z') },
+          ],
+          distributions: [],
+          installments: [],
+        };
+      },
+      async updateInstallmentStatus() {
+        throw new Error('updateInstallmentStatus should not be called');
+      },
+    },
+  });
+
+  const tracking = await getAssociateTracking({
+    actor: { id: 1, role: 'admin' },
+    filters: {},
+  });
+
+  assert.equal(tracking.summary.totalCapital, 1000);
+  assert.equal(tracking.associates[0].totalContributed, 1000);
+  assert.equal(tracking.associates[0].currentCapital, 1000);
+  assert.equal(tracking.recentContributions.length, 3);
 });
 
 test('createCreateAssociateCapitalReturn reduces current capital and reprojections pending interest', async () => {
@@ -767,6 +841,97 @@ test('createCreateAssociateContribution schedules interest from historical contr
   assert.equal(calls[1][1].capitalBase, 1500000);
   assert.equal(calls[1][1].amount, 32500);
   assert.equal(calls[1][1].interestRate, '2.1667');
+});
+
+test('createCreateAssociateContribution wraps contribution persistence and interest projection in one transaction', async () => {
+  const calls = [];
+  const createAssociateContribution = createCreateAssociateContribution({
+    associateRepository: {
+      async findById() {
+        return { id: 12, interestType: 'monthly', interestRate: '1.5000', interestPaymentDay: 10 };
+      },
+      async runInTransaction(work) {
+        calls.push(['runInTransaction']);
+        return work('tx-1');
+      },
+      async listContributionsByAssociate(_associateId, options) {
+        calls.push(['listContributionsByAssociate', options]);
+        return [{ amount: 500000, status: 'completed', interestTypeSnapshot: 'monthly', interestRateSnapshot: '1.5000' }];
+      },
+      async listProfitDistributionsByAssociate(_associateId, options) {
+        calls.push(['listProfitDistributionsByAssociate', options]);
+        return [];
+      },
+      async findInstallmentsByAssociateId(_associateId, options) {
+        calls.push(['findInstallmentsByAssociateId', options]);
+        return [];
+      },
+      async createContribution(payload, options) {
+        calls.push(['createContribution', payload, options]);
+        return { id: 4, ...payload };
+      },
+      async createInstallment(payload, options) {
+        calls.push(['createInstallment', payload, options]);
+        return { id: 5, ...payload };
+      },
+    },
+  });
+
+  await createAssociateContribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 500000, notes: 'Capital con transacción' },
+  });
+
+  assert.equal(calls[0][0], 'runInTransaction');
+  assert.equal(calls[1][0], 'createContribution');
+  assert.equal(calls[1][2].transaction, 'tx-1');
+  assert.equal(calls[2][0], 'listContributionsByAssociate');
+  assert.equal(calls[2][1].transaction, 'tx-1');
+  assert.equal(calls[3][0], 'listProfitDistributionsByAssociate');
+  assert.equal(calls[3][1].transaction, 'tx-1');
+  assert.equal(calls[4][0], 'findInstallmentsByAssociateId');
+  assert.equal(calls[4][1].transaction, 'tx-1');
+  assert.equal(calls[5][0], 'createInstallment');
+  assert.equal(calls[5][2].transaction, 'tx-1');
+});
+
+test('createCreateAssociateContribution does not schedule interest for pending contributions without active capital', async () => {
+  const calls = [];
+  const createAssociateContribution = createCreateAssociateContribution({
+    associateRepository: {
+      async findById() {
+        return { id: 12, interestType: 'monthly', interestRate: '1.5000', interestPaymentDay: 10 };
+      },
+      async listContributionsByAssociate() {
+        return [{ amount: 500000, status: 'pending', interestTypeSnapshot: 'monthly', interestRateSnapshot: '1.5000' }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+      async createContribution(payload) {
+        calls.push(['createContribution', payload]);
+        return { id: 4, ...payload };
+      },
+      async createInstallment(payload) {
+        calls.push(['createInstallment', payload]);
+        return { id: 5, ...payload };
+      },
+    },
+  });
+
+  await createAssociateContribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 500000, status: 'pending', notes: 'Aporte en conciliación' },
+  });
+
+  assert.equal(calls[0][0], 'createContribution');
+  assert.equal(calls[0][1].status, 'pending');
+  assert.equal(calls.some(([name]) => name === 'createInstallment'), false);
 });
 
 test('associate money movement use cases reject ambiguous currency amounts', async () => {

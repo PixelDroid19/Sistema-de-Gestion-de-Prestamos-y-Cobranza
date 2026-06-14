@@ -134,6 +134,16 @@ const normalizeAssociateContributionStatus = (value) => {
   return normalizedValue;
 };
 
+const contributionCountsTowardCapital = (contribution) => String(
+  contribution?.status === undefined || contribution?.status === null || contribution?.status === ''
+    ? 'completed'
+    : contribution.status,
+).trim().toLowerCase() === 'completed';
+
+const filterCapitalBearingContributions = (contributions = []) => (
+  contributions.filter(contributionCountsTowardCapital)
+);
+
 const ensureAssociateAcceptsFinancialOperations = (associate) => {
   if (String(associate?.status || '').toLowerCase() === 'inactive') {
     throw new ValidationError(INACTIVE_ASSOCIATE_FINANCIAL_OPERATION_MESSAGE);
@@ -427,7 +437,7 @@ const allocateCentsByWeight = ({ buckets, totalCents, getWeight }) => {
 };
 
 const buildContributionCapitalState = ({ associate, contributions = [], distributions = [] }) => {
-  const capitalBuckets = [...contributions]
+  const capitalBuckets = [...filterCapitalBearingContributions(contributions)]
     .sort((left, right) => sortRowsByOperationalDateAsc(left, right, (row) => row.contributionDate))
     .map((contribution) => {
       const originalAmountCents = amountToCents(contribution.amount);
@@ -1197,7 +1207,8 @@ const createListAssociateFinancialDetails = ({ associateRepository }) => async (
     capitalReturns,
     interestWithdrawals,
   } = splitAssociateDistributions(distributions);
-  const totalContributed = contributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const capitalBearingContributions = filterCapitalBearingContributions(contributions);
+  const totalContributed = capitalBearingContributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const totalCapitalReturned = capitalReturns.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const totalManualInterestPaid = interestWithdrawals.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const totalScheduledInterestPaid = installments
@@ -1412,6 +1423,7 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
     const associateId = Number(associate.id);
     const contributions = contributionsByAssociate.get(associateId) || [];
     const distributions = distributionsByAssociate.get(associateId) || [];
+    const capitalBearingContributions = filterCapitalBearingContributions(contributions);
     const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
     const { capitalReturns, interestWithdrawals } = splitAssociateDistributions(distributions);
     const installments = installmentsByAssociate.get(associateId) || [];
@@ -1425,7 +1437,7 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
 
     return {
       associate,
-      totalContributed: sumAmounts(contributions),
+      totalContributed: sumAmounts(capitalBearingContributions),
       currentCapital: roundCurrency(capitalState.totalCurrentCapital),
       totalCapitalReturned: capitalReturns.reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
       interestPending: sumAmounts(pendingInstallments),
@@ -1575,7 +1587,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       throw new ValidationError('El monto del aporte debe ser mayor a 0');
     }
 
-    const contribution = await associateRepository.createContribution({
+    const contributionPayload = {
       associateId: associate.id,
       amount,
       contributionDate: normalizeOptionalOperationDate(payload.contributionDate, 'contributionDate'),
@@ -1583,15 +1595,24 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       ...buildContributionTermsSnapshot(associate),
       createdByUserId: actor.id,
       notes: payload.notes ? String(payload.notes).trim() : null,
-    });
+    };
 
-    await ensureNextInterestInstallment({
-      associateRepository,
-      associate,
-      fromDate: contribution.contributionDate || payload.contributionDate || new Date(),
-    });
+    const createContributionWithProjection = async (transaction) => {
+      const contribution = await associateRepository.createContribution(contributionPayload, { transaction });
 
-    return contribution;
+      await ensureNextInterestInstallment({
+        associateRepository,
+        associate,
+        transaction,
+        fromDate: contribution.contributionDate || contributionPayload.contributionDate || new Date(),
+      });
+
+      return contribution;
+    };
+
+    return typeof associateRepository.runInTransaction === 'function'
+      ? associateRepository.runInTransaction(createContributionWithProjection)
+      : createContributionWithProjection();
   };
 
   if (auditService) {
