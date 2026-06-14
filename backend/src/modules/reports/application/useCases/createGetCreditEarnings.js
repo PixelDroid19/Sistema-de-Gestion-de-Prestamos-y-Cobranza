@@ -12,18 +12,8 @@ const createGetCreditEarnings = ({ reportRepository }) => async ({ actor }) => {
 
   const totalCredits = loans.length;
   const totalLoanAmount = loans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0);
-
-  // Calculate total interest earnings from completed payments
-  let totalInterestEarnings = 0;
-  for (const loan of loans) {
-    const _payments = await reportRepository.listRecoveryLoans();
-    // Use existing payment data if available, otherwise use loan's totalPaid as proxy
-    totalInterestEarnings += Number(loan.totalPaid || 0) - Number(loan.amount || 0);
-  }
-
-  // More accurate: calculate from payments in the system
   const metrics = await reportRepository.getPerformanceMetrics(new Date().getFullYear());
-  totalInterestEarnings = metrics.totalInterest;
+  const totalInterestEarnings = Number(metrics.totalInterest || 0);
 
   const profitMargin = totalLoanAmount > 0 ? ((totalInterestEarnings / totalLoanAmount) * 100) : 0;
 

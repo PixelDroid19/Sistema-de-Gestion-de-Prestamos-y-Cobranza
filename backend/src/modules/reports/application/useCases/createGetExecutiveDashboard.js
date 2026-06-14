@@ -16,6 +16,12 @@ const createGetExecutiveDashboard = ({ reportRepository, paymentRepository }) =>
 
   const monthlySeries = mapMonthlySeries({ year: currentYear, rows: monthlyData, valueKey: 'totalEarnings' });
   const monthlyEarnings = monthlySeries.map((entry) => entry.value);
+  const monthlyDetailsByMonth = monthlyData.reduce((accumulator, entry) => {
+    if (entry?.month) {
+      accumulator[entry.month] = entry;
+    }
+    return accumulator;
+  }, {});
 
   const movingAvg = calculateMovingAverage(monthlyEarnings, 3);
   const overallTrend = calculateTrend(monthlyEarnings);
@@ -41,12 +47,15 @@ const createGetExecutiveDashboard = ({ reportRepository, paymentRepository }) =>
         earningsTrend: overallTrend,
         earningsMovingAverage: formatMoney(movingAvg[movingAvg.length - 1] || 0),
       },
-      monthlyEarnings: monthlyEarnings.map((e, i) => ({
-        month: monthlySeries[i].month,
-        earnings: formatMoney(e),
-        interest: formatMoney(monthlyData[i]?.totalInterest || 0),
-        penalties: formatMoney(monthlyData[i]?.totalPenalties || 0),
-      })),
+      monthlyEarnings: monthlySeries.map((entry) => {
+        const monthDetails = monthlyDetailsByMonth[entry.month] || {};
+        return {
+          month: entry.month,
+          earnings: formatMoney(entry.value),
+          interest: formatMoney(monthDetails.totalInterest || 0),
+          penalties: formatMoney(monthDetails.totalPenalties || 0),
+        };
+      }),
     },
   };
 };

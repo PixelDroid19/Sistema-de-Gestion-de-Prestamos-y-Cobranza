@@ -28,7 +28,7 @@ const createGetForecastAnalysis = ({ reportRepository }) => async ({ actor, year
         earnings: formatMoney(e),
       })),
       forecast: {
-        nextMonthEarnings: formatMoney(forecast.forecast),
+        nextMonthEarnings: formatMoney(Math.max(0, forecast.forecast)),
         slope: formatMoney(forecast.slope),
         intercept: formatMoney(forecast.intercept),
       },

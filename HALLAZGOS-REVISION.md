@@ -26,8 +26,12 @@
 | 7 | ALTA | funcional/dinero | `backend/src/modules/credits/application/paymentApplicationService.js:953-1040` | Pago parcial en mora descontaba la mora del monto pero no la registraba → falla integridad y se pierde la mora | La mora se registra en `penaltyApplied` y `paymentMetadata` |
 | 8 | ALTA | funcional/dinero | `backend/src/modules/associates/application/useCases.js:429-443` | Contribuciones `pending`/`annulled`/`manual_hold` contaban como capital vigente y además podían disparar cuotas de interés | Solo aportes `completed` cuentan para capital vigente, tracking, detalle financiero y programación de intereses |
 | 9 | MEDIA | funcional/dinero | `backend/src/modules/associates/application/useCases.js:1578-1609` | El alta de aportes persistía la contribución y luego proyectaba intereses sin transacción → podía dejar datos a medias | Alta del aporte y proyección de intereses envueltas en `runInTransaction` cuando el repositorio lo soporta |
+| 10 | MEDIA | funcional/dinero | `backend/src/modules/reports/application/useCases/createGetForecastAnalysis.js:31` | La proyección financiera podía devolver utilidad negativa para el siguiente mes y la UI terminaba mostrando un ingreso imposible | La proyección mostrada se acota a `0` igual que `next-month-projection`, manteniendo pendiente y tendencia sin tocar |
+| 11 | MEDIA | funcional/dinero | `backend/src/modules/reports/application/useCases/createGetExecutiveDashboard.js:38-43` | El dashboard alineaba utilidades con meses normalizados, pero interés y mora salían por índice del array crudo y podían correrse cuando faltaban meses | Interés y mora ahora se resuelven por clave `YYYY-MM` igual que la serie mensual normalizada |
+| 12 | MEDIA | poor-impl | `backend/src/modules/reports/application/useCases/createGetCreditEarnings.js:17-23` | El reporte hacía una consulta `listRecoveryLoans()` por cada crédito y luego descartaba el resultado, generando N+1 y cómputo muerto | Se eliminó el escaneo por crédito y el KPI toma directamente el agregado canónico de `getPerformanceMetrics()` |
+| 13 | MEDIA | funcional/dinero | `backend/src/modules/reports/application/useCases/createGetNextMonthProjection.js:12-34` | La proyección de enero-mayo perdía meses del año previo al consultar solo el año actual, degradando promedio, confianza y forecast | La ventana histórica ahora carga todos los años que cubren los últimos 6 meses y preserva el historial real en cruces de año |
 
-**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports` y `associates`, más repositorio de `associates`), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde.
+**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde.
 
 ---
 
@@ -49,10 +53,6 @@
 ### Reportes
 | Sev | Archivo:línea | Qué comprobar |
 |-----|---------------|---------------|
-| MEDIA | `reports/.../createGetExecutiveDashboard.js:44-49` | Desalineación de interés/mora mensual con los meses |
-| MEDIA | `reports/.../createGetNextMonthProjection.js:16-62` | Pierde historial del año previo en ene–may; rellena meses faltantes con cero y los cuenta como datos reales (afecta promedio y confianza) |
-| MEDIA | `reports/.../createGetForecastAnalysis.js:30-34` | Proyección no acotada → puede mostrar COP negativo |
-| MEDIA | `reports/.../createGetCreditEarnings.js:17-26` | Query full-table por cada crédito y se descarta el resultado (N+1 + cómputo muerto) |
 | MEDIA | `reports/.../createExportCreditsExcel.js:221` | Conteo de "en mora" con precedencia de estado inconsistente entre Excel y PDF |
 | MEDIA | `reports/application/excelExportFormats.js:93-121` | Fechas (solo día) en Excel en UTC mientras fecha-hora usa America/Bogota → corre el día |
 | BAJA | `reports/application/reportInternals.js:18-85` | Builders PDF/CSV byte-idénticos duplicados respecto a `reportHelpers.js` |

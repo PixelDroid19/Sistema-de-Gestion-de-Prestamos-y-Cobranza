@@ -6,11 +6,12 @@ const { ensureAdmin, formatMoney } = require('@/modules/reports/application/repo
  * Returns projected earnings for the next month based on historical data.
  * GET /api/reports/next-month-projection
  */
-const createGetNextMonthProjection = ({ reportRepository }) => async ({ actor }) => {
+const createGetNextMonthProjection = ({ reportRepository, clock = () => new Date() }) => async ({ actor }) => {
   ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder a reportes financieros.');
 
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth(); // 0-indexed
+  const currentDate = clock();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth(); // 0-indexed
 
   // Get 6 months of historical data for projection
   const historicalMonths = [];
@@ -21,7 +22,11 @@ const createGetNextMonthProjection = ({ reportRepository }) => async ({ actor })
     historicalMonths.push({ year, month: String(month).padStart(2, '0') });
   }
 
-  const monthlyData = await reportRepository.getMonthlyEarnings(currentYear);
+  const historicalYears = [...new Set(historicalMonths.map((entry) => entry.year))];
+  const monthlyDataByYear = await Promise.all(
+    historicalYears.map((year) => reportRepository.getMonthlyEarnings(year))
+  );
+  const monthlyData = monthlyDataByYear.flat();
 
   // Build earnings map
   const earningsByMonth = {};
