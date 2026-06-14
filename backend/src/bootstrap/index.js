@@ -13,7 +13,8 @@ const { loanRepository, alertRepository } = require('@/modules/credits/infrastru
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 const { createOverdueAlertSyncService } = require('@/modules/credits/application/overdueAlertSyncService');
 const { createOverdueAlertScheduler } = require('@/modules/credits/application/overdueAlertScheduler');
-const { domainEventBus, wireEventLogger } = require('@/modules/shared/events');
+const { domainEventBus, wireEventLogger, wireEventAuditBridge } = require('@/modules/shared/events');
+const { auditService: defaultAuditService } = require('@/modules/audit/domain/services');
 const { parseTcpPort } = require('./ports');
 
 const REQUIRED_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'JWT_SECRET'];
@@ -65,6 +66,10 @@ const bootstrap = async ({
   buildModuleRegistry: getModuleRegistry = buildModuleRegistry,
   createSharedRuntime: buildSharedRuntime = createSharedRuntime,
   scheduler = sharedOverdueAlertScheduler,
+  domainEventBus: eventBus = domainEventBus,
+  wireEventLogger: connectEventLogger = wireEventLogger,
+  wireEventAuditBridge: connectEventAuditBridge = wireEventAuditBridge,
+  auditService: auditService = defaultAuditService,
   createScheduler = () => {
     const loanViewService = createLoanViewService();
     const syncService = createOverdueAlertSyncService({ loanRepository, alertRepository, loanViewService });
@@ -81,6 +86,8 @@ const bootstrap = async ({
   await ensureAssociateInstallmentEnums({ database });
   await seedFinancialProducts();
   const sharedRuntime = buildSharedRuntime();
+  connectEventLogger({ domainEventBus: eventBus });
+  connectEventAuditBridge({ domainEventBus: eventBus, auditService });
 
   if (!scheduler) {
     sharedOverdueAlertScheduler = createScheduler();
@@ -89,8 +96,6 @@ const bootstrap = async ({
 
   const overdueAlerts = await scheduler.start();
   const modules = getModuleRegistry({ sharedRuntime });
-
-  wireEventLogger({ domainEventBus });
 
   return {
     ready: true,

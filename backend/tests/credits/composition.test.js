@@ -133,6 +133,7 @@ test('createCreditsComposition only exposes runtime internals on the composition
 
   const publicPorts = createCreditsPublicPorts({ composition });
   assert.deepEqual(Object.keys(publicPorts).sort(), PUBLIC_CREDIT_PORT_KEYS);
+  assert.equal(composition.paymentRouter, undefined);
 });
 
 test('createCreditsPublicPorts filters ports already registered in the shared runtime', () => {

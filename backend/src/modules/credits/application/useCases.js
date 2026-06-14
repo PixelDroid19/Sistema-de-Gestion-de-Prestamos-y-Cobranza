@@ -6,7 +6,7 @@ const { paginateArray } = require('@/modules/shared/pagination');
 const { validateInterestRate } = require('@/modules/shared/validators');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { isAdministrativeLoginRole } = require('@/modules/shared/roles');
-const { buildDateFormatMessage, buildDateRangeMessage } = require('@/modules/shared/dateUtils');
+const { buildDateRangeMessage } = require('@/modules/shared/dateUtils');
 const {
   normalizeAttachmentVisibility,
   ensureUploadedFile,
@@ -320,15 +320,10 @@ const buildFollowUpNoteEntry = ({ actor, note, status = null, kind = 'follow_up'
 
 const normalizeDateOnly = (value, field = 'date') => {
   if (!value) {
-    return new Date();
+    return normalizeUtcDateOnly(new Date(), field);
   }
 
-  const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new ValidationError(buildDateFormatMessage(field));
-  }
-
-  return parsed;
+  return normalizeUtcDateOnly(value, field);
 };
 
 const calculateDaysOverdue = ({ dueDate, asOfDate }) => {

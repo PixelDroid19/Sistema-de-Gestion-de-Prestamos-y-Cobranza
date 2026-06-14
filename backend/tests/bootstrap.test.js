@@ -150,10 +150,53 @@ test('bootstrap authenticates infrastructure, syncs schema, and returns module r
   assert.deepEqual(result.overdueAlerts, { started: true, intervalMs: 3600000 });
 });
 
+test('bootstrap wires the event logger and audit bridge onto the domain event bus', async () => {
+  const calls = [];
+  const fakeBus = { id: 'event-bus' };
+  const fakeAuditService = { log() {} };
+
+  await bootstrap({
+    env: {
+      DB_NAME: 'lendflow',
+      DB_USER: 'postgres',
+      DB_PASSWORD: 'secret',
+      DB_HOST: 'localhost',
+      DB_PORT: '5432',
+      JWT_SECRET: 'jwt-secret',
+    },
+    sequelize: {
+      async authenticate() {},
+    },
+    syncSchema: async () => ({ mode: 'verify', status: 'verified', tables: [] }),
+    seedFinancialProducts: async () => ({}),
+    createSharedRuntime: () => ({}),
+    buildModuleRegistry: () => [],
+    scheduler: {
+      async start() {
+        return { started: true };
+      },
+    },
+    domainEventBus: fakeBus,
+    auditService: fakeAuditService,
+    wireEventLogger: ({ domainEventBus }) => {
+      calls.push(['logger', domainEventBus]);
+    },
+    wireEventAuditBridge: ({ domainEventBus, auditService }) => {
+      calls.push(['auditBridge', domainEventBus, auditService]);
+    },
+  });
+
+  assert.deepEqual(calls, [
+    ['logger', fakeBus],
+    ['auditBridge', fakeBus, fakeAuditService],
+  ]);
+});
+
 test('startServer passes bootstrap shared runtime into app composition', async () => {
   const sharedRuntime = { id: 'runtime-2' };
   const modules = [{ name: 'auth', basePath: '/api/auth', router: {} }];
   const listenCalls = [];
+  const workerStarts = [];
   const server = {
     close(callback) {
       callback?.();
@@ -178,10 +221,12 @@ test('startServer passes bootstrap shared runtime into app composition', async (
         },
       };
     },
-    createWorker: () => ({ start() {}, stop() {} }),
+    createWorker: () => ({ start() { workerStarts.push('outbox'); }, stop() {} }),
+    createAuditWorker: () => ({ start() { workerStarts.push('auditRetention'); }, stop() {} }),
   });
 
   assert.deepEqual(listenCalls, [0]);
+  assert.deepEqual(workerStarts, ['outbox', 'auditRetention']);
   result.server.close();
 });
 

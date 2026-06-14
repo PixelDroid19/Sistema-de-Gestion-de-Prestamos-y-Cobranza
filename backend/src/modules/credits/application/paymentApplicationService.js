@@ -15,7 +15,7 @@ const {
   assertCapitalPaymentAllowed,
   assertPayoffAllowed,
 } = require('./paymentEligibility');
-const { normalizeOperationalDate } = require('@/modules/shared/dateUtils');
+const { normalizeOperationalDate, normalizeDateOnly } = require('@/modules/shared/dateUtils');
 const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
 
 const INSTALLMENT_PAYMENT_TYPE = 'installment';
@@ -52,6 +52,16 @@ const CANCELLABLE_STATUSES = new Set(['pending', 'overdue']);
 
 class PendingIdempotencyError extends Error {}
 
+const calculateDaysOverdue = (dueDate, asOfDate = new Date()) => {
+  const normalizedDueDate = normalizeDateOnly(dueDate, 'dueDate');
+  const normalizedAsOfDate = normalizeDateOnly(asOfDate, 'paymentDate');
+  const diffMs = normalizedAsOfDate.getTime() - normalizedDueDate.getTime();
+  if (diffMs <= 0) {
+    return 0;
+  }
+  return Math.floor(diffMs / (24 * 60 * 60 * 1000));
+};
+
 /**
  * Determine if an installment is overdue based on its due date.
  * @param {object} row - Installment row
@@ -62,8 +72,7 @@ const isInstallmentOverdue = (row, asOfDate = new Date()) => {
   if (row.status === 'paid' || row.status === 'annulled') {
     return false;
   }
-  const dueDate = new Date(row.dueDate);
-  return dueDate < asOfDate;
+  return calculateDaysOverdue(row.dueDate, asOfDate) > 0;
 };
 
 const normalizeScheduleStatuses = (schedule, asOfDate = new Date()) => {
@@ -83,12 +92,7 @@ const calculateInstallmentLateFee = (row, loan, asOfDate = new Date()) => {
   if (row.status === 'paid' || row.status === 'annulled') {
     return 0;
   }
-  const dueDate = new Date(row.dueDate);
-  if (dueDate >= asOfDate) {
-    return 0;
-  }
-
-  const daysOverdue = Math.floor((asOfDate.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000));
+  const daysOverdue = calculateDaysOverdue(row.dueDate, asOfDate);
   if (daysOverdue <= 0) return 0;
 
   const overdueAmount = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));

@@ -3,7 +3,6 @@ const { createPaymentApplicationService } = require('./application/paymentApplic
 const { createLoanViewService } = require('./application/loanFinancials');
 const { createRecoveryStatusGuard } = require('./application/recoveryStatusGuard');
 const { createCreditsInfrastructure } = require('./infrastructure/repositories');
-const { createPaymentRouter } = require('./presentation/paymentRouter');
 const { createOutboxEventRepository } = require('./infrastructure/outboxEventRepository');
 const { createEventPublisher } = require('./application/eventPublisher');
 
@@ -39,7 +38,6 @@ const createCreditsComposition = ({
     eventPublisher,
   }),
   outboxEventRepository = createOutboxEventRepository(),
-  paymentRouter = createPaymentRouter({ paymentApplicationService }),
 } = {}) => {
   const composition = {
     ...infrastructure,
@@ -48,7 +46,6 @@ const createCreditsComposition = ({
     recoveryStatusGuard,
     paymentApplicationService,
     outboxEventRepository,
-    paymentRouter,
   };
 
   sharedRuntime?.registerModulePorts?.('credits', pickCreditsPublicPorts(composition));

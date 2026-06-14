@@ -93,6 +93,26 @@ test('markAsProcessing ignores already claimed rows', async () => {
   assert.equal(claimed, 0);
 });
 
+test('markAsProcessing normalizes invalid delivery attempts to zero before claiming the row', async () => {
+  const model = createInMemoryOutboxModel();
+  const repo = createOutboxEventRepository({ outboxEventModel: model });
+
+  const created = await repo.create({
+    aggregateType: 'LoanTransaction',
+    aggregateId: 'tx-invalid-attempts',
+    eventType: 'AmortizationCalculatedEvent',
+    payload: { _deliveryAttempts: 'no-numero' },
+    status: 'PENDING',
+  });
+
+  const claimed = await repo.markAsProcessing(created.id);
+  const updated = await model.findByPk(created.id);
+
+  assert.equal(claimed, 1);
+  assert.equal(updated.status, 'PROCESSING');
+  assert.equal(updated.payload._deliveryAttempts, 0);
+});
+
 test('markAsProcessed only succeeds for processing rows', async () => {
   const model = createInMemoryOutboxModel();
   const repo = createOutboxEventRepository({ outboxEventModel: model });

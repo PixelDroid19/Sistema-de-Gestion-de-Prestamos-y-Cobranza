@@ -24,7 +24,7 @@ const createOutboxEventRepository = ({ outboxEventModel = OutboxEvent } = {}) =>
       ...(currentPayload || {}),
       _deliveryAttempts: Number.isFinite(Number(currentPayload._deliveryAttempts))
         ? Number(currentPayload._deliveryAttempts)
-        : Number(currentPayload._deliveryAttempts || 0),
+        : 0,
       _processingStartedAt: startedAt,
       ...extraPayload,
     };

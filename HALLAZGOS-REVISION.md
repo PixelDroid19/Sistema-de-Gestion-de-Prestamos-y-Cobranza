@@ -35,8 +35,12 @@
 | 15 | BAJA | poor-impl | `backend/src/modules/reports/application/reportInternals.js:18-85` | `reportInternals` mantenía copias locales de `buildCsv` y `buildPdfBuffer` mientras `reportHelpers` ya tenía las mismas implementaciones, abriendo una ruta de deriva silenciosa | `reportInternals` quedó consolidado sobre los helpers compartidos y se eliminaron exports internos no consumidos |
 | 16 | MEDIA | funcional/dinero | `backend/src/modules/credits/application/useCases.js:1059-1063` | Aprobar un crédito reescribía `startDate`/`endDate` con la fecha actual, pero dejaba intacto el cronograma persistido; eso desalineaba desembolso, snapshot y vencimientos | La aprobación ya no toca fechas congeladas del crédito: cambia solo el estado y preserva la fecha de desembolso y el cronograma persistido |
 | 17 | MEDIA | funcional/dinero | `backend/src/modules/credits/application/loanFinancials.js:144-150` | La reconstrucción legacy del cronograma ignoraba `calculationMethod`; un crédito `SIMPLE` o `COMPOUND` sin `emiSchedule` persistido se reconstruía como francés | `getCanonicalLoanView` ahora reutiliza el método persistido del crédito/snapshot al regenerar el schedule legacy |
+| 18 | MEDIA | funcional/dinero | `backend/src/modules/credits/application/useCases.js:321-366` + `backend/src/modules/credits/application/paymentApplicationService.js:55-104` | La mora de cuotas con `dueDate` persistido como timestamp se calculaba por hora real en vez de día operativo; la cotización y el cobro podían dejar un día vencido sin mora hasta completar 24 horas exactas | Ambos caminos se unificaron sobre fecha operativa sin hora (`normalizeUtcDateOnly`/`normalizeDateOnly`) para cotizar, marcar vencimiento y cobrar la misma mora por día |
+| 19 | BAJA | poor-impl | `backend/src/modules/credits/composition.js:1-55` | La composición construía un `paymentRouter` interno que nunca se exponía ni se consumía; el router real se volvía a crear en `presentation/router.js` | Se eliminó el router interno muerto y se fijó con prueba de composición |
+| 20 | BAJA | poor-impl | `backend/src/modules/credits/index.js:43-58` | `createCreditsModule` destructuraba `_userRepository` desde la composición aunque el puerto real es `userRepository` y ese valor no participaba en ningún flujo | Se retiró la destructuración muerta para evitar ruido y falsos positivos en revisiones |
+| 21 | BAJA | funcional | `backend/src/modules/credits/infrastructure/outboxEventRepository.js:22-30` | `markAsProcessing` dejaba `_deliveryAttempts` en `NaN` cuando el payload traía un valor truthy inválido, contaminando los reintentos del outbox | La normalización ahora cae correctamente a `0` y quedó cubierta con prueba dedicada del repositorio |
 
-**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, `reportsExcelExport`, `reportsModule`, `creditsModule`, `credits/loanLifecycle`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde.
+**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, `reportsExcelExport`, `reportsModule`, `creditsModule`, `paymentApplicationService`, `credits/composition`, `credits/outboxEventRepository`, `credits/loanLifecycle`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde.
 
 ---
 
@@ -45,6 +49,7 @@
 | # | Sev | Categoría | Archivo | Verificación | Resultado |
 |---|-----|-----------|---------|--------------|-----------|
 | A | MEDIA | fecha/export | `backend/src/modules/reports/application/excelExportFormats.js:93-121` | La fecha `dd/mm/yyyy` usa extracción UTC a propósito para preservar el día operativo cuando el origen llega como `YYYY-MM-DD` o `00:00:00Z`; la fecha-hora sí se localiza a `America/Bogota` | Se conserva la implementación actual y se añadió cobertura que fija ambos comportamientos en `reportsExcelExport.test.js` |
+| B | BAJA | cálculo/mora | `backend/src/modules/credits/domain/calculation/lateFeeCalculator.js:22-59` | El motor conserva ramas `FLAT` y `TIERED`, pero la configuración operativa, las validaciones y el contrato OpenAPI solo aceptan `NONE`, `SIMPLE` y `COMPOUND`; además `configModule.test.js` ya cubre el rechazo explícito de `FLAT/TIERED` | No es un bug activo del producto: esos modos no soportados se bloquean antes de persistirse, así que no se cambia el motor en esta pasada |
 
 ---
 
@@ -55,11 +60,6 @@
 ### Créditos / cálculo / pagos
 | Sev | Archivo:línea | Qué comprobar |
 |-----|---------------|---------------|
-| MEDIA | `credits/application/useCases.js:334-360` | La mora **cotizada** (normalización por día) difiere de la **cobrada** (timestamp wall-clock) |
-| BAJA | `credits/domain/calculation/lateFeeCalculator.js:22-59` | Modos FLAT/TIERED calculan 0 porque ningún caller pasa `flatFeePerDay`/`baseRate` |
-| BAJA | `credits/composition.js:42,51` | `paymentRouter` construido y mal cableado, nunca usado |
-| BAJA | `credits/index.js:46` | Destructura `_userRepository` pero composition expone `userRepository` → puerto `undefined` |
-| BAJA | `credits/infrastructure/outboxEventRepository.js:25-27` | `markAsProcessing`: ternario no-op que pierde el default-a-0 de `_deliveryAttempts` |
 
 ### Reportes
 | Sev | Archivo:línea | Qué comprobar |

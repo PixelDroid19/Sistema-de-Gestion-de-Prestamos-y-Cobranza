@@ -1,5 +1,7 @@
 const { LOG_CATEGORY, LOG_SEVERITY } = require('@/modules/shared/logCategories');
 
+const EVENT_LOGGER_WIRED = Symbol('credicobranza.eventLoggerWired');
+
 /**
  * Subscribe to all domain event categories and route each event to the
  * appropriate Winston log helper.  Automatically called at bootstrap.
@@ -7,6 +9,13 @@ const { LOG_CATEGORY, LOG_SEVERITY } = require('@/modules/shared/logCategories')
  * @param {{ domainEventBus: import('./domainEventBus').DomainEventBus }} deps
  */
 const wireEventLogger = ({ domainEventBus }) => {
+  if (!domainEventBus?.onCategory) {
+    return () => {};
+  }
+  if (domainEventBus[EVENT_LOGGER_WIRED]) {
+    return domainEventBus[EVENT_LOGGER_WIRED];
+  }
+
   // Lazy-require to avoid circular: logger → requestContext → ... → eventLogger → logger
   const getLogger = () => require('@/utils/logger');
 
@@ -45,10 +54,19 @@ const wireEventLogger = ({ domainEventBus }) => {
     }
   };
 
-  // Subscribe to every category
-  Object.values(LOG_CATEGORY).forEach((cat) => {
-    domainEventBus.onCategory(cat, handler);
+  const unsubscribers = Object.values(LOG_CATEGORY).map((cat) => domainEventBus.onCategory(cat, handler));
+  const unsubscribe = () => {
+    unsubscribers.forEach((unsub) => unsub?.());
+    delete domainEventBus[EVENT_LOGGER_WIRED];
+  };
+
+  Object.defineProperty(domainEventBus, EVENT_LOGGER_WIRED, {
+    configurable: true,
+    enumerable: false,
+    value: unsubscribe,
   });
+
+  return unsubscribe;
 };
 
 module.exports = { wireEventLogger };

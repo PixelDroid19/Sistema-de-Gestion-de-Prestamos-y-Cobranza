@@ -1,5 +1,7 @@
 const { LOG_CATEGORY } = require('@/modules/shared/logCategories');
 
+const EVENT_AUDIT_BRIDGE_WIRED = Symbol('credicobranza.eventAuditBridgeWired');
+
 /**
  * Map domain event type prefixes to the AuditLog `module` enum values.
  * Falls back to the prefix itself (uppercased) if no explicit mapping exists.
@@ -67,8 +69,11 @@ const resolveAuditModule = (eventType) => {
  * @param {{ domainEventBus: import('./domainEventBus').DomainEventBus, auditService: object }} deps
  */
 const wireEventAuditBridge = ({ domainEventBus, auditService }) => {
-  if (!auditService?.log) {
+  if (!domainEventBus?.onCategory || !auditService?.log) {
     return; // Audit not wired — skip silently (e.g. in tests without DB).
+  }
+  if (domainEventBus[EVENT_AUDIT_BRIDGE_WIRED]) {
+    return domainEventBus[EVENT_AUDIT_BRIDGE_WIRED];
   }
 
   const bridgeHandler = async (envelope) => {
@@ -104,9 +109,20 @@ const wireEventAuditBridge = ({ domainEventBus, auditService }) => {
   };
 
   // Subscribe to the three auditable categories
-  [LOG_CATEGORY.BUSINESS, LOG_CATEGORY.SECURITY, LOG_CATEGORY.AUDIT].forEach((cat) => {
-    domainEventBus.onCategory(cat, bridgeHandler);
+  const unsubscribers = [LOG_CATEGORY.BUSINESS, LOG_CATEGORY.SECURITY, LOG_CATEGORY.AUDIT]
+    .map((cat) => domainEventBus.onCategory(cat, bridgeHandler));
+  const unsubscribe = () => {
+    unsubscribers.forEach((unsub) => unsub?.());
+    delete domainEventBus[EVENT_AUDIT_BRIDGE_WIRED];
+  };
+
+  Object.defineProperty(domainEventBus, EVENT_AUDIT_BRIDGE_WIRED, {
+    configurable: true,
+    enumerable: false,
+    value: unsubscribe,
   });
+
+  return unsubscribe;
 };
 
 module.exports = { wireEventAuditBridge };

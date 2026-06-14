@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const models = require('@/models');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
+const { createGetInstallmentQuote } = require('@/modules/credits/application/useCases');
 const moduleOwnedPaymentApplicationService = require('@/modules/credits/application/paymentApplicationService');
 const { createPaymentApplicationService } = moduleOwnedPaymentApplicationService;
 const { BusinessRuleViolationError, ValidationError } = require('@/utils/errorHandler');
@@ -269,6 +270,74 @@ test('applyPartialPayment allocates the submitted amount only once across open i
   assert.equal(savedPayment.createdByUserId, 73);
   assert.equal(savedLoan.emiSchedule[0].paidTotal, 50);
   assert.equal(savedLoan.emiSchedule[1].paidTotal, 0);
+});
+
+test('applyPayment charges the same late fee quoted for the same operational day when dueDate keeps a timestamp', async () => {
+  let savedPayment;
+
+  const loan = {
+    id: 2250,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    annualLateFeeRate: 3650,
+    lateFeeMode: 'SIMPLE',
+    termMonths: 1,
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-03-15T15:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        scheduledPayment: 120,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 779, ...payload };
+  });
+
+  const getInstallmentQuote = createGetInstallmentQuote({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return loan;
+      },
+    },
+    loanViewService,
+  });
+
+  const quote = await getInstallmentQuote({
+    actor: { id: 1, role: 'admin' },
+    loanId: 2250,
+    installmentNumber: 1,
+    asOfDate: '2026-03-16',
+  });
+
+  assert.equal(quote.daysOverdue, 1);
+  assert.equal(quote.lateFeeDue, 2);
+
+  const result = await createPaymentApplicationService({ loanViewService }).applyPayment({
+    loanId: 2250,
+    amount: 122,
+    paymentDate: '2026-03-16',
+    paymentMethod: 'cash',
+    actorId: 72,
+  });
+
+  assert.equal(result.allocation.penaltyApplied, 2);
+  assert.equal(savedPayment.penaltyApplied, 2);
 });
 
 test('applyCapitalPayment reduce_term rebuilds the open schedule without marking future installments as paid', async () => {

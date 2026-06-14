@@ -43,7 +43,6 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
   const {
     loanRepository,
     customerRepository,
-    _userRepository,
     attachmentRepository,
     alertRepository,
     promiseRepository,
