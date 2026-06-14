@@ -209,16 +209,24 @@ const compactRepeatedSections = (rows = []) => {
   });
 };
 
+const normalizeRowStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'n/a' ? '' : normalized;
+};
+
+const LATE_CREDIT_STATUSES = new Set(['late', 'defaulted', 'overdue']);
+
+const isLateCredit = (row) => (
+  LATE_CREDIT_STATUSES.has(normalizeRowStatus(row.status))
+  || LATE_CREDIT_STATUSES.has(normalizeRowStatus(row.recoveryStatus))
+);
+
 const buildSummaryRows = (rows) => {
   const totalCustomers = new Set(rows.map((row) => row.customerId).filter(Boolean)).size;
   const totalCredits = rows.length;
-  const normalizeRowStatus = (value) => {
-    const normalized = String(value || '').trim().toLowerCase();
-    return normalized === 'n/a' ? '' : normalized;
-  };
   const activeCredits = rows.filter((row) => !['closed', 'completed', 'paid', 'end'].includes(normalizeRowStatus(row.status))).length;
   const completedCredits = totalCredits - activeCredits;
-  const lateCredits = rows.filter((row) => ['late', 'defaulted', 'overdue'].includes(normalizeRowStatus(row.recoveryStatus) || normalizeRowStatus(row.status))).length;
+  const lateCredits = rows.filter(isLateCredit).length;
   const sum = (key) => roundMoney(rows.reduce((total, row) => total + Number(row[key] || 0), 0));
   const totalLoanAmount = sum('loanAmount');
   const totalAmountWithInterest = sum('totalAmount');
@@ -519,7 +527,7 @@ const buildPdfSummaryLines = (rows) => {
   const counts = countByStatus(rows, [
     ['Activos', (row) => !['closed', 'completed', 'paid'].includes(String(row.status || '').toLowerCase())],
     ['Cerrados', (row) => ['closed', 'completed', 'paid'].includes(String(row.status || '').toLowerCase())],
-    ['Vencidos', (row) => ['defaulted', 'overdue', 'late'].includes(String(row.status || row.recoveryStatus || '').toLowerCase())],
+    ['Vencidos', isLateCredit],
   ]);
   const totalLoanAmount = sumColumn(rows, 'loanAmount');
   const totalPaid = sumColumn(rows, 'totalPaid');

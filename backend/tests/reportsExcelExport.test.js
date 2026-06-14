@@ -56,6 +56,25 @@ test('shared workbook builder writes display-ready values for formatted report c
   assert.equal(row.getCell(6).value, '1,50');
 });
 
+test('shared workbook builder preserves operational day for date-only UTC-midnight timestamps', async () => {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildWorkbookBuffer([{
+    name: 'Formato Fecha Operativa',
+    columns: [
+      { header: 'Fecha', key: 'date', numFmt: 'dd/mm/yyyy' },
+      { header: 'Fecha Registro', key: 'dateTime', numFmt: 'dd/mm/yyyy h:mm AM/PM' },
+    ],
+    rows: [{
+      date: '2026-06-01T00:00:00.000Z',
+      dateTime: '2026-06-01T00:00:00.000Z',
+    }],
+  }]));
+
+  const row = workbook.getWorksheet('Formato Fecha Operativa').getRow(2);
+  assert.equal(row.getCell(1).value, '01/06/2026');
+  assert.equal(row.getCell(2).value, '31/05/2026 7:00 p. m.');
+});
+
 test('report labels use operational fallbacks instead of raw enum-like values', () => {
   assert.equal(formatOperationalStatus('manual_hold'), 'Estado no clasificado');
   assert.equal(formatPaymentType('adjustment_fee'), 'Tipo de pago no clasificado');
@@ -1781,6 +1800,80 @@ test('credits export filters by status (active only excludes closed loans)', asy
   assert.equal(result.success, true);
   assert.equal(result.data.rows.length, 1);
   assert.equal(result.data.rows[0].creditId, 11);
+});
+
+test('credits Excel and PDF exports count delinquent loans consistently when status and recoveryStatus differ', async () => {
+  const {
+    createExportCreditsExcel,
+    createExportCreditsPdf,
+  } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
+
+  const loans = [
+    {
+      id: 21,
+      customerId: 41,
+      amount: 1500000,
+      interestRate: 30,
+      termMonths: 1,
+      status: 'defaulted',
+      recoveryStatus: 'pending',
+      startDate: '2026-04-01T00:00:00.000Z',
+      calculationMethod: 'FRENCH',
+      policySnapshot: {},
+      Customer: { name: 'Cliente Mora Estado', documentNumber: 'D-1', phone: '1', email: 'd1@t.local', status: 'active' },
+      Associate: null,
+      emiSchedule: [],
+    },
+    {
+      id: 22,
+      customerId: 42,
+      amount: 1750000,
+      interestRate: 30,
+      termMonths: 1,
+      status: 'closed',
+      recoveryStatus: 'overdue',
+      startDate: '2026-03-01T00:00:00.000Z',
+      calculationMethod: 'FRENCH',
+      policySnapshot: {},
+      Customer: { name: 'Cliente Mora Recovery', documentNumber: 'D-2', phone: '2', email: 'd2@t.local', status: 'active' },
+      Associate: null,
+      emiSchedule: [],
+    },
+  ];
+
+  const fixtures = {
+    reportRepository: {
+      async listOutstandingLoans() { return loans; },
+    },
+    paymentRepository: {
+      async listByLoan() { return []; },
+    },
+    loanViewService: {
+      getCanonicalLoanView(loan) {
+        return {
+          schedule: [],
+          snapshot: {
+            installmentAmount: loan.amount,
+            totalPayable: loan.amount,
+            totalInterest: 0,
+            outstandingPrincipal: loan.amount,
+            outstandingInterest: 0,
+            outstandingBalance: loan.amount,
+            nextInstallment: null,
+          },
+        };
+      },
+    },
+  };
+
+  const excelResult = await createExportCreditsExcel(fixtures)({ actor: { role: 'admin' }, filters: {} });
+  const delinquentRow = excelResult.data.sheets[0].rows.find((row) => row.indicator === 'Créditos en Mora');
+  assert.ok(delinquentRow, 'Excel summary should include delinquent credits row');
+  assert.equal(delinquentRow.value, 2);
+
+  const pdfResult = await createExportCreditsPdf(fixtures)({ actor: { role: 'admin' }, filters: {} });
+  const pdfText = pdfResult.buffer.toString('utf8');
+  assert.match(pdfText, /Créditos vencidos: 2/);
 });
 
 test('credits PDF export returns a valid PDF buffer with summary headline', async () => {

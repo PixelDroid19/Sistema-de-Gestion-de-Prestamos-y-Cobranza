@@ -432,6 +432,53 @@ test('createUpdateLoanStatus moves defaulted loans into pending recovery', async
   assert.equal(updatedLoan.recoveryStatus, 'pending');
 });
 
+test('createUpdateLoanStatus preserves the persisted disbursement date and schedule when approving pending loans', async () => {
+  let savedLoan;
+  const originalStartDate = '2026-06-15T00:00:00.000Z';
+  const originalEndDate = '2027-06-15T00:00:00.000Z';
+  const originalSchedule = [
+    { installmentNumber: 1, dueDate: '2026-07-15T00:00:00.000Z', scheduledPayment: 110000, status: 'pending' },
+    { installmentNumber: 2, dueDate: '2026-08-15T00:00:00.000Z', scheduledPayment: 110000, status: 'pending' },
+  ];
+
+  const updateLoanStatus = createUpdateLoanStatus({
+    loanRepository: {
+      async save(loan) {
+        savedLoan = loan;
+        return loan;
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return {
+          id: 41,
+          status: 'pending',
+          recoveryStatus: null,
+          customerId: 4,
+          termMonths: 12,
+          startDate: originalStartDate,
+          endDate: originalEndDate,
+          emiSchedule: originalSchedule.map((row) => ({ ...row })),
+          financialSnapshot: { startDate: originalStartDate },
+        };
+      },
+    },
+  });
+
+  const updatedLoan = await updateLoanStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 41,
+    status: 'approved',
+  });
+
+  assert.equal(updatedLoan.status, 'approved');
+  assert.equal(updatedLoan.startDate, originalStartDate);
+  assert.equal(updatedLoan.endDate, originalEndDate);
+  assert.deepEqual(updatedLoan.emiSchedule, originalSchedule);
+  assert.equal(savedLoan.startDate, originalStartDate);
+  assert.deepEqual(savedLoan.emiSchedule, originalSchedule);
+});
+
 test('createUpdateLoanStatus rejects invalid statuses without exposing status catalogs', async () => {
   const updateLoanStatus = createUpdateLoanStatus({
     loanRepository: {

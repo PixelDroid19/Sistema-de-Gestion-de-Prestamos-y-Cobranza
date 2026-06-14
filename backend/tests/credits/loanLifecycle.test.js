@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const models = require('@/models');
 const { getCanonicalLoanView } = require('@/modules/credits/application/loanFinancials');
+const { buildAmortizationSchedule } = require('@/modules/credits/domain/calculation/amortizationMethods');
 const {
   createLoanFromCanonicalDataFactory,
 } = require('@/modules/credits/infrastructure/loanCreation');
@@ -508,6 +509,30 @@ test('getCanonicalLoanView rebuilds legacy schedules without leaking through roo
   assert.equal(loanView.schedule.length, 5);
   assert.equal(loanView.snapshot.outstandingInstallments, 5);
   assert.ok(loanView.snapshot.totalPayable > 5000);
+});
+
+test('getCanonicalLoanView rebuilds legacy schedules using the persisted calculation method', () => {
+  const expectedSimpleSchedule = buildAmortizationSchedule({
+    amount: 5000,
+    interestRate: 10,
+    termMonths: 5,
+    startDate: '2026-01-01T00:00:00.000Z',
+    calculationMethod: 'SIMPLE',
+  });
+
+  const loanView = getCanonicalLoanView({
+    amount: 5000,
+    interestRate: 10,
+    termMonths: 5,
+    startDate: '2026-01-01T00:00:00.000Z',
+    calculationMethod: 'SIMPLE',
+    emiSchedule: [],
+    financialSnapshot: {},
+  });
+
+  assert.deepEqual(loanView.schedule, expectedSimpleSchedule);
+  assert.equal(loanView.schedule[0].scheduledPayment, expectedSimpleSchedule[0].scheduledPayment);
+  assert.equal(loanView.schedule[0].interestComponent, expectedSimpleSchedule[0].interestComponent);
 });
 
 test('createLoanFromCanonicalData freezes the policySnapshot and rate at creation time', async () => {

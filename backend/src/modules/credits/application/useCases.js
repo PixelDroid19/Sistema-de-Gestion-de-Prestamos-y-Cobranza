@@ -1055,13 +1055,8 @@ const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy, auditService
     }
 
     loan.status = status;
-
-    if (status === 'approved') {
-      loan.startDate = new Date();
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + loan.termMonths);
-      loan.endDate = endDate;
-    }
+    // Approval authorizes the credit without rewriting the persisted
+    // disbursement date or the frozen amortization schedule created at origination.
 
     if (status === 'defaulted') {
       loan.recoveryStatus = 'pending';

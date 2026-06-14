@@ -29,6 +29,12 @@ const resolveLoanStartDateValue = (loan) => (
   || loan?.updatedAt
 );
 
+const resolveLoanCalculationMethod = (loan) => (
+  loan?.calculationMethod
+  || loan?.financialSnapshot?.calculationMethod
+  || undefined
+);
+
 const countElapsedAccrualDays = ({ anchorDate, asOfDate }) => {
   const diffMs = asOfDate.getTime() - anchorDate.getTime();
   if (diffMs <= 0) {
@@ -143,6 +149,7 @@ const getCanonicalLoanView = (loan) => {
       interestRate: loan.interestRate,
       termMonths: loan.termMonths,
       startDate: resolveLoanStartDateValue(loan) || new Date(),
+      calculationMethod: resolveLoanCalculationMethod(loan),
     });
 
   const rebuiltSnapshot = buildFinancialSnapshot(existingSchedule);

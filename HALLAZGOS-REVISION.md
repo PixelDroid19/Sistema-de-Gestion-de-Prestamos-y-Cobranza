@@ -7,6 +7,7 @@
 ## Leyenda de estado
 
 - ✅ **CORREGIDO** — verificado contra el código real y arreglado (con tests en verde).
+- 🟢 **VERIFICADO SIN CAMBIO** — revisado contra el código real; el comportamiento reportado era intencional o ya estaba bien cubierto.
 - 🔴 **CONFIRMADO** — verificado, pero aún sin corregir.
 - 🟡 **POR COMPROBAR** — reportado con evidencia por el revisor, pero **no verificado**. Hay que confirmarlo antes de tocarlo.
 - ⚪ **SIN REVISAR** — no llegó a revisarse (frontend, por corte del workflow).
@@ -30,8 +31,20 @@
 | 11 | MEDIA | funcional/dinero | `backend/src/modules/reports/application/useCases/createGetExecutiveDashboard.js:38-43` | El dashboard alineaba utilidades con meses normalizados, pero interés y mora salían por índice del array crudo y podían correrse cuando faltaban meses | Interés y mora ahora se resuelven por clave `YYYY-MM` igual que la serie mensual normalizada |
 | 12 | MEDIA | poor-impl | `backend/src/modules/reports/application/useCases/createGetCreditEarnings.js:17-23` | El reporte hacía una consulta `listRecoveryLoans()` por cada crédito y luego descartaba el resultado, generando N+1 y cómputo muerto | Se eliminó el escaneo por crédito y el KPI toma directamente el agregado canónico de `getPerformanceMetrics()` |
 | 13 | MEDIA | funcional/dinero | `backend/src/modules/reports/application/useCases/createGetNextMonthProjection.js:12-34` | La proyección de enero-mayo perdía meses del año previo al consultar solo el año actual, degradando promedio, confianza y forecast | La ventana histórica ahora carga todos los años que cubren los últimos 6 meses y preserva el historial real en cruces de año |
+| 14 | MEDIA | funcional/dinero | `backend/src/modules/reports/application/useCases/createExportCreditsExcel.js:212-531` | Excel y PDF contaban mora con precedencia distinta entre `status` y `recoveryStatus`, así que el mismo crédito podía aparecer vencido en un export y no en el otro | Ambos exports usan ahora la misma regla compartida: si cualquiera de los dos estados marca mora (`late/defaulted/overdue`), el crédito cuenta como vencido |
+| 15 | BAJA | poor-impl | `backend/src/modules/reports/application/reportInternals.js:18-85` | `reportInternals` mantenía copias locales de `buildCsv` y `buildPdfBuffer` mientras `reportHelpers` ya tenía las mismas implementaciones, abriendo una ruta de deriva silenciosa | `reportInternals` quedó consolidado sobre los helpers compartidos y se eliminaron exports internos no consumidos |
+| 16 | MEDIA | funcional/dinero | `backend/src/modules/credits/application/useCases.js:1059-1063` | Aprobar un crédito reescribía `startDate`/`endDate` con la fecha actual, pero dejaba intacto el cronograma persistido; eso desalineaba desembolso, snapshot y vencimientos | La aprobación ya no toca fechas congeladas del crédito: cambia solo el estado y preserva la fecha de desembolso y el cronograma persistido |
+| 17 | MEDIA | funcional/dinero | `backend/src/modules/credits/application/loanFinancials.js:144-150` | La reconstrucción legacy del cronograma ignoraba `calculationMethod`; un crédito `SIMPLE` o `COMPOUND` sin `emiSchedule` persistido se reconstruía como francés | `getCanonicalLoanView` ahora reutiliza el método persistido del crédito/snapshot al regenerar el schedule legacy |
 
-**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde.
+**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, `reportsExcelExport`, `reportsModule`, `creditsModule`, `credits/loanLifecycle`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde.
+
+---
+
+## 🟢 Verificados sin cambio
+
+| # | Sev | Categoría | Archivo | Verificación | Resultado |
+|---|-----|-----------|---------|--------------|-----------|
+| A | MEDIA | fecha/export | `backend/src/modules/reports/application/excelExportFormats.js:93-121` | La fecha `dd/mm/yyyy` usa extracción UTC a propósito para preservar el día operativo cuando el origen llega como `YYYY-MM-DD` o `00:00:00Z`; la fecha-hora sí se localiza a `America/Bogota` | Se conserva la implementación actual y se añadió cobertura que fija ambos comportamientos en `reportsExcelExport.test.js` |
 
 ---
 
@@ -42,9 +55,7 @@
 ### Créditos / cálculo / pagos
 | Sev | Archivo:línea | Qué comprobar |
 |-----|---------------|---------------|
-| MEDIA | `credits/application/useCases.js:1059` | Aprobar un crédito resetea `startDate` pero el cronograma (`dueDates`) sigue calculado desde la fecha de creación |
 | MEDIA | `credits/application/useCases.js:334-360` | La mora **cotizada** (normalización por día) difiere de la **cobrada** (timestamp wall-clock) |
-| MEDIA | `credits/application/loanFinancials.js:139-146` | `getCanonicalLoanView` reconstruye siempre con amortización FRANCESA, ignorando `calculationMethod` del crédito |
 | BAJA | `credits/domain/calculation/lateFeeCalculator.js:22-59` | Modos FLAT/TIERED calculan 0 porque ningún caller pasa `flatFeePerDay`/`baseRate` |
 | BAJA | `credits/composition.js:42,51` | `paymentRouter` construido y mal cableado, nunca usado |
 | BAJA | `credits/index.js:46` | Destructura `_userRepository` pero composition expone `userRepository` → puerto `undefined` |
@@ -53,9 +64,6 @@
 ### Reportes
 | Sev | Archivo:línea | Qué comprobar |
 |-----|---------------|---------------|
-| MEDIA | `reports/.../createExportCreditsExcel.js:221` | Conteo de "en mora" con precedencia de estado inconsistente entre Excel y PDF |
-| MEDIA | `reports/application/excelExportFormats.js:93-121` | Fechas (solo día) en Excel en UTC mientras fecha-hora usa America/Bogota → corre el día |
-| BAJA | `reports/application/reportInternals.js:18-85` | Builders PDF/CSV byte-idénticos duplicados respecto a `reportHelpers.js` |
 
 ### Auditoría / eventos
 | Sev | Archivo:línea | Qué comprobar |
