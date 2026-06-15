@@ -20,8 +20,21 @@ const {
   toExcelDate,
 } = require('@/modules/reports/application/excelExportFormats');
 const { normalizeOptionalOperationalDate, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
+const { deriveLoanOverdueSnapshot } = require('@/modules/credits/application/useCases');
 
 const toPlainLoan = (loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan);
+
+/**
+ * Live overdue flag for an exported credit row, derived from the canonical schedule so the
+ * Excel export classifies "mora" the same way as the credits list and calendar.
+ * @param {object} loan
+ * @param {Array<object>} schedule - canonical schedule from loanViewService.
+ * @returns {boolean}
+ */
+const isLoanScheduleOverdue = (loan, schedule) => (
+  String(loan?.recoveryStatus || '').trim().toLowerCase() !== 'recovered'
+  && deriveLoanOverdueSnapshot({ ...loan, emiSchedule: schedule }).isOverdue
+);
 
 const toNumberOrNull = (value) => {
   if (value === undefined || value === null || value === '') {
@@ -86,7 +99,14 @@ const matchesFilters = (loan, filters) => {
   if (filters.status) {
     const loanStatus = String(loan?.status || '').trim().toLowerCase();
     const recoveryStatus = String(loan?.recoveryStatus || '').trim().toLowerCase();
-    if (!filters.status.includes(loanStatus) && !filters.status.includes(recoveryStatus)) {
+    // A live-overdue loan must match an "overdue/late" status filter even when its persisted
+    // status was never moved to defaulted/overdue, mirroring the credits list behaviour.
+    const matchesOverdueFilter = filters.status.some((value) => LATE_CREDIT_STATUSES.has(value))
+      && recoveryStatus !== 'recovered'
+      && deriveLoanOverdueSnapshot(loan).isOverdue;
+    if (!filters.status.includes(loanStatus)
+      && !filters.status.includes(recoveryStatus)
+      && !matchesOverdueFilter) {
       return false;
     }
   }
@@ -219,6 +239,7 @@ const LATE_CREDIT_STATUSES = new Set(['late', 'defaulted', 'overdue']);
 const isLateCredit = (row) => (
   LATE_CREDIT_STATUSES.has(normalizeRowStatus(row.status))
   || LATE_CREDIT_STATUSES.has(normalizeRowStatus(row.recoveryStatus))
+  || Boolean(row.isOverdue)
 );
 
 const buildSummaryRows = (rows) => {
@@ -423,6 +444,7 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
         status: loan.status || 'N/A',
         creditStatus: formatOperationalStatus(loan.status),
         recoveryStatus: loan.recoveryStatus || 'N/A',
+        isOverdue: isLoanScheduleOverdue(loan, schedule),
         totalPaid: roundMoney(totalPaid),
         totalCapitalPaid: roundMoney(totalPrincipal),
         totalInterestPaid: roundMoney(totalInterest),
@@ -504,6 +526,7 @@ const buildCreditsRowsForExport = async ({ loans, paymentRepository, loanViewSer
       totalQuotas: schedule.length,
       status: loan.status || 'N/A',
       recoveryStatus: loan.recoveryStatus || 'N/A',
+      isOverdue: isLoanScheduleOverdue(loan, schedule),
       totalPaid: roundMoney(totalPaid),
       totalCapitalPaid: roundMoney(totalPrincipal),
       totalInterestPaid: roundMoney(totalInterest),

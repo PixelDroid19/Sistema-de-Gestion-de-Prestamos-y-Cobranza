@@ -43,6 +43,7 @@ import {
   getRecoveryStatusLabel,
   getStatusColumnHelp,
   getRecoveryColumnHelp,
+  isCreditDelinquent,
 } from './creditsHelpers';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -370,7 +371,7 @@ export default function CreditsListView({
                         label={getRecoveryStatusLabel(credit)}
                         description={getRecoveryStatusDescription(credit)}
                         className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(
-                          credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success',
+                          isCreditDelinquent(credit) ? 'danger' : 'success',
                         )}`}
                       />
                     </div>
@@ -447,7 +448,7 @@ export default function CreditsListView({
                 const interestOutstanding = Number(credit.interestOutstanding) || 0;
                 const outstandingAmount = principalOutstanding + interestOutstanding;
 
-                const isDelinquent = credit.status === 'defaulted' || credit.status === 'overdue' || credit.recoveryStatus === 'overdue';
+                const isDelinquent = isCreditDelinquent(credit);
                 const totalAmount = Number(credit.amount) || 0;
                 const delinquencyPercentage = totalAmount > 0 && isDelinquent
                   ? (outstandingAmount / totalAmount) * 100
@@ -517,7 +518,7 @@ export default function CreditsListView({
                         label={getRecoveryStatusLabel(credit)}
                         description={getRecoveryStatusDescription(credit)}
                         className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(
-                          credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success',
+                          isCreditDelinquent(credit) ? 'danger' : 'success',
                         )}`}
                       />
                     </td>

@@ -11,6 +11,7 @@
 const { formatCurrency } = require('@/modules/shared/money');
 const { buildPaginationMeta, paginateArray } = require('@/modules/shared/pagination');
 const { toDateOnlyOrNull } = require('@/modules/shared/dateUtils');
+const { deriveLoanOverdueSnapshot } = require('@/modules/credits/application/useCases');
 const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
 const { buildCsv, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
 
@@ -189,8 +190,13 @@ const getProfitabilityLoanRiskSignals = (row) => {
   const outstandingBalance = Number(row.outstandingBalance || 0);
   const paymentCount = Number(row.paymentCount || 0);
   const penaltyCollected = Number(row.penaltyCollected || 0);
+  // Overdue is read from the persisted collection state OR derived live from the schedule
+  // (same logic as the credits list/calendar), so profitability risk signals no longer
+  // miss loans whose installments lapsed without a manual status change. Recovered loans
+  // are settled and never re-flagged from a stale snapshot.
   const isOverdue = PROFITABILITY_OVERDUE_STATUSES.has(loanStatus)
-    || PROFITABILITY_OVERDUE_STATUSES.has(recoveryStatus);
+    || PROFITABILITY_OVERDUE_STATUSES.has(recoveryStatus)
+    || (recoveryStatus !== 'recovered' && Boolean(row.derivedOverdue));
 
   return {
     loanStatus,
@@ -257,6 +263,7 @@ const buildProfitabilityLoanRows = ({ loans, payments }) => {
       .map((payment) => payment.paymentDate)
       .filter(Boolean)
       .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || null;
+    const overdueSnapshot = deriveLoanOverdueSnapshot(loan);
 
     return {
       loanId: loan.id,
@@ -264,6 +271,8 @@ const buildProfitabilityLoanRows = ({ loans, payments }) => {
       customerName: loan.Customer?.name || null,
       loanStatus: loan.status,
       recoveryStatus: loan.recoveryStatus || null,
+      derivedOverdue: overdueSnapshot.isOverdue,
+      daysOverdue: overdueSnapshot.daysOverdue,
       originatedAmount: formatCurrency(loan.amount || 0),
       totalCollected: formatCurrency(totalCollected),
       principalCollected: formatCurrency(principalCollected),

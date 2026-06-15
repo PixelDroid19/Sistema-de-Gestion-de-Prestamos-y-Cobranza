@@ -87,6 +87,28 @@ export const getStatusColumnHelp = () => tTerm('credits.help.statusColumn');
 export const getRecoveryColumnHelp = () => tTerm('credits.help.recoveryColumn');
 
 /**
+ * Single source of truth for "is this credit in mora?".
+ *
+ * Combines the persisted collection state (`recoveryStatus === 'overdue'`,
+ * `status === 'defaulted'`) with the backend's live overdue snapshot derived from the
+ * amortization schedule (`isOverdue` / `daysOverdue`). The live snapshot is what the
+ * calendar already used, so reading it here keeps the list and calendar consistent: a
+ * loan with a past-due installment now shows "En mora" in both places.
+ */
+export const isCreditDelinquent = (credit: any): boolean => {
+  const normalizedRecoveryStatus = String(credit?.recoveryStatus || '').toLowerCase();
+  const normalizedLoanStatus = String(credit?.status || '').toLowerCase();
+  if (normalizedRecoveryStatus === 'overdue' || normalizedLoanStatus === 'defaulted') {
+    return true;
+  }
+  // Recovered loans are settled — never flag them from a stale schedule snapshot.
+  if (normalizedRecoveryStatus === 'recovered') {
+    return false;
+  }
+  return Boolean(credit?.isOverdue) || toNumber(credit?.daysOverdue) > 0;
+};
+
+/**
  * Converts a loan status into a safe operator-facing explanatory sentence.
  */
 export const getLoanStatusDescription = (status?: string) => {
@@ -118,7 +140,7 @@ export const getRecoveryStatusDescription = (credit: any) => {
   const normalizedRecoveryStatus = String(credit?.recoveryStatus || '').toLowerCase();
   const normalizedLoanStatus = String(credit?.status || '').toLowerCase();
 
-  if (normalizedRecoveryStatus === 'overdue' || normalizedLoanStatus === 'defaulted') {
+  if (isCreditDelinquent(credit)) {
     return tTerm('credits.recovery.description.overdue');
   }
   if (normalizedRecoveryStatus === 'pending') {
@@ -157,7 +179,7 @@ export const getLoanStatusLabel = (status: string) => {
  * Converts recovery status values into operator-facing labels without leaking enum keys.
  */
 export const getRecoveryStatusLabel = (credit: any) => {
-  if (credit?.recoveryStatus === 'overdue' || credit?.status === 'defaulted') return tTerm('credits.recovery.overdue');
+  if (isCreditDelinquent(credit)) return tTerm('credits.recovery.overdue');
   if (credit?.recoveryStatus === 'pending') return tTerm('credits.recovery.pending');
   if (credit?.recoveryStatus === 'recovered') return tTerm('credits.recovery.recovered');
   if (credit?.recoveryStatus === 'active') return tTerm('credits.recovery.active');

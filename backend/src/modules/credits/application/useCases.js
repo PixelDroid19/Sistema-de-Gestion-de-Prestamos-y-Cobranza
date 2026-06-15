@@ -165,13 +165,15 @@ const enrichLoansWithCustomerSummaries = async ({ loanRepository, result }) => {
   }
 
   if (Array.isArray(result)) {
-    return loanRepository.attachCustomerSummaries(result);
+    const enriched = await loanRepository.attachCustomerSummaries(result);
+    return enriched.map((loan) => attachLoanOverdueSnapshot(loan));
   }
 
   if (Array.isArray(result?.items)) {
+    const enrichedItems = await loanRepository.attachCustomerSummaries(result.items);
     return {
       ...result,
-      items: await loanRepository.attachCustomerSummaries(result.items),
+      items: enrichedItems.map((loan) => attachLoanOverdueSnapshot(loan)),
     };
   }
 
@@ -184,7 +186,7 @@ const enrichLoanWithCustomerSummary = async ({ loanRepository, loan }) => {
   }
 
   const [enrichedLoan = loan] = await loanRepository.attachCustomerSummaries([loan]);
-  return enrichedLoan;
+  return attachLoanOverdueSnapshot(enrichedLoan);
 };
 
 const enrichCustomerWithLoanSummary = async ({ customerRepository, customer }) => {
@@ -363,6 +365,75 @@ const calculateInstallmentLateFeeDue = ({ loan, row, asOfDate }) => {
 };
 
 const getOutstandingAmount = (row) => roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+
+/**
+ * Compute the live overdue/mora snapshot for a loan from its amortization schedule.
+ *
+ * The credits LIST view historically relied on the persisted `recoveryStatus`/`status`
+ * columns, which are only updated by manual collection workflows. The CALENDAR view, by
+ * contrast, derives overdue installments live from `emiSchedule`. That divergence let a
+ * loan show "mora" in the calendar while the list showed nothing. This helper reuses the
+ * exact same late-fee/days-overdue logic as the calendar so both views agree.
+ *
+ * @param {object} loan - loan record carrying `emiSchedule`, `lateFeeMode`, `annualLateFeeRate`.
+ * @param {Date} [asOfDate] - evaluation date (defaults to now).
+ * @returns {{ isOverdue: boolean, daysOverdue: number, overdueInstallments: number, overdueAmount: number, lateFeeOutstanding: number }}
+ */
+const deriveLoanOverdueSnapshot = (loan, asOfDate = new Date()) => {
+  const schedule = Array.isArray(loan?.emiSchedule) ? loan.emiSchedule : [];
+  let overdueInstallments = 0;
+  let daysOverdue = 0;
+  let overdueAmount = 0;
+  let lateFeeOutstanding = 0;
+
+  schedule.forEach((row) => {
+    if (row.status === 'paid' || row.status === 'annulled') {
+      return;
+    }
+
+    const outstandingAmount = getOutstandingAmount(row);
+    if (outstandingAmount <= 0.01) {
+      return;
+    }
+
+    const lateFee = calculateInstallmentLateFeeDue({ loan, row, asOfDate });
+    if (lateFee.daysOverdue <= 0) {
+      return;
+    }
+
+    overdueInstallments += 1;
+    overdueAmount = roundCurrency(overdueAmount + outstandingAmount);
+    lateFeeOutstanding = roundCurrency(lateFeeOutstanding + lateFee.lateFeeDue);
+    if (lateFee.daysOverdue > daysOverdue) {
+      daysOverdue = lateFee.daysOverdue;
+    }
+  });
+
+  return {
+    isOverdue: overdueInstallments > 0,
+    daysOverdue,
+    overdueInstallments,
+    overdueAmount,
+    lateFeeOutstanding,
+  };
+};
+
+/**
+ * Attach the live overdue snapshot to a loan (or plain loan JSON) without mutating the input.
+ * @param {object} loan
+ * @param {Date} [asOfDate]
+ * @returns {object}
+ */
+const attachLoanOverdueSnapshot = (loan, asOfDate = new Date()) => {
+  if (!loan || typeof loan !== 'object') {
+    return loan;
+  }
+
+  return {
+    ...loan,
+    ...deriveLoanOverdueSnapshot(loan, asOfDate),
+  };
+};
 
 const getNextPayableInstallmentNumber = (schedule) => {
   const row = schedule.find((entry) => (
@@ -1726,15 +1797,26 @@ const filterLoansByFilters = ({ loans = [], filters = {} }) => {
 const createGetLoanStatistics = ({ loanRepository }) => async () => {
   const loans = await loanRepository.list();
 
+  // Overdue is derived live from the schedule (same logic as the calendar) and combined
+  // with the persisted collection state, so the statistics widget agrees with the per-loan
+  // list/calendar instead of relying solely on the manually-updated status columns.
+  const asOfDate = new Date();
+  const isLoanOverdue = (loan) => (
+    loan.status === 'defaulted'
+    || loan.recoveryStatus === 'overdue'
+    || (loan.recoveryStatus !== 'recovered' && deriveLoanOverdueSnapshot(loan, asOfDate).isOverdue)
+  );
+
   const totalCredits = loans.length;
   const activeCredits = loans.filter((l) => ['approved', 'active'].includes(l.status)).length;
   const paidCredits = loans.filter((l) => l.status === 'closed').length;
-  const overdueCredits = loans.filter((l) => l.status === 'defaulted' || l.recoveryStatus === 'overdue').length;
+  const overdueLoans = loans.filter(isLoanOverdue);
+  const overdueCredits = overdueLoans.length;
 
   const totalLoanAmount = loans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
   const totalCollected = loans.reduce((sum, l) => sum + Number(l.totalPaid || 0), 0);
   const totalPending = loans.reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);
-  const totalOverdue = loans.filter((l) => l.status === 'defaulted' || l.recoveryStatus === 'overdue')
+  const totalOverdue = overdueLoans
     .reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);
 
   const averageLoanAmount = totalCredits > 0 ? totalLoanAmount / totalCredits : 0;
@@ -1883,6 +1965,7 @@ const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditServic
 };
 
 module.exports = {
+  deriveLoanOverdueSnapshot,
   createListLoans,
   createCreateCreditCalculation,
   createGetLoanById,
