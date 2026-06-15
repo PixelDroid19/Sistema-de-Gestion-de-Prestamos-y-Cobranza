@@ -5,7 +5,6 @@ import { InstallmentCompositionTable } from './InstallmentCompositionTable';
 import {
   AppTable,
   CREDIT_CALENDAR_COLUMN_WIDTHS,
-  CREDIT_INSTALLMENT_CALENDAR_TABLE_CLASS,
   renderFinancialScheduleColgroup,
   TableActionsCell,
   TableActionsHeader,
@@ -138,7 +137,6 @@ export function CalendarTab({
           surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
           horizontalScroll={showInstallmentActionColumn}
           minWidthClassName="min-w-[920px]"
-          tableClassName={CREDIT_INSTALLMENT_CALENDAR_TABLE_CLASS}
           data-tour="credit-detail-calendar-table"
         >
         {renderFinancialScheduleColgroup(

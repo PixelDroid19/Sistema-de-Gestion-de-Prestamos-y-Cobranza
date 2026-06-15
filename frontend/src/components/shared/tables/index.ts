@@ -1,4 +1,4 @@
-export { AppTable, isFinancialTableVariant, isOperationalTableVariant } from './AppTable';
+export { AppTable } from './AppTable';
 export type { AppTableProps, FinancialAppTableProps, OperationalAppTableProps } from './AppTable';
 export type {
   AppTableVariant,

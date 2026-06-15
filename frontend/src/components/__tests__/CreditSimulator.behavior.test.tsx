@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import CreditSimulator from '../CreditSimulator';
+import { useSessionStore } from '../../store/sessionStore';
 import type { CreditCalculationInput } from '../../types/creditCalculation';
 
 const mockNavigate = vi.fn();
@@ -87,6 +88,11 @@ describe('CreditSimulator behavior', () => {
       simulate: vi.fn(),
     };
     mockUseActiveCreditSimulation.mockImplementation(() => calculationState);
+    useSessionStore.setState({
+      user: { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin' } as any,
+      accessToken: 'token',
+      refreshToken: 'refresh',
+    });
   });
 
   it('continues to the real registration route from the top CTA with the simulated scenario', async () => {

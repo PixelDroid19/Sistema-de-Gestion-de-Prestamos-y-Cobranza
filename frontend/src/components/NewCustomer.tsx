@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Save, User, Phone, MapPin, Mail, CreditCard, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useCustomers, useCustomerById } from '../services/customerService';
@@ -117,10 +117,16 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const formRef = useRef<HTMLFormElement>(null);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     await run(formData);
   };
+
+  // The primary CTA lives in the page header (outside the form), so trigger a real
+  // form submit to run native required/email validation before mutating.
+  const requestFormSubmit = () => formRef.current?.requestSubmit();
 
   const title = isEditing ? tTerm('newCustomer.title.edit') : tTerm('newCustomer.title.create');
   const subtitle = isEditing
@@ -166,7 +172,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
             </ActionButton>
             <ActionButton
               type="button"
-              onClick={() => handleSubmit()}
+              onClick={requestFormSubmit}
               disabled={isSubmitting}
               isLoading={isSubmitting}
               icon={isSubmitting ? undefined : <Save size={16} />}
@@ -179,7 +185,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
       />
 
       <div className="flex-1 overflow-y-auto pb-8">
-        <form onSubmit={handleSubmit} className="grid w-full gap-6 xl:grid-cols-2">
+        <form ref={formRef} onSubmit={handleSubmit} className="grid w-full gap-6 xl:grid-cols-2">
           <SectionSurface
             data-tour="new-customer-personal"
             title={<span className="flex items-center gap-2"><User size={20} className="text-blue-500" /> {tTerm('newCustomer.section.personal')}</span>}

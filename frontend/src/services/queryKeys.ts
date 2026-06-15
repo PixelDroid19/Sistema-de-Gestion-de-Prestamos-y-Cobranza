@@ -125,6 +125,8 @@ export const queryKeys = {
     all: ['loans'] as const,
     listRoot: ['loans.list'] as const,
     list: (params?: LoanListParams) => ['loans.list', params ?? {}] as const,
+    byCustomer: (customerId: number, params?: { page?: number; pageSize?: number }) =>
+      ['loans.byCustomer', customerId, params ?? {}] as const,
     detail: (loanId: number) => ['loans.detail', loanId] as const,
     calendar: (loanId: number) => ['loans.calendar', loanId] as const,
     installmentQuote: (loanId: number, installmentNumber: number | null, asOfDate: string) =>

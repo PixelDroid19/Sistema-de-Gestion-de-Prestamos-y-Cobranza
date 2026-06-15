@@ -5,7 +5,7 @@ import { useTranslation } from '../i18n';
 import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatDateTime, formatNumber } from '../i18n/format';
 import { useCustomerById, useCustomerDocuments } from '../services/customerService';
 import { useCustomerReports } from '../services/reportService';
-import { useLoans } from '../services/loanService';
+import { useCustomerLoans } from '../services/loanService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
@@ -18,7 +18,6 @@ import {
   EmptyState,
   FormField,
   IconActionButton,
-  IconActionLink,
   InsightStrip,
   PageHeader,
   PageShell,
@@ -47,16 +46,15 @@ export default function CustomerDetails() {
   } = useCustomerById(customerId);
   const customer = customerResponse?.data?.customer || customerResponse?.data || null;
 
-  const { documents, uploadDocument, deleteDocument, downloadDocumentUrl } = useCustomerDocuments(customerId);
+  const { documents, uploadDocument, deleteDocument, downloadDocument } = useCustomerDocuments(customerId);
   const { history, creditProfile } = useCustomerReports(customerId);
-  const { data: loansData } = useLoans({ pageSize: 100 });
+  const { data: loansData } = useCustomerLoans(customerId, { pageSize: 200 });
 
-  const loans = Array.isArray(loansData?.data?.loans)
+  const customerLoans = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
     : Array.isArray(loansData?.data)
       ? loansData.data
       : [];
-  const customerLoans = loans.filter((l: any) => l.customerId === customerId);
   const customerDocumentOptions = [
     { value: 'identification', label: tTerm('customerDetails.documentType.identification') },
     { value: 'proof_of_address', label: tTerm('customerDetails.documentType.proofOfAddress') },
@@ -421,10 +419,9 @@ export default function CustomerDetails() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <IconActionLink
-                      href={downloadDocumentUrl(doc.id)}
-                      target="_blank"
-                      rel="noreferrer"
+                    <IconActionButton
+                      onClick={() => downloadDocument.mutate({ documentId: doc.id, fileName: doc.originalName, mimeType: doc.mimeType })}
+                      disabled={downloadDocument.isPending}
                       label={tTerm('customerDetails.documents.download')}
                       title={tTerm('customerDetails.documents.download')}
                       icon={<Download size={16} />}

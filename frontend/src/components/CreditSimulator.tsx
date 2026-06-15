@@ -6,6 +6,9 @@ import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } fr
 import { tTerm } from '../i18n/terminology';
 import { ActionButton, PageHeader, PageShell } from './shared/Surfaces';
 import { getLocalDateInputValue } from '../lib/dateInput';
+import { useSessionStore } from '../store/sessionStore';
+import { useResolvedPermissionNames } from '../services/permissionsService';
+import { PERMISSION } from '../constants/permissionNames';
 
 /**
  * Standalone credit calculation route for admins.
@@ -13,6 +16,12 @@ import { getLocalDateInputValue } from '../lib/dateInput';
  */
 export default function CreditSimulator() {
   const navigate = useNavigate();
+  const { user } = useSessionStore();
+  const resolvedPermissions = useResolvedPermissionNames(user);
+  // The registration route requires CREDITS_CREATE; keep the CTA aligned so a
+  // read-only operator is not sent to a screen ProtectedRoute will block.
+  const canRegisterCredits = resolvedPermissions.includes('*')
+    || resolvedPermissions.includes(PERMISSION.CREDITS_CREATE);
   const {
     input,
     result,
@@ -32,7 +41,7 @@ export default function CreditSimulator() {
     },
     autoRun: true,
   });
-  const canContinueToRegistration = Boolean(result) && !isResultStale;
+  const canContinueToRegistration = Boolean(result) && !isResultStale && canRegisterCredits;
   const displayError = React.useMemo(() => {
     if (!error) {
       return null;

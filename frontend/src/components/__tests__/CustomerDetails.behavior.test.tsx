@@ -42,7 +42,10 @@ vi.mock('../../services/customerService', () => ({
     deleteDocument: {
       mutateAsync: deleteDocumentMutateAsync,
     },
-    downloadDocumentUrl: (documentId: number) => `/api/customers/5/documents/${documentId}/download`,
+    downloadDocument: {
+      mutate: vi.fn(),
+      isPending: false,
+    },
   }),
 }));
 
@@ -54,7 +57,7 @@ vi.mock('../../services/reportService', () => ({
 }));
 
 vi.mock('../../services/loanService', () => ({
-  useLoans: () => ({
+  useCustomerLoans: () => ({
     data: {
       data: {
         loans: loansFixture,

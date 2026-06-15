@@ -1,7 +1,10 @@
 import type React from 'react';
 import { AppInput, type AppInputProps } from './AppInput';
+import { BASE_CURRENCY_SYMBOL } from '../../../i18n/format';
 
-const CURRENCY_PREFIX = '$' as const;
+// Single source of truth for the currency prefix: changing the base currency
+// symbol centrally now propagates to every money input.
+const CURRENCY_PREFIX = BASE_CURRENCY_SYMBOL;
 
 export type CurrencyInputProps = Omit<
   AppInputProps,

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { API_BASE_URL, apiClient } from '../api/client';
+import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
+import { downloadBlob } from './blobDownload';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
 export const useCustomers = (params?: {
@@ -96,15 +97,22 @@ export const useCustomerDocuments = (customerId: number) => {
     },
   });
 
-  const downloadDocumentUrl = (documentId: number) => {
-    return `${API_BASE_URL}/customers/${customerId}/documents/${documentId}/download`;
-  };
+  // Download must carry the operator's bearer token, so it goes through apiClient
+  // (a plain <a href> would hit the permission-guarded endpoint without auth → 401).
+  const downloadDocument = useMutation({
+    mutationFn: async ({ documentId, fileName, mimeType }: { documentId: number; fileName: string; mimeType?: string }) =>
+      downloadBlob({
+        url: `/customers/${customerId}/documents/${documentId}/download`,
+        fileName: fileName || `documento-${documentId}`,
+        mimeType: mimeType || 'application/octet-stream',
+      }),
+  });
 
   return {
     documents: getDocuments.data?.data?.documents,
     isLoading: getDocuments.isLoading,
     uploadDocument,
     deleteDocument,
-    downloadDocumentUrl,
+    downloadDocument,
   };
 };

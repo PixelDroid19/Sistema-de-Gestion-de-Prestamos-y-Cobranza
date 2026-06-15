@@ -93,6 +93,20 @@ export const useLoans = (
   };
 };
 
+export const useCustomerLoans = (
+  customerId: number,
+  params?: { page?: number; pageSize?: number },
+) => {
+  return useQuery({
+    queryKey: queryKeys.loans.byCustomer(customerId, params),
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/loans/customer/${customerId}`, { params });
+      return data;
+    },
+    enabled: Number.isFinite(customerId) && customerId > 0,
+  });
+};
+
 type LoanDetailsQueryOptions = {
   includeAlerts?: boolean;
   includePromises?: boolean;

@@ -104,10 +104,3 @@ export function AppTable(props: AppTableProps) {
   );
 }
 
-export function isFinancialTableVariant(variant: AppTableVariant): variant is 'financial' {
-  return variant === 'financial';
-}
-
-export function isOperationalTableVariant(variant: AppTableVariant): variant is 'operational' {
-  return variant === 'operational';
-}

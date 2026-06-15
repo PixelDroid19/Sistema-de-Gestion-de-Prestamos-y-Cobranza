@@ -101,6 +101,10 @@ const ACTION_MESSAGES: Record<OperationalAction, SafeMessageTemplate> = {
     titleKey: 'operational.error.title.capitalPayment',
     descriptionKey: GENERIC_DESCRIPTION_KEY,
   },
+  'payoff.execute': {
+    titleKey: 'operational.error.title.genericAction',
+    descriptionKey: GENERIC_DESCRIPTION_KEY,
+  },
   'lateFee.update': {
     titleKey: 'operational.error.title.lateFeeUpdate',
     descriptionKey: GENERIC_DESCRIPTION_KEY,

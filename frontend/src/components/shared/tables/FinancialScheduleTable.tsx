@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { FINANCIAL_SCHEDULE_TABLE_CLASS } from './tableActionStyles';
+import { CREDIT_INSTALLMENT_CALENDAR_TABLE_CLASS, FINANCIAL_SCHEDULE_TABLE_CLASS } from './tableActionStyles';
 
 type FinancialScheduleTableProps = {
   children: ReactNode;
@@ -42,6 +42,9 @@ export function FinancialScheduleTable({
       data-testid={dataTestId}
       className={[
         FINANCIAL_SCHEDULE_TABLE_CLASS,
+        // credit-calendar layout carries its own marker class centrally, so callers
+        // no longer need to pass it via tableClassName.
+        financialLayout === 'credit-calendar' ? CREDIT_INSTALLMENT_CALENDAR_TABLE_CLASS : '',
         'w-full text-sm text-left',
         horizontalScroll ? minWidthClassName : 'min-w-0',
         tableClassName,

@@ -19,6 +19,7 @@ export type GuardedAction =
   | 'installment.followUp'
   | 'installment.annul'
   | 'capital.payment'
+  | 'payoff.execute'
   | 'lateFee.update'
   | 'payout.register'
   | 'payout.voucher.download'
@@ -94,6 +95,7 @@ const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]
   'installment.followUp': [PERMISSION.CREDITS_UPDATE, 'followups.create', 'installment.followUp'],
   'installment.annul': [PERMISSION.PAYMENTS_REVERSE, 'payments.annul', 'installment.annul'],
   'capital.payment': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'capital.payment'],
+  'payoff.execute': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'payoff.execute'],
   'lateFee.update': [PERMISSION.CREDITS_UPDATE, 'loans.update', 'lateFee.update'],
   'payout.register': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'payout.register'],
   'payout.voucher.download': [PERMISSION.PAYMENTS_VIEW_ALL, 'payments.view', 'payout.voucher.download'],
@@ -235,7 +237,9 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
   const paymentReconciled = Boolean(input.paymentReconciled) || isReconciledPaymentStatus(paymentStatus);
   const payoutType = input.payoutType;
 
-  if (!hasRequiredPermission(role, permissions, action)) {
+  // payoff.execute keeps the header CTA visible for backoffice users but only
+  // executable with PAYMENTS_CREATE (handled inside its own case below).
+  if (action !== 'payoff.execute' && !hasRequiredPermission(role, permissions, action)) {
     return {
       visible: false,
       executable: false,
@@ -286,6 +290,20 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'capital.payment':
       if (!isBackofficeRole(role)) {
         return { visible: false, executable: false, reason: tTerm('operational.guard.reason.capitalPaymentAuthorizedOnly') };
+      }
+      if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
+        return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
+      }
+      if (loanStatus && !PAYABLE_LOAN_STATUSES.has(loanStatus)) {
+        return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
+      }
+      return { visible: true, executable: true };
+    case 'payoff.execute':
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: tTerm('operational.guard.reason.capitalPaymentAuthorizedOnly') };
+      }
+      if (!hasRequiredPermission(role, permissions, 'payoff.execute')) {
+        return { visible: true, executable: false, reason: tTerm('operational.guard.reason.missingPermission') };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };

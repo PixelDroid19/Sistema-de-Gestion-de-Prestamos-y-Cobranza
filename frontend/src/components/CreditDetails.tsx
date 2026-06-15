@@ -83,7 +83,6 @@ export default function CreditDetails() {
   const resolvedPermissions = useResolvedPermissionNames(user);
   const isAdmin = user?.role === 'admin';
   const isBackofficeUser = user?.role === 'admin' || user?.role === 'employee';
-  const canViewPayoff = isBackofficeUser;
 
   // -------------------------------------------------------------------------
   // Config & payment method options
@@ -125,6 +124,9 @@ export default function CreditDetails() {
   const loan = loanData?.data?.loan ?? loans.find((l: any) => Number(l?.id) === loanId);
   const payoffEligibility = loan?.paymentContext?.payoffEligibility;
   const capitalEligibility = loan?.paymentContext?.capitalEligibility;
+  // Payoff visibility/execution must follow the real PAYMENTS_CREATE guard, not the raw role.
+  const payoffActionGuard = resolveOperationalGuard('payoff.execute', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status });
+  const canViewPayoff = payoffActionGuard.visible;
   const shouldFetchPayoffQuote = canViewPayoff && Boolean(payoffEligibility?.allowed);
   const primaryPayoffDenialReason = Array.isArray(payoffEligibility?.denialReasons) ? payoffEligibility.denialReasons[0] : null;
   const primaryCapitalDenialReason = Array.isArray(capitalEligibility?.denialReasons) ? capitalEligibility.denialReasons[0] : null;
@@ -224,8 +226,8 @@ export default function CreditDetails() {
   const payoffUnavailableDescription = formatPayoffDenialReason(primaryPayoffDenialReason)
     || (hasNoOutstandingPayoffBalance ? tTerm('creditDetails.payoff.unavailable.noBalance') : tTerm('creditDetails.payoff.unavailable.ineligible'));
   const payoffPaymentGuard = {
-    visible: canViewPayoff,
-    executable: Boolean(canViewPayoff && payoffEligibility?.allowed && payoffQuote),
+    visible: payoffActionGuard.visible,
+    executable: Boolean(payoffActionGuard.executable && payoffEligibility?.allowed && payoffQuote),
     reason: payoffEligibility?.allowed ? tTerm('creditDetails.payoff.state.preparingQuote') : payoffUnavailableDescription,
   };
 
@@ -474,6 +476,10 @@ export default function CreditDetails() {
   // -------------------------------------------------------------------------
   const handlePayoff = async () => {
     if (!payoffQuote) return;
+    if (!payoffActionGuard.executable) {
+      toast.error({ title: payoffActionGuard.reason || tTerm('operational.guard.reason.missingPermission') });
+      return;
+    }
     const quotedTotal = payoffQuote.total ?? payoffQuote.totalPayoffAmount;
     const confirmed = await confirmDanger({ title: tTerm('confirm.payoff.title'), message: tTerm('confirm.payoff.message').replace('{amount}', formatCurrency(quotedTotal)), confirmLabel: tTerm('confirm.payoff.confirm') });
     if (!confirmed) return;
