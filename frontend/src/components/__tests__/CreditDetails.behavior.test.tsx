@@ -950,8 +950,8 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    expect(screen.queryByRole('tab', { name: 'Alertas' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Alertas/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Compromisos de pago/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pago total' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Pagar cuota' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
@@ -996,8 +996,8 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    expect(screen.queryByRole('tab', { name: 'Alertas' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Alertas/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Compromisos de pago/ })).not.toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: 'Pago total' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();

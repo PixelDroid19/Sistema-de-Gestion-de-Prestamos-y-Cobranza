@@ -27,6 +27,7 @@ import { parsePercentageRateInput, parsePositiveIntegerInput, parsePositiveMoney
 import { getLocalDateInputValue } from '../lib/dateInput';
 import { normalizeVisibleName } from '../lib/displayNames';
 import { resolveOperationalGuard } from '../services/operationalGuards';
+import { PERMISSION } from '../constants/permissionNames';
 import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditDetailPaymentActions } from './creditDetails/CreditDetailPaymentActions';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
@@ -83,6 +84,12 @@ export default function CreditDetails() {
   const resolvedPermissions = useResolvedPermissionNames(user);
   const isAdmin = user?.role === 'admin';
   const isBackofficeUser = user?.role === 'admin' || user?.role === 'employee';
+  // Internal collection surfaces (alerts/promises tabs, installment actions column,
+  // and their queries) follow effective permissions, not the raw backoffice role:
+  // an operator must actually be able to act on collections to see them.
+  const canManageCollections = resolvedPermissions.includes('*')
+    || resolvedPermissions.includes(PERMISSION.PAYMENTS_CREATE)
+    || resolvedPermissions.includes(PERMISSION.CREDITS_UPDATE);
 
   // -------------------------------------------------------------------------
   // Config & payment method options
@@ -139,8 +146,8 @@ export default function CreditDetails() {
     updateAlertStatus, updatePromiseStatus, downloadPromiseDocument,
     recordCapitalPayment, updateLateFeeRate: updateLateFeeRateMutation,
   } = useLoanDetails(loanId, {
-    includeAlerts: isBackofficeUser,
-    includePromises: isBackofficeUser,
+    includeAlerts: canManageCollections,
+    includePromises: canManageCollections,
     includePayoffQuote: shouldFetchPayoffQuote,
   });
   const { history, isLoading: isLoadingHistory } = useCreditReports(loanId);
@@ -178,7 +185,7 @@ export default function CreditDetails() {
   });
   const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status });
   const creditStatusUpdateGuard = resolveOperationalGuard('credit.status.update', { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status });
-  const showInstallmentActionColumn = isBackofficeUser || installmentPaymentGuard.visible;
+  const showInstallmentActionColumn = canManageCollections;
   const creditDetailSubtitle = tTerm('creditDetails.subtitle.backoffice');
 
   const paymentHistoryEntries = useMemo(() => {
@@ -248,11 +255,11 @@ export default function CreditDetails() {
 
   const visibleTabs = useMemo(() => {
     const tabs: CreditDetailsTab[] = ['calendar'];
-    if (isBackofficeUser) tabs.push('alerts', 'promises');
+    if (canManageCollections) tabs.push('alerts', 'promises');
     tabs.push('payouts');
     if (operationalTimelineEntries.length > 0) tabs.push('history');
     return tabs;
-  }, [isBackofficeUser, operationalTimelineEntries.length]);
+  }, [canManageCollections, operationalTimelineEntries.length]);
 
   // -------------------------------------------------------------------------
   // Modal state
@@ -924,7 +931,7 @@ export default function CreditDetails() {
 
       <section className="min-w-0">
         <CreditDetailsTabs
-          activeTab={activeTab} isAdmin={isBackofficeUser}
+          activeTab={activeTab} isAdmin={canManageCollections}
           alertCount={alertEntries.length}
           pendingPromiseCount={promiseEntries.filter((p: any) => p.status === 'pending').length}
           paymentHistoryCount={paymentHistoryEntries.length}
