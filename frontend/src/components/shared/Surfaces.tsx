@@ -13,6 +13,7 @@ export { OperationalSelect } from './inputs/OperationalSelect';
 export type { OperationalSelectProps } from './inputs/OperationalSelect';
 export { default as CustomerSearchSelect } from './inputs/CustomerSearchSelect';
 export { default as LoanSearchSelect } from './inputs/LoanSearchSelect';
+export { default as UserSearchSelect } from './inputs/UserSearchSelect';
 
 
 type PageShellProps = React.HTMLAttributes<HTMLDivElement> & {

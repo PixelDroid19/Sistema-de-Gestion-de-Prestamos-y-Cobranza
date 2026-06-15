@@ -266,7 +266,9 @@ export const useCustomerProfitability = (filters: CustomerProfitabilityFilters =
   const queryFilters = useMemo(() => ({
     ...(filters.fromDate ? { fromDate: filters.fromDate } : {}),
     ...(filters.toDate ? { toDate: filters.toDate } : {}),
-  }), [filters.fromDate, filters.toDate]);
+    ...(filters.page ? { page: filters.page } : {}),
+    ...(filters.pageSize ? { pageSize: filters.pageSize } : {}),
+  }), [filters.fromDate, filters.page, filters.pageSize, filters.toDate]);
 
   const query = useQuery({
     queryKey: queryKeys.reports.profitabilityCustomers(queryFilters),
@@ -282,6 +284,7 @@ export const useCustomerProfitability = (filters: CustomerProfitabilityFilters =
     items: normalizeCustomerProfitabilityItems(query.data),
     customerAnalytics: (query.data as any)?.summary?.customerAnalytics ?? null,
     summary: (query.data as any)?.summary ?? null,
+    pagination: (query.data as any)?.data?.pagination ?? null,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,
@@ -758,6 +761,7 @@ export const usePaymentCalendarOverview = (
     data: getCalendarOverview.data,
     summary: getCalendarOverview.data?.summary,
     agenda: getCalendarOverview.data?.agenda || [],
+    actionableEntries: getCalendarOverview.data?.actionableEntries || getCalendarOverview.data?.agenda || [],
     nextAction: getCalendarOverview.data?.nextAction || null,
     entries: getCalendarOverview.data?.entries || [],
     isLoading: getCalendarOverview.isLoading,

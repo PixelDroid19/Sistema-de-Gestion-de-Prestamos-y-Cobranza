@@ -31,9 +31,25 @@ const createUsersRouter = ({ authMiddleware, useCases }) => {
 
   // List all users
   router.get('/', attachPagination(), asyncHandler(async (req, res) => {
-    const result = await useCases.listUsers({ pagination: req.pagination });
+    const filters = {
+      search: req.query.search,
+      role: req.query.role,
+    };
+    const hasFilters = Object.values(filters).some((value) => value !== undefined && value !== '');
+    const result = await useCases.listUsers({
+      pagination: req.pagination,
+      ...(hasFilters ? { filters } : {}),
+    });
     if (result?.pagination) {
-      res.json({ success: true, count: result.pagination.totalItems, data: { users: result.items, pagination: result.pagination } });
+      res.json({
+        success: true,
+        count: result.pagination.totalItems,
+        data: {
+          users: result.items,
+          pagination: result.pagination,
+          ...(result.summary ? { summary: result.summary } : {}),
+        },
+      });
       return;
     }
 

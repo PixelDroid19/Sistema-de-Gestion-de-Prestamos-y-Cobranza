@@ -618,6 +618,7 @@ const buildPaymentCalendarOverview = ({ normalizedLoanIds, entries, asOfDate }) 
       totalLateFeeAmount: roundCurrency(entries.reduce((sum, entry) => sum + entry.lateFeeDue, 0)),
     },
     agenda: actionableEntries.slice(0, 8),
+    actionableEntries,
     nextAction: actionableEntries[0] || null,
     entries,
   };
@@ -636,11 +637,11 @@ const parseCalendarOverviewFilters = (filters = {}) => {
    * Parses the optional agenda limit without accepting partial numeric text or
    * exponent notation, preserving the existing 1-250 clamp for plain integers.
    * @param {string|number|null|undefined} value
-   * @returns {number}
+   * @returns {number|null}
    */
   const parseLimit = (value) => {
     if (value === undefined || value === null || value === '') {
-      return 100;
+      return null;
     }
 
     const normalizedValue = String(value).trim();
@@ -721,9 +722,10 @@ const resolveCalendarOverviewLoans = async ({
       : allLoans;
   }
 
-  const limitedLoans = loans
-    .slice(0, filters.limit)
-    .map((loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan));
+  const limitedLoans = (filters.limit
+    ? loans.slice(0, filters.limit)
+    : loans
+  ).map((loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan));
 
   return {
     normalizedLoanIds: limitedLoans.map((loan) => Number(loan.id)).filter(Number.isFinite),
@@ -979,6 +981,42 @@ const createCreateLoan = ({ loanCreationService, auditService, idempotencyKeyMod
   return useCase;
 };
 
+const buildCustomerLoanPortfolioSummary = (loans = []) => {
+  const normalizedLoans = Array.isArray(loans) ? loans : [];
+  const activeStatuses = new Set(['active', 'approved']);
+  const completedStatuses = new Set(['closed', 'completed', 'paid']);
+  const overdueStatuses = new Set(['overdue', 'defaulted']);
+
+  return normalizedLoans.reduce((summary, loan) => {
+    const normalizedStatus = String(loan?.status || '').trim().toLowerCase();
+    const amount = Number(loan?.amount || 0);
+    const daysLate = Number(loan?.daysLate || 0);
+
+    summary.totalLoans += 1;
+    summary.totalDisbursed = roundCurrency(summary.totalDisbursed + (Number.isFinite(amount) ? amount : 0));
+
+    if (activeStatuses.has(normalizedStatus)) {
+      summary.activeLoans += 1;
+    }
+
+    if (completedStatuses.has(normalizedStatus)) {
+      summary.completedLoans += 1;
+    }
+
+    if (overdueStatuses.has(normalizedStatus) || daysLate > 0) {
+      summary.overdueLoans += 1;
+    }
+
+    return summary;
+  }, {
+    totalLoans: 0,
+    activeLoans: 0,
+    completedLoans: 0,
+    overdueLoans: 0,
+    totalDisbursed: 0,
+  });
+};
+
 /**
  * Create the use case that lists loans for a customer and returns the owning customer record.
  * @param {{ customerRepository: object, loanRepository: object }} dependencies
@@ -993,15 +1031,17 @@ const createListLoansByCustomer = ({ customerRepository, loanRepository }) => as
     throw new NotFoundError('Customer');
   }
 
+  const allCustomerLoans = await loanRepository.listByCustomer(customerId);
+  const loanSummary = buildCustomerLoanPortfolioSummary(allCustomerLoans);
+
   if (pagination) {
     const result = await loanRepository.listPageByCustomer({ customerId, ...pagination });
     const enrichedLoans = await enrichLoansWithCustomerSummaries({ loanRepository, result: result.items });
-    return { customer, loans: enrichedLoans, pagination: result.pagination };
+    return { customer, loans: enrichedLoans, pagination: result.pagination, summary: loanSummary };
   }
 
-  const loans = await loanRepository.listByCustomer(customerId);
-  const enrichedLoans = await enrichLoansWithCustomerSummaries({ loanRepository, result: loans });
-  return { loans: enrichedLoans, customer };
+  const enrichedLoans = await enrichLoansWithCustomerSummaries({ loanRepository, result: allCustomerLoans });
+  return { loans: enrichedLoans, customer, summary: loanSummary };
 };
 
 /**

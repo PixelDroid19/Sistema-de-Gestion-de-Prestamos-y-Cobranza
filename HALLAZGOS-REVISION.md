@@ -90,9 +90,11 @@
 
 ---
 
-## 🟢 Confirmados (frontend) — TODOS CORREGIDOS
+## 🟢 Confirmados (frontend) — CORREGIDOS EN MASTER / LOCAL
 
-> **#51–#62 quedaron ✅ CORREGIDOS** (ver columna Estado). 515 tests frontend + `tsc` en verde; backend `sharedAuthMiddleware`/`auditRouter` en verde. Cambios subidos a `master` en commits incrementales. Verificado en local (`localhost:3000`, admin QA): la búsqueda de clientes filtra server-side, la vista previa de tasa de `NewCredit` es visible, la pestaña Créditos del cliente carga por endpoint propio y el detalle de crédito renderiza CTAs/tabs sin errores de consola.
+> **#51–#62 quedaron ✅ CORREGIDOS en el código actual de `master`** (ver columna Estado). 515 tests frontend + `tsc` en verde; backend `sharedAuthMiddleware`/`auditRouter` en verde. Cambios subidos a `master` en commits incrementales. Verificado en local (`localhost:3000`, admin QA): la búsqueda de clientes filtra server-side, la vista previa de tasa de `NewCredit` es visible, la pestaña Créditos del cliente carga por endpoint propio y el detalle de crédito renderiza CTAs/tabs sin errores de consola.
+
+> **Importante:** esta sección documenta el estado del código y de la validación local. **No implica que todos esos fixes ya estén activos en Railway/producción.** La validación de despliegue queda separada abajo.
 
 | # | Sev | Categoría | Archivo | Problema confirmado | Estado |
 |---|-----|-----------|---------|---------------------|--------|
@@ -110,6 +112,92 @@
 | 62 | MEDIA | frontend/new-customer | `frontend/src/components/NewCustomer.tsx:167-182,188-255` + `frontend/src/components/hooks/useCreateEntitySubmit.ts:4-17` | El CTA principal de crear/editar cliente bypassa la validación nativa del formulario. El botón de guardado vive en `PageHeader`, es `type="button"` y llama `handleSubmit()` manualmente; como `useCreateEntitySubmit` solo reenvía el payload a la mutación, los `required` declarados en nombre, documento, teléfono y correo no se ejecutan antes del submit. En la práctica el operador puede disparar la mutación con campos vacíos y depender de que backend rechace el payload. | ✅ CORREGIDO: `NewCustomer` añade `formRef` y la CTA del header llama `requestSubmit()`, ejecutando la validación nativa (`required`/`email`) antes de mutar. tsc + tests de clientes en verde. |
 
 ---
+
+## ⚠️ Validación runtime en Railway (2026-06-14 / 2026-06-15)
+
+La comprobación manual contra el deploy real **no respalda todavía** la conclusión de “todo listo”.
+
+### Estado del deploy activo
+
+- `master` / `origin/master`: `2cf86244` — `docs: mark all confirmed frontend findings (#51-#62) as corrected`
+- Railway `frontend` activo: `3ad5f362-675c-49dd-8fd1-4cfe307030c0` sobre commit `e1439038`
+- Railway `backend` activo: `1748cf4c-ebee-4c15-a5c7-a8a06b155955` sobre commit `e1439038`
+
+Eso significa que el deploy activo está **por detrás** del `master` actual y, por definición, **no puede validar** los fixes que quedaron en commits posteriores como `9f05486c`, `abaa9179` o `fdad3615`.
+
+### Desfases confirmados en producción
+
+1. **`NewCredit` sigue sin el input de búsqueda visible para cliente**
+   - En código actual, `CustomerSearchSelect` sí renderiza `AppInput` + `OperationalSelect` y envía `search` al API.
+   - En Railway, la pantalla `https://frontend-production-3058.up.railway.app/credits/new` sigue mostrando solo el `<select>` de cliente.
+   - Los logs HTTP del backend en Railway durante la prueba muestran `GET /api/customers` sin evidencia del nuevo flujo de búsqueda server-side.
+
+2. **La vista previa de tasa de `NewCredit` sigue oculta visualmente en producción**
+   - El snapshot accesible del navegador seguía exponiendo la región, pero la inspección de estilo computado en Railway devolvió `className: "sr-only"` con `width: 1px`, `height: 1px`, `position: absolute` y `clip-path: inset(50%)`.
+   - Conclusión: en producción el contenido sigue presente en DOM/accesibilidad, pero **no está visible para el operador**.
+
+3. **`CustomerDetails` sigue consultando la primera página global de créditos en producción**
+   - Al abrir `https://frontend-production-3058.up.railway.app/customers/1`, los logs HTTP del backend en Railway muestran `GET /api/loans`.
+   - No hubo llamada a `/api/loans/customer/:customerId`, así que el deploy activo todavía usa la ruta antigua confirmada en el hallazgo `#61`.
+
+### Conclusión operativa
+
+- **Código/local:** los fixes `#51–#62` quedaron documentados como corregidos con evidencia y pruebas.
+- **Railway/producción:** el deploy activo todavía **no refleja** al menos parte de esos fixes y no debe usarse como evidencia de cierre.
+- Antes de dar por listo este bloque, falta desplegar el `master` actual y repetir QA real sobre:
+  - `Nuevo crédito`
+  - `Detalle de cliente`
+  - `Detalle de crédito`
+  - `Simulador de crédito`
+
+---
+
+## 🟢 Confirmados (frontend) — CORREGIDOS EN WORKTREE / LOCAL
+
+| # | Sev | Categoría | Archivo | Problema confirmado | Estado |
+|---|-----|-----------|---------|---------------------|--------|
+| 63 | ALTA | frontend/reports-schedule | `frontend/src/components/Reports.tsx` + `frontend/src/services/reportService.ts` + `backend/src/modules/credits/application/useCases.js` + `frontend/src/components/__tests__/Reports.behavior.test.tsx` | El calendario operativo de Reportes estaba truncado a `agenda.slice(0, 8)` y además la vista forzaba un `limit: 150` al resolver la agenda. | ✅ CORREGIDO: `Reports` consume `actionableEntries`, backend expone el dataset completo además del preview `agenda`, y la vista ya pagina sobre el conjunto real. Verificado en local: `Calendario de pagos` muestra `Mostrando 1 a 4 de 4 cuotas` con la agenda completa. |
+| 64 | MEDIA | frontend/reports-schedule | `frontend/src/components/Reports.tsx` + `frontend/src/components/reports/ScheduleTab.tsx` | El selector de crédito para consultar cronogramas en Reportes solo veía el primer lote de créditos y no tenía búsqueda server-side. | ✅ CORREGIDO: se reemplazó por búsqueda compartida reutilizable sobre créditos (`LoanSearchSelect`). Verificado en local: el bloque `Seleccionar crédito` muestra input `Selecciona un crédito...` y lista buscable. |
+| 65 | MEDIA | frontend/reports-profitability | `frontend/src/services/reportService.ts` + `frontend/src/components/reports/ProfitabilityTab.tsx` + `frontend/src/components/__tests__/Reports.behavior.test.tsx` | Las tablas de rentabilidad ignoraban la paginación que backend ya soportaba y renderizaban todo el dataset sin resumen de registros. | ✅ CORREGIDO: `useCustomerProfitability` ya envía `page/pageSize`, preserva `pagination` y `ProfitabilityTab` pagina tanto `Control operativo de clientes` como `Detalle por cliente`. Verificado en local: ambos bloques muestran `Mostrando 1 a 2 de 2 clientes`. |
+| 67 | MEDIA | frontend+backend/settings-employees | `frontend/src/components/settings/EmployeesTab.tsx` + `backend/src/modules/users/presentation/router.js` + `backend/src/modules/users/application/useCases.js` + `backend/src/modules/users/infrastructure/repositories.js` | La gestión de empleados seguía paginando el listado global de usuarios, sin búsqueda real por rol/correo/nombre. | ✅ CORREGIDO: `/users` ahora filtra por `role/search`, devuelve `summary`, y `EmployeesTab` usa búsqueda + paginación real. Verificado en local: aparece el input `Buscar empleado` y el resumen `Mostrando 1 a 1 de 1 empleados`. |
+| 68 | MEDIA | frontend/customer-details-pagination | `frontend/src/components/CustomerDetails.tsx` + `backend/src/modules/credits/application/useCases.js` + `frontend/src/components/__tests__/CustomerDetails.behavior.test.tsx` | La pestaña `Créditos` del detalle de cliente seguía descartando la paginación del endpoint por cliente y renderizaba el lote completo visible. | ✅ CORREGIDO: `CustomerDetails` ahora consume `pagination/summary` del endpoint `/loans/customer/:customerId` y expone controles de página/tamaño. Verificado en local: la pestaña muestra `Mostrando 1 a 1 de 1 créditos` y `Filas por página`. |
+| 69 | MEDIA | frontend+backend/reports-employee-filters | `frontend/src/components/reports/PayoutsTab.tsx` + `frontend/src/components/reports/OperatingExpensesTab.tsx` + `frontend/src/components/reports/ReportsExportForm.tsx` + `frontend/src/components/shared/inputs/UserSearchSelect.tsx` + `backend/src/modules/users/*` | Los filtros `Registrado por` de Reportes quedaban limitados al primer page global de usuarios y desaparecían operadores válidos. | ✅ CORREGIDO: se centralizó `UserSearchSelect` con búsqueda server-side y `/users` ya soporta `role=administrative` + `search`. Verificado en local: pagos, gastos y exportación contextual (`Pagos por rango`) muestran `Buscar usuario administrativo…` y filtran resultados activos. |
+| 71 | ALTA | frontend+backend/associate-tracking-obligations | `frontend/src/components/AssociateTracking.tsx` + `backend/src/modules/associates/application/useCases.js` + `backend/tests/associatesModule.test.js` + `frontend/src/components/__tests__/AssociateTracking.behavior.test.tsx` | La tabla `Obligaciones con socios` aparentaba paginar todo, pero backend truncaba el arreglo abierto a 20 filas. | ✅ CORREGIDO: backend ya no recorta `openObligations`, el frontend pagina sobre el dataset recibido y ahora existe prueba dedicada para más de 20 obligaciones. |
+
+### Validación local de este bloque (`#63–#71`)
+
+- `frontend`: `npm run lint`, `npm run build` y suites enfocadas de `Reports`, `Settings`, `CustomerDetails` y `AssociateTracking` en verde.
+- `backend`: `npm run lint` y suite enfocada de `associatesModule` en verde.
+- `git`: en este workspace los cambios de `#65/#67/#68/#69/#71` siguen presentes en el árbol local (`git diff`), y `origin/master` continúa en `2cf86244`.
+- QA real en `localhost:3000` con usuario admin QA:
+  - `/reports` → `Operación` → `Calendario de pagos`: agenda completa + selector buscable de crédito
+  - `/reports` → `Rendimiento` → `Rentabilidad de clientes`: nuevo copy + dos tablas paginadas
+  - `/settings` → `Empleados y permisos`: búsqueda + paginación
+  - `/customers/1` → `Créditos`: paginación visible
+
+### Importante: Railway solo demuestra cierre parcial de `#63–#71`
+
+La validación manual del deploy activo del **15 de junio de 2026** deja este estado:
+
+- **Sí validado en Railway**
+  - `#63` `/reports` → `Operación` → `Calendario de pagos`: ya se ve la agenda paginada (`Mostrando 1 a 3 de 3 cuotas`).
+  - `#64` `/reports` → `Operación` → `Calendario de pagos`: ya se ve el input buscable `Cliente o crédito`.
+
+- **Todavía no validado como corregido en Railway**
+  - `#65` `/reports` → `Rendimiento` → `Rentabilidad de clientes`: no aparece `Detalle por cliente` ni resúmenes `Mostrando...`; la vista en vivo sigue sin demostrar la paginación prometida por el worktree local.
+  - `#67` `/settings` → `Empleados y permisos`: sigue sin input `Buscar empleado` ni controles de paginación visibles.
+  - `#68` `/customers/1` → `Créditos`: la pestaña sigue sin `Mostrando...` ni `Filas por página`.
+  - `#69` `/reports` → `Pagos y desembolsos`: `Registrado por` sigue renderizado como `combobox` simple; no demuestra el `UserSearchSelect` reusable del código local.
+  - `#71` `/associates-tracking`: la UI ya muestra paginación, pero el deploy probado solo tiene 1 obligación visible; con esa data no se puede demostrar en Railway que el backend dejó de truncar después de 20 filas.
+
+Conclusión operativa: **`#63` y `#64` sí quedaron demostrados en Railway; `#65/#67/#68/#69` siguen abiertos en el deploy activo y `#71` continúa inconcluso en producción por falta de un dataset >20 que lo pruebe**.
+
+## 🟢 Verificados sin cambio / reclasificados
+
+| # | Categoría | Archivo | Resultado |
+|---|-----------|---------|-----------|
+| 66 | frontend+backend/reports-permissions | `frontend/src/App.tsx:113` + `frontend/src/components/Sidebar.tsx:67` + `frontend/src/components/Reports.tsx:128` + `frontend/src/components/__tests__/Reports.behavior.test.tsx:753-770,971-985,1820-1834` + `backend/src/modules/reports/presentation/router.js:354-366,484-508` + `backend/src/modules/reports/application/reportHelpers.js:8-23` | **Reclasificado: no es un bug confirmado.** El frontend solo habilita `/reports` para `admin` y `employee` con `REPORTS_VIEW_ALL`, el router backend exige ese mismo permiso y el helper `ensureAdmin(actor)` de reportes **no** restringe a `admin`: acepta cualquier actor backoffice (`admin` o `employee`) y deja el control fino a los permisos de ruta. El `403` observado en Railway con `qa.employee.20260519@test.local` no demuestra un desalineamiento de contrato porque ese usuario seed no trae permisos amplios por defecto. |
+| 70 | frontend/settings-dead-code | `frontend/src/components/Settings.tsx:1-12,87-103` + `frontend/src/components/PermissionsTab.tsx:32-340` + `frontend/src/components/__tests__/Settings.behavior.test.tsx:130-132` | **Reclasificado como deuda técnica / código huérfano.** `PermissionsTab` sigue existiendo como superficie completa con estado, queries y tests propios, pero la pantalla actual de `Settings` ya no lo importa ni lo monta; el test de `Settings` incluso mantiene un mock del componente aunque esa ruta de render ya no existe. No es un bug funcional visible hoy, pero sí código muerto que conviene eliminar o reintegrar explícitamente para evitar deriva. |
 
 ## 🟡 Por comprobar — Backend (reportados con evidencia, NO verificados)
 
@@ -166,5 +254,13 @@ Unidades que **no llegaron a ejecutarse** y deben revisarse al reanudar:
 
 ## Cómo continuar
 
-Todos los hallazgos confirmados (#1–#62) quedaron corregidos, probados y subidos a `master`. El único trabajo restante es revisar las unidades `⚪ SIN REVISAR` (frontend que el workflow inicial no alcanzó: `fe-reports`, `fe-settings`, `fe-services`, `fe-associates`, etc.), que concentran riesgo funcional/visual y no han sido auditadas todavía. Recomendado: reanudar el workflow o revisarlas manualmente cuando se reponga el presupuesto, manteniendo la regla de respaldar cada hallazgo con lectura directa del código y pruebas o evidencia runtime.
-3. Mantener la regla de esta revisión: cada nuevo hallazgo debe quedar respaldado por lectura directa del código actual y, si se corrige, por suites enfocadas o evidencia runtime equivalente.
+En el estado actual, la conclusión correcta es esta:
+
+1. Los hallazgos confirmados `#1–#62` quedaron **corregidos en código y validados localmente**.
+2. Para el bloque `#63–#71`, **Railway solo valida cierre parcial**: `#63` y `#64` sí quedaron visibles en producción, mientras `#65/#67/#68/#69` siguen sin cierre demostrado y `#71` permanece inconcluso en producción.
+3. En este workspace, parte de esos fixes todavía vive **solo en el worktree local**: `origin/master` sigue en `2cf86244` y el árbol mantiene cambios sin commit en frontend/backend para ese bloque.
+4. El trabajo restante se divide en dos frentes:
+   - **Commit/push/despliegue y revalidación:** versionar lo pendiente del worktree, subirlo y repetir QA real sobre `Rentabilidad de clientes`, `Empleados y permisos`, `Detalle de cliente`, filtros `Registrado por` y `Seguimiento de socios`.
+   - **Cobertura pendiente del review:** revisar las unidades `⚪ SIN REVISAR` (frontend que el workflow inicial no alcanzó: `fe-reports`, `fe-settings`, `fe-services`, `fe-associates`, etc.), que siguen concentrando riesgo funcional/visual.
+
+Mantener la regla de esta revisión: cada nuevo hallazgo debe quedar respaldado por lectura directa del código actual y, si se corrige, por suites enfocadas o evidencia runtime equivalente.

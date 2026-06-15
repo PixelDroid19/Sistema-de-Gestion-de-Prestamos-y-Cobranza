@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { getPaymentTypeLabel } from '../../constants/paymentTypes';
 import { tTerm } from '../../i18n/terminology';
-import { AppInput, CustomerSearchSelect, FormField, LoanSearchSelect, OperationalSelect } from '../shared/Surfaces';
+import { AppInput, CustomerSearchSelect, FormField, LoanSearchSelect, OperationalSelect, UserSearchSelect } from '../shared/Surfaces';
 import type { ReportExportFormat, ReportExportType } from './reportsExportHelpers';
 
 export type ReportsExportFormProps = {
@@ -15,7 +15,6 @@ export type ReportsExportFormProps = {
   onReportPaymentTypeFilterChange: (value: string) => void;
   reportEmployeeIdFilter: string;
   onReportEmployeeIdFilterChange: (value: string) => void;
-  employeeOptions?: Array<{ id: number; label: string }>;
   canFilterByEmployee?: boolean;
   reportCustomerIdFilter: string;
   onReportCustomerIdFilterChange: (value: string) => void;
@@ -45,7 +44,6 @@ export default function ReportsExportForm({
   onReportPaymentTypeFilterChange,
   reportEmployeeIdFilter,
   onReportEmployeeIdFilterChange,
-  employeeOptions = [],
   canFilterByEmployee = false,
   reportCustomerIdFilter,
   onReportCustomerIdFilterChange,
@@ -66,6 +64,7 @@ export default function ReportsExportForm({
   const [filtersExpanded, setFiltersExpanded] = useState(layout === 'modal');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [loanSearchQuery, setLoanSearchQuery] = useState('');
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
 
   const showFormat = reportType === 'credits' || reportType === 'payouts' || reportType === 'profitability';
   const showStatus = reportType === 'credits' || reportType === 'payouts';
@@ -104,6 +103,7 @@ export default function ReportsExportForm({
     onReportFinancialProductIdFilterChange('');
     setCustomerSearchQuery('');
     setLoanSearchQuery('');
+    setEmployeeSearchQuery('');
     setFiltersExpanded(layout === 'modal');
   };
 
@@ -262,16 +262,16 @@ export default function ReportsExportForm({
 
             {showEmployee && (
               <FormField label={tTerm('reports.payouts.filter.employee')}>
-                <OperationalSelect
+                <UserSearchSelect
                   id="report-employee"
-                  value={reportEmployeeIdFilter}
-                  onChange={(event) => onReportEmployeeIdFilterChange(event.target.value)}
-                >
-                  <option value="">{tTerm('reports.payouts.filter.allEmployees')}</option>
-                  {employeeOptions.map((employee) => (
-                    <option key={employee.id} value={employee.id}>{employee.label}</option>
-                  ))}
-                </OperationalSelect>
+                  selectedUserId={reportEmployeeIdFilter}
+                  searchValue={employeeSearchQuery}
+                  onSearchValueChange={setEmployeeSearchQuery}
+                  onSelectedUserIdChange={onReportEmployeeIdFilterChange}
+                  placeholder={tTerm('userSearch.placeholder')}
+                  listboxLabel={tTerm('reports.payouts.filter.employee')}
+                  role="administrative"
+                />
               </FormField>
             )}
 

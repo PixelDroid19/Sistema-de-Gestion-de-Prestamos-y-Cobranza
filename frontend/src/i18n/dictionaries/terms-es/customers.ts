@@ -139,6 +139,7 @@ export const customersEs = {
 'customerDetails.loans.daysOverdue': '{days} días vencido',
 'customerDetails.loans.field.outstanding': 'Saldo Pendiente',
 'customerDetails.loans.field.paid': 'Pagado: {amount}',
+'customerDetails.loans.pagination.records': 'créditos',
 'customerDetails.loans.empty': 'No tiene créditos registrados',
 'customerDetails.history.title': 'Historial de Actividad',
 'customerDetails.history.eventFallback': 'Evento registrado',

@@ -25,8 +25,6 @@ import {
   type OperatingExpenseExportFormat,
   type OperatingExpensePayload,
 } from '../services/reportService';
-import { useLoans } from '../services/loanService';
-import { useUsers } from '../services/userService';
 import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
@@ -71,35 +69,8 @@ import {
   hasInvalidExportRange,
   parseOptionalPositiveId,
 } from './reports/reportsExportHelpers';
-import { getLoanStatusLabel } from './credits/creditsHelpers';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
-
-type PayoutEmployeeOption = {
-  id: number;
-  label: string;
-};
-
-const getLoanCustomerName = (loan: any) => {
-  const direct = loan?.customerName || loan?.clientName || loan?.borrowerName;
-  const nested = loan?.customer?.name || loan?.Customer?.name;
-  const composed = [loan?.customer?.firstName, loan?.customer?.lastName].filter(Boolean).join(' ').trim()
-    || [loan?.Customer?.firstName, loan?.Customer?.lastName].filter(Boolean).join(' ').trim();
-  return direct || nested || composed || tTerm('credits.label.customerFallback', { id: loan?.customerId ?? loan?.id });
-};
-
-const getLoanOptionLabel = (loan: any) => {
-  const id = Number(loan?.id);
-  const customerName = getLoanCustomerName(loan);
-  const amount = formatMoney(loan?.amount);
-  const status = String(loan?.status || '').trim();
-  return [
-    customerName,
-    Number.isFinite(id) ? `#${id}` : '',
-    amount,
-    status ? getLoanStatusLabel(status) : '',
-  ].filter(Boolean).join(' · ');
-};
 
 export default function Reports() {
   const queryClient = useQueryClient();
@@ -134,23 +105,6 @@ export default function Reports() {
   const { payouts, summary: payoutSummary, pagination: payoutPagination, isLoading: isPayoutsLoading } = usePayoutsReport(payoutFilters, payoutPage, payoutPageSize);
   const canFilterPayoutsByEmployee = user?.role === 'admin';
   const canFilterExpensesByEmployee = user?.role === 'admin' && canViewOperatingExpensesTab;
-  const canLoadReportEmployeeOptions = canFilterPayoutsByEmployee || canFilterExpensesByEmployee;
-  const { data: usersData } = useUsers({ page: 1, pageSize: 100 }, { enabled: canLoadReportEmployeeOptions });
-  const payoutEmployeeOptions = useMemo<PayoutEmployeeOption[]>(() => {
-    const users = Array.isArray(usersData?.data?.users)
-      ? usersData.data.users
-      : Array.isArray(usersData?.data)
-        ? usersData.data
-        : [];
-
-    return users
-      .filter((reportUser: any) => ['admin', 'employee'].includes(reportUser?.role) && reportUser?.isActive !== false)
-      .map((reportUser: any) => ({
-        id: Number(reportUser.id),
-        label: reportUser.name || reportUser.email,
-      }))
-      .filter((reportUser: any) => Number.isFinite(reportUser.id) && reportUser.label);
-  }, [usersData]);
 
   const [expenseFilters, setExpenseFilters] = useState<{ fromDate?: string; toDate?: string; status?: string; employeeId?: string }>({});
   const [expensePage, setExpensePage] = useState(1);
@@ -192,10 +146,9 @@ export default function Reports() {
     ...(scheduleAgendaFilters.status ? { status: scheduleAgendaFilters.status } : {}),
     ...(scheduleAgendaFilters.startDate ? { startDate: scheduleAgendaFilters.startDate } : {}),
     ...(scheduleAgendaFilters.endDate ? { endDate: scheduleAgendaFilters.endDate } : {}),
-    limit: 150,
   }), [calendarAsOfDate, scheduleAgendaFilters]);
   const {
-    agenda: scheduleAgenda,
+    actionableEntries: scheduleAgenda,
     summary: scheduleAgendaSummary,
     isLoading: isScheduleAgendaLoading,
     isError: isScheduleAgendaError,
@@ -220,10 +173,17 @@ export default function Reports() {
   const [profitabilityDateRange, setProfitabilityDateRange] = useState<{ fromDate: string; toDate: string }>(() => (
     buildReportYearDateRange(new Date().getFullYear())
   ));
+  const [profitabilityPage, setProfitabilityPage] = useState(1);
+  const [profitabilityPageSize, setProfitabilityPageSize] = useState(10);
   const {
     items: profitabilityItems,
     customerAnalytics,
-  } = useCustomerProfitability(profitabilityDateRange);
+    pagination: profitabilityPagination,
+  } = useCustomerProfitability({
+    ...profitabilityDateRange,
+    page: profitabilityPage,
+    pageSize: profitabilityPageSize,
+  });
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
   const [cashFlowRange, setCashFlowRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [dailyCashFlowDate, setDailyCashFlowDate] = useState<string>(() => getLocalDateInputValue());
@@ -285,23 +245,6 @@ export default function Reports() {
   }), [creditHistoryFilters]);
   const { data: creditHistoryData, isLoading: isCreditHistoryLoading } = useCreditHistoryMonthly(creditHistoryQueryFilters);
   const { financialProducts: creditHistoryFinancialProducts } = useCreditHistoryFinancialProducts();
-  const { data: scheduleLoansData, isLoading: isScheduleLoansLoading } = useLoans(
-    { pageSize: 100 },
-    { enabled: activeTab === 'schedule' },
-  );
-
-  const scheduleLoanOptions = useMemo(() => {
-    const loans = Array.isArray(scheduleLoansData?.data?.loans)
-      ? scheduleLoansData.data.loans
-      : Array.isArray(scheduleLoansData?.data)
-        ? scheduleLoansData.data
-        : [];
-
-    return loans
-      .map((loan: any) => ({ id: Number(loan?.id), label: getLoanOptionLabel(loan) }))
-      .filter((loan: { id: number; label: string }): loan is { id: number; label: string } => Number.isFinite(loan.id) && loan.label.length > 0)
-      .sort((a: { id: number }, b: { id: number }) => b.id - a.id);
-  }, [scheduleLoansData]);
 
   const metrics = dashboardData?.metrics || {
     totalActiveLoans: 0, totalDisbursed: 0, totalRecovered: 0,
@@ -329,6 +272,7 @@ export default function Reports() {
     }
 
     setProfitabilityDateRange((prev) => ({ ...prev, [key]: value }));
+    setProfitabilityPage(1);
   };
 
   // ─── Export handlers ──────────────────────────────────────────────────────
@@ -715,7 +659,6 @@ export default function Reports() {
           onReportPaymentTypeFilterChange={setReportPaymentTypeFilter}
           reportEmployeeIdFilter={reportEmployeeIdFilter}
           onReportEmployeeIdFilterChange={setReportEmployeeIdFilter}
-          employeeOptions={payoutEmployeeOptions}
           canFilterByEmployee={canFilterPayoutsByEmployee}
           reportCustomerIdFilter={reportCustomerIdFilter}
           onReportCustomerIdFilterChange={setReportCustomerIdFilter}
@@ -891,6 +834,14 @@ export default function Reports() {
           customerAnalytics={customerAnalytics}
           profitabilityDateRange={profitabilityDateRange}
           onProfitabilityDateRangeChange={updateProfitabilityDateRange}
+          profitabilityPagination={profitabilityPagination}
+          profitabilityPage={profitabilityPage}
+          onProfitabilityPageChange={setProfitabilityPage}
+          profitabilityPageSize={profitabilityPageSize}
+          onProfitabilityPageSizeChange={(pageSize) => {
+            setProfitabilityPageSize(pageSize);
+            setProfitabilityPage(1);
+          }}
           exportActions={reportExportGuard.visible ? (
             <ReportTabExportButton
               modalTitle={tTerm('reports.export.tab.profitability.title')}
@@ -919,7 +870,6 @@ export default function Reports() {
         <PayoutsTab
           payoutFilters={payoutFilters}
           onPayoutFiltersChange={setPayoutFilters}
-          employees={payoutEmployeeOptions}
           canFilterByEmployee={canFilterPayoutsByEmployee}
           payoutPage={payoutPage}
           onPayoutPageChange={setPayoutPage}
@@ -935,7 +885,7 @@ export default function Reports() {
               modalSubtitle={tTerm('reports.export.tab.payouts.subtitle')}
               summary={buildPayoutExportSummary({
                 ...payoutFilters,
-                employeeLabel: payoutEmployeeOptions.find((employee: PayoutEmployeeOption) => String(employee.id) === payoutFilters.employeeId)?.label,
+                employeeLabel: payoutFilters.employeeId ? tTerm('reports.payouts.filter.employee') : undefined,
               })}
               exportLabel={tTerm('reports.cta.exportPayouts')}
               format={reportFormat}
@@ -969,7 +919,6 @@ export default function Reports() {
           onCreateExpense={handleCreateOperatingExpense}
           onAnnulExpense={handleAnnulOperatingExpense}
           onExportExpenses={handleExportOperatingExpenses}
-          employees={payoutEmployeeOptions}
           canFilterByEmployee={canFilterExpensesByEmployee}
         />
       )}
@@ -985,11 +934,10 @@ export default function Reports() {
           onScheduleAgendaFiltersChange={updateScheduleAgendaFilters}
           selectedLoanId={selectedLoanId}
           onLoanIdChange={setSelectedLoanId}
-          loanOptions={scheduleLoanOptions}
           schedule={schedule}
           scheduleSummary={scheduleSummary}
           scheduleLoan={scheduleLoan}
-          isScheduleLoading={isScheduleLoading || isScheduleLoansLoading}
+          isScheduleLoading={isScheduleLoading}
           onRefetch={() => { void refetchSchedule(); }}
         />
       )}

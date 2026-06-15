@@ -121,6 +121,7 @@ export const es = {
       },
       table: {
         title: 'Empleados administrativos',
+        subtitle: 'Busca empleados por nombre o correo y navega el listado completo sin truncar resultados.',
         empty: 'No hay empleados administrativos creados.',
         empleadoCol: 'Empleado',
         emailCol: 'Correo',
@@ -129,6 +130,10 @@ export const es = {
         actionsCol: 'Acciones',
         roleHint: 'Rol administrativo: empleado',
         nameMissing: 'Empleado sin nombre',
+      },
+      filters: {
+        searchLabel: 'Buscar empleado',
+        searchPlaceholder: 'Nombre o correo del empleado…',
       },
       actions: {
         edit: 'Editar',

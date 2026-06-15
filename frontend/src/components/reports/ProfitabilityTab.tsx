@@ -51,6 +51,16 @@ type ProfitabilityTabProps = {
   customerAnalytics?: any;
   profitabilityDateRange: { fromDate: string; toDate: string };
   onProfitabilityDateRangeChange: (key: 'fromDate' | 'toDate', value: string) => void;
+  profitabilityPagination?: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  } | null;
+  profitabilityPage: number;
+  onProfitabilityPageChange: (page: number) => void;
+  profitabilityPageSize: number;
+  onProfitabilityPageSizeChange: (pageSize: number) => void;
   exportActions?: ReactNode;
 };
 
@@ -59,23 +69,32 @@ export default function ProfitabilityTab({
   customerAnalytics,
   profitabilityDateRange,
   onProfitabilityDateRangeChange,
+  profitabilityPagination,
+  profitabilityPage,
+  onProfitabilityPageChange,
+  profitabilityPageSize,
+  onProfitabilityPageSizeChange,
   exportActions,
 }: ProfitabilityTabProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: number; name: string; snapshot?: any } | null>(null);
-  const customerControlRows = [...profitabilityData].sort((left, right) => {
-    const riskWeight = (row: any) => (row.riskLevel === 'high' ? 3 : row.riskLevel === 'medium' ? 2 : 1);
-    return (
-      riskWeight(right) - riskWeight(left)
-      || toNumber(right.overdueLoanCount) - toNumber(left.overdueLoanCount)
-      || toNumber(right.outstandingBalance) - toNumber(left.outstandingBalance)
-      || toNumber(right.totalLoans) - toNumber(left.totalLoans)
-    );
-  });
+  const customerControlRows = profitabilityData;
   const analyticsSummary = customerAnalytics?.summary || {};
   const topByLoanCount = Array.isArray(customerAnalytics?.topByLoanCount) ? customerAnalytics.topByLoanCount : [];
   const topByOutstandingBalance = Array.isArray(customerAnalytics?.topByOutstandingBalance) ? customerAnalytics.topByOutstandingBalance : [];
   const delinquentCustomers = Array.isArray(customerAnalytics?.delinquentCustomers) ? customerAnalytics.delinquentCustomers : [];
   const delinquentCustomerCount = toNumber(analyticsSummary?.delinquentCustomerCount);
+  const profitabilityPaginationConfig = profitabilityPagination
+    ? {
+      page: profitabilityPage,
+      pageSize: profitabilityPageSize,
+      totalItems: profitabilityPagination.totalItems,
+      totalPages: Math.max(profitabilityPagination.totalPages || 0, 1),
+      onPrev: () => onProfitabilityPageChange(Math.max(1, profitabilityPage - 1)),
+      onNext: () => onProfitabilityPageChange(Math.min(Math.max(profitabilityPagination.totalPages || 0, 1), profitabilityPage + 1)),
+      onPageSizeChange: onProfitabilityPageSizeChange,
+      pageSizeOptions: [10, 25, 50],
+    }
+    : undefined;
 
   return (
     <div className="report-tab-layout">
@@ -234,6 +253,8 @@ export default function ProfitabilityTab({
           count: delinquentCustomerCount,
         })}
         minWidthClassName="min-w-[920px]"
+        pagination={profitabilityPaginationConfig}
+        recordsLabel={tTerm('reports.profitability.customerControl.recordsLabel')}
       >
             <thead>
               <tr>
@@ -313,7 +334,11 @@ export default function ProfitabilityTab({
             </tbody>
       </ReportDataTableSection>
 
-      <ReportDataTableSection title={tTerm('reports.profitability.table.title')}>
+      <ReportDataTableSection
+        title={tTerm('reports.profitability.table.title')}
+        pagination={profitabilityPaginationConfig}
+        recordsLabel={tTerm('reports.profitability.customerControl.recordsLabel')}
+      >
             <thead>
               <tr>
                 <th>{tTerm('reports.profitability.customer')}</th>

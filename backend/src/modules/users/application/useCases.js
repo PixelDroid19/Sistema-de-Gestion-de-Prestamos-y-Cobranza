@@ -24,16 +24,22 @@ const validateRole = (role) => {
 /**
  * Create the use case that lists all users (admin only)
  */
-const createListUsers = ({ userRepository }) => async ({ pagination } = {}) => {
+const createListUsers = ({ userRepository }) => async ({ pagination, filters = {} } = {}) => {
   if (pagination) {
-    const result = await userRepository.findPage(pagination);
+    const [result, summary] = await Promise.all([
+      userRepository.findPage({ ...pagination, filters }),
+      typeof userRepository.countSummary === 'function'
+        ? userRepository.countSummary(filters)
+        : Promise.resolve(null),
+    ]);
     return {
       items: result.items.map(sanitizeUser),
       pagination: result.pagination,
+      ...(summary ? { summary } : {}),
     };
   }
 
-  const users = await userRepository.findAll();
+  const users = await userRepository.findAll(filters);
   return users.map(sanitizeUser);
 };
 

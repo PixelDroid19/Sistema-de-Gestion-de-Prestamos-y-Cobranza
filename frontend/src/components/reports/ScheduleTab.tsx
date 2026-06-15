@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { AlertCircle, CalendarClock, DollarSign, Eye, Search, TrendingUp, Wallet } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
@@ -19,6 +19,7 @@ import {
   EmptyState,
   FormField,
   InsightStrip,
+  LoanSearchSelect,
   OperationalSelect,
   SectionSurface,
 } from '../shared/Surfaces';
@@ -102,11 +103,6 @@ type ScheduleTabProps = {
   onScheduleAgendaFiltersChange: (patch: Partial<ScheduleAgendaFilters>) => void;
   selectedLoanId: number | null;
   onLoanIdChange: (id: number | null) => void;
-  loanOptions: Array<{
-    id: number;
-    label: string;
-    helper?: string;
-  }>;
   schedule: any[];
   scheduleSummary: any;
   scheduleLoan: any;
@@ -124,7 +120,6 @@ export default function ScheduleTab({
   onScheduleAgendaFiltersChange,
   selectedLoanId,
   onLoanIdChange,
-  loanOptions,
   schedule,
   scheduleSummary,
   scheduleLoan,
@@ -133,6 +128,7 @@ export default function ScheduleTab({
 }: ScheduleTabProps) {
   const [agendaPage, setAgendaPage] = useState(1);
   const [agendaPageSize, setAgendaPageSize] = useState(AGENDA_PAGE_SIZE_OPTIONS[0]);
+  const [loanSearchQuery, setLoanSearchQuery] = useState('');
 
   useEffect(() => {
     setAgendaPage(1);
@@ -233,7 +229,7 @@ export default function ScheduleTab({
             <FormField label={tTerm('credits.calendar.filter.status')}>
               <OperationalSelect
                 value={scheduleAgendaFilters.status}
-                onChange={(event) => onScheduleAgendaFiltersChange({ status: event.target.value })}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) => onScheduleAgendaFiltersChange({ status: event.target.value })}
               >
                 <option value="">{tTerm('credits.calendar.filter.allStatuses')}</option>
                 <option value="pending">{tTerm('schedule.status.pending')}</option>
@@ -380,23 +376,17 @@ export default function ScheduleTab({
             label={tTerm('reports.schedule.selectLabel')}
             helper={tTerm('reports.schedule.selectHelper')}
           >
-            <OperationalSelect
-              value={selectedLoanId ?? ''}
-              onChange={(event) => onLoanIdChange(event.target.value ? Number(event.target.value) : null)}
-              disabled={loanOptions.length === 0}
-              aria-label={tTerm('reports.schedule.selectLabel')}
-            >
-              <option value="">
-                {loanOptions.length > 0
-                  ? tTerm('reports.schedule.selectPlaceholder')
-                  : tTerm('reports.schedule.selectEmpty')}
-              </option>
-              {loanOptions.map((loan) => (
-                <option key={loan.id} value={loan.id}>
-                  {loan.label}
-                </option>
-              ))}
-            </OperationalSelect>
+            <LoanSearchSelect
+              id="reports-schedule-loan"
+              selectedLoanId={selectedLoanId ? String(selectedLoanId) : ''}
+              searchValue={loanSearchQuery}
+              onSearchValueChange={setLoanSearchQuery}
+              onSelectedLoanIdChange={(value) => onLoanIdChange(value ? Number(value) : null)}
+              placeholder={tTerm('reports.schedule.selectPlaceholder')}
+              listboxLabel={tTerm('reports.schedule.selectLabel')}
+              pageSize={50}
+              enabled
+            />
           </FormField>
         )}
         headerActions={(

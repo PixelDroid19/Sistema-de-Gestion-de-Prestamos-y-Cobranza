@@ -136,6 +136,7 @@ export const customersEn = {
 'customerDetails.loans.daysOverdue': '{days} days overdue',
 'customerDetails.loans.field.outstanding': 'Outstanding balance',
 'customerDetails.loans.field.paid': 'Paid: {amount}',
+'customerDetails.loans.pagination.records': 'loans',
 'customerDetails.loans.empty': 'No registered loans',
 'customerDetails.history.title': 'Activity history',
 'customerDetails.history.eventFallback': 'Recorded event',

@@ -1563,7 +1563,7 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
       totalPayable: roundCurrency(summary.interestPending + summary.interestOverdue),
     },
     associates: associateRows,
-    obligations: openObligations.slice(0, 20),
+    obligations: openObligations,
     recentPayments,
     recentContributions,
     recentCapitalReturns,

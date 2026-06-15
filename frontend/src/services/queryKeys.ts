@@ -84,6 +84,8 @@ export type PaymentCalendarOverviewFilters = {
 export type CustomerProfitabilityFilters = {
   fromDate?: string;
   toDate?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 export type OperatingExpenseListParams = {

@@ -159,6 +159,7 @@ export interface PaymentCalendarOverviewResponse {
   asOfDate: string;
   summary: PaymentCalendarOverviewSummary;
   agenda: PaymentCalendarOverviewAgendaItem[];
+  actionableEntries?: PaymentCalendarOverviewAgendaItem[];
   nextAction: PaymentCalendarOverviewAgendaItem | null;
   entries: PaymentCalendarOverviewEntry[];
 }

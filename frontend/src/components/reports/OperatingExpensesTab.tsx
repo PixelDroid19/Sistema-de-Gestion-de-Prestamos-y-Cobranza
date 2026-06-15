@@ -13,17 +13,13 @@ import {
   FormField,
   OperationalSelect,
   StatusChip,
+  UserSearchSelect,
 } from '../shared/Surfaces';
 import OperatingExpenseCreateModal, { OperatingExpenseCreateTrigger } from './OperatingExpenseCreateModal';
 import ReportDownloadModal, { ReportDownloadTrigger } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { RowActionsWithOverflow, TableActionsCell, TableActionsHeader } from '../shared/tables';
 import { ReportTabPanel } from './ReportTabPanel';
-
-type ReportEmployeeOption = {
-  id: number;
-  label: string;
-};
 
 type OperatingExpensesTabProps = {
   expenseFilters: OperatingExpenseFilters;
@@ -42,7 +38,6 @@ type OperatingExpensesTabProps = {
   onCreateExpense: (payload: OperatingExpensePayload) => Promise<void>;
   onAnnulExpense: (expense: OperatingExpense) => Promise<void>;
   onExportExpenses: (format: OperatingExpenseExportFormat) => boolean | Promise<boolean>;
-  employees?: ReportEmployeeOption[];
   canFilterByEmployee?: boolean;
 };
 
@@ -75,11 +70,11 @@ export default function OperatingExpensesTab({
   onCreateExpense,
   onAnnulExpense,
   onExportExpenses,
-  employees = [],
   canFilterByEmployee = false,
 }: OperatingExpensesTabProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
 
   const updateExpenseDateFilter = (key: 'fromDate' | 'toDate', value: string) => {
     if (key === 'fromDate' && value && expenseFilters.toDate && value > expenseFilters.toDate) {
@@ -133,20 +128,19 @@ export default function OperatingExpensesTab({
             </FormField>
             {canFilterByEmployee && (
               <FormField label={tTerm('reports.expenses.filter.employee')}>
-                <OperationalSelect
-                  value={expenseFilters.employeeId || ''}
-                  onChange={(event) => {
+                <UserSearchSelect
+                  id="reports-expenses-employee"
+                  selectedUserId={expenseFilters.employeeId || ''}
+                  searchValue={employeeSearchQuery}
+                  onSearchValueChange={setEmployeeSearchQuery}
+                  onSelectedUserIdChange={(value) => {
                     onExpensePageChange(1);
-                    onExpenseFiltersChange({ ...expenseFilters, employeeId: event.target.value || undefined });
+                    onExpenseFiltersChange({ ...expenseFilters, employeeId: value || undefined });
                   }}
-                >
-                  <option value="">{tTerm('reports.expenses.filter.allEmployees')}</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={String(employee.id)}>
-                      {employee.label}
-                    </option>
-                  ))}
-                </OperationalSelect>
+                  placeholder={tTerm('userSearch.placeholder')}
+                  listboxLabel={tTerm('reports.expenses.filter.employee')}
+                  role="administrative"
+                />
               </FormField>
             )}
           </>

@@ -123,6 +123,7 @@ const en: typeof es = {
       },
       table: {
         title: 'Administrative employees',
+        subtitle: 'Search employees by name or email and browse the full list without truncating results.',
         empty: 'There are no administrative employees yet.',
         empleadoCol: 'Employee',
         emailCol: 'Email',
@@ -131,6 +132,10 @@ const en: typeof es = {
         actionsCol: 'Actions',
         roleHint: 'Administrative role: employee',
         nameMissing: 'Unnamed employee',
+      },
+      filters: {
+        searchLabel: 'Search employee',
+        searchPlaceholder: 'Employee name or email…',
       },
       actions: {
         edit: 'Edit',

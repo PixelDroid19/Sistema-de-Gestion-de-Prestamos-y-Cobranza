@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { PencilLine, UserCheck, UserPlus, UserX } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { PencilLine, Search, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { formatDate as formatDateValue } from '../../i18n/format';
 import { useUsers } from '../../services/userService';
@@ -27,7 +27,15 @@ import type { EmployeeDraft } from './settingsHelpers';
 
 export default function EmployeesTab() {
   const { t } = useTranslation();
-  const { data: usersData, registerWithPermissions, deactivateUser, reactivateUser } = useUsers({ page: 1, pageSize: 100, role: 'employee' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const { data: usersData, registerWithPermissions, deactivateUser, reactivateUser } = useUsers({
+    page,
+    pageSize,
+    role: 'employee',
+    ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
+  });
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeDraft>({
     name: '',
     email: '',
@@ -42,8 +50,42 @@ export default function EmployeesTab() {
       ? usersData.data
       : [];
   const employees = users.filter((user: any) => user?.role === 'employee');
-  const activeEmployees = employees.filter((employee: any) => employee?.isActive !== false);
-  const inactiveEmployees = employees.filter((employee: any) => employee?.isActive === false);
+  const employeesSummary = usersData?.data?.summary;
+  const employeesPagination = usersData?.data?.pagination;
+  const activeEmployeesCount = Number(employeesSummary?.activeUsers ?? employees.filter((employee: any) => employee?.isActive !== false).length);
+  const inactiveEmployeesCount = Number(employeesSummary?.inactiveUsers ?? employees.filter((employee: any) => employee?.isActive === false).length);
+  const totalEmployeesCount = Number(employeesSummary?.totalUsers ?? employees.length);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (employeesPagination?.totalPages && page > employeesPagination.totalPages) {
+      setPage(employeesPagination.totalPages);
+    }
+  }, [employeesPagination?.totalPages, page]);
+
+  const tablePagination = useMemo(() => {
+    if (!employeesPagination) {
+      return undefined;
+    }
+
+    const totalPages = Math.max(employeesPagination.totalPages || 0, 1);
+    return {
+      page: employeesPagination.page,
+      pageSize: employeesPagination.pageSize,
+      totalItems: employeesPagination.totalItems,
+      totalPages,
+      onPrev: () => setPage((current) => Math.max(1, current - 1)),
+      onNext: () => setPage((current) => Math.min(totalPages, current + 1)),
+      onPageSizeChange: (nextPageSize: number) => {
+        setPageSize(nextPageSize);
+        setPage(1);
+      },
+      pageSizeOptions: [10, 25, 50],
+    };
+  }, [employeesPagination]);
 
   const handleToggleEmployeeStatus = async (employee: any) => {
     const isActive = employee?.isActive !== false;
@@ -91,12 +133,6 @@ export default function EmployeesTab() {
 
     if (password.length < 8) {
       toast.error({ description: t('errors.employeePasswordShort') });
-      return;
-    }
-
-    const duplicateEmail = employees.some((employee: any) => String(employee?.email || '').toLowerCase() === email);
-    if (duplicateEmail) {
-      toast.error({ description: t('errors.employeeEmailDuplicate') });
       return;
     }
 
@@ -170,7 +206,7 @@ export default function EmployeesTab() {
           {
             id: 'settings-employees-total',
             label: t('settings.employees.summary.total'),
-            value: employees.length,
+            value: totalEmployeesCount,
             helper: t('settings.employees.summary.totalHelper'),
             icon: <UserPlus size={18} />,
             accent: 'slate',
@@ -178,7 +214,7 @@ export default function EmployeesTab() {
           {
             id: 'settings-employees-active',
             label: t('settings.employees.summary.active'),
-            value: activeEmployees.length,
+            value: activeEmployeesCount,
             helper: t('settings.employees.summary.activeHelper'),
             icon: <UserCheck size={18} />,
             accent: 'emerald',
@@ -186,7 +222,7 @@ export default function EmployeesTab() {
           {
             id: 'settings-employees-inactive',
             label: t('settings.employees.summary.inactive'),
-            value: inactiveEmployees.length,
+            value: inactiveEmployeesCount,
             helper: t('settings.employees.summary.inactiveHelper'),
             icon: <UserX size={18} />,
             accent: 'rose',
@@ -213,10 +249,29 @@ export default function EmployeesTab() {
         </p>
       </SectionSurface>
 
-      <AppTable variant="operational" shell="off"
+      <SectionSurface
+        title={t('settings.employees.table.title')}
+        subtitle={t('settings.employees.table.subtitle')}
+      >
+        <div className="mb-4 max-w-xl">
+          <FormField label={t('settings.employees.filters.searchLabel')}>
+            <AppInput
+              aria-label={t('settings.employees.filters.searchLabel')}
+              variant="text"
+              value={searchTerm}
+              onValueChange={(value) => setSearchTerm(value)}
+              placeholder={t('settings.employees.filters.searchPlaceholder')}
+              icon={<Search size={16} />}
+            />
+          </FormField>
+        </div>
+
+      <AppTable variant="operational"
         minWidthClassName="min-w-[760px]"
         data-tour="settings-employees-table"
         aria-label={t('settings.employees.table.title')}
+        pagination={tablePagination}
+        recordsLabel={t('settings.employees.summary.total').toLowerCase()}
       >
             <thead>
               <tr>
@@ -277,6 +332,7 @@ export default function EmployeesTab() {
               )}
             </tbody>
       </AppTable>
+      </SectionSurface>
 
       {editingEmployee && (
         <EmployeeEditModal

@@ -632,6 +632,58 @@ test('createGetAssociateTracking excludes non-completed contributions from capit
   assert.equal(tracking.recentContributions.length, 3);
 });
 
+test('createGetAssociateTracking preserves the full open obligations dataset without truncating after 20 rows', async () => {
+  const getAssociateTracking = createGetAssociateTracking({
+    clock: () => new Date('2026-05-10T00:00:00.000Z'),
+    associateRepository: {
+      async getTrackingDataset() {
+        return {
+          associates: [
+            {
+              id: 12,
+              name: 'Socio Escalable',
+              status: 'active',
+              participationPercentage: '50.0000',
+              interestType: 'monthly',
+              interestRate: '2.0000',
+              interestPaymentDay: 15,
+              interestPaymentMonth: null,
+            },
+          ],
+          contributions: [
+            { id: 1, associateId: 12, amount: 5000000, contributionDate: new Date('2026-04-01T00:00:00.000Z') },
+          ],
+          distributions: [],
+          recentCapitalReturns: [],
+          installments: Array.from({ length: 25 }, (_, index) => ({
+            id: index + 1,
+            associateId: 12,
+            installmentNumber: index + 1,
+            amount: 100000,
+            dueDate: new Date(`2026-06-${String((index % 28) + 1).padStart(2, '0')}T00:00:00.000Z`),
+            status: 'pending',
+            interestRate: '2.0000',
+            interestType: 'monthly',
+            paidAt: null,
+          })),
+        };
+      },
+      async updateInstallmentStatus() {
+        throw new Error('updateInstallmentStatus should not be called');
+      },
+    },
+  });
+
+  const tracking = await getAssociateTracking({
+    actor: { id: 1, role: 'admin' },
+    filters: {},
+  });
+
+  assert.equal(tracking.obligations.length, 25);
+  assert.equal(tracking.summary.upcomingObligations, 25);
+  assert.equal(tracking.obligations.at(-1)?.installmentNumber, 25);
+});
+
 test('createCreateAssociateCapitalReturn reduces current capital and reprojections pending interest', async () => {
   const calls = [];
   let createdDistribution = null;

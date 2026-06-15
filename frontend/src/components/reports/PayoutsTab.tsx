@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlertCircle, DollarSign, TrendingUp, Wallet } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
@@ -13,6 +13,7 @@ import {
   AppInput,
   FormField,
   OperationalSelect,
+  UserSearchSelect,
 } from '../shared/Surfaces';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportMetricsSection } from './ReportMetricsSection';
@@ -22,15 +23,9 @@ const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
 type PayoutFilters = { fromDate?: string; toDate?: string; status?: string; paymentType?: string; employeeId?: string };
 
-type ReportEmployeeOption = {
-  id: number;
-  label: string;
-};
-
 type PayoutsTabProps = {
   payoutFilters: PayoutFilters;
   onPayoutFiltersChange: (filters: PayoutFilters) => void;
-  employees?: ReportEmployeeOption[];
   canFilterByEmployee?: boolean;
   payoutPage: number;
   onPayoutPageChange: (page: number) => void;
@@ -55,7 +50,6 @@ const getLatestCollectionBucket = (buckets: any[] | undefined) => (
 export default function PayoutsTab({
   payoutFilters,
   onPayoutFiltersChange,
-  employees = [],
   canFilterByEmployee = false,
   payoutPage,
   onPayoutPageChange,
@@ -67,6 +61,7 @@ export default function PayoutsTab({
   isPayoutsLoading,
   exportActions,
 }: PayoutsTabProps) {
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const latestDailyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.daily);
   const latestWeeklyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.weekly);
   const latestMonthlyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.monthly);
@@ -141,15 +136,16 @@ export default function PayoutsTab({
             </FormField>
             {canFilterByEmployee && (
               <FormField label={tTerm('reports.payouts.filter.employee')}>
-                <OperationalSelect
-                  value={payoutFilters.employeeId || ''}
-                  onChange={(event) => updateFilters({ employeeId: event.target.value })}
-                >
-                  <option value="">{tTerm('reports.payouts.filter.allEmployees')}</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>{employee.label}</option>
-                  ))}
-                </OperationalSelect>
+                <UserSearchSelect
+                  id="reports-payout-employee"
+                  selectedUserId={payoutFilters.employeeId || ''}
+                  searchValue={employeeSearchQuery}
+                  onSearchValueChange={setEmployeeSearchQuery}
+                  onSelectedUserIdChange={(value) => updateFilters({ employeeId: value })}
+                  placeholder={tTerm('userSearch.placeholder')}
+                  listboxLabel={tTerm('reports.payouts.filter.employee')}
+                  role="administrative"
+                />
               </FormField>
             )}
             <FormField label={tTerm('reports.payouts.table.rows')}>

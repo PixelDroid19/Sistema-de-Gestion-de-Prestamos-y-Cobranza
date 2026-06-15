@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Upload, Download, Trash2, CheckCircle, Clock, DollarSign, AlertTriangle, CreditCard } from 'lucide-react';
 import { useTranslation } from '../i18n';
@@ -48,7 +48,9 @@ export default function CustomerDetails() {
 
   const { documents, uploadDocument, deleteDocument, downloadDocument } = useCustomerDocuments(customerId);
   const { history, creditProfile } = useCustomerReports(customerId);
-  const { data: loansData } = useCustomerLoans(customerId, { pageSize: 200 });
+  const [loanPage, setLoanPage] = useState(1);
+  const [loanPageSize, setLoanPageSize] = useState(6);
+  const { data: loansData } = useCustomerLoans(customerId, { page: loanPage, pageSize: loanPageSize });
 
   const customerLoans = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
@@ -66,6 +68,8 @@ export default function CustomerDetails() {
   const customerPhone = customer?.phoneNumber || customer?.phone || tTerm('common.notAvailable');
   const customerCreditProfile = creditProfile?.data?.profile || creditProfile?.profile || null;
   const customerCreditSummary = customerCreditProfile?.summary || {};
+  const customerLoanSummary = loansData?.data?.summary || null;
+  const customerLoansPagination = loansData?.data?.pagination || null;
   const historyEntries = Array.isArray(history?.data?.timeline)
     ? history.data.timeline
     : Array.isArray(history?.timeline)
@@ -82,17 +86,58 @@ export default function CustomerDetails() {
     return Math.max(0, Number.isFinite(outstanding) ? outstanding : 0);
   };
 
-  // Calculate loan statistics
-  const activeLoans = customerLoans.filter((l: any) => l.status === 'active' || l.status === 'ACTIVE');
-  const completedLoans = customerLoans.filter((l: any) => l.status === 'closed' || l.status === 'CLOSED' || l.status === 'completed');
-  const overdueLoans = customerLoans.filter((l: any) => l.status === 'overdue' || l.status === 'OVERDUE' || l.daysLate > 0);
-  const totalDisbursed = customerLoans.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
-
   const [activeTab, setActiveTab] = useState<'profile' | 'documents' | 'loans' | 'history'>('profile');
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('identification');
   const [customerVisible, setCustomerVisible] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+
+  useEffect(() => {
+    if (customerLoansPagination?.totalPages && loanPage > customerLoansPagination.totalPages) {
+      setLoanPage(customerLoansPagination.totalPages);
+    }
+  }, [customerLoansPagination?.totalPages, loanPage]);
+
+  const portfolioSummary = useMemo(() => {
+    if (customerLoanSummary) {
+      return {
+        totalLoans: Number(customerLoanSummary.totalLoans || 0),
+        activeLoans: Number(customerLoanSummary.activeLoans || 0),
+        completedLoans: Number(customerLoanSummary.completedLoans || 0),
+        overdueLoans: Number(customerLoanSummary.overdueLoans || 0),
+        totalDisbursed: Number(customerLoanSummary.totalDisbursed || 0),
+      };
+    }
+
+    const activeLoans = customerLoans.filter((loan: any) => ['active', 'approved'].includes(String(loan?.status || '').toLowerCase())).length;
+    const completedLoans = customerLoans.filter((loan: any) => ['closed', 'completed', 'paid'].includes(String(loan?.status || '').toLowerCase())).length;
+    const overdueLoans = customerLoans.filter((loan: any) => ['overdue', 'defaulted'].includes(String(loan?.status || '').toLowerCase()) || Number(loan?.daysLate || 0) > 0).length;
+    const totalDisbursed = customerLoans.reduce((sum: number, loan: any) => sum + (Number(loan?.amount) || 0), 0);
+
+    return {
+      totalLoans: customerLoans.length,
+      activeLoans,
+      completedLoans,
+      overdueLoans,
+      totalDisbursed,
+    };
+  }, [customerLoanSummary, customerLoans]);
+
+  const loanPaginationSummary = useMemo(() => {
+    if (!customerLoansPagination || customerLoansPagination.totalItems <= 0) {
+      return null;
+    }
+
+    const from = ((customerLoansPagination.page - 1) * customerLoansPagination.pageSize) + 1;
+    const to = Math.min(customerLoansPagination.page * customerLoansPagination.pageSize, customerLoansPagination.totalItems);
+
+    return tTerm('common.pagination.summary', {
+      from,
+      to,
+      total: customerLoansPagination.totalItems,
+      records: tTerm('customerDetails.loans.pagination.records'),
+    });
+  }, [customerLoansPagination]);
 
   const formatDisplayDate = (value: unknown, includeTime = false) => {
     return includeTime
@@ -451,11 +496,11 @@ export default function CustomerDetails() {
               <InsightStrip
                 aria-label={tTerm('customerDetails.loans.summaryAriaLabel')}
                 items={[
-                  { id: 'customer-loans-total', label: tTerm('customerDetails.loans.metric.total'), value: formatNumber(customerLoans.length), helper: tTerm('customerDetails.loans.metric.totalHelper'), icon: <CreditCard size={18} />, accent: 'blue' },
-                  { id: 'customer-loans-active', label: tTerm('customerDetails.loans.metric.active'), value: formatNumber(activeLoans.length), helper: tTerm('customerDetails.loans.metric.activeHelper'), icon: <CheckCircle size={18} />, accent: 'emerald' },
-                  { id: 'customer-loans-completed', label: tTerm('customerDetails.loans.metric.completed'), value: formatNumber(completedLoans.length), helper: tTerm('customerDetails.loans.metric.completedHelper'), icon: <Clock size={18} />, accent: 'slate' },
-                  { id: 'customer-loans-overdue', label: tTerm('customerDetails.loans.metric.overdue'), value: formatNumber(overdueLoans.length), helper: tTerm('customerDetails.loans.metric.overdueHelper'), icon: <AlertTriangle size={18} />, accent: 'rose' },
-                  { id: 'customer-loans-disbursed', label: tTerm('customerDetails.loans.metric.disbursed'), value: formatLocaleCurrency(totalDisbursed), helper: tTerm('customerDetails.loans.metric.disbursedHelper'), icon: <DollarSign size={18} />, accent: 'teal' },
+                  { id: 'customer-loans-total', label: tTerm('customerDetails.loans.metric.total'), value: formatNumber(portfolioSummary.totalLoans), helper: tTerm('customerDetails.loans.metric.totalHelper'), icon: <CreditCard size={18} />, accent: 'blue' },
+                  { id: 'customer-loans-active', label: tTerm('customerDetails.loans.metric.active'), value: formatNumber(portfolioSummary.activeLoans), helper: tTerm('customerDetails.loans.metric.activeHelper'), icon: <CheckCircle size={18} />, accent: 'emerald' },
+                  { id: 'customer-loans-completed', label: tTerm('customerDetails.loans.metric.completed'), value: formatNumber(portfolioSummary.completedLoans), helper: tTerm('customerDetails.loans.metric.completedHelper'), icon: <Clock size={18} />, accent: 'slate' },
+                  { id: 'customer-loans-overdue', label: tTerm('customerDetails.loans.metric.overdue'), value: formatNumber(portfolioSummary.overdueLoans), helper: tTerm('customerDetails.loans.metric.overdueHelper'), icon: <AlertTriangle size={18} />, accent: 'rose' },
+                  { id: 'customer-loans-disbursed', label: tTerm('customerDetails.loans.metric.disbursed'), value: formatLocaleCurrency(portfolioSummary.totalDisbursed), helper: tTerm('customerDetails.loans.metric.disbursedHelper'), icon: <DollarSign size={18} />, accent: 'teal' },
                 ]}
               />
             </div>
@@ -511,6 +556,45 @@ export default function CustomerDetails() {
                 <EmptyState title={tTerm('customerDetails.loans.empty')} icon={<CreditCard size={28} />} />
               )}
             </div>
+            {customerLoansPagination && customerLoansPagination.totalItems > 0 ? (
+              <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                  <span className="text-text-primary/80">{loanPaginationSummary}</span>
+                  <label className="flex items-center gap-2">
+                    <span className="text-text-primary/70">{tTerm('common.pagination.rowsPerPage')}</span>
+                    <OperationalSelect
+                      aria-label={tTerm('common.pagination.rowsPerPage')}
+                      value={loanPageSize}
+                      onChange={(event) => {
+                        setLoanPageSize(Number(event.target.value));
+                        setLoanPage(1);
+                      }}
+                      className="w-28"
+                    >
+                      {[6, 12, 24].map((size) => (
+                        <option key={size} value={size}>{size}</option>
+                      ))}
+                    </OperationalSelect>
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ActionButton
+                    type="button"
+                    onClick={() => setLoanPage((current) => Math.max(1, current - 1))}
+                    disabled={customerLoansPagination.page <= 1}
+                  >
+                    {tTerm('common.pagination.previous')}
+                  </ActionButton>
+                  <ActionButton
+                    type="button"
+                    onClick={() => setLoanPage((current) => Math.min(customerLoansPagination.totalPages, current + 1))}
+                    disabled={customerLoansPagination.page >= customerLoansPagination.totalPages}
+                  >
+                    {tTerm('common.pagination.next')}
+                  </ActionButton>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 

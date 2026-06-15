@@ -72,6 +72,7 @@ let reportsState = {
   overdueLoans: [] as Array<Record<string, unknown>>,
   profitabilityItems: [] as Array<Record<string, unknown>>,
   customerAnalytics: null as any,
+  profitabilityPagination: null as any,
   isLoading: false,
   isError: false,
   error: null,
@@ -99,7 +100,7 @@ let payoutsReportState = {
   isLoading: false,
 };
 
-let paymentCalendarOverviewState = {
+let paymentCalendarOverviewState: any = {
   data: {
     asOfDate: '2026-06-05',
     summary: {
@@ -114,6 +115,36 @@ let paymentCalendarOverviewState = {
       totalLateFeeAmount: 10000,
     },
     agenda: [
+      {
+        loanId: 15,
+        customerName: 'Cliente Historial',
+        totalInstallments: 12,
+        installmentNumber: 4,
+        dueDate: '2026-06-10',
+        status: 'pending',
+        payableAmount: 110000,
+        scheduledPayment: 110000,
+        lateFeeDue: 0,
+        daysOverdue: 0,
+        canPay: true,
+        isNextPayable: true,
+      },
+      {
+        loanId: 18,
+        customerName: 'Cliente Exportación',
+        totalInstallments: 10,
+        installmentNumber: 6,
+        dueDate: '2026-05-28',
+        status: 'overdue',
+        payableAmount: 100000,
+        scheduledPayment: 90000,
+        lateFeeDue: 10000,
+        daysOverdue: 8,
+        canPay: true,
+        isNextPayable: false,
+      },
+    ],
+    actionableEntries: [
       {
         loanId: 15,
         customerName: 'Cliente Historial',
@@ -439,6 +470,7 @@ vi.mock('../../services/reportService', () => ({
     return {
       items: reportsState.profitabilityItems,
       customerAnalytics: reportsState.customerAnalytics,
+      pagination: reportsState.profitabilityPagination,
       isLoading: false,
       isError: false,
       error: null,
@@ -466,6 +498,7 @@ vi.mock('../../services/reportService', () => ({
     return {
       data: paymentCalendarOverviewState.data,
       agenda: paymentCalendarOverviewState.data.agenda,
+      actionableEntries: paymentCalendarOverviewState.data.actionableEntries ?? paymentCalendarOverviewState.data.agenda,
       summary: paymentCalendarOverviewState.data.summary,
       nextAction: paymentCalendarOverviewState.data.nextAction,
       entries: paymentCalendarOverviewState.data.entries,
@@ -610,6 +643,7 @@ describe('Reports behavioral parity scenarios', () => {
       overdueLoans: [],
       profitabilityItems: [],
       customerAnalytics: null,
+      profitabilityPagination: null,
       isLoading: false,
       isError: false,
       error: null,
@@ -643,6 +677,36 @@ describe('Reports behavioral parity scenarios', () => {
           totalLateFeeAmount: 10000,
         },
         agenda: [
+          {
+            loanId: 15,
+            customerName: 'Cliente Historial',
+            totalInstallments: 12,
+            installmentNumber: 4,
+            dueDate: '2026-06-10',
+            status: 'pending',
+            payableAmount: 110000,
+            scheduledPayment: 110000,
+            lateFeeDue: 0,
+            daysOverdue: 0,
+            canPay: true,
+            isNextPayable: true,
+          },
+          {
+            loanId: 18,
+            customerName: 'Cliente Exportación',
+            totalInstallments: 10,
+            installmentNumber: 6,
+            dueDate: '2026-05-28',
+            status: 'overdue',
+            payableAmount: 100000,
+            scheduledPayment: 90000,
+            lateFeeDue: 10000,
+            daysOverdue: 8,
+            canPay: true,
+            isNextPayable: false,
+          },
+        ],
+        actionableEntries: [
           {
             loanId: 15,
             customerName: 'Cliente Historial',
@@ -852,7 +916,7 @@ describe('Reports behavioral parity scenarios', () => {
     selectCreditOption('15');
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'capital' } });
     fireEvent.change(screen.getByLabelText('Estado de pago'), { target: { value: 'annulled' } });
-    fireEvent.change(screen.getByLabelText('Registrado por'), { target: { value: '7' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Registrado por' }), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar pagos' }));
 
     await waitFor(() => {
@@ -1100,6 +1164,12 @@ describe('Reports behavioral parity scenarios', () => {
           riskLevel: 'high',
         }],
       },
+      profitabilityPagination: {
+        page: 1,
+        pageSize: 10,
+        totalItems: 1,
+        totalPages: 1,
+      },
     };
 
     renderReports();
@@ -1110,7 +1180,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByRole('heading', { name: 'Clientes con mayor saldo pendiente' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Clientes morosos' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Control operativo de clientes' })).toBeInTheDocument();
-    expect(screen.getByText('Clientes morosos: 1. Ordenado por riesgo, mora, saldo pendiente y cantidad de créditos.')).toBeInTheDocument();
+    expect(screen.getByText('Clientes morosos: 1. Revisa esta página para abrir el detalle operativo del cliente.')).toBeInTheDocument();
     expect(screen.getByText('Clientes con mora activa en el rango consultado: 1.')).toBeInTheDocument();
     expect(screen.getAllByText('Ana Mora').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('3 créditos').length).toBeGreaterThanOrEqual(1);
@@ -1146,6 +1216,12 @@ describe('Reports behavioral parity scenarios', () => {
         topByLoanCount: [],
         topByOutstandingBalance: [],
         delinquentCustomers: [],
+      },
+      profitabilityPagination: {
+        page: 1,
+        pageSize: 10,
+        totalItems: 1,
+        totalPages: 1,
       },
     };
 
@@ -1423,6 +1499,8 @@ describe('Reports behavioral parity scenarios', () => {
     expect(mockUseCustomerProfitability).not.toHaveBeenCalledWith({
       fromDate: '2027-01-01',
       toDate: '2026-12-31',
+      page: 1,
+      pageSize: 10,
     });
   });
 
@@ -1435,6 +1513,8 @@ describe('Reports behavioral parity scenarios', () => {
       expect(mockUseCustomerProfitability).toHaveBeenCalledWith({
         fromDate: '2026-01-01',
         toDate: '2026-12-31',
+        page: 1,
+        pageSize: 10,
       });
     });
 
@@ -1446,6 +1526,8 @@ describe('Reports behavioral parity scenarios', () => {
       expect(mockUseCustomerProfitability).toHaveBeenCalledWith({
         fromDate: '2025-03-01',
         toDate: '2025-03-31',
+        page: 1,
+        pageSize: 10,
       });
     });
   });
@@ -1808,7 +1890,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.queryByPlaceholderText('Ingrese ID del crédito')).not.toBeInTheDocument();
     const loanSelect = screen.getByLabelText('Crédito');
     expect(loanSelect).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /Cliente Operativo · #3/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Cliente Operativo .*Número 3 .*Estado Activo/ })).toBeInTheDocument();
 
     fireEvent.change(loanSelect, { target: { value: '3' } });
 
@@ -1879,7 +1961,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     openReportView('Calendario de pagos');
 
-    expect(screen.getByRole('option', { name: /Cliente Operativo · #3 · .* · Activo/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Cliente Operativo .*Número 3 .*Estado Activo/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /ACTIVE/ })).not.toBeInTheDocument();
     expect((await screen.findAllByText('Activo')).length).toBeGreaterThan(0);
     expect(screen.queryByText('active')).not.toBeInTheDocument();
@@ -1933,7 +2015,6 @@ describe('Reports behavioral parity scenarios', () => {
         status: 'overdue',
         startDate: '2026-05-01',
         endDate: '2026-05-31',
-        limit: 150,
       }, true);
     });
   });
@@ -2093,7 +2174,7 @@ describe('Reports behavioral parity scenarios', () => {
     renderReports();
 
     openReportView('Pagos y desembolsos');
-    fireEvent.change(screen.getByLabelText('Registrado por'), { target: { value: '7' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Registrado por' }), { target: { value: '7' } });
 
     await waitFor(() => {
       expect(mockUsePayoutsReport).toHaveBeenCalledWith({ employeeId: '7' }, 1, 20);
@@ -2252,14 +2333,14 @@ describe('Reports behavioral parity scenarios', () => {
     renderReports();
 
     openReportView('Gastos operativos');
-    fireEvent.change(screen.getByLabelText('Registrado por'), { target: { value: '7' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Registrado por' }), { target: { value: '7' } });
 
     await waitFor(() => {
       expect(mockUseOperatingExpenses).toHaveBeenCalledWith({
         employeeId: '7',
       }, 1, 20, true);
     });
-    expect(screen.getByRole('option', { name: 'Operador Reportes' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Operador Reportes · operador\.reportes@test\.local/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Cliente Registro' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
