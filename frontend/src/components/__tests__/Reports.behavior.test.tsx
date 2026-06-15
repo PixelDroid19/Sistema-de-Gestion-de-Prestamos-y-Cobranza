@@ -619,16 +619,17 @@ const openReportView = (name: string) => {
   fireEvent.click(screen.getByRole('tab', { name }));
 };
 
+const selectComboboxOption = (comboboxName: string, value: string) => {
+  fireEvent.focus(screen.getByRole('combobox', { name: comboboxName }));
+  fireEvent.mouseDown(screen.getByRole('option', { name: new RegExp(`Número ${value}\\b`) }));
+};
+
 const selectCustomerOption = (value: string) => {
-  fireEvent.change(screen.getByRole('combobox', { name: 'Clientes para filtrar' }), {
-    target: { value },
-  });
+  selectComboboxOption('Clientes para filtrar', value);
 };
 
 const selectCreditOption = (value: string) => {
-  fireEvent.change(screen.getByRole('combobox', { name: 'Créditos para filtrar' }), {
-    target: { value },
-  });
+  selectComboboxOption('Créditos para filtrar', value);
 };
 
 describe('Reports behavioral parity scenarios', () => {
@@ -916,7 +917,8 @@ describe('Reports behavioral parity scenarios', () => {
     selectCreditOption('15');
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'capital' } });
     fireEvent.change(screen.getByLabelText('Estado de pago'), { target: { value: 'annulled' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Registrado por' }), { target: { value: '7' } });
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Registrado por' }));
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Operador Reportes/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Exportar pagos' }));
 
     await waitFor(() => {
@@ -1001,8 +1003,8 @@ describe('Reports behavioral parity scenarios', () => {
 
     selectCustomerOption('7');
     selectCreditOption('18');
-    fireEvent.change(customerSelect, { target: { value: '' } });
-    fireEvent.change(creditSelect, { target: { value: '' } });
+    fireEvent.mouseDown(screen.getAllByRole('button', { name: 'Quitar selección' })[0]);
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Quitar selección' }));
 
     expect(customerSelect).toHaveValue('');
     expect(creditSelect).toHaveValue('');
@@ -1441,8 +1443,8 @@ describe('Reports behavioral parity scenarios', () => {
     });
 
     mockUseCreditHistoryMonthly.mockClear();
-    fireEvent.change(customerSelect, { target: { value: '' } });
-    fireEvent.change(creditSelect, { target: { value: '' } });
+    fireEvent.mouseDown(screen.getAllByRole('button', { name: 'Quitar selección' })[0]);
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Quitar selección' }));
 
     expect(customerSelect).toHaveValue('');
     expect(creditSelect).toHaveValue('');
@@ -1890,9 +1892,10 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.queryByPlaceholderText('Ingrese ID del crédito')).not.toBeInTheDocument();
     const loanSelect = screen.getByLabelText('Crédito');
     expect(loanSelect).toBeInTheDocument();
+    fireEvent.focus(loanSelect);
     expect(screen.getByRole('option', { name: /Cliente Operativo .*Número 3 .*Estado Activo/ })).toBeInTheDocument();
 
-    fireEvent.change(loanSelect, { target: { value: '3' } });
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Número 3\b/ }));
 
     await waitFor(() => {
       expect(mockUsePaymentSchedule).toHaveBeenLastCalledWith(3);
@@ -1961,6 +1964,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     openReportView('Calendario de pagos');
 
+    fireEvent.focus(screen.getByLabelText('Crédito'));
     expect(screen.getByRole('option', { name: /Cliente Operativo .*Número 3 .*Estado Activo/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /ACTIVE/ })).not.toBeInTheDocument();
     expect((await screen.findAllByText('Activo')).length).toBeGreaterThan(0);
@@ -2174,11 +2178,13 @@ describe('Reports behavioral parity scenarios', () => {
     renderReports();
 
     openReportView('Pagos y desembolsos');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Registrado por' }), { target: { value: '7' } });
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Registrado por' }));
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Operador Reportes/ }));
 
     await waitFor(() => {
       expect(mockUsePayoutsReport).toHaveBeenCalledWith({ employeeId: '7' }, 1, 20);
     });
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Registrado por' }));
     expect(screen.queryByRole('option', { name: 'Cliente Registro' })).not.toBeInTheDocument();
   });
 
@@ -2333,13 +2339,15 @@ describe('Reports behavioral parity scenarios', () => {
     renderReports();
 
     openReportView('Gastos operativos');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Registrado por' }), { target: { value: '7' } });
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Registrado por' }));
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Operador Reportes/ }));
 
     await waitFor(() => {
       expect(mockUseOperatingExpenses).toHaveBeenCalledWith({
         employeeId: '7',
       }, 1, 20, true);
     });
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Registrado por' }));
     expect(screen.getByRole('option', { name: /Operador Reportes · operador\.reportes@test\.local/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Cliente Registro' })).not.toBeInTheDocument();
 

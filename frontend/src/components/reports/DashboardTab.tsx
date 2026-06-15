@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { AlertTriangle, CalendarClock, CheckCircle, DollarSign, TrendingUp, Users, Wallet } from 'lucide-react';
-import { formatCurrency as formatCurrencyValue, formatPercent as formatPercentValue } from '../../i18n/format';
+import { formatCompactCurrency, formatCurrency as formatCurrencyValue, formatPercent as formatPercentValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import MeasuredChart from '../shared/MeasuredChart';
 import {
@@ -16,6 +16,7 @@ import { ReportTabPanel } from './ReportTabPanel';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+const formatChartMoney = (value: unknown) => formatCompactCurrency(value);
 const formatPercent = (value: unknown) => formatPercentValue(value, { maximumFractionDigits: 2 });
 
 type DashboardTabProps = {
@@ -292,11 +293,11 @@ export default function DashboardTab({ metrics, monthlyData, statusData, headerA
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b'}} tickFormatter={(value) => `$${value/1000}k`} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b'}} tickFormatter={(value) => formatChartMoney(value)} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
                       itemStyle={{ color: '#fff' }}
-                      formatter={(value) => [`$${value}`, '']}
+                      formatter={(value) => [formatMoney(value), '']}
                     />
                     <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
                     <Area type="monotone" name={tTerm('reports.chart.disbursementRecovery.legend.disbursed')} dataKey="disbursed" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorDes)" />

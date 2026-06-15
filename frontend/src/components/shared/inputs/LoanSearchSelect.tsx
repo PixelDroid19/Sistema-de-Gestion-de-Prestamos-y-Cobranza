@@ -1,11 +1,9 @@
-import type React from 'react';
 import { useDeferredValue } from 'react';
-import { CreditCard, Search } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue } from '../../../i18n/format';
 import { tTerm } from '../../../i18n/terminology';
 import { useLoans } from '../../../services/loanService';
-import { AppInput } from './AppInput';
-import { OperationalSelect } from './OperationalSelect';
+import { SearchableSelect, type SearchableSelectOption } from './SearchableSelect';
 
 type LoanSearchSelectProps = {
   id?: string;
@@ -105,44 +103,34 @@ export default function LoanSearchSelect({
       ? data.data
       : [];
 
-  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    onSelectedLoanIdChange(event.target.value);
-  };
+  const options: SearchableSelectOption[] = loans.map((loan: any) => ({
+    value: String(loan.id),
+    label: getLoanLabel(loan, includeOutstanding),
+    meta: tTerm('loanSearch.optionMeta', {
+      number: String(loan?.id ?? ''),
+      status: getLoanStatusLabel(loan),
+    }),
+  }));
 
   return (
-    <div className="flex flex-col gap-2">
-      <AppInput
-        variant="text"
-        value={searchValue}
-        onValueChange={(value) => onSearchValueChange(value)}
-        icon={<Search size={16} />}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        disabled={!enabled}
-      />
-      <OperationalSelect
-        id={id}
-        value={selectedLoanId}
-        onChange={handleChange}
-        icon={<CreditCard size={18} />}
-        required={required}
-        invalid={invalid}
-        aria-label={listboxLabel}
-      >
-        <option value="">{isLoading ? tTerm('loanSearch.loading') : placeholder}</option>
-        {isError ? <option value="" disabled>{tTerm('loanSearch.error')}</option> : null}
-        {!isLoading && !isError && loans.length === 0 ? (
-          <option value="" disabled>{tTerm('loanSearch.empty')}</option>
-        ) : null}
-        {loans.map((loan: any) => (
-          <option key={loan.id} value={loan.id}>
-            {getLoanLabel(loan, includeOutstanding)} · {tTerm('loanSearch.optionMeta', {
-              number: String(loan?.id ?? ''),
-              status: getLoanStatusLabel(loan),
-            })}
-          </option>
-        ))}
-      </OperationalSelect>
-    </div>
+    <SearchableSelect
+      id={id}
+      value={selectedLoanId}
+      options={options}
+      onChange={onSelectedLoanIdChange}
+      searchValue={searchValue}
+      onSearchValueChange={onSearchValueChange}
+      icon={<CreditCard size={18} />}
+      placeholder={placeholder}
+      listboxLabel={listboxLabel}
+      loadingText={tTerm('loanSearch.loading')}
+      emptyText={tTerm('loanSearch.empty')}
+      errorText={tTerm('loanSearch.error')}
+      isLoading={isLoading}
+      isError={isError}
+      invalid={invalid}
+      disabled={!enabled}
+      required={required}
+    />
   );
 }

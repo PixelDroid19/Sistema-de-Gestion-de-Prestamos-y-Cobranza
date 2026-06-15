@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Activity, AlertCircle, CalendarClock, Landmark, TrendingUp, Wallet } from 'lucide-react';
-import { formatCurrency as formatCurrencyValue, formatNumber, formatPercent } from '../../i18n/format';
+import { formatCompactCurrency, formatCurrency as formatCurrencyValue, formatNumber, formatPercent } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { parseReportYearInput } from '../../lib/reportYearInput';
 import MeasuredChart from '../shared/MeasuredChart';
@@ -49,6 +49,7 @@ type AnalyticsMonthlyRow = {
 };
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+const formatChartMoney = (value: unknown) => formatCompactCurrency(value);
 
 const MONTH_LABEL_PATTERN = /^(\d{4})-(\d{2})$/;
 
@@ -393,7 +394,7 @@ export default function AnalyticsTab({
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} tickFormatter={(value) => `$${Math.round(Number(value) / 1000)}k`} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} tickFormatter={(value) => formatChartMoney(value)} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
                       itemStyle={{ color: '#fff' }}

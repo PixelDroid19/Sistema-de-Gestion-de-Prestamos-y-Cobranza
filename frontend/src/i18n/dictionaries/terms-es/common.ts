@@ -163,6 +163,7 @@ export const commonEs = {
 'common.status.completed': 'Completado',
 'common.notAvailable': 'N/A',
 'common.notSpecified': 'No especificado',
+'common.clear': 'Quitar selección',
 'customerSearch.placeholder': 'Buscar cliente existente…',
 'customerSearch.loading': 'Cargando clientes…',
 'customerSearch.error': 'No se pudieron cargar los clientes.',

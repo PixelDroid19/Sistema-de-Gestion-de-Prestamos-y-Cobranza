@@ -137,9 +137,8 @@ const renderPayouts = () => {
 };
 
 const selectFirstLoanOption = () => {
-  fireEvent.change(screen.getByRole('combobox', { name: 'Créditos disponibles' }), {
-    target: { value: '100' },
-  });
+  fireEvent.focus(screen.getByRole('combobox', { name: 'Créditos disponibles' }));
+  fireEvent.mouseDown(screen.getByRole('option', { name: /Cliente Pago Uno/i }));
 };
 
 const clickFirstOverflowAction = () => {
@@ -314,6 +313,7 @@ describe('Payouts behavioral parity scenarios', () => {
 
     expect(screen.queryByPlaceholderText('Ej: 1')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Créditos disponibles' })).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Créditos disponibles' }));
     expect(screen.getByRole('option', { name: /Cliente Pago Uno/i })).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '250000' } });
@@ -370,9 +370,7 @@ describe('Payouts behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
     selectFirstLoanOption();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Créditos disponibles' }), {
-      target: { value: '' },
-    });
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Quitar selección' }));
     fireEvent.change(screen.getByPlaceholderText('0,00'), { target: { value: '250000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
 

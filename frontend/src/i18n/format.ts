@@ -70,6 +70,15 @@ export const formatCurrency = (value: unknown, options: NumberOptions = {}): str
   }).format(toNumber(value)).replace(/\u00a0/g, ' ');
 };
 
+export const formatCompactCurrency = (value: unknown, options: NumberOptions = {}): string => {
+  return formatCurrency(value, {
+    notation: 'compact',
+    compactDisplay: 'short',
+    maximumFractionDigits: 1,
+    ...options,
+  });
+};
+
 export const formatNumber = (value: unknown, options: NumberOptions = {}): string => {
   return new Intl.NumberFormat(getIntlLocaleTag(), options).format(toNumber(value));
 };

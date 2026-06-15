@@ -1,10 +1,8 @@
-import type React from 'react';
 import { useDeferredValue } from 'react';
-import { Search, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { tTerm } from '../../../i18n/terminology';
 import { useCustomers } from '../../../services/customerService';
-import { AppInput } from './AppInput';
-import { OperationalSelect } from './OperationalSelect';
+import { SearchableSelect, type SearchableSelectOption } from './SearchableSelect';
 
 type CustomerSearchSelectProps = {
   id?: string;
@@ -54,47 +52,35 @@ export default function CustomerSearchSelect({
       ? data.data
       : [];
 
-  const getCustomerLabel = (customer: any) => tTerm('customerSearch.optionLabel', {
-    customer: getCustomerName(customer),
-    document: getCustomerDocument(customer) || tTerm('common.notAvailable'),
-  });
-
-  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    onSelectedCustomerIdChange(event.target.value);
-  };
+  const options: SearchableSelectOption[] = customers.map((customer: any) => ({
+    value: String(customer.id),
+    label: tTerm('customerSearch.optionLabel', {
+      customer: getCustomerName(customer),
+      document: getCustomerDocument(customer) || tTerm('common.notAvailable'),
+    }),
+    meta: tTerm('customerSearch.optionMeta', {
+      number: String(customer?.id ?? ''),
+      status: getCustomerStatusLabel(customer),
+    }),
+  }));
 
   return (
-    <div className="flex flex-col gap-2">
-      <AppInput
-        variant="text"
-        value={searchValue}
-        onValueChange={(value) => onSearchValueChange(value)}
-        icon={<Search size={16} />}
-        placeholder={placeholder}
-        aria-label={placeholder}
-      />
-      <OperationalSelect
-        id={id}
-        value={selectedCustomerId}
-        onChange={handleChange}
-        icon={<User size={18} />}
-        invalid={invalid}
-        aria-label={listboxLabel}
-      >
-        <option value="">{isLoading ? tTerm('customerSearch.loading') : placeholder}</option>
-        {isError ? <option value="" disabled>{tTerm('customerSearch.error')}</option> : null}
-        {!isLoading && !isError && customers.length === 0 ? (
-          <option value="" disabled>{tTerm('customerSearch.empty')}</option>
-        ) : null}
-        {customers.map((customer: any) => (
-          <option key={customer.id} value={customer.id}>
-            {getCustomerLabel(customer)} · {tTerm('customerSearch.optionMeta', {
-              number: String(customer?.id ?? ''),
-              status: getCustomerStatusLabel(customer),
-            })}
-          </option>
-        ))}
-      </OperationalSelect>
-    </div>
+    <SearchableSelect
+      id={id}
+      value={selectedCustomerId}
+      options={options}
+      onChange={onSelectedCustomerIdChange}
+      searchValue={searchValue}
+      onSearchValueChange={onSearchValueChange}
+      icon={<User size={18} />}
+      placeholder={placeholder}
+      listboxLabel={listboxLabel}
+      loadingText={tTerm('customerSearch.loading')}
+      emptyText={tTerm('customerSearch.empty')}
+      errorText={tTerm('customerSearch.error')}
+      isLoading={isLoading}
+      isError={isError}
+      invalid={invalid}
+    />
   );
 }

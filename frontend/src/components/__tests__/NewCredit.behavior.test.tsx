@@ -98,6 +98,11 @@ vi.mock('../../services/apiErrors', () => ({
   extractValidationErrors: () => mockValidationErrors,
 }));
 
+const selectCustomerTen = () => {
+  fireEvent.focus(screen.getByRole('combobox', { name: 'Cliente' }));
+  fireEvent.mouseDown(screen.getByRole('option', { name: /Número 10\b/ }));
+};
+
 describe('NewCredit behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -226,7 +231,7 @@ describe('NewCredit behavior', () => {
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
     expect(screen.queryByLabelText('Socio asignado')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
+    selectCustomerTen();
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
@@ -270,7 +275,8 @@ describe('NewCredit behavior', () => {
 
     render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getByRole('option', { name: 'Cliente sin nombre · N/A · Número 10 · Estado No especificado' })).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Cliente' }));
+    expect(screen.getByRole('option', { name: /Cliente sin nombre · N\/A\s*Número 10 · Estado No especificado/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /#10/ })).not.toBeInTheDocument();
   });
 
@@ -347,9 +353,9 @@ describe('NewCredit behavior', () => {
     expect(screen.queryByText('Mora simple · 24% EA')).not.toBeInTheDocument();
     expect(screen.queryByText('Mora simple · solo si hay atraso')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
+    selectCustomerTen();
 
-    expect(screen.getByLabelText('Cliente', { selector: 'select' })).toHaveValue('10');
+    expect((screen.getByRole('combobox', { name: 'Cliente' }) as HTMLInputElement).value).toContain('Cliente QA');
     expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled();
   });
 
@@ -388,7 +394,7 @@ describe('NewCredit behavior', () => {
     ];
     render(<NewCredit onBack={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
+    selectCustomerTen();
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
@@ -505,7 +511,7 @@ describe('NewCredit behavior', () => {
     expect(liveRatePreview).toHaveTextContent('Tasa validada');
     expect(liveRatePreview).toHaveTextContent('Tasa mayor a 1M');
 
-    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
+    selectCustomerTen();
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
@@ -529,7 +535,7 @@ describe('NewCredit behavior', () => {
 
     render(<NewCredit onBack={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
+    selectCustomerTen();
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     expect(await screen.findByText('Selecciona el cliente que recibirá el crédito.')).toBeInTheDocument();

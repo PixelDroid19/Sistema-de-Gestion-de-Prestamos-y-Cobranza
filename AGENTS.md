@@ -163,7 +163,8 @@ Runtime behavior:
 - Backend reads `DB_*` and `ALLOWED_ORIGINS`.
 - Do not treat `DATABASE_URL` as the primary runtime contract.
 - Without `ALLOWED_ORIGINS`, development only allows `http://localhost:3000` and `http://127.0.0.1:3000`.
-- Startup authenticates Sequelize, verifies or syncs schema, seeds domain defaults, starts overdue alert scheduling, and starts the outbox relay worker.
+- Startup authenticates Sequelize, verifies or syncs schema, seeds domain defaults, starts overdue alert scheduling, starts the outbox relay worker, and starts the audit retention worker.
+- The audit retention worker (`backend/src/workers/auditRetentionWorker.js`) is created, started, and stopped by `startServer` alongside the outbox relay; it purges audit history on its interval. Do not assume it runs only on demand.
 - Schema mode defaults to `verify`.
 - `DB_SCHEMA_MODE=alter|reset` controls schema behavior.
 - `DB_RESET_ON_BOOT=true` aliases reset.
@@ -269,6 +270,7 @@ Rules:
 - Use `allowCents` for payments and payouts. Operator display must look like `120.554,50`; canonical state must remain `120554.50`.
 - Use whole pesos without cents for policy ranges and capital contributions.
 - Use `AppInput` directly only when `CurrencyInput` is not enough.
+- For "pick one entity by searching" fields (customer, loan, administrative user), use the shared combobox in `frontend/src/components/shared/inputs/SearchableSelect.tsx` through its wrappers `CustomerSearchSelect`, `LoanSearchSelect`, and `UserSearchSelect`. It is a single ARIA combobox: one field that types-to-filter server-side and picks from a popover. Do not reintroduce the old "search input stacked above a native `<select>`" pattern.
 - Prefer canonical string state plus `onValueChange`. Do not use ad-hoc `replace(/\D/g)` handlers in screens.
 - Money inputs must normalize through `moneyInput.ts`, including `formatDecimalMoneyInput` and `formatWholeMoneyInput`.
 - Date fields must use consistent formatting and avoid timezone off-by-one bugs.
@@ -315,6 +317,37 @@ Guard tests:
 - `backend/tests/permissionsRouter.test.js`
 - `frontend/src/components/__tests__/ProtectedRoute.behavior.test.tsx`
 - `frontend/src/components/__tests__/Sidebar.terminology.test.tsx`
+
+## Observability And Operational Audit
+
+Operational auditability is a product contract, not an afterthought. Preserve this pipeline unless the user explicitly asks to change it.
+
+- Domain mutations emit audit events through `withAudit` (`backend/src/modules/audit/application/auditDecorator.js`). The decorator normalizes module prefixes to the canonical singular bus prefixes (`credit.`, `customer.`, `associate.`) so events are categorized correctly instead of falling back to `TECHNICAL`.
+- Business, security, and audit events are persisted by the event-audit bridge (`backend/src/modules/shared/events/eventAuditBridge.js`), which `backend/src/bootstrap/index.js` wires explicitly with `auditService`. Both the bridge and the logger are idempotent per bus to avoid duplicate listeners.
+- Audit reads honor `category` and `severity` filters end to end (`AuditService` forwards both to the repository).
+- Audit history is retained and purged by the audit retention worker started in `startServer` (see Backend Rules).
+- The live audit stream is Server-Sent Events. `EventSource` cannot send headers, so the audit stream middleware accepts a `?access_token=` query parameter and the `useAuditStream` hook sends it. Do not require a `Bearer` header on the SSE route.
+- Operational expenses (`create`/`annul`) are audited like any other manual cash movement; the module receives `auditService` and both use cases are wrapped with `withAudit`.
+- Provider/integration failures must leave a technical trace for operators instead of being silently swallowed (e.g. email fanout logs `logger.warn` with `notificationId`/`userId`/`type` while persistence stays best-effort).
+
+Key files:
+
+- `backend/src/modules/audit/`
+- `backend/src/modules/shared/events/eventAuditBridge.js`
+- `backend/src/workers/auditRetentionWorker.js`
+- `frontend/src/components/AuditLogPage.tsx`
+- `frontend/src/services/useAuditStream.ts`
+
+Guard tests:
+
+- `backend/tests/auditInjection.test.js`
+- `backend/tests/auditRouter.test.js`
+- `backend/tests/bootstrap.test.js`
+- `frontend/src/components/__tests__/AuditLogPage.behavior.test.tsx`
+
+## Notifications
+
+- The notification registry currently supports only the `webpush` provider. `fcm`/`apns` subscriptions are rejected at the API contract layer and any legacy subscription without a valid provider is invalidated on the next fanout. Do not re-add unsupported providers to validation without wiring a real delivery path.
 
 ## Financial Product Contracts
 
@@ -383,7 +416,7 @@ Guard tests:
 
 - Mora is an operational late-fee policy, not the credit rate.
 - The UI must clearly separate "tasa del crédito" from "mora".
-- Only backend-supported late-fee methods should appear in the UI.
+- Only backend-supported late-fee methods should appear in the UI. The operationally supported set is `NONE`, `SIMPLE`, and `COMPOUND`. Configuration validation and the OpenAPI contract reject any other mode before it is persisted.
 - Configuration should use modals or actions, not always-visible dense forms.
 - Labels must stay understandable for non-technical operators.
 - Employees cannot mutate late-fee policies.
@@ -552,7 +585,7 @@ This engine owns:
 
 - input normalization
 - amortization methods: `FRENCH`, `SIMPLE`, `COMPOUND`
-- late-fee policies: `NONE`, `SIMPLE`, `COMPOUND`, `FLAT`, `TIERED`
+- late-fee policies: the engine retains `NONE`, `SIMPLE`, `COMPOUND`, `FLAT`, and `TIERED` branches, but only `NONE`, `SIMPLE`, and `COMPOUND` are operationally supported. Configuration, validation, and the OpenAPI contract block `FLAT`/`TIERED` before persistence, so they are dormant engine branches, not active product modes.
 - policy resolution through `calculationProfileVersionId`
 - deterministic schedule generation
 - summary generation

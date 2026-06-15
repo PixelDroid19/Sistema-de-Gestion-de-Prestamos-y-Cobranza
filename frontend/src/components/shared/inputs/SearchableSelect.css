@@ -1,0 +1,126 @@
+.searchable-select {
+  position: relative;
+  cursor: text;
+}
+
+.searchable-select--disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.searchable-select__input {
+  cursor: inherit;
+  text-overflow: ellipsis;
+}
+
+.searchable-select__clear {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.searchable-select__clear:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+}
+
+.searchable-select__toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: -0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+.searchable-select__input[aria-expanded='true'] ~ .searchable-select__toggle {
+  transform: rotate(180deg);
+  color: var(--brand-primary);
+}
+
+.searchable-select__listbox {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.85rem;
+  background: var(--bg-surface);
+  box-shadow: 0 18px 40px -18px color-mix(in srgb, var(--text-primary) 45%, transparent);
+}
+
+.searchable-select__status {
+  padding: 0.65rem 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.searchable-select__status--error {
+  color: #ef4444;
+}
+
+.searchable-select__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.searchable-select__option--active {
+  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+}
+
+.searchable-select__option--selected {
+  font-weight: 600;
+}
+
+.searchable-select__option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.searchable-select__option-label {
+  font-size: 0.93rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.searchable-select__option-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.searchable-select__option-check {
+  flex: 0 0 auto;
+  color: var(--brand-primary);
+}

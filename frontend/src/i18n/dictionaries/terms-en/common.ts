@@ -154,6 +154,7 @@ export const commonEn = {
 'common.status.completed': 'Completed',
 'common.notAvailable': 'N/A',
 'common.notSpecified': 'Not specified',
+'common.clear': 'Clear selection',
 'customerSearch.placeholder': 'Search existing customer...',
 'customerSearch.loading': 'Loading customers...',
 'customerSearch.error': 'Could not load customers.',

@@ -1,10 +1,8 @@
-import type React from 'react';
 import { useDeferredValue } from 'react';
-import { Search, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { tTerm } from '../../../i18n/terminology';
 import { useUsers } from '../../../services/userService';
-import { AppInput } from './AppInput';
-import { OperationalSelect } from './OperationalSelect';
+import { SearchableSelect, type SearchableSelectOption } from './SearchableSelect';
 
 type UserSearchSelectProps = {
   id?: string;
@@ -56,44 +54,32 @@ export default function UserSearchSelect({
     && ['admin', 'employee'].includes(String(user?.role || '').toLowerCase())
   ));
 
-  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    onSelectedUserIdChange(event.target.value);
-  };
+  const options: SearchableSelectOption[] = visibleUsers.map((user: any) => ({
+    value: String(user.id),
+    label: tTerm('userSearch.optionLabel', {
+      name: getUserName(user),
+      email: getUserEmail(user),
+    }),
+  }));
 
   return (
-    <div className="flex flex-col gap-2">
-      <AppInput
-        variant="text"
-        value={searchValue}
-        onValueChange={(value) => onSearchValueChange(value)}
-        icon={<Search size={16} />}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        disabled={disabled}
-      />
-      <OperationalSelect
-        id={id}
-        value={selectedUserId}
-        onChange={handleChange}
-        icon={<User size={18} />}
-        invalid={invalid}
-        aria-label={listboxLabel}
-        disabled={disabled}
-      >
-        <option value="">{isLoading ? tTerm('userSearch.loading') : placeholder}</option>
-        {isError ? <option value="" disabled>{tTerm('userSearch.error')}</option> : null}
-        {!isLoading && !isError && visibleUsers.length === 0 ? (
-          <option value="" disabled>{tTerm('userSearch.empty')}</option>
-        ) : null}
-        {visibleUsers.map((user: any) => (
-          <option key={user.id} value={user.id}>
-            {tTerm('userSearch.optionLabel', {
-              name: getUserName(user),
-              email: getUserEmail(user),
-            })}
-          </option>
-        ))}
-      </OperationalSelect>
-    </div>
+    <SearchableSelect
+      id={id}
+      value={selectedUserId}
+      options={options}
+      onChange={onSelectedUserIdChange}
+      searchValue={searchValue}
+      onSearchValueChange={onSearchValueChange}
+      icon={<User size={18} />}
+      placeholder={placeholder}
+      listboxLabel={listboxLabel}
+      loadingText={tTerm('userSearch.loading')}
+      emptyText={tTerm('userSearch.empty')}
+      errorText={tTerm('userSearch.error')}
+      isLoading={isLoading}
+      isError={isError}
+      invalid={invalid}
+      disabled={disabled}
+    />
   );
 }

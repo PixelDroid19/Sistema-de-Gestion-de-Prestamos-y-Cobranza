@@ -54,7 +54,9 @@ describe('CreditHistoryMonthlyTab behavior', () => {
     expect(screen.queryByPlaceholderText('Número de crédito')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Clientes para filtrar' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Créditos para filtrar' })).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Clientes para filtrar' }));
     expect(screen.getByRole('option', { name: /Cliente Historial · CC-7/i })).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Créditos para filtrar' }));
     expect(screen.getByRole('option', { name: /Cliente Historial · Crédito/i })).toBeInTheDocument();
   });
 

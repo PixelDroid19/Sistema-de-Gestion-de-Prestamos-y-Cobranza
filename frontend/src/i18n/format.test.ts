@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { formatCurrency, formatDate, formatDateTime, isValidOperationalDateOnly } from './format';
+import { formatCompactCurrency, formatCurrency, formatDate, formatDateTime, isValidOperationalDateOnly } from './format';
 
 describe('currency formatting', () => {
   it('renders Colombian pesos with an explicit COP code', () => {
     expect(formatCurrency(2000000)).toBe('COP 2.000.000');
     expect(formatCurrency(120554.5, { minimumFractionDigits: 2, maximumFractionDigits: 2 })).toBe('COP 120.554,50');
+  });
+
+  it('renders compact chart values with the COP code', () => {
+    expect(formatCompactCurrency(1500000)).toContain('COP');
+    expect(formatCompactCurrency(0)).toContain('COP');
   });
 });
 
