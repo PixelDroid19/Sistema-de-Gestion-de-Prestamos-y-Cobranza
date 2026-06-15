@@ -226,7 +226,7 @@ describe('NewCredit behavior', () => {
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
     expect(screen.queryByLabelText('Socio asignado')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
@@ -347,9 +347,9 @@ describe('NewCredit behavior', () => {
     expect(screen.queryByText('Mora simple · 24% EA')).not.toBeInTheDocument();
     expect(screen.queryByText('Mora simple · solo si hay atraso')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
 
-    expect(screen.getByLabelText('Cliente')).toHaveValue('10');
+    expect(screen.getByLabelText('Cliente', { selector: 'select' })).toHaveValue('10');
     expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled();
   });
 
@@ -388,7 +388,7 @@ describe('NewCredit behavior', () => {
     ];
     render(<NewCredit onBack={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
@@ -505,7 +505,7 @@ describe('NewCredit behavior', () => {
     expect(liveRatePreview).toHaveTextContent('Tasa validada');
     expect(liveRatePreview).toHaveTextContent('Tasa mayor a 1M');
 
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
@@ -529,7 +529,7 @@ describe('NewCredit behavior', () => {
 
     render(<NewCredit onBack={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Cliente', { selector: 'select' }), { target: { value: '10' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     expect(await screen.findByText('Selecciona el cliente que recibirá el crédito.')).toBeInTheDocument();
