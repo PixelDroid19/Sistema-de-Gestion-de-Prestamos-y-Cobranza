@@ -711,9 +711,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               {/* Vector Illustration at the bottom */}
               <ParametersIllustration />
 
-              {/* Keep this section visually hidden (sr-only) to pass behavior tests that assert on rate preview texts */}
+              {/* Live preview of the rate/rule that will apply for the current amount. */}
               <section
-                className="sr-only"
+                className="new-credit-rate-preview"
                 data-tour="new-credit-policy-summary"
                 aria-label={tTerm('newCredit.ratePreview.aria')}
                 aria-live="polite"
