@@ -1,9 +1,3 @@
-const {
-  UNSUPPORTED_LATE_FEE_MODES,
-  normalizeLateFeeMode,
-  assertSupportedLateFeeMode,
-} = require('@/modules/credits/domain/calculation');
-
 const resolvePolicyAdjustedInput = async ({ input, policyResolver }) => {
   if (!policyResolver || typeof policyResolver.resolve !== 'function') {
     return {
@@ -65,9 +59,5 @@ const createCreditCalculationService = ({ calculationService, policyResolver } =
 };
 
 module.exports = {
-  UNSUPPORTED_LATE_FEE_MODES,
-  normalizeLateFeeMode,
-  assertSupportedLateFeeMode,
   createCreditCalculationService,
-  resolvePolicyAdjustedInput,
 };

@@ -35,8 +35,6 @@ const normalizeApplicationRole = (role) => {
   return null;
 };
 
-const isApplicationRole = (role) => Boolean(normalizeApplicationRole(role));
-const isCanonicalApplicationRole = (role) => Boolean(normalizeApplicationRole(role));
 const isAdministrativeLoginRole = (role) => ADMINISTRATIVE_LOGIN_ROLES.includes(normalizeApplicationRole(role));
 
 module.exports = {
@@ -44,7 +42,5 @@ module.exports = {
   ADMINISTRATIVE_LOGIN_ROLES,
   ROLES,
   normalizeApplicationRole,
-  isApplicationRole,
-  isCanonicalApplicationRole,
   isAdministrativeLoginRole,
 };

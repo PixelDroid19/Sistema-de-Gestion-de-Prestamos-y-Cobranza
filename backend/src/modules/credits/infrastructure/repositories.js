@@ -30,13 +30,6 @@ const MANUAL_ALERT_RESOLUTION_SOURCES = new Set(['manual_follow_up']);
 const ACTIVE_LOAN_STATUSES = new Set(['approved', 'active', 'defaulted', 'overdue']);
 
 /**
- * Format notification money values consistently for operator-facing messages.
- * @param {unknown} amount
- * @returns {string}
- */
-const formatNotificationMoney = (amount) => `$${Number(amount || 0).toFixed(2)}`;
-
-/**
  * Translate promise status keys into Spanish operational labels.
  * @param {unknown} status
  * @returns {string}
@@ -597,15 +590,6 @@ const createCreditsInfrastructure = ({
       },
     },
     notificationPort: {
-      sendRecoveryAssignment(userId, payload) {
-        return notifications.sendNotification(
-          userId,
-          `Crédito #${payload.loanId} asignado para cobranza por ${formatNotificationMoney(payload.loanAmount)}. Cliente: ${payload.customerName || 'Sin nombre registrado'}. Revise el caso e inicie el seguimiento.`,
-          'loan_assignment',
-          payload,
-          { dedupeKey: `loan-assignment:${payload.loanId}:${userId}` },
-        );
-      },
       sendLoanReminder(userId, payload) {
         return notifications.sendNotification(
           userId,
@@ -644,8 +628,6 @@ const createCreditsInfrastructure = ({
       },
     },
     attachmentStorage,
-    creditsCalculationService: calculationService,
-
   };
 };
 

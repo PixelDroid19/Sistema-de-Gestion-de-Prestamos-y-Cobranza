@@ -2,7 +2,6 @@ const { ValidationError } = require('@/utils/errorHandler');
 const {
   buildAmortizationSchedule,
   summarizeSchedule,
-  calculateInstallmentAmount,
 } = require('./amortizationMethods');
 const { assertSupportedCalculationMethod } = require('./calculationMethods');
 const { assertSupportedLateFeeMode } = require('./lateFeeCalculator');
@@ -107,5 +106,4 @@ const calculateCredit = ({ input, profileVersion, policySnapshot = null }) => {
 module.exports = {
   calculateCredit,
   normalizeCreditCalculationInput,
-  calculateInstallmentAmount,
 };

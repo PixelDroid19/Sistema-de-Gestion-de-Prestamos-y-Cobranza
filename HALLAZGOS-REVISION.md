@@ -54,8 +54,19 @@
 | 34 | MEDIA | funcional/configuración | `backend/src/modules/config/application/useCases.js:641-744` | Las políticas de tasa y mora hacían validaciones y updates multi-paso sin encapsularlas en la transacción compartida; además la guarda de solape de mora ignoraba `options.transaction` y escapaba de la unidad de trabajo | `createUpdateRatePolicy`, `createCreateLateFeePolicy` y `createUpdateLateFeePolicy` ahora corren dentro de `runConfigMutation`, reenvían `options.transaction` a todos los reads/writes y la validación de prioridad de mora ya usa la misma transacción |
 | 35 | BAJA | poor-impl | `backend/src/modules/config/infrastructure/repositories.js:54-70` | `findById` y `findActiveByCategoryAndKey` estaban definidos en el repositorio pero no tenían ningún consumidor real | Se eliminaron ambos métodos muertos y quedó una sola superficie de acceso coherente |
 | 36 | BAJA | poor-impl | `backend/src/modules/operatingExpenses/application/useCases.js:183-187` | `normalizeExpensePayload` y `normalizeListFilters` se exportaban aunque ningún caller los importaba | Se retiraron los exports muertos; la normalización sigue siendo interna del módulo |
+| 37 | BAJA | poor-impl | `backend/src/modules/credits/domain/calculation/creditCalculationEngine.js:1-109` | El engine re-exportaba `calculateInstallmentAmount` aunque el resto del módulo consumía esa utilidad desde `amortizationMethods`/`domain/calculation`; el export y su import local ya no tenían consumidores reales | Se retiró el re-export redundante y se limpió el import sin uso del engine |
+| 38 | BAJA | poor-impl | `backend/src/modules/credits/application/creditCalculationService.js:1-63` | El servicio público de cálculo re-exportaba `resolvePolicyAdjustedInput` y helpers de mora (`UNSUPPORTED_LATE_FEE_MODES`, `normalizeLateFeeMode`, `assertSupportedLateFeeMode`) que ningún caller importaba; solo `createCreditCalculationService` formaba parte del contrato real | El módulo quedó reducido a su superficie pública real (`createCreditCalculationService`) y `resolvePolicyAdjustedInput` permanece interno |
+| 39 | BAJA | poor-impl | `backend/src/modules/credits/application/paymentApplicationService.js:40-52` | `_INSTALLMENT_STATUSES` permanecía declarado pero no participaba en ninguna validación ni transición del servicio de pagos | Se eliminó la constante muerta y se mantuvieron solo los sets usados (`CANCELLABLE_STATUSES`, aliases de estrategia, etc.) |
+| 40 | BAJA | poor-impl | `backend/src/modules/credits/infrastructure/outboxEventRepository.js:1-100` | El repositorio del outbox mantenía un método privado `_getPayload` que nunca era invocado por el worker, los tests ni otros repositorios | Se retiró el helper muerto y el repositorio conserva únicamente las rutas usadas de `create/findPending/markAs*` |
+| 41 | BAJA | poor-impl | `backend/src/modules/credits/infrastructure/loanCreation.js:8-179` | `DEFAULT_CALCULATION_SCOPE_KEY` estaba duplicada y exportada desde `loanCreation`, pero la fuente de verdad operativa vive en `domain/calculation/calculationProfiles` y nadie consumía el duplicado local | Se eliminó la constante/export redundante y `loanCreation` mantiene solo el contrato realmente utilizado (`createLoanFromCanonicalData*` y `DEFAULT_FINANCIAL_PRODUCT_NAME`) |
+| 42 | BAJA | poor-impl | `backend/src/modules/credits/infrastructure/repositories.js:592-629` + `backend/tests/credits/infrastructureRepositories.test.js:6-45` | El puerto `sendRecoveryAssignment` no tenía callers de producción y arrastraba un helper `formatNotificationMoney` aparte, además de mezclar otro formato monetario en mensajes internos | Se eliminó el puerto muerto de asignación de cobranza, se retiró el helper de formato asociado y la prueba del puerto quedó enfocada solo en los mensajes realmente usados (`loan_reminder`, `payment_registered`, `promise_status`) |
+| 43 | BAJA | poor-impl | `backend/src/modules/credits/infrastructure/repositories.js:276-281,630-663` | `createCreditsInfrastructure` devolvía una clave `creditsCalculationService` que no era leída por ninguna composición, use case ni prueba; duplicaba el acceso ya expuesto por `creditDomainService` y `loanCreationService` | Se eliminó la clave muerta para dejar una sola superficie de infraestructura coherente |
+| 44 | BAJA | poor-impl | `backend/src/modules/shared/index.js:1-49` + `backend/src/modules/shared/errors.js` | El barrel compartido seguía re-exportando `mapApplicationError`, pero no existía ningún consumidor real del helper y el archivo `shared/errors.js` quedó convertido en passthrough muerto | Se eliminó el re-export y se retiró el archivo muerto para mantener el barrel alineado con helpers realmente usados |
+| 45 | BAJA | poor-impl | `backend/src/modules/shared/roles.js:1-46` | `isApplicationRole` e `isCanonicalApplicationRole` eran equivalentes entre sí y no tenían callers en backend ni tests; solo añadían superficie duplicada alrededor de `normalizeApplicationRole` | Se retiraron ambos helpers/export redundantes y se mantuvo únicamente `normalizeApplicationRole` más `isAdministrativeLoginRole`, que son las funciones efectivamente usadas |
+| 46 | BAJA | poor-impl | `backend/src/modules/users/application/useCases.js:1-147` | `sanitizeUser` sí sigue siendo necesario internamente en el módulo de usuarios, pero su export público no tenía consumidores reales; era otro caso de surface inflado sin contrato útil | Se conservó la función privada y se retiró el export muerto, dejando solo los casos de uso públicos reales |
+| 47 | BAJA | poor-impl | `backend/src/modules/users/infrastructure/repositories.js:1-41` | El repositorio de usuarios exponía `create` y `destroy`, pero el módulo administrativo no tenía ningún flujo que los usara; el alta/borrado real de usuarios ocurre por otros caminos del sistema | Se eliminaron los métodos muertos y el repositorio quedó reducido a `findAll/findPage/findById/findByEmail/update`, que son los únicos puertos actualmente consumidos |
 
-**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, `associatesReporting`, `reportsExcelExport`, `reportsModule`, `creditsModule`, `paymentApplicationService`, `credits/composition`, `credits/outboxEventRepository`, `credits/loanLifecycle`, `bootstrap`, `auditInjection`, `authModule`, `authRouter`, `tokenService`, `notificationService`, `notificationsService`, `notificationsModule`, `notificationsRouter`, `notificationsRepositories`, `configModule`, `operatingExpensesModule`, `customersModule`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde. En Railway producción el backend también quedó verificado arrancando `OutboxRelay` y registrando `audit.retention.started`.
+**Validación:** suites enfocadas backend en verde (`payment/auth/audit/reports`, `associates`, `associatesReporting`, `reportsExcelExport`, `reportsModule`, `creditsModule`, `paymentApplicationService`, `credits/composition`, `credits/outboxEventRepository`, `credits/loanLifecycle`, `credits/infrastructureRepositories`, `overdueAlertSyncService`, `bootstrap`, `auditInjection`, `authModule`, `authRouter`, `tokenService`, `notificationService`, `notificationsService`, `notificationsModule`, `notificationsRouter`, `notificationsRepositories`, `configModule`, `operatingExpensesModule`, `customersModule`, `usersModule`, `usersRouter`, `sharedAuthMiddleware`, `permissionsAuthMiddleware`, `authLoginSecurity`, repositorio de `associates` y analítica financiera), lint backend limpio, `tsc` frontend limpio y prueba frontend de `AuditLogPage` en verde. En Railway producción el backend también quedó verificado arrancando `OutboxRelay` y registrando `audit.retention.started`.
 
 ---
 
@@ -68,6 +79,7 @@
 | C | BAJA | socios/calendario | `backend/src/modules/associates/application/useCases.js:2096-2111` | El `displayAmount` del calendario sí se consume en frontend (`AssociateDetails.tsx` lo usa en la key de fila y otros flujos de socios mantienen el campo), mientras que el monto visible del calendario ya se renderiza con el formateo centralizado del frontend (`formatSignedCurrency`) | No se cambia en backend en esta pasada; el reporte de “código muerto” era incorrecto y la presentación visible sigue centralizada en UI |
 | D | MEDIA | notificaciones/push | `backend/src/modules/notifications/infrastructure/repositories.js:101-132` | `recordDeliveryResult` ya desactiva las suscripciones `invalid` y marca `expired` cuando el detalle lo indica; el fallo real estaba en aceptar proveedores inexistentes, no en este repositorio | Se conserva la implementación actual y se añadió prueba unitaria directa para `invalid -> inactive` y `expired -> expired` |
 | E | BAJA | clientes/listado | `backend/src/modules/customers/application/useCases.js:85-95` | La rama sin paginación no está expuesta por el router HTTP principal, pero sigue siendo una vía válida del contrato del use case y del repositorio (`customerRepository.list`) | No se elimina: quedó verificada con cobertura directa en `customersModule.test.js` y sigue sirviendo como contrato reutilizable para callers no HTTP |
+| F | BAJA | bootstrap/workers | `backend/src/bootstrap/index.js:1-111`, `backend/src/server.js:1-74`, `backend/src/workers/auditRetentionWorker.js:1-71`, `backend/src/workers/outboxRelayWorker.js:1-198` | La unidad de arranque y workers todavía figuraba como “sin revisar”, pero el cableado actual sí valida entorno, arranca `OutboxRelay` y `auditRetentionWorker`, aplica backoff/reintentos del outbox y mantiene la retención de auditoría con manejo de errores | Se conserva sin cambio: quedó verificada manualmente contra el código real y con suites dedicadas `bootstrap.test.js` + `credits/outboxRelayWorker.test.js` en verde |
 
 ---
 
@@ -76,12 +88,10 @@
 > Cada uno trae archivo:línea. **Antes de corregir hay que confirmar leyendo el código** (y, para "código muerto", hacer `grep` global de referencias, incluidos re-exports y claves string).
 
 ### Créditos / cálculo / pagos
-| Sev | Archivo:línea | Qué comprobar |
-|-----|---------------|---------------|
+Sin hallazgos pendientes verificados en esta categoría por ahora; la pasada adicional de limpieza ya cerró los exports y puertos muertos confirmados del módulo de créditos.
 
 ### Reportes
-| Sev | Archivo:línea | Qué comprobar |
-|-----|---------------|---------------|
+Sin hallazgos pendientes verificados en esta categoría por ahora; los hallazgos backend confirmados de reportes ya quedaron corregidos o reclasificados arriba.
 
 ### Auditoría / eventos
 Sin hallazgos pendientes en esta categoría por ahora; bootstrap, bridge y decorador ya quedaron verificados contra el código real y con cobertura.
@@ -99,13 +109,7 @@ Sin hallazgos pendientes en esta categoría por ahora; el fanout de email ya dej
 Sin hallazgos pendientes en esta categoría por ahora; gastos operativos ya audita altas/anulaciones, las políticas de tasa/mora quedaron transaccionales, el repositorio y los exports muertos se limpiaron y la rama sin paginación de clientes quedó reclasificada como contrato aún válido.
 
 ### Código muerto adicional reportado
-- `credits/domain/calculation/creditCalculationEngine.js:107-111` — re-export redundante sin uso de `calculateInstallmentAmount`.
-- `credits/application/creditCalculationService.js:67-73` — `resolvePolicyAdjustedInput` y helpers de mora re-exportados sin consumir.
-- `credits/application/paymentApplicationService.js:50` — constante `_INSTALLMENT_STATUSES` sin uso.
-- `credits/infrastructure/outboxEventRepository.js:99-102` — método privado `_getPayload` sin uso.
-- `credits/infrastructure/loanCreation.js:9,180` — constante/export `DEFAULT_CALCULATION_SCOPE_KEY` muerta.
-- `credits/infrastructure/repositories.js:647` — clave `creditsCalculationService` muerta en el objeto de infraestructura.
-- `credits/infrastructure/repositories.js:600-608` — puerto `sendRecoveryAssignment` y helper `formatNotificationMoney` muertos en producción; el resto formatea dinero de forma inconsistente.
+Sin hallazgos pendientes en esta categoría por ahora; la limpieza confirmada del módulo de créditos ya retiró los exports, claves y puertos muertos que seguían abiertos.
 
 ---
 
@@ -129,12 +133,12 @@ Unidades que **no llegaron a ejecutarse** y deben revisarse al reanudar:
 - `fe-hooks-store-state` — `components/hooks/*`, `store/*`
 - `fe-lib-i18n` — `i18n/*`, `lib/*`, `constants/*` (paridad de claves es/en, formateo COP, texto hardcodeado)
 
-Unidades backend que tampoco llegaron a ejecutarse: `be-models`, `be-users-shared`, `be-payouts-permissions`, `be-bootstrap-workers`.
+Unidades backend que tampoco llegaron a ejecutarse: `be-models`, `be-payouts-permissions`.
 
 ---
 
 ## Cómo continuar
 
-1. Reanudar el workflow cuando se reponga el límite de gasto (cachea lo ya hecho, solo corre lo que faltó) para cubrir el frontend y verificar la sección 🟡.
-2. Verificar los 🟡 leyendo el código (y `grep` global para los de código muerto) antes de corregir.
-3. Corregir por orden de severidad; prioridad: contribuciones anuladas que generan interés (ALTA, dinero) y las proyecciones de reportes.
+1. Reanudar el workflow o continuar manualmente sobre las unidades `⚪ SIN REVISAR`, con prioridad en frontend (`fe-credit-details`, `fe-credit-simulator`, `fe-reports`, `fe-settings`, `fe-shared-inputs`, `fe-shared-tables`) porque concentran riesgo funcional y visual alto.
+2. Cubrir las unidades backend todavía no revisadas (`be-models`, `be-payouts-permissions`) antes de cerrar el documento como auditoría completa.
+3. Mantener la regla de esta revisión: cada nuevo hallazgo debe quedar respaldado por lectura directa del código actual y, si se corrige, por suites enfocadas o evidencia runtime equivalente.

@@ -6,7 +6,6 @@ const {
 } = require('@/modules/credits/application/loanFinancials');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
-const DEFAULT_CALCULATION_SCOPE_KEY = 'credit-calculation';
 const CALCULATION_PROFILE_REQUIRED_MESSAGE = 'El cálculo de crédito no devolvió una versión de perfil activa. Aprueba un perfil de cálculo antes de crear créditos.';
 const CALCULATION_METHOD_REQUIRED_MESSAGE = 'El cálculo de crédito no devolvió un método de cálculo.';
 
@@ -177,5 +176,4 @@ module.exports = {
   createLoanFromCanonicalData,
   createLoanFromCanonicalDataFactory,
   DEFAULT_FINANCIAL_PRODUCT_NAME,
-  DEFAULT_CALCULATION_SCOPE_KEY,
 };

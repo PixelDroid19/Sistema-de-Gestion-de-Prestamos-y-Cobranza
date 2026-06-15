@@ -553,5 +553,4 @@ module.exports = {
   createUploadPaymentDocument,
   createDownloadPaymentDocument,
   createGetPaymentVoucher,
-  filterPaymentsByFilters,
 };

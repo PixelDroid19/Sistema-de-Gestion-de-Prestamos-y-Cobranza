@@ -25,10 +25,6 @@ const userRepository = {
     return User.findOne({ where: { email } });
   },
 
-  create(data) {
-    return User.create(data);
-  },
-
   async update(userId, data) {
     const user = await User.findByPk(userId);
     if (!user) {
@@ -37,10 +33,6 @@ const userRepository = {
 
     await user.update(data);
     return user;
-  },
-
-  destroy(userId) {
-    return User.destroy({ where: { id: userId } });
   },
 };
 

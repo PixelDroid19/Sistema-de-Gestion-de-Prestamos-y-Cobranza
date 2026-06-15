@@ -47,7 +47,6 @@ const CAPITAL_STRATEGY_ALIASES = new Map([
   ['REDUCE_PAYMENT', 'reduce_payment'],
 ]);
 
-const _INSTALLMENT_STATUSES = new Set(['pending', 'overdue', 'paid', 'partial', 'annulled']);
 const CANCELLABLE_STATUSES = new Set(['pending', 'overdue']);
 
 class PendingIdempotencyError extends Error {}

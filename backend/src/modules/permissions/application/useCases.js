@@ -456,5 +456,4 @@ module.exports = {
   createRevokePermission,
   createCheckPermission,
   createCheckMultiplePermissions,
-  sanitizePermission,
 };

@@ -1,7 +1,6 @@
 const { createModule } = require('./contracts');
 const { createAuthContext, resolveAuthContext } = require('./auth');
 const { respond, success, created } = require('./http');
-const { mapApplicationError } = require('./errors');
 const { runWithRequestContext, getRequestContext, getCurrentRequest } = require('./requestContext');
 const {
   DEFAULT_PAGE,
@@ -31,7 +30,6 @@ module.exports = {
   respond,
   success,
   created,
-  mapApplicationError,
   runWithRequestContext,
   getRequestContext,
   getCurrentRequest,

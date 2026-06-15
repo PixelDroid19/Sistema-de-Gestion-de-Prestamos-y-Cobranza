@@ -95,11 +95,6 @@ const createOutboxEventRepository = ({ outboxEventModel = OutboxEvent } = {}) =>
       { where: { id, status: 'PROCESSING' } }
     );
   },
-
-  async _getPayload(id) {
-    const event = await outboxEventModel.findByPk(id);
-    return event?.payload || {};
-  },
 });
 
 module.exports = { createOutboxEventRepository };

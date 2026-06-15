@@ -13,16 +13,16 @@ test('credits notification port emits Spanish operational messages', async () =>
     },
   });
 
-  await notificationPort.sendRecoveryAssignment(8, {
-    loanId: 22,
-    loanAmount: 1500000,
-    customerName: 'Ana Cliente',
-  });
   await notificationPort.sendLoanReminder(9, {
     loanId: 23,
     installmentNumber: 2,
     dueDate: '2026-03-25',
     alertId: 7,
+  });
+  await notificationPort.sendPaymentRegistered(11, {
+    loanId: 25,
+    paymentId: 15,
+    amount: 125000,
   });
   await notificationPort.sendPromiseStatus(10, {
     loanId: 24,
@@ -31,13 +31,12 @@ test('credits notification port emits Spanish operational messages', async () =>
   });
 
   assert.deepEqual(sentNotifications.map((notification) => notification.type), [
-    'loan_assignment',
     'loan_reminder',
+    'payment_registered',
     'promise_status',
   ]);
-  assert.match(sentNotifications[0].message, /Crédito #22/);
-  assert.match(sentNotifications[0].message, /Ana Cliente/);
-  assert.match(sentNotifications[1].message, /Recordatorio del crédito #23/);
+  assert.match(sentNotifications[0].message, /Recordatorio del crédito #23/);
+  assert.match(sentNotifications[1].message, /Pago registrado en el crédito #25/);
   assert.match(sentNotifications[2].message, /Promesa de pago del crédito #24/);
   assert.match(sentNotifications[2].message, /Incumplida/);
   sentNotifications.forEach((notification) => {

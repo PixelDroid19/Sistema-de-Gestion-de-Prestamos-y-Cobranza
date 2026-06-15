@@ -144,5 +144,4 @@ module.exports = {
   createDeactivateUser,
   createReactivateUser,
   createUnlockUser,
-  sanitizeUser,
 };
