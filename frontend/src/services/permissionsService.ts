@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { queryKeys } from './queryKeys';
 import { useInvalidatingMutation } from './crudHooks';
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
@@ -148,7 +149,7 @@ const normalizePermissionMutationPayload = (payload: PermissionMutationPayload) 
 
 export const usePermissions = () => {
   const getPermissions = useQuery({
-    queryKey: ['permissions.list'],
+    queryKey: queryKeys.permissions.list,
     queryFn: async () => {
       const { data } = await apiClient.get('/permissions');
       return data;
@@ -168,7 +169,7 @@ export const usePermissions = () => {
 
 export const usePermissionsByModule = (module: string) => {
   const getPermissionsByModule = useQuery({
-    queryKey: ['permissions.byModule', module],
+    queryKey: queryKeys.permissions.byModule(module),
     queryFn: async () => {
       const { data } = await apiClient.get(`/permissions/by-module/${module}`);
       return data;
@@ -189,7 +190,7 @@ export const usePermissionsByModule = (module: string) => {
 
 export const useMyPermissions = (options?: { enabled?: boolean }) => {
   const getMyPermissions = useQuery({
-    queryKey: ['permissions.myPermissions'],
+    queryKey: queryKeys.permissions.myPermissions,
     queryFn: async () => {
       const { data } = await apiClient.get('/permissions/me');
       return data;
@@ -260,7 +261,7 @@ export const useResolvedPermissionNames = (
 
 export const useMyPermissionsSummary = () => {
   const getMyPermissionsSummary = useQuery({
-    queryKey: ['permissions.myPermissionsSummary'],
+    queryKey: queryKeys.permissions.myPermissionsSummary,
     queryFn: async () => {
       const { data } = await apiClient.get('/permissions/me/summary');
       return data;
@@ -276,7 +277,7 @@ export const useMyPermissionsSummary = () => {
 
 export const useUserPermissions = (userId: string) => {
   const getUserPermissions = useQuery({
-    queryKey: ['permissions.user', userId],
+    queryKey: queryKeys.permissions.user(userId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/permissions/user/${userId}`);
       return data;
@@ -300,7 +301,7 @@ export const useGrantPermission = () => {
   const grantPermission = useInvalidatingMutation(async (payload: PermissionMutationPayload) => {
     const { data } = await apiClient.post('/permissions/grant', normalizePermissionMutationPayload(payload));
     return data;
-  }, [['permissions.list'], ['permissions.myPermissions'], ['permissions.myPermissionsSummary'], ['permissions.user']]);
+  }, [queryKeys.permissions.list, queryKeys.permissions.myPermissions, queryKeys.permissions.myPermissionsSummary, queryKeys.permissions.userRoot]);
 
   return { grantPermission };
 };
@@ -323,7 +324,7 @@ export const useGrantBatchPermissions = () => {
       permissions: normalizedPermissions,
     });
     return data;
-  }, [['permissions.list'], ['permissions.myPermissions'], ['permissions.myPermissionsSummary'], ['permissions.user']]);
+  }, [queryKeys.permissions.list, queryKeys.permissions.myPermissions, queryKeys.permissions.myPermissionsSummary, queryKeys.permissions.userRoot]);
 
   return { grantBatchPermissions };
 };
@@ -332,7 +333,7 @@ export const useRevokePermission = () => {
   const revokePermission = useInvalidatingMutation(async (payload: PermissionMutationPayload) => {
     const { data } = await apiClient.post('/permissions/revoke', normalizePermissionMutationPayload(payload));
     return data;
-  }, [['permissions.list'], ['permissions.myPermissions'], ['permissions.myPermissionsSummary'], ['permissions.user']]);
+  }, [queryKeys.permissions.list, queryKeys.permissions.myPermissions, queryKeys.permissions.myPermissionsSummary, queryKeys.permissions.userRoot]);
 
   return { revokePermission };
 };

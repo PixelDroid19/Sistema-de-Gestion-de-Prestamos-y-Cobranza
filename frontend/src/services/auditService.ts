@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { queryKeys } from './queryKeys';
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
@@ -60,7 +61,7 @@ export interface AuditStatsResponse {
 
 export const useAuditLogs = (filters: AuditFilters = {}) => {
   const getAuditLogs = useQuery({
-    queryKey: ['audit.logs', filters],
+    queryKey: queryKeys.audit.logs(filters),
     queryFn: async () => {
       const params = new URLSearchParams();
       
@@ -92,7 +93,7 @@ export const useAuditLogs = (filters: AuditFilters = {}) => {
 
 export const useAuditStats = (dateFrom?: string, dateTo?: string) => {
   const getAuditStats = useQuery({
-    queryKey: ['audit.stats', dateFrom, dateTo],
+    queryKey: queryKeys.audit.stats(dateFrom, dateTo),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (dateFrom) params.append('dateFrom', dateFrom);

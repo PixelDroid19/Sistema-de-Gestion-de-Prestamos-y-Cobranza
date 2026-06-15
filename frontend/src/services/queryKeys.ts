@@ -5,6 +5,19 @@ export type LoanListParams = {
   status?: string;
 };
 
+export type AuditLogKeyFilters = {
+  userId?: string;
+  action?: string;
+  module?: string;
+  entityId?: string;
+  entityType?: string;
+  ip?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export type PaymentListParams = {
   page?: number;
   pageSize?: number;
@@ -194,5 +207,19 @@ export const queryKeys = {
   },
   timeline: {
     loan: (loanId: number) => ['loans.timeline', loanId] as const,
+  },
+  audit: {
+    all: ['audit'] as const,
+    logs: (filters: AuditLogKeyFilters = {}) => ['audit.logs', filters] as const,
+    stats: (dateFrom?: string, dateTo?: string) => ['audit.stats', dateFrom, dateTo] as const,
+  },
+  permissions: {
+    all: ['permissions'] as const,
+    list: ['permissions.list'] as const,
+    byModule: (module: string) => ['permissions.byModule', module] as const,
+    myPermissions: ['permissions.myPermissions'] as const,
+    myPermissionsSummary: ['permissions.myPermissionsSummary'] as const,
+    userRoot: ['permissions.user'] as const,
+    user: (userId: string | number) => ['permissions.user', userId] as const,
   },
 };
