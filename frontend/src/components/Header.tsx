@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, ChevronDown, Languages, Menu, Moon, Search, Sun } from 'lucide-react';
-import { APP_BRAND, getRoleLabel, getShellDestinationsForUser } from '../constants/appShell';
+import { APP_BRAND, getAppBrandWorkspace, getRoleLabel, getShellDestinationsForUser } from '../constants/appShell';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useUnreadNotificationsCount } from '../services/notificationService';
 import { useMyPermissions } from '../services/permissionsService';
@@ -124,7 +124,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             title={APP_BRAND.name}
           >
             <span className="truncate text-[0.95rem] font-semibold tracking-tight text-text-primary lg:text-base">
-              {APP_BRAND.workspace}
+              {getAppBrandWorkspace()}
             </span>
           </ClickableSurface>
         </div>

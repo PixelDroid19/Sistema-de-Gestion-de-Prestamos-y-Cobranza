@@ -4,9 +4,10 @@ import { tTerm, type TermKey } from '../i18n/terminology';
 
 export const APP_BRAND = {
   name: 'CrediCobranza',
-  workspace: 'Sistema de Préstamos',
   monogram: 'CC',
 } as const;
+
+export const getAppBrandWorkspace = () => tTerm('shell.brand.workspace');
 
 export type ShellDestination = {
   view: string;

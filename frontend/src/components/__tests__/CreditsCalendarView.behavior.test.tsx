@@ -60,6 +60,7 @@ describe('CreditsCalendarView behavior', () => {
         onClearFilters={vi.fn()}
         onSelectEvent={onSelectEvent}
         onViewCredit={vi.fn()}
+        user={{ role: 'admin' }}
       />,
     );
 

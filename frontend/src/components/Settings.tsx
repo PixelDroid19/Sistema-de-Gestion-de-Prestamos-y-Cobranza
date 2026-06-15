@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, Coins, CreditCard, Percent, ShieldCheck } from 'lucide-react';
 import { useConfig } from '../services/configService';
 import { tTerm } from '../i18n/terminology';
-import { BASE_CURRENCY_CODE, BASE_CURRENCY_LABEL } from '../i18n/format';
+import { BASE_CURRENCY_CODE, getBaseCurrencyLabel } from '../i18n/format';
 import { PageHeader, PageShell, SectionSurface, StatusChip, ViewTabs } from './shared/Surfaces';
 import type { SettingsTab } from './settings/settingsHelpers';
 import EmployeesTab from './settings/EmployeesTab';
@@ -21,7 +21,7 @@ function BaseCurrencyTab({ businessSettings }: { businessSettings: Record<string
       bodyClassName="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
     >
       <div className="space-y-3">
-        <p className="text-3xl font-semibold text-text-primary">{BASE_CURRENCY_LABEL}</p>
+        <p className="text-3xl font-semibold text-text-primary">{getBaseCurrencyLabel()}</p>
         <p className="max-w-3xl text-base leading-relaxed text-text-secondary">
           {tTerm('settings.currency.description')}
         </p>

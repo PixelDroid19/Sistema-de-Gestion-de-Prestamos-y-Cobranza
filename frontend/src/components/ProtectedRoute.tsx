@@ -21,6 +21,49 @@ interface GuestRouteProps {
   children: React.ReactNode;
 }
 
+const PermissionsErrorState = ({
+  onRetry,
+  onExit,
+}: {
+  onRetry: () => void;
+  onExit: () => void;
+}) => (
+  <div className="flex h-screen w-full items-center justify-center bg-bg-base px-4">
+    <SectionSurface className="w-full max-w-md">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="mt-0.5 rounded-2xl bg-red-50 p-2 text-red-600">
+          <AlertCircle className="size-5" />
+        </div>
+        <div className="space-y-1">
+          <h1 className="text-lg font-semibold text-text-primary">{tTerm('auth.session.permissionsError.title')}</h1>
+          <p className="text-sm leading-6 text-text-secondary">
+            {tTerm('auth.session.permissionsError.description')}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <ActionButton
+          type="button"
+          onClick={onRetry}
+          icon={<RotateCcw className="size-4" />}
+          fullWidth
+        >
+          {tTerm('auth.session.permissionsError.retry')}
+        </ActionButton>
+        <ActionButton
+          type="button"
+          onClick={onExit}
+          variant="primary"
+          fullWidth
+        >
+          {tTerm('auth.session.permissionsError.exit')}
+        </ActionButton>
+      </div>
+    </SectionSurface>
+  </div>
+);
+
 const SessionLoadingState = ({ label = tTerm('auth.session.restoring') }: { label?: string }) => (
   <div className="flex h-screen w-full items-center justify-center bg-bg-base">
     <SectionSurface className="flex flex-col items-center gap-4 px-6 py-8">
@@ -186,6 +229,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   if (user.role === 'employee' && requiredPermissions.length > 0) {
     if (permissionQuery.isLoading) {
       return <SessionLoadingState label={tTerm('auth.session.validatingPermissions')} />;
+    }
+
+    if (permissionQuery.isError) {
+      return (
+        <PermissionsErrorState
+          onRetry={() => {
+            void permissionQuery.refetch();
+          }}
+          onExit={() => {
+            logout();
+          }}
+        />
+      );
     }
 
     const grantedPermissions = new Set(extractPermissionNames(permissionQuery.data));

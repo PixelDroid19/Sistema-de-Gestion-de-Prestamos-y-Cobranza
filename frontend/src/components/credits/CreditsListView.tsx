@@ -15,6 +15,7 @@ import { tTerm } from '../../i18n/terminology';
 import { getChipClassName } from '../../constants/uiChips';
 import { getLoanStatusTone } from '../../lib/statusTones';
 import { resolveOperationalGuard } from '../../services/operationalGuards';
+import TableShell from '../shared/TableShell';
 import {
   ActionButton,
   CheckboxInput,
@@ -85,6 +86,7 @@ type CreditsListViewProps = {
   onToggleSelectAll: () => void;
   onDownloadSelected: () => void;
   onClearSelection: () => void;
+  canBulkDownloadReports: boolean;
   // Pagination
   page: number;
   pageSize: number;
@@ -118,6 +120,7 @@ export default function CreditsListView({
   onToggleSelectAll,
   onDownloadSelected,
   onClearSelection,
+  canBulkDownloadReports,
   page,
   pageSize,
   onPageChange,
@@ -126,6 +129,20 @@ export default function CreditsListView({
   user,
 }: CreditsListViewProps) {
   const formatCurrency = (value: number) => formatCurrencyValue(value);
+  const paginationConfig = pagination
+    ? {
+      page,
+      pageSize,
+      totalItems: pagination?.totalItems ?? pagination?.total ?? 0,
+      totalPages: pagination?.totalPages ?? 1,
+      onPrev: () => onPageChange(page - 1),
+      onNext: () => onPageChange(page + 1),
+      onPageSizeChange: (nextPageSize: number) => {
+        onPageSizeChange(nextPageSize);
+        onPageChange(1);
+      },
+    }
+    : undefined;
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -202,7 +219,7 @@ export default function CreditsListView({
         </div>
       </ToolbarSurface>
 
-      {selectedCreditIds.length > 0 && (
+      {canBulkDownloadReports && selectedCreditIds.length > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-500/30 dark:bg-blue-500/10 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-text-secondary">
             {selectedCreditIds.length === 1
@@ -300,15 +317,19 @@ export default function CreditsListView({
       )}
 
       {/* Mobile cards */}
-      <div className="space-y-3 md:hidden">
-        {isLoading ? (
-          <EmptyState title={tTerm('credits.empty.loading')} compact />
-        ) : isError ? (
-          <EmptyState title={tTerm('credits.empty.error')} compact />
-        ) : creditsList.length === 0 ? (
-          <EmptyState title={tTerm('credits.empty.none')} compact />
-        ) : (
-          creditsList.map((credit: any) => {
+      <TableShell
+        className="md:hidden data-table-surface rounded-xl border border-border-subtle"
+        isLoading={isLoading}
+        isError={isError}
+        hasData={creditsList.length > 0}
+        loadingContent={<EmptyState title={tTerm('credits.empty.loading')} compact />}
+        errorContent={<EmptyState title={tTerm('credits.empty.error')} compact />}
+        emptyContent={<EmptyState title={tTerm('credits.empty.none')} compact />}
+        recordsLabel={tTerm('credits.table.recordsLabel')}
+        pagination={paginationConfig}
+      >
+        <div className="space-y-3 p-3">
+          {creditsList.map((credit: any) => {
             const principalOutstanding = Number(credit.principalOutstanding) || 0;
             const interestOutstanding = Number(credit.interestOutstanding) || 0;
             const outstandingAmount = principalOutstanding + interestOutstanding;
@@ -371,9 +392,9 @@ export default function CreditsListView({
                 )}
               </article>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      </TableShell>
 
       {/* Desktop table */}
       <AppTable
@@ -390,25 +411,11 @@ export default function CreditsListView({
         errorContent={<div className="px-4 py-8 text-center text-red-600">{tTerm('credits.table.error')}</div>}
         emptyContent={<div className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.none')}</div>}
         recordsLabel={tTerm('credits.table.recordsLabel')}
-        pagination={
-          pagination
-            ? {
-              page,
-              pageSize,
-              totalItems: pagination?.totalItems ?? pagination?.total ?? 0,
-              totalPages: pagination?.totalPages ?? 1,
-              onPrev: () => onPageChange(page - 1),
-              onNext: () => onPageChange(page + 1),
-              onPageSizeChange: (nextPageSize) => {
-                onPageSizeChange(nextPageSize);
-                onPageChange(1);
-              },
-            }
-            : undefined
-        }
+        pagination={paginationConfig}
       >
           <thead>
             <tr>
+              {canBulkDownloadReports && (
               <th className="w-10 px-3 py-3 font-semibold">
                 <CheckboxInput
                   type="checkbox"
@@ -417,6 +424,7 @@ export default function CreditsListView({
                   onChange={onToggleSelectAll}
                 />
               </th>
+              )}
               <th className="min-w-[150px] px-3 py-3 font-semibold">{tTerm('credits.table.customer')}</th>
               <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.capital')}</th>
               <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">{tTerm('credits.table.rate')}</th>
@@ -451,6 +459,7 @@ export default function CreditsListView({
 
                 return (
                   <tr key={credit.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-hover-bg/60">
+                    {canBulkDownloadReports && (
                     <td className="px-3 py-4" {...(index === 0 ? { 'data-tour': 'credits-row-actions' } : {})}>
                       <CheckboxInput
                         type="checkbox"
@@ -459,6 +468,7 @@ export default function CreditsListView({
                         onChange={() => onToggleSelect(Number(credit.id))}
                       />
                     </td>
+                    )}
                     <td className="px-3 py-4 font-medium text-text-primary">
                       <span className="block max-w-[180px] truncate" title={getCreditLabel(credit)}>
                         {getCreditLabel(credit)}

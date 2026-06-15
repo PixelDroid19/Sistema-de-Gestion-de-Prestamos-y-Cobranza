@@ -140,10 +140,11 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
-      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.tracking() });
     },
   });
 
@@ -153,9 +154,10 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
-      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.tracking() });
     },
   });
 
@@ -165,10 +167,11 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
-      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.tracking() });
     },
   });
 
@@ -178,10 +181,11 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
-      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.tracking() });
     },
   });
 
@@ -207,10 +211,11 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
-      queryClient.invalidateQueries({ queryKey: ['associates', 'tracking'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.tracking() });
     },
   });
 

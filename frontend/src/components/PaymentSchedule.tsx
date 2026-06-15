@@ -10,6 +10,9 @@ import { getLoanStatusLabel } from './credits/creditsHelpers';
 import { ActionButton, EmptyState, InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
 import { AppTable, TableStatusPill } from './shared/tables';
 import { QuickGuideButton } from './shared/HelpSupport';
+import { useSessionStore } from '../store/sessionStore';
+import { useResolvedPermissionNames } from '../services/permissionsService';
+import { PERMISSION } from '../constants/permissionNames';
 
 /**
  * PaymentSchedule component displays a detailed amortization table for a specific loan.
@@ -19,6 +22,12 @@ export default function PaymentSchedule() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const loanId = id ? Number(id) : null;
+  const { user } = useSessionStore();
+  const resolvedPermissions = useResolvedPermissionNames(user);
+  const permissionSet = new Set(resolvedPermissions.map((permission) => permission.toUpperCase()));
+  const canExportSchedule = user?.role === 'admin'
+    || permissionSet.has('*')
+    || permissionSet.has(PERMISSION.REPORTS_VIEW_ALL);
   const { loan, summary, schedule, isLoading, isError, error } = usePaymentSchedule(loanId);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -109,6 +118,7 @@ export default function PaymentSchedule() {
             <ActionButton onClick={() => navigate(-1)} icon={<ArrowLeft size={16} />}>
               {tTerm('schedule.button.back')}
             </ActionButton>
+            {canExportSchedule && (
             <ActionButton
               onClick={handleExport}
               disabled={isExporting}
@@ -117,6 +127,7 @@ export default function PaymentSchedule() {
             >
               {tTerm('schedule.button.export')}
             </ActionButton>
+            )}
           </>
         )}
       />

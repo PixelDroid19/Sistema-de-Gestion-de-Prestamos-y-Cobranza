@@ -640,4 +640,5 @@ export const reportsEs = {
 'dashboard.widget.recoveryPerformance.kicker': 'Recuperación',
 'dashboard.widget.recoveryPerformance.title': 'Recuperado vs desembolsado',
 'dashboard.widget.recoveryPerformance.subtitle': 'Recuperado vs desembolsado',
+'dashboard.widget.recoveryPerformance.tooltip': 'Compara por mes lo recuperado frente a lo desembolsado para detectar desbalances en la cartera.',
 } as const;

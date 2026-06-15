@@ -1,5 +1,5 @@
 import { tTerm } from '../../i18n/terminology';
-import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../../constants/loanStates';
+import { BACKEND_SUPPORTED_LOAN_STATUSES, getBackendLoanStatusLabel } from '../../constants/loanStates';
 import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
 import { CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../../services/loanService';
 import { ActionButton, AppInput, CurrencyInput, FormField, ModalShell, OperationalSelect } from '../shared/Surfaces';
@@ -126,7 +126,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
             <OperationalSelect id="credit-status-select" value={props.newStatus} onChange={(e) => props.onNewStatusChange(e.target.value)}>
               <option value="">{tTerm('creditDetails.modal.status.placeholder')}</option>
               {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
-                <option key={status} value={status}>{LOAN_STATUS_LABELS[status]}</option>
+                <option key={status} value={status}>{getBackendLoanStatusLabel(status)}</option>
               ))}
             </OperationalSelect>
           </FormField>

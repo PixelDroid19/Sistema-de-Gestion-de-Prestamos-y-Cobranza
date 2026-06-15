@@ -140,7 +140,9 @@ const normalizeText = (value: string) => value
   .trim()
   .toLowerCase();
 
-export const formatAuditDate = (dateStr: string) => new Date(dateStr).toLocaleString();
+import { formatDateTime } from '../i18n/format';
+
+export const formatAuditDate = (dateStr: string) => formatDateTime(dateStr) || '';
 
 export const getAuditModuleLabel = (module: string) => tTerm(MODULE_LABEL_KEYS[normalizeText(module)] ?? 'audit.presentation.module.unknown');
 

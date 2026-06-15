@@ -11,6 +11,7 @@ describe('currency formatting', () => {
 describe('date formatting safety', () => {
   it('formats valid operational dates', () => {
     expect(formatDate('2026-02-14', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })).toContain('2026');
+    expect(formatDate('2026-02-14', { day: '2-digit', month: '2-digit', year: 'numeric' })).toContain('2026');
     expect(formatDateTime('2026-02-14T08:30:00.000Z')).toContain('2026');
   });
 

@@ -95,6 +95,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     () => new Set(resolvedPermissions.map((permission: string) => String(permission).toUpperCase())),
     [resolvedPermissions],
   );
+  const isBackofficeOperator = user?.role === 'admin' || user?.role === 'employee';
+  const hasPermission = (permission: string) => (
+    isAdmin || (isBackofficeOperator && (grantedPermissions.has('*') || grantedPermissions.has(permission)))
+  );
+  const canExportCreditsExcel = hasPermission(PERMISSION.REPORTS_VIEW_ALL);
+  const canPreviewCredit = hasPermission(PERMISSION.CREDITS_VIEW_ALL);
+  const canCreateCredit = hasPermission(PERMISSION.CREDITS_CREATE);
+  const canBulkDownloadReports = canExportCreditsExcel;
   const canReadPortfolioStatistics = isAdmin
     || grantedPermissions.has('*')
     || grantedPermissions.has(PERMISSION.DASHBOARD_VIEW_ALL);
@@ -154,7 +162,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     data: searchedLoansData,
     isLoading: isSearchLoading,
     isError: isSearchError,
-  } = useSearchLoans(parsedSearchFilters, page, pageSize);
+  } = useSearchLoans(parsedSearchFilters, page, pageSize, { enabled: hasAppliedServerFilters });
 
   const {
     data: defaultLoansData,
@@ -217,6 +225,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       totalPayableAmount: 0, totalLateFeeAmount: 0,
     },
     agenda: [],
+    actionableEntries: [],
     nextAction: null,
     entries: [],
   }), [calendarAsOfDate]);
@@ -232,7 +241,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           status: calendarFilters.status || undefined,
           startDate: calendarFilters.startDate || undefined,
           endDate: calendarFilters.endDate || undefined,
-          limit: 150,
         },
       });
       return data?.data?.calendar ?? emptyCalendarOverview;
@@ -310,7 +318,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         run: async () => { await downloadCreditReport(creditId); },
       });
     }
-    toast.success({ description: `Se procesaron ${selectedCreditIds.length} reportes seleccionados.` });
+    toast.success({
+      description: tTerm('credits.bulk.downloadSuccess', { count: selectedCreditIds.length }),
+    });
   };
 
   const handleClearFilters = () => {
@@ -371,7 +381,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         tourId="credits-header"
         actions={(
           <>
-            {isAdmin && (
+            {canExportCreditsExcel && (
               <ActionButton
                 onClick={handleExportCreditsExcel}
                 disabled={isExporting}
@@ -381,7 +391,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 {isExporting ? tTerm('credits.cta.exporting') : tTerm('credits.cta.exportExcel')}
               </ActionButton>
             )}
-            {isAdmin && (
+            {canPreviewCredit && (
               <ActionButton
                 onClick={() => navigateToView('credit-calculator')}
                 data-tour="credits-preview"
@@ -390,7 +400,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 {tTerm('credits.cta.preview')}
               </ActionButton>
             )}
-            {isAdmin && (
+            {canCreateCredit && (
               <ActionButton
                 onClick={() => navigateToView('credits-new')}
                 data-tour="credits-new"
@@ -446,6 +456,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           onToggleSelectAll={handleToggleSelectAllVisible}
           onDownloadSelected={handleDownloadSelectedReports}
           onClearSelection={() => setSelectedCreditIds([])}
+          canBulkDownloadReports={canBulkDownloadReports}
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}
@@ -463,6 +474,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           selectedEvent={selectedEvent}
           onSelectEvent={setSelectedEvent}
           onViewCredit={(loanId: number) => navigateToView(`credits/${loanId}`)}
+          user={userWithResolvedPermissions}
           filters={calendarFilters}
           onFiltersChange={updateCalendarFilters}
           onClearFilters={() => updateCalendarFilters({ search: '', status: '', startDate: '', endDate: '' })}

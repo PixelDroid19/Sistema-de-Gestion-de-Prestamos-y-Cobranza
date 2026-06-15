@@ -200,7 +200,7 @@ export default function ContributionModal({
                   setAmountError('');
                 }
               }}
-              placeholder="0"
+              placeholder={tTerm('associateDetails.modal.placeholder.amount')}
             />
           </FormField>
           <FormField

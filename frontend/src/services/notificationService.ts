@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import type { AppUserLike } from '../constants/appAccess';
+import { PERMISSION } from '../constants/permissionNames';
 import { tTerm } from '../i18n/terminology';
 import { useInvalidatingMutation } from './crudHooks';
 import { queryKeys } from './queryKeys';
@@ -23,6 +24,24 @@ const toPositiveInteger = (value: unknown): number | null => {
 
 const isAdministrativeRole = (role?: string): boolean => {
   return role === 'admin' || role === 'employee';
+};
+
+const hasNotificationPermission = (user: AppUserLike, permission: string): boolean => {
+  if (user?.role === 'admin') {
+    return true;
+  }
+
+  const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+  const permissionSet = new Set(
+    permissions
+      .map((entry) => {
+        if (typeof entry === 'string') return entry.toUpperCase();
+        return String(entry?.permissionName ?? entry?.permission ?? entry?.name ?? '').toUpperCase();
+      })
+      .filter(Boolean),
+  );
+
+  return permissionSet.has('*') || permissionSet.has(permission.toUpperCase());
 };
 
 const TECHNICAL_NOTIFICATION_PATTERN = /(?:\b(?:actorId|userId|loanId|customerId|associateId|paymentId|policyId|calculationProfileVersionId|calculationVersionId|policySnapshot|payload|sequelize|constraint|stack|exception|trace)\b|[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}|[{[\]}])/i;
@@ -130,17 +149,15 @@ export const resolveNotificationDestinationForUser = (
   }
 
   if (destination.startsWith('/credits/')) {
-    return destination;
+    return hasNotificationPermission(user, PERMISSION.CREDITS_VIEW_ALL) ? destination : null;
   }
 
   if (destination.startsWith('/customers/')) {
-    return user.role === 'admin' ? destination : null;
+    return hasNotificationPermission(user, PERMISSION.CLIENTS_VIEW_ALL) ? destination : null;
   }
 
   if (destination.startsWith('/associates/')) {
-    if (user.role === 'admin') {
-      return destination;
-    }
+    return hasNotificationPermission(user, PERMISSION.SOCIOS_VIEW_ALL) ? destination : null;
   }
 
   return null;

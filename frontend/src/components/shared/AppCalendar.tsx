@@ -40,14 +40,7 @@ export const toCalendarDayKey = (date: Date): string => [
   String(date.getUTCDate()).padStart(2, '0'),
 ].join('-');
 
-const localTodayKey = (): string => {
-  const now = new Date();
-  return [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-');
-};
+const utcTodayKey = (): string => toCalendarDayKey(new Date());
 
 type GridDay = {
   key: string;
@@ -89,7 +82,7 @@ export default function AppCalendar({
   const baseDate = initialDate && !Number.isNaN(initialDate.getTime()) ? initialDate : new Date();
   const [view, setView] = useState({ year: baseDate.getUTCFullYear(), month: baseDate.getUTCMonth() });
 
-  const todayKey = localTodayKey();
+  const todayKey = utcTodayKey();
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -130,7 +123,7 @@ export default function AppCalendar({
 
   const goToToday = () => {
     const now = new Date();
-    setView({ year: now.getFullYear(), month: now.getMonth() });
+    setView({ year: now.getUTCFullYear(), month: now.getUTCMonth() });
     onSelectDate?.(todayKey, eventsByDay.get(todayKey) || []);
   };
 

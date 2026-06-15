@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, Code2, Globe2, Server, UserRound } from 'lucide-react';
 import { AuditLog } from '../services/auditService';
 import { tTerm } from '../i18n/terminology';
@@ -73,6 +73,10 @@ function JsonPanel({ title, data }: { title: string; data: unknown }) {
 
 export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModalProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>('resumen');
+
+  useEffect(() => {
+    setActiveTab('resumen');
+  }, [auditLog?.id]);
 
   const tabItems = useMemo(() => detailTabs, []);
 

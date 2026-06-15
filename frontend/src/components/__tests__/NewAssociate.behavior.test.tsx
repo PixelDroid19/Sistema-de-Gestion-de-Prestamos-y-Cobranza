@@ -7,16 +7,17 @@ import { toast } from '../../lib/toast';
 const createAssociateMock = { mutateAsync: vi.fn() };
 const updateAssociateMock = { mutateAsync: vi.fn() };
 const runSubmitMock = vi.fn();
+const useAssociatesMock = vi.fn((_params?: unknown, _options?: unknown) => ({
+  createAssociate: createAssociateMock,
+  updateAssociate: updateAssociateMock,
+}));
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
 }));
 
 vi.mock('../../services/associateService', () => ({
-  useAssociates: () => ({
-    createAssociate: createAssociateMock,
-    updateAssociate: updateAssociateMock,
-  }),
+  useAssociates: (params?: unknown, options?: unknown) => useAssociatesMock(params, options),
   useAssociateById: () => ({
     data: null,
     isLoading: false,
@@ -53,6 +54,12 @@ describe('NewAssociate behavior', () => {
       target: { value: '3001234567' },
     });
   };
+
+  it('does not prefetch the associates list on the new associate form', () => {
+    render(<NewAssociate onBack={vi.fn()} />);
+
+    expect(useAssociatesMock).toHaveBeenCalledWith(undefined, { enabled: false });
+  });
 
   it('normalizes initial capital before submitting the associate', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);

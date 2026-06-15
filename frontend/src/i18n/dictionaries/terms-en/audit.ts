@@ -75,6 +75,7 @@ export const auditEn = {
 'audit.table.recordsLabel': 'events',
 'audit.table.empty.title': 'No events to review',
 'audit.table.empty.description': 'Adjust filters by IP, service, or date to expand the search.',
+'audit.table.error': 'Could not load the audit log. Please try again.',
 'audit.table.header.date': 'Date',
 'audit.table.header.service': 'Consumed service',
 'audit.table.header.user': 'User',

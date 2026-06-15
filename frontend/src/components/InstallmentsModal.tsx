@@ -21,15 +21,13 @@ interface InstallmentsModalProps {
 const formatInstallmentDate = (value: unknown) => formatDateValue(value) || '-';
 
 const getInstallmentStatusPresentation = (installment: Installment) => {
-  if (installment.status === 'paid') {
+  const normalizedStatus = String(installment?.status || '').toLowerCase();
+  if (normalizedStatus === 'paid') {
     return { label: tTerm('associateDetails.installments.metric.paid'), className: 'bg-emerald-100 text-emerald-700' };
   }
-
-  const dueTimestamp = Date.parse(String(installment.dueDate || ''));
-  if (installment.status === 'overdue' || (Number.isFinite(dueTimestamp) && dueTimestamp < Date.now())) {
+  if (normalizedStatus === 'overdue') {
     return { label: tTerm('associateDetails.installments.metric.overdue'), className: 'bg-red-100 text-red-700' };
   }
-
   return { label: tTerm('associateDetails.installments.metric.pending'), className: 'bg-amber-100 text-amber-700' };
 };
 

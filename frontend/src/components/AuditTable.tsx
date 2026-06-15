@@ -22,6 +22,7 @@ interface AuditTableProps {
   logs: AuditLog[];
   pagination?: PaginationMeta;
   isLoading: boolean;
+  isError?: boolean;
   onViewDetails: (log: AuditLog) => void;
   onPageChange: (page: number) => void;
   onFilterIp: (ip: string) => void;
@@ -31,6 +32,7 @@ export default function AuditTable({
   logs,
   pagination,
   isLoading,
+  isError = false,
   onViewDetails,
   onPageChange,
   onFilterIp,
@@ -44,6 +46,7 @@ export default function AuditTable({
         minWidthClassName="min-w-[1120px]"
         statePresentation="shell"
         isLoading={isLoading}
+        isError={isError}
         hasData={logs.length > 0}
         loadingContent={(
           <div className="space-y-3 p-4">
@@ -60,6 +63,9 @@ export default function AuditTable({
               <p className="mt-1 text-sm text-text-secondary">{tTerm('audit.table.empty.description')}</p>
             </div>
           </div>
+        )}
+        errorContent={(
+          <div className="py-4 text-center text-red-500">{tTerm('audit.table.error')}</div>
         )}
         recordsLabel={tTerm('audit.table.recordsLabel')}
         pagination={

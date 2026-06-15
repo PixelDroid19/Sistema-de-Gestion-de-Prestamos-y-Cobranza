@@ -4,7 +4,7 @@ import { useAuth } from '../services/authService';
 import { toast } from '../lib/toast';
 import { extractStatusCode, getSafeErrorText } from '../services/safeErrorMessages';
 import { getDefaultRouteForUser } from '../constants/appAccess';
-import { APP_BRAND } from '../constants/appShell';
+import { APP_BRAND, getAppBrandWorkspace } from '../constants/appShell';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { tTerm } from '../i18n/terminology';
 import { ActionButton, AppInput, FormField } from './shared/Surfaces';
@@ -49,7 +49,7 @@ export default function Login() {
     <div className="login-page">
       <aside className="login-aside" aria-label={APP_BRAND.name}>
         <div className="login-aside__content">
-          <p className="login-aside__workspace">{APP_BRAND.workspace}</p>
+          <p className="login-aside__workspace">{getAppBrandWorkspace()}</p>
           <h1 className="login-aside__title">{APP_BRAND.name}</h1>
           <p className="login-aside__tagline">{tTerm('login.tagline')}</p>
         </div>

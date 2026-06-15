@@ -14,6 +14,7 @@ import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate }
 import { tTerm } from '../../i18n/terminology';
 import { getChipClassName } from '../../constants/uiChips';
 import { getInstallmentStatusTone } from '../../lib/statusTones';
+import { resolveOperationalGuard } from '../../services/operationalGuards';
 import {
   ActionButton,
   MetricCard,
@@ -47,6 +48,7 @@ type CreditsCalendarViewProps = {
   onClearFilters: () => void;
   onSelectEvent: (event: InstallmentEvent | null) => void;
   onViewCredit: (loanId: number) => void;
+  user: { role?: string; permissions?: string[] } | null;
 };
 
 const getEventDateLabel = (value: unknown) => (
@@ -80,6 +82,7 @@ export default function CreditsCalendarView({
   onClearFilters,
   onSelectEvent,
   onViewCredit,
+  user,
 }: CreditsCalendarViewProps) {
   const { locale } = useTranslation();
   const formatCurrency = (value: number) => formatCurrencyValue(value);
@@ -104,8 +107,14 @@ export default function CreditsCalendarView({
       : []
   ), [calendarEvents, selectedDayKey]);
 
-  const visibleAgenda = calendarOverview.agenda;
+  const visibleAgenda = calendarOverview.actionableEntries ?? calendarOverview.agenda;
   const hasFilters = Boolean(filters.search || filters.status || filters.startDate || filters.endDate);
+
+  const canShowPayAction = (loanStatus: string) => resolveOperationalGuard('installment.pay', {
+    role: user?.role,
+    permissions: user?.permissions,
+    loanStatus,
+  });
 
   const summaryItems = useMemo(() => [
     {
@@ -144,7 +153,9 @@ export default function CreditsCalendarView({
     },
   ], [calendarOverview.summary, locale]);
 
-  const renderAgendaCard = (item: CalendarOverviewAgendaItem) => (
+  const renderAgendaCard = (item: CalendarOverviewAgendaItem) => {
+    const payGuard = canShowPayAction(String(item.loanStatus || 'active'));
+    return (
     <article key={`${item.loanId}-${item.installmentNumber}`} className="rounded-2xl border border-border-subtle bg-bg-base p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -191,14 +202,21 @@ export default function CreditsCalendarView({
         <ActionButton type="button" onClick={() => onViewCredit(item.loanId)}>
           {tTerm('credits.action.viewLoan')}
         </ActionButton>
-        {item.canPay && (
-          <ActionButton type="button" onClick={() => onViewCredit(item.loanId)} variant="primary">
+        {item.canPay && payGuard.visible && (
+          <ActionButton
+            type="button"
+            onClick={() => onViewCredit(item.loanId)}
+            variant="primary"
+            disabled={!payGuard.executable}
+            title={payGuard.executable ? undefined : (payGuard.reason || tTerm('credits.action.unavailable'))}
+          >
             {tTerm('creditDetails.cta.recordPayment')}
           </ActionButton>
         )}
       </div>
     </article>
-  );
+    );
+  };
 
   return (
     <div className="relative flex flex-1 flex-col gap-4 min-w-0">
@@ -378,7 +396,10 @@ export default function CreditsCalendarView({
               <ActionButton onClick={() => onSelectEvent(null)} fullWidth>
                 {tTerm('credits.modal.close')}
               </ActionButton>
-              {selectedEvent.type !== 'paid' && selectedEvent.canPay && (
+              {selectedEvent.type !== 'paid' && selectedEvent.canPay && (() => {
+                const payGuard = canShowPayAction(selectedEvent.loanStatus);
+                if (!payGuard.visible) return null;
+                return (
                 <ActionButton
                   onClick={() => {
                     onSelectEvent(null);
@@ -386,10 +407,13 @@ export default function CreditsCalendarView({
                   }}
                   variant="primary"
                   fullWidth
+                  disabled={!payGuard.executable}
+                  title={payGuard.executable ? undefined : (payGuard.reason || tTerm('credits.action.unavailable'))}
                 >
                   {tTerm('creditDetails.cta.recordPayment')}
                 </ActionButton>
-              )}
+                );
+              })()}
             </>
           )}
         >

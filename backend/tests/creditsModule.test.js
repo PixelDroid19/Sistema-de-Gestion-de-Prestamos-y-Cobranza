@@ -1501,6 +1501,76 @@ test('createGetPaymentCalendarOverview rejects malformed date filters with an op
   });
 });
 
+test('createGetPaymentCalendarOverview does not mark installments overdue from active alerts alone', async () => {
+  const getPaymentCalendarOverview = createGetPaymentCalendarOverview({
+    loanAccessPolicy: {
+      async findAuthorizedLoan({ loanId }) {
+        return {
+          id: loanId,
+          customerId: 7,
+          Customer: { name: 'Cliente QA' },
+          status: 'active',
+          lateFeeMode: 'SIMPLE',
+          annualLateFeeRate: 7300,
+          termMonths: 12,
+          emiSchedule: [],
+        };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [
+            {
+              installmentNumber: 1,
+              dueDate: '2026-05-20T00:00:00.000Z',
+              remainingPrincipal: 100,
+              remainingInterest: 20,
+              scheduledPayment: 120,
+              paidTotal: 0,
+              status: 'pending',
+            },
+            {
+              installmentNumber: 2,
+              dueDate: '2026-04-24T00:00:00.000Z',
+              remainingPrincipal: 90,
+              remainingInterest: 10,
+              scheduledPayment: 100,
+              paidTotal: 0,
+              status: 'pending',
+            },
+          ],
+          snapshot: { outstandingBalance: 220 },
+        };
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        return [
+          { id: 90, installmentNumber: 1, status: 'active', type: 'payment_reminder' },
+          { id: 91, installmentNumber: 2, status: 'active', type: 'overdue_installment' },
+        ];
+      },
+    },
+  });
+
+  const overview = await getPaymentCalendarOverview({
+    actor: { id: 1, role: 'admin' },
+    loanIds: [22],
+    asOfDate: '2026-04-24T00:00:00.000Z',
+  });
+
+  const futureInstallment = overview.entries.find((entry) => entry.installmentNumber === 1);
+  const dueTodayInstallment = overview.entries.find((entry) => entry.installmentNumber === 2);
+
+  assert.equal(futureInstallment.status, 'pending');
+  assert.equal(futureInstallment.daysOverdue, 0);
+  assert.equal(futureInstallment.lateFeeDue, 0);
+  assert.equal(dueTodayInstallment.status, 'pending');
+  assert.equal(dueTodayInstallment.daysOverdue, 0);
+  assert.equal(overview.summary.overdueCount, 0);
+});
+
 test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {
   let requestedLoanId;
   const getPayoffQuote = createGetPayoffQuote({

@@ -1,11 +1,13 @@
 import { getIntlLocaleTag } from './index';
+import { tTerm } from './terminology';
 
 type DateOptions = Intl.DateTimeFormatOptions;
 type NumberOptions = Intl.NumberFormatOptions;
 
 export const BASE_CURRENCY_CODE = 'COP' as const;
-export const BASE_CURRENCY_LABEL = 'COP - Peso colombiano' as const;
 export const BASE_CURRENCY_SYMBOL = '$' as const;
+
+export const getBaseCurrencyLabel = (): string => tTerm('common.currency.baseLabel');
 
 const MIN_OPERATIONAL_YEAR = 1900;
 const MAX_OPERATIONAL_YEAR = 2199;
@@ -76,10 +78,10 @@ export const formatPercent = (value: unknown, options: NumberOptions = {}): stri
   return `${formatNumber(value, options)}%`;
 };
 
-export const formatDate = (value: unknown, options: DateOptions = { dateStyle: 'medium' }): string => {
+export const formatDate = (value: unknown, options: DateOptions = { dateStyle: 'medium', timeZone: 'UTC' }): string => {
   const date = toDate(value);
   if (!date) return '';
-  return new Intl.DateTimeFormat(getIntlLocaleTag(), options).format(date);
+  return new Intl.DateTimeFormat(getIntlLocaleTag(), { timeZone: 'UTC', ...options }).format(date);
 };
 
 export const formatDateTime = (value: unknown, options: DateOptions = { dateStyle: 'medium', timeStyle: 'short' }): string => {

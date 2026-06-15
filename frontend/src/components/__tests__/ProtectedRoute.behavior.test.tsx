@@ -215,6 +215,30 @@ describe('ProtectedRoute behavior', () => {
     }
   });
 
+  it('shows a recoverable error when employee permissions cannot be loaded', async () => {
+    sessionState.hasHydrated = true;
+    sessionState.accessToken = 'access-token';
+    sessionState.user = { id: 2, role: 'employee' };
+    mockApiGet.mockRejectedValue(new Error('network'));
+
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/audit-log"
+          element={(
+            <ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['AUDIT_VIEW_ALL']}>
+              <div>Auditoría</div>
+            </ProtectedRoute>
+          )}
+        />
+      </Routes>,
+      ['/audit-log'],
+    );
+
+    expect(await screen.findByText('No se pudieron validar los permisos')).toBeInTheDocument();
+    expect(screen.queryByText('Auditoría')).not.toBeInTheDocument();
+  });
+
   it('requires every declared employee permission before rendering a protected route', async () => {
     sessionState.hasHydrated = true;
     sessionState.accessToken = 'access-token';

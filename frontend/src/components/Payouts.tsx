@@ -460,7 +460,7 @@ export default function Payouts() {
       });
     }
 
-    if (deleteGuard.visible) {
+    if (deleteGuard.executable) {
       items.push({
         id: 'delete',
         label: deleteGuard.reason || tTerm('payouts.action.deleteTitle'),

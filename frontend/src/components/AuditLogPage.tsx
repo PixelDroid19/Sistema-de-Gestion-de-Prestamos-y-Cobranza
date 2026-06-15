@@ -23,7 +23,7 @@ export default function AuditLogPage() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [liveEnabled, setLiveEnabled] = useState(false);
 
-  const { logs, pagination, isLoading } = useAuditLogs({ ...filters, page, pageSize: 25 });
+  const { logs, pagination, isLoading, isError } = useAuditLogs({ ...filters, page, pageSize: 25 });
   const { stats: auditStats, isLoading: statsLoading } = useAuditStats();
   const { events: liveEvents, connected, clear: clearLive } = useAuditStream({ enabled: liveEnabled });
 
@@ -172,6 +172,7 @@ export default function AuditLogPage() {
           logs={logs}
           pagination={pagination}
           isLoading={isLoading}
+          isError={isError}
           onViewDetails={setSelectedLog}
           onPageChange={setPage}
           onFilterIp={handleIpFilter}

@@ -396,15 +396,15 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeDisabled();
   });
 
-  it('keeps out-of-scope payout deletion explicitly blocked without regression', async () => {
+  it('keeps out-of-scope payout deletion hidden from the overflow menu', async () => {
     renderPayouts();
 
     clickFirstOverflowAction();
-    const deleteButton = screen.getByRole('menuitem', {
+    const deleteButton = screen.queryByRole('menuitem', {
       name: 'La eliminación directa de pagos no está disponible. Use anulación de cuota desde el detalle del crédito.',
     });
 
-    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).not.toBeInTheDocument();
     expect(mockCreatePayment).not.toHaveBeenCalled();
     expect(mockCreatePartialPayment).not.toHaveBeenCalled();
     expect(mockCreateCapitalPayment).not.toHaveBeenCalled();

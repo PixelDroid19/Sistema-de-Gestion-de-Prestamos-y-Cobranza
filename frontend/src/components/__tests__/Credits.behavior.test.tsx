@@ -175,6 +175,7 @@ describe('Credits behavioral parity scenarios', () => {
                 daysOverdue: 4,
                 canPay: true,
                 isNextPayable: true,
+                loanStatus: 'active',
               },
             ],
             entries: [
@@ -353,7 +354,6 @@ describe('Credits behavioral parity scenarios', () => {
           status: undefined,
           startDate: undefined,
           endDate: undefined,
-          limit: 150,
         },
       });
       expect(mockSetCurrentView).toHaveBeenCalledWith('credits/77');

@@ -73,7 +73,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   const associateId = Number(associateIdOverride ?? id);
   const isEditing = Number.isFinite(associateId) && associateId > 0;
 
-  const { createAssociate, updateAssociate } = useAssociates();
+  const { createAssociate, updateAssociate } = useAssociates(undefined, { enabled: false });
   const { data: associateResponse, isLoading: isLoadingAssociate, isError: isAssociateLoadError } = useAssociateById(associateId);
   const existingAssociate = associateResponse?.data?.associate || associateResponse?.data || null;
   const [formData, setFormData] = useState<AssociateFormData>(EMPTY_FORM);

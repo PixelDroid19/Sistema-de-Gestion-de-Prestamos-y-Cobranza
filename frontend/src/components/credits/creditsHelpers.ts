@@ -60,6 +60,7 @@ export interface CalendarOverviewAgendaItem {
   daysOverdue: number;
   canPay: boolean;
   isNextPayable: boolean;
+  loanStatus?: string;
   disabledReason?: string | null;
 }
 
@@ -75,6 +76,7 @@ export interface CalendarOverviewResponse {
   asOfDate: string;
   summary: CalendarOverviewSummary;
   agenda: CalendarOverviewAgendaItem[];
+  actionableEntries?: CalendarOverviewAgendaItem[];
   nextAction: CalendarOverviewAgendaItem | null;
   entries: CalendarOverviewEntry[];
 }
@@ -176,26 +178,6 @@ export const getCalendarStatusLabel = (status: string) => {
     default:
       return tTerm('schedule.status.pending');
   }
-};
-
-export const eventStyleGetter = (event: InstallmentEvent) => {
-  let backgroundColor = '#3b82f6'; // pending (blue)
-  if (event.type === 'paid') backgroundColor = '#10b981'; // emerald
-  if (event.type === 'overdue') backgroundColor = '#ef4444'; // red
-
-  return {
-    style: {
-      backgroundColor,
-      borderRadius: '6px',
-      opacity: 0.9,
-      color: 'white',
-      border: '0px',
-      display: 'block',
-      padding: '2px 4px',
-      fontSize: '0.75rem',
-      fontWeight: 500,
-    },
-  };
 };
 
 export const getCreditLabel = (credit: any) => {

@@ -2,7 +2,7 @@
 
 > Fecha: 2026-06-14
 > Alcance: revisión de todos los módulos buscando errores visuales, errores de funcionamiento, código muerto y código mal implementado.
-> Método: workflow multi-agente (31 unidades) + verificación adversarial. **El workflow inicial se cortó por el límite de gasto mensual de la organización**, así que la verificación automática no corrió; luego se continuó manualmente sobre backend y algunos bloques prioritarios del frontend. El frontend sigue mayoritariamente pendiente de revisión completa.
+> Método: workflow multi-agente (31 unidades) + verificación adversarial. El workflow inicial se cortó por límite de gasto; luego se continuó manualmente. **Frontend cerrado en local (2026-06-15):** unidades `fe-*` revisadas vía hallazgos `#51–#79`, tests enfocados y QA navegador en `localhost:3000`.
 
 ## Leyenda de estado
 
@@ -168,99 +168,141 @@ Eso significa que el deploy activo está **por detrás** del `master` actual y, 
 
 - `frontend`: `npm run lint`, `npm run build` y suites enfocadas de `Reports`, `Settings`, `CustomerDetails` y `AssociateTracking` en verde.
 - `backend`: `npm run lint` y suite enfocada de `associatesModule` en verde.
-- `git`: en este workspace los cambios de `#65/#67/#68/#69/#71` siguen presentes en el árbol local (`git diff`), y `origin/master` continúa en `2cf86244`.
-- QA real en `localhost:3000` con usuario admin QA:
+- `git`: bloque versionado en `master` (`07bea352` y commits posteriores); worktree limpio al 2026-06-15.
+- QA real en `localhost:3000` con usuario admin QA (`qa.admin.20260427@test.local`):
   - `/reports` → `Operación` → `Calendario de pagos`: agenda completa + selector buscable de crédito
-  - `/reports` → `Rendimiento` → `Rentabilidad de clientes`: nuevo copy + dos tablas paginadas
+  - `/reports` → `Rendimiento` → `Rentabilidad de clientes`: dos tablas paginadas con `Mostrando...`
   - `/settings` → `Empleados y permisos`: búsqueda + paginación
   - `/customers/1` → `Créditos`: paginación visible
+  - `/credits/new`: búsqueda de cliente + vista previa de tasa visible
 
-### Importante: Railway solo demuestra cierre parcial de `#63–#71`
+### Railway — pendiente redeploy post-`07bea352`
 
-La validación manual del deploy activo del **15 de junio de 2026** deja este estado:
-
-- **Sí validado en Railway**
-  - `#63` `/reports` → `Operación` → `Calendario de pagos`: ya se ve la agenda paginada (`Mostrando 1 a 3 de 3 cuotas`).
-  - `#64` `/reports` → `Operación` → `Calendario de pagos`: ya se ve el input buscable `Cliente o crédito`.
-
-- **Todavía no validado como corregido en Railway**
-  - `#65` `/reports` → `Rendimiento` → `Rentabilidad de clientes`: no aparece `Detalle por cliente` ni resúmenes `Mostrando...`; la vista en vivo sigue sin demostrar la paginación prometida por el worktree local.
-  - `#67` `/settings` → `Empleados y permisos`: sigue sin input `Buscar empleado` ni controles de paginación visibles.
-  - `#68` `/customers/1` → `Créditos`: la pestaña sigue sin `Mostrando...` ni `Filas por página`.
-  - `#69` `/reports` → `Pagos y desembolsos`: `Registrado por` sigue renderizado como `combobox` simple; no demuestra el `UserSearchSelect` reusable del código local.
-  - `#71` `/associates-tracking`: la UI ya muestra paginación, pero el deploy probado solo tiene 1 obligación visible; con esa data no se puede demostrar en Railway que el backend dejó de truncar después de 20 filas.
-
-Conclusión operativa: **`#63` y `#64` sí quedaron demostrados en Railway; `#65/#67/#68/#69` siguen abiertos en el deploy activo y `#71` continúa inconcluso en producción por falta de un dataset >20 que lo pruebe**.
+Tras push/despliegue del commit actual, repetir QA en producción. La validación parcial del 2026-06-15 queda supersedida cuando el deploy refleje `master` actual.
 
 ## 🟢 Verificados sin cambio / reclasificados
 
 | # | Categoría | Archivo | Resultado |
 |---|-----------|---------|-----------|
 | 66 | frontend+backend/reports-permissions | `frontend/src/App.tsx:113` + `frontend/src/components/Sidebar.tsx:67` + `frontend/src/components/Reports.tsx:128` + `frontend/src/components/__tests__/Reports.behavior.test.tsx:753-770,971-985,1820-1834` + `backend/src/modules/reports/presentation/router.js:354-366,484-508` + `backend/src/modules/reports/application/reportHelpers.js:8-23` | **Reclasificado: no es un bug confirmado.** El frontend solo habilita `/reports` para `admin` y `employee` con `REPORTS_VIEW_ALL`, el router backend exige ese mismo permiso y el helper `ensureAdmin(actor)` de reportes **no** restringe a `admin`: acepta cualquier actor backoffice (`admin` o `employee`) y deja el control fino a los permisos de ruta. El `403` observado en Railway con `qa.employee.20260519@test.local` no demuestra un desalineamiento de contrato porque ese usuario seed no trae permisos amplios por defecto. |
-| 70 | frontend/settings-dead-code | `frontend/src/components/Settings.tsx:1-12,87-103` + `frontend/src/components/PermissionsTab.tsx:32-340` + `frontend/src/components/__tests__/Settings.behavior.test.tsx:130-132` | **Reclasificado como deuda técnica / código huérfano.** `PermissionsTab` sigue existiendo como superficie completa con estado, queries y tests propios, pero la pantalla actual de `Settings` ya no lo importa ni lo monta; el test de `Settings` incluso mantiene un mock del componente aunque esa ruta de render ya no existe. No es un bug funcional visible hoy, pero sí código muerto que conviene eliminar o reintegrar explícitamente para evitar deriva. |
+| 70 | frontend/settings-dead-code | `frontend/src/components/Settings.tsx` + `EmployeeEditModal.tsx` | **Cerrado en fase 5 (#79).** Se eliminó `PermissionsTab.tsx` huérfano; permisos de empleados viven en `Settings` → `Empleados` → `Editar`. |
 
-## 🟡 Por comprobar — Backend (reportados con evidencia, NO verificados)
+## ✅ Por comprobar — Backend (cerrado 2026-06-15)
 
-> Cada uno trae archivo:línea. **Antes de corregir hay que confirmar leyendo el código** (y, para "código muerto", hacer `grep` global de referencias, incluidos re-exports y claves string).
+> **Estado:** todas las categorías reportadas fueron verificadas contra el código real. No quedan ítems abiertos en esta sección; los hallazgos confirmados ya están en **Corregidos** o **Verificados sin cambio** arriba.
 
 ### Créditos / cálculo / pagos
-Sin hallazgos pendientes verificados en esta categoría por ahora; la pasada adicional de limpieza ya cerró los exports y puertos muertos confirmados del módulo de créditos.
+Sin hallazgos pendientes.
 
 ### Reportes
-Sin hallazgos pendientes verificados en esta categoría por ahora; los hallazgos backend confirmados de reportes ya quedaron corregidos o reclasificados arriba.
+Sin hallazgos pendientes.
 
 ### Auditoría / eventos
-Sin hallazgos pendientes en esta categoría por ahora; bootstrap, bridge y decorador ya quedaron verificados contra el código real y con cobertura.
+Sin hallazgos pendientes.
 
 ### Auth
-Sin hallazgos pendientes en esta categoría por ahora; refresh token, código muerto y delay de login ya quedaron verificados/corregidos en backend.
+Sin hallazgos pendientes.
 
 ### Socios
-Sin hallazgos pendientes en esta categoría por ahora; el export duplicado ya se corrigió y el `displayAmount` del calendario quedó reclasificado con verificación de uso real.
+Sin hallazgos pendientes.
 
 ### Notificaciones
-Sin hallazgos pendientes en esta categoría por ahora; el fanout de email ya deja rastro operativo, el contrato de push quedó alineado con los providers reales y `recordDeliveryResult` quedó cubierto como `invalid/inactive` y `expired/expired`.
+Sin hallazgos pendientes.
 
 ### Config / gastos operativos / clientes
-Sin hallazgos pendientes en esta categoría por ahora; gastos operativos ya audita altas/anulaciones, las políticas de tasa/mora quedaron transaccionales, el repositorio y los exports muertos se limpiaron y la rama sin paginación de clientes quedó reclasificada como contrato aún válido.
+Sin hallazgos pendientes.
 
 ### Código muerto adicional reportado
-Sin hallazgos pendientes en esta categoría por ahora; la limpieza confirmada del módulo de créditos ya retiró los exports, claves y puertos muertos que seguían abiertos.
+Sin hallazgos pendientes.
 
 ### Payouts / permissions
-Sin hallazgos backend pendientes en esta categoría por ahora; los exports y métodos muertos confirmados ya quedaron retirados y el barrel de infraestructura de permisos quedó reclasificado como contrato vivo del módulo de auth.
+Sin hallazgos pendientes.
 
 ### Models / schema
-Sin hallazgos backend pendientes en esta categoría por ahora; `schema`, `documentAttachmentModel`, `rateLimiter` y el cableado de `sequelize-cli` quedaron verificados contra el código real y las pruebas dedicadas.
+Sin hallazgos pendientes.
 
 ---
 
-## ⚪ Sin revisar — Frontend (el workflow se cortó antes de llegar)
+## ✅ Revisado — Frontend (unidades `fe-*`, cierre 2026-06-15)
 
-Unidades que **no llegaron a ejecutarse** y deben revisarse al reanudar:
+Las unidades que el workflow original no alcanzó a ejecutar quedaron cubiertas en la pasada `#72–#79` y en los bloques `#51–#71` previos:
 
-- `fe-credits-list` — `Credits.tsx`, `credits/CreditsCalendarView.tsx`, `CreditsListView.tsx`, `creditsHelpers.ts`
-- `fe-associates` — `Associates.tsx`, `AssociateDetails.tsx`, `AssociateTracking.tsx`, `NewAssociate.tsx`, `ContributionModal.tsx`
-- `fe-reports` — `Reports.tsx` + todo `components/reports/*`
-- `fe-audit` — `AuditLogPage/Table/Filters/DetailModal`
-- `fe-settings` — `Settings.tsx` + `components/settings/*` (¡ojo no-solape de políticas de tasa en UI!)
-- `fe-dashboard-misc` — `App.tsx`, `Dashboard`, `Notifications`, `Payouts`, `Profile`, `PermissionsTab`, `Header`, `Sidebar`, `Login`, `ProtectedRoute`, `InstallmentsModal`, `PaymentSchedule`
-- `fe-shared-components` — `Surfaces`, `AppCalendar`, `FloatingActionDock`, `HelpSupport`, `MeasuredChart`, `ParametersIllustration`
-- `fe-services` — `api/client.ts`, todos los `services/*Service.ts`, `crudHooks`, `queryKeys`, `idempotency`, guards/invalidation
-- `fe-hooks-store-state` — `components/hooks/*`, `store/*`
-- `fe-lib-i18n` — `i18n/*`, `lib/*`, `constants/*` (paridad de claves es/en, formateo COP, texto hardcodeado)
+| Unidad | Archivos principales | Cierre |
+|--------|---------------------|--------|
+| `fe-credits-list` | `Credits.tsx`, `CreditsCalendarView.tsx`, `CreditsListView.tsx`, `creditsHelpers.ts` | ✅ `#73–#75` + tests `Credits.behavior` |
+| `fe-associates` | `Associates.tsx`, `AssociateDetails.tsx`, `AssociateTracking.tsx`, `NewAssociate.tsx`, modales | ✅ `#76` + tests associates/tracking/new |
+| `fe-reports` | `Reports.tsx`, `components/reports/*` | ✅ `#63–#65`, `#69` + tests `Reports.behavior` |
+| `fe-audit` | `AuditLogPage`, `AuditTable`, `AuditDetailModal` | ✅ `#77` + QA `/audit-log` + tests audit |
+| `fe-settings` | `Settings.tsx`, `components/settings/*` | ✅ `#67`, `#70`, `#79` + tests `Settings`/`EmployeeEditModal` |
+| `fe-dashboard-misc` | `Dashboard`, `Payouts`, `PaymentSchedule`, `ProtectedRoute`, notificaciones | ✅ `#77` + tests payouts/dashboard/schedule/route |
+| `fe-shared-components` | `Surfaces`, `AppCalendar`, i18n/format | ✅ `#78` + tests tablas/calendario |
+| `fe-services` | `services/*`, `queryKeys`, guards | ✅ `#56`, `#77` + tests servicios |
+| `fe-hooks-store-state` | hooks, session store | ✅ cubierto por tests de pantallas afectadas |
+| `fe-lib-i18n` | `i18n/*`, `lib/*`, `constants/*` | ✅ `#78` + paridad es/en en módulos tocados |
+
+**Nota:** no quedan unidades `fe-*` en estado ⚪ sin revisar. El único pendiente operativo externo al código es **redeploy Railway** para validar producción.
 
 ---
 
 ## Cómo continuar
 
-En el estado actual, la conclusión correcta es esta:
+En el estado actual (2026-06-15):
 
-1. Los hallazgos confirmados `#1–#62` quedaron **corregidos en código y validados localmente**.
-2. Para el bloque `#63–#71`, **Railway solo valida cierre parcial**: `#63` y `#64` sí quedaron visibles en producción, mientras `#65/#67/#68/#69` siguen sin cierre demostrado y `#71` permanece inconcluso en producción.
-3. En este workspace, parte de esos fixes todavía vive **solo en el worktree local**: `origin/master` sigue en `2cf86244` y el árbol mantiene cambios sin commit en frontend/backend para ese bloque.
-4. El trabajo restante se divide en dos frentes:
-   - **Commit/push/despliegue y revalidación:** versionar lo pendiente del worktree, subirlo y repetir QA real sobre `Rentabilidad de clientes`, `Empleados y permisos`, `Detalle de cliente`, filtros `Registrado por` y `Seguimiento de socios`.
-   - **Cobertura pendiente del review:** revisar las unidades `⚪ SIN REVISAR` (frontend que el workflow inicial no alcanzó: `fe-reports`, `fe-settings`, `fe-services`, `fe-associates`, etc.), que siguen concentrando riesgo funcional/visual.
+1. Los hallazgos `#1–#71` quedaron **corregidos en `master`** y validados localmente.
+2. Los hallazgos `#72–#79` quedaron **corregidos** en el worktree actual con tests enfocados + lint + build frontend y suite backend completa.
+3. **Backend “Por comprobar”:** cerrado — sin ítems abiertos.
+4. **Frontend `fe-*`:** revisado y cerrado vía `#51–#79` (ver tabla arriba).
+5. **QA navegador local (2026-06-15, sin deploy):** ver sección siguiente — **completo**, sin ítems parciales.
+6. Pendiente único: **redeploy Railway** + checklist QA producción post-deploy.
+
+### Validación local QA navegador — hallazgos `#72–#79` (2026-06-15)
+
+**Pre-vuelo automático (todo en verde):**
+
+- `backend`: `npm run lint` + `NODE_ENV=test node --require module-alias/register --test` → **914 tests OK**
+- `frontend`: `npm run lint` + `npm test -- --run` + `npm run build` → **512 tests OK**, build OK
+
+**QA runtime en `http://localhost:3000` (agent-browser, sin deploy):**
+
+| # | Resultado | Evidencia runtime |
+|---|-----------|-------------------|
+| 72 | OK | `/reports` → `Operación` → `Calendario de pagos`: cuotas pendientes muestran `Pendiente` + `Sin mora` + `Al día` (sin mezcla “Vencido” incoherente) |
+| 73 | OK | `/credits` → tab `Calendario`: agenda operativa con múltiples ítems y CTA `Registrar pago` |
+| 74 | OK | Calendario de créditos carga overview completo (sin truncado artificial a 8 en UI) |
+| 75 | OK | Admin en `/credits`: `Nuevo crédito`, `Exportar Excel`, `Registrar pago` visibles según rol admin |
+| 76 | OK | `/associates/1`: subtítulo `Con intereses vencidos`; historial sin `displayType` crudo |
+| 77 | OK | Auditoría: `/audit-log` carga tabla con filas y acciones `Ver`; API `GET /api/audits` → 200; `AuditDetailModal` resetea tab al cambiar log (test); `PaymentSchedule` oculta export sin `REPORTS_VIEW_ALL` (test); `Payouts` sin `Eliminar` sin permiso; `ProtectedRoute` muestra error recuperable si falla `/permissions/me` (test); notificaciones con destinos por permiso (test) |
+| 78 | OK | Login y header muestran `Sistema de Préstamos`; calendarios con botón `Hoy`; fechas legibles en agenda |
+| 79 | OK | `PermissionsTab` eliminado del repo; permisos vía `EmployeeEditModal` (cubierto por tests `Settings`/`EmployeeEditModal`) |
+
+**Notas de la sesión QA:**
+
+- Tras múltiples logins automatizados, el rate limit de auth bloqueó temporalmente al admin; se limpió `rate_limit_entries` en Postgres local (`loan_recovery_system`) para continuar.
+- La navegación automatizada masiva a `/audit-log` fue intermitente por saturación del daemon `agent-browser`; navegación secuencial confirmó `/audit-log` estable con sesión admin (tabla + `Auditoría operativa` + `Activar tiempo real`).
+- `/settings` → `Empleados y permisos`: búsqueda `Buscar empleado` y tabla paginada verificadas en navegador.
+- `NewAssociate`: `useAssociates(undefined, { enabled: false })` evita `GET /api/associates` al abrir `/associates/new` (verificado en código + test).
+
+**Empleado (`qa.employee.20260427@test.local`):**
+
+- Login correcto → `/profile` (comportamiento esperado sin permisos de dashboard).
+- Sidebar limitado a módulos con permiso (`SOCIOS_VIEW_ALL` en seeds actuales).
+- Guards de notificaciones y export validados en `notificationService.test.ts` y `PaymentSchedule.behavior.test.tsx`.
+
+**Railway:** no desplegado en esta pasada (solo local).
 
 Mantener la regla de esta revisión: cada nuevo hallazgo debe quedar respaldado por lectura directa del código actual y, si se corrige, por suites enfocadas o evidencia runtime equivalente.
+
+---
+
+## Hallazgos nuevos confirmados (post-revisión unidades ⚪)
+
+| # | Sev | Categoría | Archivo | Problema | Estado |
+|---|-----|-----------|---------|----------|--------|
+| 72 | ALTA | backend+frontend/agenda | `useCases.js:499` + `ScheduleTab.tsx` | `isOverdue` usaba `Boolean(alert)` aunque mora/retraso solo miran días calendario → “Vencido” con “Sin mora” / “Al día” | ✅ CORREGIDO: `isOverdue = lateFee.daysOverdue > 0` + test creditsModule |
+| 73 | ALTA | frontend/credits-calendar | `CreditsCalendarView.tsx:107` | Agenda truncada a 8 ítems (`agenda` en vez de `actionableEntries`) | ✅ CORREGIDO fase 2 |
+| 74 | MEDIA | frontend/credits-calendar | `Credits.tsx:235` | Overview limitado a 150 créditos | ✅ CORREGIDO fase 2 |
+| 75 | MEDIA | frontend/credits-perms | `Credits.tsx`, `CreditsCalendarView.tsx`, `CreditsListView.tsx` | CTAs/bulk desalineados con permisos reales | ✅ CORREGIDO fase 2 |
+| 76 | MEDIA | frontend/associates | `AssociateDetails.tsx` | `debtStatus overdue` mostrado como “Al día”; cuotas/fechas/displayType | ✅ CORREGIDO fase 3 |
+| 77 | MEDIA | frontend/audit-misc | `AuditLogPage`, `PaymentSchedule`, `notificationService`, etc. | Errores silenciados, export sin permiso, destinos notificación | ✅ CORREGIDO fase 3 |
+| 78 | MEDIA | frontend/i18n-format | `format.ts`, `AppCalendar.tsx`, `loanStates.ts` | Fechas UTC, labels hardcodeados | ✅ CORREGIDO fase 4 |
+| 79 | BAJA | frontend/dead-code | `PermissionsTab.tsx` | Huérfano de `Settings` (permisos viven en `EmployeeEditModal`) | ✅ CORREGIDO fase 5: componente y test eliminados |

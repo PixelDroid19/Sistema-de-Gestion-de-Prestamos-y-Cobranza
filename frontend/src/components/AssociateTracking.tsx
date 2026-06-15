@@ -171,6 +171,22 @@ const getContributionStatusLabel = (status: unknown) => {
   }
 };
 
+const getRecentPaymentDetail = (payment: any) => {
+  const paymentType = String(payment?.paymentType || '').toLowerCase();
+  if (paymentType === 'capital_return' || payment?.distributionType === 'capital_return') {
+    return tTerm('associateDetails.paymentHistory.capitalReturn');
+  }
+  if (paymentType === 'manual') {
+    return payment?.distributionType === 'proportional'
+      ? tTerm('associateDetails.paymentHistory.proportionalProfitability')
+      : tTerm('associateDetails.paymentHistory.manualProfitability');
+  }
+  if (payment?.installmentNumber) {
+    return tTerm('associateDetails.paymentHistory.installmentLabel', { number: payment.installmentNumber });
+  }
+  return tTerm('associateTracking.activity.detail.payment');
+};
+
 const hasValidDateValue = (value: unknown) => {
   if (!value) {
     return false;
@@ -334,7 +350,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
         id: `payment-${payment.id}`,
         type: 'payment' as const,
         label: tTerm('associateTracking.activity.type.payment'),
-        detail: payment.displayType || tTerm('associateTracking.activity.detail.payment'),
+        detail: getRecentPaymentDetail(payment),
         associateId: Number(payment.associateId),
         associateName: payment.associateName || tTerm('associates.fallback.name'),
         date: payment.paidAt,

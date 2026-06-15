@@ -402,9 +402,15 @@ export interface LoanSearchResult {
   };
 }
 
-export const useSearchLoans = (filters: LoanSearchFilters, page: number = 1, pageSize: number = 25) => {
+export const useSearchLoans = (
+  filters: LoanSearchFilters,
+  page: number = 1,
+  pageSize: number = 25,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: ['loans.search', filters, page, pageSize],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get('/loans/search', {
         params: { ...filters, page, pageSize },

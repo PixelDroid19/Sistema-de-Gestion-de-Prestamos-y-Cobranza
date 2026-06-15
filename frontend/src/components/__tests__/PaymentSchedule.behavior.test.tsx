@@ -43,10 +43,26 @@ vi.mock('../../lib/toast', () => ({
   },
 }));
 
+const sessionState = {
+  user: { id: 1, role: 'admin' as 'admin' | 'employee', name: 'Admin', email: 'admin@test.com' },
+};
+
+const mockUseResolvedPermissionNames = vi.fn((_user?: unknown) => ['*']);
+
+vi.mock('../../store/sessionStore', () => ({
+  useSessionStore: () => sessionState,
+}));
+
+vi.mock('../../services/permissionsService', () => ({
+  useResolvedPermissionNames: (user?: unknown) => mockUseResolvedPermissionNames(user),
+}));
+
 describe('PaymentSchedule behavior', () => {
   beforeEach(() => {
     scheduleFixture = [];
     vi.clearAllMocks();
+    sessionState.user = { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com' };
+    mockUseResolvedPermissionNames.mockReturnValue(['*']);
   });
 
   it('renders the loan summary status with an operator-facing label', () => {
@@ -73,6 +89,15 @@ describe('PaymentSchedule behavior', () => {
 
     expect(screen.getByText('En mora')).toBeInTheDocument();
     expect(screen.queryByText(/^defaulted$/i)).not.toBeInTheDocument();
+  });
+
+  it('hides export when the operator only has credit view permissions', () => {
+    sessionState.user = { id: 2, role: 'employee', name: 'Operador', email: 'employee@test.com' };
+    mockUseResolvedPermissionNames.mockReturnValue(['CREDITS_VIEW_ALL']);
+
+    render(<PaymentSchedule />);
+
+    expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
   });
 
   it('confirms export without exposing the internal credit id in the toast', async () => {

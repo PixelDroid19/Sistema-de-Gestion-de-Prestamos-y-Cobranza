@@ -638,4 +638,5 @@ export const reportsEn = {
 'dashboard.widget.recoveryPerformance.kicker': 'Recovery',
 'dashboard.widget.recoveryPerformance.title': 'Recovered vs disbursed',
 'dashboard.widget.recoveryPerformance.subtitle': 'Recovered vs disbursed',
+'dashboard.widget.recoveryPerformance.tooltip': 'Compares monthly recovered amounts against disbursements to spot portfolio imbalances.',
 } as const;

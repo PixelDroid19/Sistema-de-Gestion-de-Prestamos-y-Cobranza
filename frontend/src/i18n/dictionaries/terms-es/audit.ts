@@ -76,6 +76,7 @@ export const auditEs = {
 'audit.table.recordsLabel': 'eventos',
 'audit.table.empty.title': 'Sin eventos para revisar',
 'audit.table.empty.description': 'Ajusta filtros por IP, servicio o fecha para ampliar la búsqueda.',
+'audit.table.error': 'No se pudo cargar el registro de auditoría. Intenta de nuevo.',
 'audit.table.header.date': 'Fecha',
 'audit.table.header.service': 'Servicio consumido',
 'audit.table.header.user': 'Usuario',

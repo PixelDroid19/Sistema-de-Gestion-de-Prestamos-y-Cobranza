@@ -10,7 +10,8 @@ describe('resolveNotificationDestinationForUser', () => {
     };
 
     expect(resolveNotificationDestinationForUser(notification, { role: 'admin' })).toBe('/credits/42');
-    expect(resolveNotificationDestinationForUser(notification, { role: 'employee' })).toBe('/credits/42');
+    expect(resolveNotificationDestinationForUser(notification, { role: 'employee', permissions: ['CREDITS_VIEW_ALL'] })).toBe('/credits/42');
+    expect(resolveNotificationDestinationForUser(notification, { role: 'employee', permissions: [] })).toBeNull();
     expect(resolveNotificationDestinationForUser(notification, { role: 'customer' })).toBeNull();
     expect(resolveNotificationDestinationForUser(notification, { role: 'socio', associateId: 7 })).toBeNull();
   });
@@ -24,6 +25,8 @@ describe('resolveNotificationDestinationForUser', () => {
 
     expect(resolveNotificationDestinationForUser(notification, { role: 'socio', associateId: 7 })).toBeNull();
     expect(resolveNotificationDestinationForUser(notification, { role: 'admin' })).toBe('/associates/7');
+    expect(resolveNotificationDestinationForUser(notification, { role: 'employee', permissions: ['SOCIOS_VIEW_ALL'] })).toBe('/associates/7');
+    expect(resolveNotificationDestinationForUser(notification, { role: 'employee', permissions: [] })).toBeNull();
   });
 });
 

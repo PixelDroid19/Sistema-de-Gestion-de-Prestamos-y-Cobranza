@@ -59,6 +59,7 @@ const buildDetailsResponse = () => ({
       {
         id: 50,
         displayType: 'Pago programado #1',
+        paymentType: 'scheduled',
         installmentNumber: 1,
         amount: 125000,
         dueDate: '2026-05-15T00:00:00.000Z',
@@ -69,6 +70,7 @@ const buildDetailsResponse = () => ({
       {
         id: 51,
         displayType: 'Pago manual de rentabilidad',
+        paymentType: 'manual',
         installmentNumber: null,
         amount: 150000,
         dueDate: null,
@@ -79,6 +81,7 @@ const buildDetailsResponse = () => ({
       {
         id: 52,
         displayType: 'Devolución de capital',
+        paymentType: 'capital_return',
         installmentNumber: null,
         amount: 500000,
         dueDate: null,
@@ -237,7 +240,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Próximo pago')).toBeInTheDocument();
     expect(screen.getByText('Historial de pagos al socio')).toBeInTheDocument();
     expect(screen.getByText('Pago manual de rentabilidad')).toBeInTheDocument();
-    expect(screen.getByText('Pago programado #1')).toBeInTheDocument();
+    expect(screen.getByText('Cuota #1')).toBeInTheDocument();
     expect(screen.getByText('Devolución de capital')).toBeInTheDocument();
     expect(screen.getByText('Operador Socios')).toBeInTheDocument();
     expect(screen.getByText('Tesorería')).toBeInTheDocument();

@@ -127,10 +127,6 @@ vi.mock('../../services/userService', () => ({
   }),
 }));
 
-vi.mock('../PermissionsTab', () => ({
-  default: () => <div data-testid="permissions-tab">Gestión de permisos</div>,
-}));
-
 vi.mock('../../lib/toast', () => ({
   toast: {
     success: vi.fn(),

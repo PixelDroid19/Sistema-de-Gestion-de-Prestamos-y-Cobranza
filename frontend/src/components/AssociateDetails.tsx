@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wallet, Calendar, CheckCircle, Clock, AlertCircle, CircleDollarSign } from 'lucide-react';
 import { useTranslation } from '../i18n';
@@ -39,6 +39,8 @@ import {
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
+const DETAILS_PAGE_SIZE_OPTIONS: number[] = [10, 20, 50];
+
 const formatAssociateCurrency = (value: unknown) => formatLocaleCurrency(value);
 
 const formatSignedCurrency = (value: unknown, type?: string, status?: string) => {
@@ -52,18 +54,23 @@ const formatSignedCurrency = (value: unknown, type?: string, status?: string) =>
 const formatAssociateDate = (value: unknown) => formatLocaleDate(value) || '-';
 
 const getInstallmentStatusPresentation = (installment: any) => {
-  if (installment?.status === 'paid') {
+  const normalizedStatus = String(installment?.status || '').toLowerCase();
+  if (normalizedStatus === 'paid') {
     return {
       label: tTerm('schedule.status.paid'),
       className: 'bg-emerald-100 text-emerald-700',
     };
   }
-
-  const dueTimestamp = Date.parse(String(installment?.dueDate || ''));
-  if (Number.isFinite(dueTimestamp) && dueTimestamp < Date.now()) {
+  if (normalizedStatus === 'overdue') {
     return {
       label: tTerm('schedule.status.overdue'),
       className: 'bg-red-100 text-red-700',
+    };
+  }
+  if (normalizedStatus === 'pending') {
+    return {
+      label: tTerm('schedule.status.pending'),
+      className: 'bg-amber-100 text-amber-700',
     };
   }
 
@@ -71,6 +78,39 @@ const getInstallmentStatusPresentation = (installment: any) => {
     label: tTerm('schedule.status.pending'),
     className: 'bg-amber-100 text-amber-700',
   };
+};
+
+const getDebtStatusLabel = (status?: string) => {
+  switch (String(status || '').toLowerCase()) {
+    case 'overdue':
+      return tTerm('associateDetails.debtStatus.overdue');
+    case 'pending':
+      return tTerm('associateDetails.debtStatus.pending');
+    default:
+      return tTerm('associateDetails.debtStatus.current');
+  }
+};
+
+const getPaymentHistoryLabel = (entry: any) => {
+  const paymentType = String(entry?.paymentType || '').toLowerCase();
+  if (paymentType === 'capital_return' || entry?.distributionType === 'capital_return') {
+    return tTerm('associateDetails.paymentHistory.capitalReturn');
+  }
+  if (paymentType === 'manual') {
+    return entry?.distributionType === 'proportional'
+      ? tTerm('associateDetails.paymentHistory.proportionalProfitability')
+      : tTerm('associateDetails.paymentHistory.manualProfitability');
+  }
+  if (entry?.installmentNumber) {
+    return tTerm('associateDetails.paymentHistory.installmentLabel', { number: entry.installmentNumber });
+  }
+  if (entry?.type === 'distribution') {
+    return tTerm('associateDetails.calendar.eventType.distribution');
+  }
+  if (entry?.type === 'contribution') {
+    return tTerm('associateDetails.calendar.eventType.contribution');
+  }
+  return tTerm('common.notAvailable');
 };
 
 const getCalendarEventBadgeClass = (event: any) => {
@@ -93,11 +133,10 @@ const getCalendarEventBadgeClass = (event: any) => {
 };
 
 const getCalendarEventTypeLabel = (event: any) => {
-  if (event?.displayType) return event.displayType;
   if (event?.type === 'contribution') return tTerm('associateDetails.calendar.eventType.contribution');
   if (event?.type === 'distribution') return tTerm('associateDetails.calendar.eventType.distribution');
   if (event?.type === 'installment') return tTerm('associateDetails.calendar.eventType.installment');
-  return event?.displayType || tTerm('common.notAvailable');
+  return tTerm('common.notAvailable');
 };
 
 const formatAlertDayCount = (value: unknown) => {
@@ -183,6 +222,12 @@ export default function AssociateDetails() {
     paymentDate: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentHistoryPage, setPaymentHistoryPage] = useState(1);
+  const [paymentHistoryPageSize, setPaymentHistoryPageSize] = useState<number>(DETAILS_PAGE_SIZE_OPTIONS[0]);
+  const [installmentsPage, setInstallmentsPage] = useState(1);
+  const [installmentsPageSize, setInstallmentsPageSize] = useState<number>(DETAILS_PAGE_SIZE_OPTIONS[0]);
+  const [calendarPage, setCalendarPage] = useState(1);
+  const [calendarPageSize, setCalendarPageSize] = useState<number>(DETAILS_PAGE_SIZE_OPTIONS[0]);
 
   useEffect(() => {
     if (!Number.isFinite(associateId)) return;
@@ -193,6 +238,78 @@ export default function AssociateDetails() {
       sessionStorage.removeItem(storageKey);
     }
   }, [associateId]);
+
+  const detailsSummary = details?.summary;
+  const paymentHistory = Array.isArray(details?.paymentHistory) ? details.paymentHistory : [];
+  const installmentsData = installments || { installments: [], totals: { totalPending: 0, totalPaid: 0, totalOverdue: 0 }, alerts: [] };
+  const calendarData = calendar || { events: [], summary: { contributionCount: 0, distributionCount: 0, installmentCount: 0, pendingInstallments: 0 } };
+  const calendarEvents = Array.isArray(calendarData.events) ? calendarData.events : [];
+
+  const paymentHistoryTotalPages = Math.max(1, Math.ceil(paymentHistory.length / paymentHistoryPageSize));
+  const currentPaymentHistoryPage = Math.min(paymentHistoryPage, paymentHistoryTotalPages);
+  const paginatedPaymentHistory = useMemo(() => {
+    const startIndex = (currentPaymentHistoryPage - 1) * paymentHistoryPageSize;
+    return paymentHistory.slice(startIndex, startIndex + paymentHistoryPageSize);
+  }, [currentPaymentHistoryPage, paymentHistory, paymentHistoryPageSize]);
+  const paymentHistoryPagination = paymentHistory.length > 0
+    ? {
+      page: currentPaymentHistoryPage,
+      pageSize: paymentHistoryPageSize,
+      totalItems: paymentHistory.length,
+      totalPages: paymentHistoryTotalPages,
+      onPrev: () => setPaymentHistoryPage((page) => Math.max(1, page - 1)),
+      onNext: () => setPaymentHistoryPage((page) => Math.min(paymentHistoryTotalPages, page + 1)),
+      onPageSizeChange: (pageSize: number) => {
+        setPaymentHistoryPageSize(pageSize);
+        setPaymentHistoryPage(1);
+      },
+      pageSizeOptions: DETAILS_PAGE_SIZE_OPTIONS,
+    }
+    : undefined;
+
+  const installmentsTotalPages = Math.max(1, Math.ceil(installmentsData.installments.length / installmentsPageSize));
+  const currentInstallmentsPage = Math.min(installmentsPage, installmentsTotalPages);
+  const paginatedInstallments = useMemo(() => {
+    const startIndex = (currentInstallmentsPage - 1) * installmentsPageSize;
+    return installmentsData.installments.slice(startIndex, startIndex + installmentsPageSize);
+  }, [currentInstallmentsPage, installmentsData.installments, installmentsPageSize]);
+  const installmentsPagination = installmentsData.installments.length > 0
+    ? {
+      page: currentInstallmentsPage,
+      pageSize: installmentsPageSize,
+      totalItems: installmentsData.installments.length,
+      totalPages: installmentsTotalPages,
+      onPrev: () => setInstallmentsPage((page) => Math.max(1, page - 1)),
+      onNext: () => setInstallmentsPage((page) => Math.min(installmentsTotalPages, page + 1)),
+      onPageSizeChange: (pageSize: number) => {
+        setInstallmentsPageSize(pageSize);
+        setInstallmentsPage(1);
+      },
+      pageSizeOptions: DETAILS_PAGE_SIZE_OPTIONS,
+    }
+    : undefined;
+
+  const calendarTotalPages = Math.max(1, Math.ceil(calendarEvents.length / calendarPageSize));
+  const currentCalendarPage = Math.min(calendarPage, calendarTotalPages);
+  const paginatedCalendarEvents = useMemo(() => {
+    const startIndex = (currentCalendarPage - 1) * calendarPageSize;
+    return calendarEvents.slice(startIndex, startIndex + calendarPageSize);
+  }, [calendarEvents, calendarPageSize, currentCalendarPage]);
+  const calendarPagination = calendarEvents.length > 0
+    ? {
+      page: currentCalendarPage,
+      pageSize: calendarPageSize,
+      totalItems: calendarEvents.length,
+      totalPages: calendarTotalPages,
+      onPrev: () => setCalendarPage((page) => Math.max(1, page - 1)),
+      onNext: () => setCalendarPage((page) => Math.min(calendarTotalPages, page + 1)),
+      onPageSizeChange: (pageSize: number) => {
+        setCalendarPageSize(pageSize);
+        setCalendarPage(1);
+      },
+      pageSizeOptions: DETAILS_PAGE_SIZE_OPTIONS,
+    }
+    : undefined;
 
   if (isLoading) {
     return (
@@ -222,26 +339,20 @@ export default function AssociateDetails() {
     ? associate.name.trim()
     : [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || tTerm('associateDetails.fallback.name');
 
-  const detailsSummary = details?.summary;
   const totalContributions = detailsSummary?.totalContributed ?? details?.totalContributions ?? 0;
   const currentCapital = detailsSummary?.currentCapital ?? totalContributions;
   const totalCapitalReturned = detailsSummary?.totalCapitalReturned ?? 0;
   const totalInterestPaid = detailsSummary?.totalInterestPaid ?? 0;
   const interestDebt = detailsSummary?.interestDebt ?? 0;
   const nextInterestPaymentDate = detailsSummary?.nextInterestPaymentDate ?? null;
-  const debtStatus = detailsSummary?.debtStatus === 'pending'
-    ? tTerm('associateDetails.debtStatus.pending')
-    : tTerm('associateDetails.debtStatus.current');
-  const paymentHistory = Array.isArray(details?.paymentHistory) ? details.paymentHistory : [];
+  const debtStatus = getDebtStatusLabel(detailsSummary?.debtStatus);
   const interestTypeLabel = tTerm(associate?.interestType === 'annual' ? 'common.interestType.annual' : 'common.interestType.monthly').toLowerCase();
   const interestRateLabel = tTerm('associateDetails.interestRateLabel', {
     rate: formatNumber(associate?.interestRate || 0, { maximumFractionDigits: 4 }),
     interestType: interestTypeLabel,
   });
 
-  const installmentsData = installments || { installments: [], totals: { totalPending: 0, totalPaid: 0, totalOverdue: 0 } };
   const associatePaymentAlerts = Array.isArray(installmentsData.alerts) ? installmentsData.alerts : [];
-  const calendarData = calendar || { events: [], summary: { contributionCount: 0, distributionCount: 0, installmentCount: 0, pendingInstallments: 0 } };
 
   const getAssociatePaymentAlertTitle = (alert: any) => {
     const installmentNumber = alert?.installmentNumber ?? tTerm('common.notAvailable');
@@ -481,6 +592,7 @@ export default function AssociateDetails() {
           hasData={paymentHistory.length > 0}
           emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.paymentHistory.empty')}</div>}
           recordsLabel={tTerm('associateDetails.paymentHistory.recordsLabel')}
+          pagination={paymentHistoryPagination}
           className={TABLE_EMBEDDED_SHELL_CLASS}
           surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         >
@@ -495,11 +607,11 @@ export default function AssociateDetails() {
               </tr>
             </thead>
             <tbody>
-              {paymentHistory.map((entry: any) => (
+              {paginatedPaymentHistory.map((entry: any) => (
                 <tr key={`associate-payment-history-${entry.id}-${entry.installmentNumber}`}>
                   <td>
                     <p className="font-medium text-text-primary">
-                      {entry.displayType || entry.installmentNumber || tTerm('common.notAvailable')}
+                      {getPaymentHistoryLabel(entry)}
                     </p>
                   </td>
                   <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
@@ -567,6 +679,7 @@ export default function AssociateDetails() {
           hasData={installmentsData.installments.length > 0}
           emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.installments.empty')}</div>}
           recordsLabel={tTerm('associateDetails.installments.recordsLabel')}
+          pagination={installmentsPagination}
           className={TABLE_EMBEDDED_SHELL_CLASS}
           surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         >
@@ -580,7 +693,7 @@ export default function AssociateDetails() {
               </tr>
             </thead>
             <tbody>
-              {installmentsData.installments.map((inst: any) => {
+              {paginatedInstallments.map((inst: any) => {
                 const status = getInstallmentStatusPresentation(inst);
 
                 return (
@@ -688,9 +801,10 @@ export default function AssociateDetails() {
           </div>
         </div>
         <AppTable variant="operational"
-          hasData={calendarData.events.length > 0}
+          hasData={calendarEvents.length > 0}
           emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.calendar.empty')}</div>}
           recordsLabel={tTerm('associateDetails.calendar.recordsLabel')}
+          pagination={calendarPagination}
           className={TABLE_EMBEDDED_SHELL_CLASS}
           surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         >
@@ -703,7 +817,7 @@ export default function AssociateDetails() {
               </tr>
             </thead>
             <tbody>
-              {calendarData.events.map((event: any) => (
+              {paginatedCalendarEvents.map((event: any) => (
                 <tr key={`${event.type}-${event.id ?? 'no-id'}-${event.date}-${event.displayAmount ?? event.amount}-${event.notes ?? ''}`}>
                   <td>{formatAssociateDate(event.date)}</td>
                   <td>

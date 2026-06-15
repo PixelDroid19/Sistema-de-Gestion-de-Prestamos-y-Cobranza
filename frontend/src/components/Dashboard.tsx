@@ -461,7 +461,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
                   {tTerm('dashboard.widget.recoveryPerformance.title')}
                   <HelpTooltip
-                    text="Compara por mes lo recuperado frente a lo desembolsado para detectar desbalances en la cartera."
+                    text={tTerm('dashboard.widget.recoveryPerformance.tooltip')}
                     align="right"
                   />
                 </div>

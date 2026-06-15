@@ -454,12 +454,6 @@ const formatCalendarEntryStatus = ({ row, isOverdue, outstandingAmount }) => {
 };
 
 const buildCalendarEntries = ({ loan, schedule, alerts, asOfDate = new Date() }) => {
-  const activeAlertByInstallment = new Map(
-    alerts
-      .filter((alert) => alert.status === 'active')
-      .map((alert) => [Number(alert.installmentNumber), alert]),
-  );
-
   const alertByInstallment = new Map(
     alerts
       .map((alert) => [Number(alert.installmentNumber), alert]),
@@ -494,9 +488,8 @@ const buildCalendarEntries = ({ loan, schedule, alerts, asOfDate = new Date() })
     }
 
     const outstandingAmount = getOutstandingAmount(row);
-    const alert = activeAlertByInstallment.get(Number(row.installmentNumber)) || null;
     const lateFee = calculateInstallmentLateFeeDue({ loan, row, asOfDate });
-    const isOverdue = Boolean(alert) || lateFee.daysOverdue > 0;
+    const isOverdue = lateFee.daysOverdue > 0;
     const isNextPayable = nextPayableInstallmentNumber === Number(row.installmentNumber);
     const status = formatCalendarEntryStatus({ row, isOverdue, outstandingAmount });
     const canPay = outstandingAmount > 0.01

@@ -67,4 +67,15 @@ describe('AuditDetailModal behavior', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('resets to the summary tab when a different audit log is opened', () => {
+    const { rerender } = render(<AuditDetailModal auditLog={buildAuditLog({ id: 'audit-1' })} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Cambios' }));
+    expect(screen.getByRole('tab', { name: 'Cambios' })).toHaveAttribute('aria-selected', 'true');
+
+    rerender(<AuditDetailModal auditLog={buildAuditLog({ id: 'audit-2' })} onClose={vi.fn()} />);
+
+    expect(screen.getByRole('tab', { name: 'Resumen' })).toHaveAttribute('aria-selected', 'true');
+  });
 });
