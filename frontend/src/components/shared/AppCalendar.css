@@ -1,5 +1,6 @@
 /* AppCalendar — reusable month calendar.
-   Tokens come from index.css (:root / .dark); no theme literals here. */
+   Tokens come from index.css (:root / .dark); no theme literals here.
+   Airy, borderless month grid: empty days stay clean, only events carry colour. */
 
 .app-calendar {
   display: flex;
@@ -15,41 +16,45 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding-bottom: 0.75rem;
+  padding-bottom: 0.85rem;
 }
 
 .app-calendar__title {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 650;
-  text-transform: capitalize;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 
 .app-calendar__nav {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--bg-base);
 }
 
 .app-calendar__nav-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2rem;
-  padding: 0 0.7rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.6rem;
-  background: var(--bg-surface);
+  min-height: 1.9rem;
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
   color: var(--text-secondary);
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
-  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 
 .app-calendar__nav-btn--icon {
-  padding: 0 0.45rem;
+  padding: 0 0.4rem;
 }
 
 .app-calendar__nav-btn:hover {
@@ -59,22 +64,24 @@
 
 .app-calendar__nav-btn:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--brand-primary) 55%, var(--border-subtle));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 22%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 45%, transparent);
 }
 
 /* ── Weekday row ────────────────────────────────────────────────────────── */
 .app-calendar__weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0.35rem;
   text-align: center;
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
+}
+
+.app-calendar__weekdays > span {
+  padding: 0.35rem 0;
 }
 
 /* ── Grid ───────────────────────────────────────────────────────────────── */
@@ -82,23 +89,22 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-auto-rows: 1fr;
-  gap: 1px;
+  gap: 0.35rem;
   flex: 1;
-  border-radius: 0 0 1rem 1rem;
-  overflow: hidden;
-  background: var(--border-subtle);
 }
 
 .app-calendar__day {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  min-height: 5.25rem;
+  gap: 0.3rem;
+  min-height: 3.8rem;
   padding: 0.35rem;
   text-align: left;
-  background: var(--bg-surface);
+  border: 1px solid transparent;
+  border-radius: 0.85rem;
+  background: transparent;
   cursor: pointer;
-  transition: background-color 140ms ease, box-shadow 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .app-calendar__day:hover {
@@ -107,89 +113,135 @@
 
 .app-calendar__day:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand-primary) 55%, transparent);
+  border-color: color-mix(in srgb, var(--brand-primary) 55%, var(--border-subtle));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 30%, transparent);
 }
 
 .app-calendar__day--outside {
-  background: var(--bg-base);
+  cursor: default;
+}
+
+.app-calendar__day--outside:hover {
+  background: transparent;
+}
+
+.app-calendar__day--today {
+  background: color-mix(in srgb, var(--brand-primary) 5%, transparent);
 }
 
 .app-calendar__day--selected {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand-primary) 60%, transparent);
+  border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent);
+  background: color-mix(in srgb, var(--brand-primary) 7%, transparent);
+}
+
+.app-calendar__day--highlight:not(.app-calendar__day--selected) {
+  border-color: color-mix(in srgb, var(--brand-primary) 38%, var(--border-subtle));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 22%, transparent);
 }
 
 .app-calendar__day-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 1.6rem;
 }
 
 .app-calendar__daynum {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.5rem;
-  height: 1.5rem;
-  padding: 0 0.25rem;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  padding: 0 0.3rem;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .app-calendar__day--outside .app-calendar__daynum {
-  color: color-mix(in srgb, var(--text-secondary) 65%, transparent);
+  color: color-mix(in srgb, var(--text-secondary) 50%, transparent);
+  font-weight: 500;
 }
 
 .app-calendar__daynum--today {
   background: var(--brand-primary);
   color: #fff;
+  box-shadow: 0 4px 10px -4px color-mix(in srgb, var(--brand-primary) 80%, transparent);
 }
 
 /* ── Events ─────────────────────────────────────────────────────────────── */
 .app-calendar__events {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
 }
 
 .app-calendar__event {
-  display: flex;
-  flex-direction: column;
+  --event-color: var(--brand-primary);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.35rem;
+  row-gap: 0.05rem;
   width: 100%;
-  padding: 0.15rem 0.4rem;
-  border-radius: 0.45rem;
+  padding: 0.24rem 0.42rem;
+  border-radius: 0.55rem;
   border: 0;
+  background: color-mix(in srgb, var(--event-color) 14%, var(--bg-surface));
   text-align: left;
-  font-size: 0.7rem;
-  line-height: 1.15;
+  font-size: 0.68rem;
+  line-height: 1.2;
   font-weight: 600;
-  color: #fff;
+  color: color-mix(in srgb, var(--event-color) 78%, var(--text-primary));
   cursor: pointer;
   overflow: hidden;
-  transition: filter 120ms ease;
+  transition: background-color 120ms ease;
+}
+
+/* A leading dot keeps the status legible on multi-line labels. */
+.app-calendar__event::before {
+  content: "";
+  grid-row: 1 / span 2;
+  align-self: start;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  background: var(--event-color);
 }
 
 .app-calendar__event:hover {
-  filter: brightness(0.94);
+  background: color-mix(in srgb, var(--event-color) 22%, var(--bg-surface));
+}
+
+.app-calendar__event:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--event-color) 40%, transparent);
 }
 
 .app-calendar__event-title,
 .app-calendar__event-meta {
+  grid-column: 2;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.app-calendar__event-title {
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
 .app-calendar__event-meta {
-  font-weight: 500;
-  opacity: 0.92;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .app-calendar__more {
   align-self: flex-start;
-  padding: 0.1rem 0.35rem;
+  padding: 0.1rem 0.45rem;
   border: 0;
   border-radius: 0.4rem;
   background: transparent;
@@ -197,6 +249,7 @@
   font-size: 0.7rem;
   font-weight: 600;
   cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
 }
 
 .app-calendar__more:hover {
@@ -204,41 +257,59 @@
   color: var(--text-primary);
 }
 
-/* Tones */
-.app-calendar__event--success { background: #10b981; }
-.app-calendar__event--info { background: #3b82f6; }
-.app-calendar__event--danger { background: #ef4444; }
-.app-calendar__event--warning { background: #f59e0b; }
-.app-calendar__event--neutral { background: #64748b; }
+/* Tones — pending uses brand; semantic tokens live in index.css. */
+.app-calendar__event--success { --event-color: var(--calendar-paid); }
+.app-calendar__event--info { --event-color: var(--calendar-pending); }
+.app-calendar__event--danger { --event-color: var(--calendar-overdue); }
+.app-calendar__event--warning { --event-color: var(--calendar-partial); }
+.app-calendar__event--neutral { --event-color: var(--calendar-neutral); }
 
 /* Mobile dots (shown instead of chips on narrow cells) */
 .app-calendar__dots {
   display: none;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .app-calendar__dot {
-  width: 0.4rem;
-  height: 0.4rem;
+  width: 0.42rem;
+  height: 0.42rem;
   border-radius: 999px;
 }
 
-.app-calendar__dot--success { background: #10b981; }
-.app-calendar__dot--info { background: #3b82f6; }
-.app-calendar__dot--danger { background: #ef4444; }
-.app-calendar__dot--warning { background: #f59e0b; }
-.app-calendar__dot--neutral { background: #64748b; }
+.app-calendar__dot--success { background: var(--calendar-paid); }
+.app-calendar__dot--info { background: var(--calendar-pending); }
+.app-calendar__dot--danger { background: var(--calendar-overdue); }
+.app-calendar__dot--warning { background: var(--calendar-partial); }
+.app-calendar__dot--neutral { background: var(--calendar-neutral); }
 
-/* ── Responsive: compact cells with dots on small screens ───────────────── */
-@media (max-width: 640px) {
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
   .app-calendar__day {
-    min-height: 3.1rem;
+    min-height: 3.8rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .app-calendar__grid {
+    gap: 0.15rem;
+  }
+
+  .app-calendar__day {
+    min-height: 2.9rem;
     padding: 0.25rem;
+    gap: 0.18rem;
     align-items: center;
   }
 
   .app-calendar__day-head {
     justify-content: center;
+    min-height: auto;
+  }
+
+  .app-calendar__daynum {
+    min-width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.78rem;
   }
 
   .app-calendar__events,
@@ -256,7 +327,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1rem;
-  padding-top: 0.75rem;
+  padding-top: 0.85rem;
   font-size: 0.72rem;
   color: var(--text-secondary);
 }

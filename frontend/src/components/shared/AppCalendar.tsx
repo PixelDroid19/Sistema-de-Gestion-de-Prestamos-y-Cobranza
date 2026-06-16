@@ -13,6 +13,8 @@ export interface CalendarEvent {
   title: string;
   /** Optional secondary line (e.g. an amount). */
   meta?: string;
+  /** Rich hover label (e.g. client + installment + amount). */
+  tooltip?: string;
   tone?: CalendarEventTone;
 }
 
@@ -22,6 +24,8 @@ export interface AppCalendarProps {
   initialDate?: Date;
   /** Currently highlighted day key ('YYYY-MM-DD'), controlled by the parent. */
   selectedDate?: string | null;
+  /** Soft highlight for an operational day (e.g. next actionable due date) without selecting it. */
+  highlightDate?: string | null;
   onSelectDate?: (dayKey: string, dayEvents: CalendarEvent[]) => void;
   onSelectEvent?: (eventId: string) => void;
   /** 0 = Sunday, 1 = Monday (default). */
@@ -71,6 +75,7 @@ export default function AppCalendar({
   events,
   initialDate,
   selectedDate = null,
+  highlightDate = null,
   onSelectDate,
   onSelectEvent,
   weekStartsOn = 1,
@@ -165,11 +170,14 @@ export default function AppCalendar({
           const dayEvents = eventsByDay.get(day.key) || [];
           const isToday = day.key === todayKey;
           const isSelected = day.key === selectedDate;
+          const isHighlighted = day.key === highlightDate;
           const visible = dayEvents.slice(0, maxVisiblePerDay);
           const hidden = dayEvents.length - visible.length;
           const dayClasses = [
             'app-calendar__day',
             day.inCurrentMonth ? '' : 'app-calendar__day--outside',
+            isToday ? 'app-calendar__day--today' : '',
+            isHighlighted ? 'app-calendar__day--highlight' : '',
             isSelected ? 'app-calendar__day--selected' : '',
           ].filter(Boolean).join(' ');
 
@@ -208,7 +216,7 @@ export default function AppCalendar({
                       key={event.id}
                       type="button"
                       className={`app-calendar__event app-calendar__event--${event.tone || 'info'}`}
-                      title={event.meta ? `${event.title} · ${event.meta}` : event.title}
+                      title={event.tooltip || (event.meta ? `${event.title} · ${event.meta}` : event.title)}
                       onClick={(clickEvent) => {
                         clickEvent.stopPropagation();
                         onSelectEvent?.(event.id);

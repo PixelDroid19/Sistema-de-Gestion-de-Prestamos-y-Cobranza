@@ -35,6 +35,8 @@ export const getInstallmentStatusTone = (status: string): ChipTone => {
       return 'danger';
     case 'partial':
       return 'warning';
+    case 'pending':
+      return 'brand';
     case 'annulled':
       return 'neutral';
     default:

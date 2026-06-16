@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  CalendarCheck,
   CheckCircle2,
   Clock,
   DollarSign,
+  Eye,
   Search,
-  TrendingUp,
   X,
 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
@@ -17,19 +18,25 @@ import { getInstallmentStatusTone } from '../../lib/statusTones';
 import { resolveOperationalGuard } from '../../services/operationalGuards';
 import {
   ActionButton,
-  MetricCard,
   ModalShell,
   SectionSurface,
 } from '../shared/Surfaces';
 import { AppInput, OperationalSelect } from '../shared/Surfaces';
-import AppCalendar, { toCalendarDayKey, type CalendarEvent } from '../shared/AppCalendar';
+import AppCalendar, { toCalendarDayKey, type CalendarEvent, type CalendarEventTone } from '../shared/AppCalendar';
 import {
-  type CalendarOverviewAgendaItem,
-  type CalendarOverviewResponse,
+  AppTable,
+  RowActionsWithOverflow,
+  TableActionsCell,
+  TableActionsHeader,
+  type RowActionOverflowItem,
+} from '../shared/tables';
+import {
   type InstallmentEvent,
+  type CalendarOverviewResponse,
   getCalendarStatusLabel,
   parseDueDate,
 } from './creditsHelpers';
+import './CreditsCalendarView.css';
 
 type CalendarFilters = {
   search: string;
@@ -51,6 +58,23 @@ type CreditsCalendarViewProps = {
   user: { role?: string; permissions?: string[] } | null;
 };
 
+// Worst-status wins when collapsing a day's installments into a single cell.
+const TONE_PRIORITY: Record<CalendarEventTone, number> = {
+  danger: 4,
+  warning: 3,
+  info: 2,
+  success: 1,
+  neutral: 0,
+};
+
+const getCalendarEventTone = (event: InstallmentEvent): CalendarEventTone => {
+  const status = String(event.status || event.type || '').toLowerCase();
+  if (status === 'paid' || event.type === 'paid') return 'success';
+  if (status === 'overdue' || event.type === 'overdue') return 'danger';
+  if (status === 'partial') return 'warning';
+  return 'info';
+};
+
 const getEventDateLabel = (value: unknown) => (
   formatLocaleDate(parseDueDate(value) || new Date(), {
     day: 'numeric',
@@ -60,17 +84,19 @@ const getEventDateLabel = (value: unknown) => (
   })
 );
 
-const buildDefaultCalendarDate = ({
-  nextAction,
-  events,
-}: {
-  nextAction: CalendarOverviewAgendaItem | null;
-  events: InstallmentEvent[];
-}) => {
-  const nextActionDate = parseDueDate(nextAction?.dueDate);
-  if (nextActionDate) return nextActionDate;
-  return events[0]?.start || new Date();
+const getEventPayable = (event: InstallmentEvent) => event.payableAmount || event.amountToPay || 0;
+
+const getClientInitials = (name: string) => {
+  // Prefer alphabetic words so numeric account suffixes never become an initial.
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const alphaWords = words.filter((word) => /\p{L}/u.test(word));
+  const source = alphaWords.length > 0 ? alphaWords : words;
+  if (source.length === 0) return '—';
+  if (source.length === 1) return source[0].slice(0, 2).toUpperCase();
+  return (source[0][0] + source[1][0]).toUpperCase();
 };
+
+const DAY_TABLE_PAGE_SIZE_OPTIONS = [5, 10, 25];
 
 export default function CreditsCalendarView({
   calendarEvents,
@@ -86,28 +112,113 @@ export default function CreditsCalendarView({
 }: CreditsCalendarViewProps) {
   const { locale } = useTranslation();
   const formatCurrency = (value: number) => formatCurrencyValue(value);
-  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
 
-  const defaultCalendarDate = useMemo(() => buildDefaultCalendarDate({
-    nextAction: calendarOverview.nextAction,
-    events: calendarEvents,
-  }), [calendarEvents, calendarOverview.nextAction]);
+  // The agenda always centres on a concrete day (today by default), mirroring an
+  // operational worklist: "what do I collect on this date?".
+  const todayKey = useMemo(() => toCalendarDayKey(new Date()), []);
+  const [selectedDayKey, setSelectedDayKey] = useState<string>(todayKey);
+  // Once the operator picks a day we stop auto-centering, even on empty days.
+  const [userPinnedDay, setUserPinnedDay] = useState(false);
+  const [dayTablePage, setDayTablePage] = useState(1);
+  const [dayTablePageSize, setDayTablePageSize] = useState(DAY_TABLE_PAGE_SIZE_OPTIONS[0]);
 
-  const appCalendarEvents = useMemo<CalendarEvent[]>(() => calendarEvents.map((event) => ({
-    id: event.id,
-    date: event.start,
-    title: event.title,
-    meta: formatCurrency(event.payableAmount || event.amountToPay),
-    tone: event.type === 'paid' ? 'success' : event.type === 'overdue' ? 'danger' : 'info',
-  })), [calendarEvents, locale]);
+  const selectDay = (dayKey: string) => {
+    setUserPinnedDay(true);
+    setSelectedDayKey(dayKey);
+  };
 
-  const selectedDayEvents = useMemo(() => (
-    selectedDayKey
-      ? calendarEvents.filter((event) => toCalendarDayKey(event.start) === selectedDayKey)
-      : []
-  ), [calendarEvents, selectedDayKey]);
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, InstallmentEvent[]>();
+    calendarEvents.forEach((event) => {
+      const key = toCalendarDayKey(event.start);
+      const bucket = map.get(key);
+      if (bucket) bucket.push(event);
+      else map.set(key, [event]);
+    });
+    return map;
+  }, [calendarEvents]);
 
-  const visibleAgenda = calendarOverview.actionableEntries ?? calendarOverview.agenda;
+  // Best day to open on: today if it has work, else the backend's next action,
+  // else the earliest scheduled day. Recomputed until the operator pins a day.
+  const defaultDayKey = useMemo(() => {
+    if (eventsByDay.has(todayKey)) return todayKey;
+    const nextActionDate = parseDueDate(calendarOverview.nextAction?.dueDate);
+    const nextActionKey = nextActionDate ? toCalendarDayKey(nextActionDate) : null;
+    if (nextActionKey && eventsByDay.has(nextActionKey)) return nextActionKey;
+    const orderedKeys = [...eventsByDay.keys()].sort();
+    return orderedKeys[0] ?? todayKey;
+  }, [eventsByDay, todayKey, calendarOverview.nextAction]);
+
+  // One aggregated chip per day: count + total, coloured by the most urgent status.
+  const appCalendarEvents = useMemo<CalendarEvent[]>(() => {
+    const events: CalendarEvent[] = [];
+    eventsByDay.forEach((dayEvents, dayKey) => {
+      const total = dayEvents.reduce((sum, event) => sum + getEventPayable(event), 0);
+      const tone = dayEvents.reduce<CalendarEventTone>((worst, event) => {
+        const candidate = getCalendarEventTone(event);
+        return TONE_PRIORITY[candidate] > TONE_PRIORITY[worst] ? candidate : worst;
+      }, 'success');
+      const countLabel = dayEvents.length === 1
+        ? tTerm('credits.calendar.day.count.one')
+        : tTerm('credits.calendar.day.count.other', { count: dayEvents.length });
+      const amountLabel = formatCurrency(total);
+      events.push({
+        id: dayKey,
+        date: dayEvents[0].start,
+        title: countLabel,
+        meta: amountLabel,
+        tooltip: `${countLabel} · ${amountLabel}`,
+        tone,
+      });
+    });
+    return events;
+  }, [eventsByDay, locale]);
+
+  const selectedDayEvents = useMemo(() => {
+    const dayEvents = eventsByDay.get(selectedDayKey) || [];
+    return [...dayEvents].sort((left, right) => {
+      // Overdue first, then by remaining urgency, keeps the worklist actionable.
+      const toneDelta = TONE_PRIORITY[getCalendarEventTone(right)] - TONE_PRIORITY[getCalendarEventTone(left)];
+      if (toneDelta !== 0) return toneDelta;
+      return getEventPayable(right) - getEventPayable(left);
+    });
+  }, [eventsByDay, selectedDayKey]);
+
+  const selectedDayLabel = useMemo(() => {
+    const [year, month, day] = selectedDayKey.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const label = formatLocaleDate(date, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }, [selectedDayKey]);
+
+  const dayStats = useMemo(() => {
+    const accumulator = {
+      pending: 0,
+      paid: 0,
+      overdue: 0,
+      payable: 0,
+    };
+    selectedDayEvents.forEach((event) => {
+      const status = String(event.status || event.type || '').toLowerCase();
+      if (status === 'paid') {
+        accumulator.paid += 1;
+      } else if (status === 'overdue') {
+        accumulator.overdue += 1;
+        accumulator.payable += getEventPayable(event);
+      } else {
+        accumulator.pending += 1;
+        accumulator.payable += getEventPayable(event);
+      }
+    });
+    return accumulator;
+  }, [selectedDayEvents]);
+
   const hasFilters = Boolean(filters.search || filters.status || filters.startDate || filters.endDate);
 
   const canShowPayAction = (loanStatus: string) => resolveOperationalGuard('installment.pay', {
@@ -116,122 +227,128 @@ export default function CreditsCalendarView({
     loanStatus,
   });
 
-  const summaryItems = useMemo(() => [
+  const dayTiles = useMemo(() => [
     {
-      id: 'actionable',
-      label: tTerm('credits.stats.calendar.actionable.label'),
-      value: String(calendarOverview.summary.actionableCount),
-      helper: tTerm('credits.stats.calendar.actionable.short'),
-      accent: 'blue' as const,
-      icon: <DollarSign aria-hidden="true" />,
-    },
-    {
-      id: 'overdue',
-      label: tTerm('credits.stats.calendar.overdue.label'),
-      value: String(calendarOverview.summary.overdueCount),
-      helper: tTerm('credits.stats.calendar.overdue.short'),
-      accent: 'rose' as const,
-      icon: <AlertTriangle aria-hidden="true" />,
+      id: 'pending',
+      label: tTerm('credits.calendar.dayPanel.pending'),
+      value: dayStats.pending,
+      tone: 'pending' as const,
     },
     {
       id: 'paid',
-      label: tTerm('credits.stats.calendar.paid.label'),
-      value: String(calendarOverview.summary.paidCount),
-      helper: tTerm('credits.stats.calendar.paid.short'),
-      accent: 'emerald' as const,
-      icon: <CheckCircle2 aria-hidden="true" />,
+      label: tTerm('credits.calendar.dayPanel.paid'),
+      value: dayStats.paid,
+      tone: 'paid' as const,
     },
     {
-      id: 'amount',
-      label: tTerm('credits.stats.calendar.amount.label'),
-      value: formatCurrency(calendarOverview.summary.totalPayableAmount),
-      helper: calendarOverview.summary.totalLateFeeAmount > 0
-        ? tTerm('credits.stats.calendar.amount.helper.withLateFee', { amount: formatCurrency(calendarOverview.summary.totalLateFeeAmount) })
-        : tTerm('credits.stats.calendar.amount.helper.withoutLateFee'),
-      accent: 'amber' as const,
-      icon: <TrendingUp aria-hidden="true" />,
+      id: 'overdue',
+      label: tTerm('credits.calendar.dayPanel.overdue'),
+      value: dayStats.overdue,
+      tone: 'overdue' as const,
     },
-  ], [calendarOverview.summary, locale]);
+    {
+      id: 'total',
+      label: tTerm('credits.calendar.dayPanel.total'),
+      value: formatCurrency(dayStats.payable),
+      tone: 'total' as const,
+    },
+  ], [dayStats, locale]);
 
-  const renderAgendaCard = (item: CalendarOverviewAgendaItem) => {
-    const payGuard = canShowPayAction(String(item.loanStatus || 'active'));
-    return (
-    <article key={`${item.loanId}-${item.installmentNumber}`} className="rounded-2xl border border-border-subtle bg-bg-base p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-semibold text-text-primary">{item.customerName}</div>
-          <div className="mt-1 text-sm text-text-secondary">
-            {item.totalInstallments > 0
-              ? tTerm('credits.agenda.loanInstallmentOf', {
-                loanId: item.loanId,
-                number: item.installmentNumber,
-                total: item.totalInstallments,
-              })
-              : tTerm('credits.agenda.loanInstallment', { loanId: item.loanId, number: item.installmentNumber })}
-          </div>
-        </div>
-        <span className={getChipClassName(getInstallmentStatusTone(item.status))}>
-          {getCalendarStatusLabel(item.status)}
-        </span>
-      </div>
+  const dayTableTotalPages = Math.max(1, Math.ceil(selectedDayEvents.length / dayTablePageSize));
+  const currentDayTablePage = Math.min(dayTablePage, dayTableTotalPages);
+  const dayTableRows = useMemo(() => {
+    const startIndex = (currentDayTablePage - 1) * dayTablePageSize;
+    return selectedDayEvents.slice(startIndex, startIndex + dayTablePageSize);
+  }, [selectedDayEvents, currentDayTablePage, dayTablePageSize]);
+  const dayTablePagination = selectedDayEvents.length > dayTablePageSize
+    ? {
+      page: currentDayTablePage,
+      pageSize: dayTablePageSize,
+      totalItems: selectedDayEvents.length,
+      totalPages: dayTableTotalPages,
+      pageSizeOptions: DAY_TABLE_PAGE_SIZE_OPTIONS,
+      onPrev: () => setDayTablePage((page) => Math.max(1, page - 1)),
+      onNext: () => setDayTablePage((page) => Math.min(dayTableTotalPages, page + 1)),
+      onPageSizeChange: (pageSize: number) => {
+        setDayTablePageSize(pageSize);
+        setDayTablePage(1);
+      },
+    }
+    : undefined;
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{tTerm('credits.agenda.dueDate')}</div>
-          <div className="mt-1 text-sm font-medium text-text-primary">{getEventDateLabel(item.dueDate)}</div>
-          {item.daysOverdue > 0 && (
-            <div className="mt-1 text-sm font-medium text-rose-600">{tTerm('credits.agenda.daysOverdue', { count: item.daysOverdue })}</div>
-          )}
-        </div>
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{tTerm('credits.agenda.suggestedCollection')}</div>
-          <div className="mt-1 text-sm font-semibold text-text-primary">{formatCurrency(item.payableAmount)}</div>
-          {item.lateFeeDue > 0 && (
-            <div className="mt-1 text-sm text-amber-700">{tTerm('credits.agenda.includesLateFee', { amount: formatCurrency(item.lateFeeDue) })}</div>
-          )}
-        </div>
-      </div>
+  const renderStatusChip = (status: string) => (
+    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${getChipClassName(getInstallmentStatusTone(status))}`}>
+      {getCalendarStatusLabel(status)}
+    </span>
+  );
 
-      {item.disabledReason && !item.canPay && (
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {item.disabledReason}
-        </div>
-      )}
+  const getRowActionItems = (event: InstallmentEvent): RowActionOverflowItem[] => {
+    const payGuard = canShowPayAction(String(event.loanStatus || 'active'));
+    const items: RowActionOverflowItem[] = [
+      {
+        id: 'view',
+        label: tTerm('credits.action.viewLoan'),
+        icon: <Eye size={16} />,
+        onClick: () => onViewCredit(event.loanId),
+      },
+    ];
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <ActionButton type="button" onClick={() => onViewCredit(item.loanId)}>
-          {tTerm('credits.action.viewLoan')}
-        </ActionButton>
-        {item.canPay && payGuard.visible && (
-          <ActionButton
-            type="button"
-            onClick={() => onViewCredit(item.loanId)}
-            variant="primary"
-            disabled={!payGuard.executable}
-            title={payGuard.executable ? undefined : (payGuard.reason || tTerm('credits.action.unavailable'))}
-          >
-            {tTerm('creditDetails.cta.recordPayment')}
-          </ActionButton>
-        )}
-      </div>
-    </article>
-    );
+    if (event.canPay && payGuard.visible) {
+      items.push({
+        id: 'pay',
+        label: payGuard.executable
+          ? tTerm('creditDetails.cta.recordPayment')
+          : (payGuard.reason || tTerm('credits.action.unavailable')),
+        icon: <DollarSign size={16} />,
+        onClick: () => onViewCredit(event.loanId),
+        disabled: !payGuard.executable,
+      });
+    }
+
+    return items;
   };
+
+  const modalStatusTone = selectedEvent ? getInstallmentStatusTone(selectedEvent.status) : 'info';
+
+  // Keep the selected day on the visible month so the calendar opens where the user is looking.
+  const calendarInitialDate = useMemo(() => {
+    const [year, month, day] = selectedDayKey.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  }, [selectedDayKey]);
+
+  useEffect(() => {
+    // Until the operator pins a day, keep the panel on the most relevant date as
+    // data loads or filters change, so it never strands on an empty default.
+    if (!userPinnedDay && selectedDayKey !== defaultDayKey) {
+      setSelectedDayKey(defaultDayKey);
+    }
+  }, [userPinnedDay, defaultDayKey, selectedDayKey]);
+
+  useEffect(() => {
+    setDayTablePage(1);
+  }, [selectedDayKey, filters.search, filters.status, filters.startDate, filters.endDate]);
+
+  useEffect(() => {
+    if (dayTablePage > dayTableTotalPages) {
+      setDayTablePage(dayTableTotalPages);
+    }
+  }, [dayTablePage, dayTableTotalPages]);
 
   return (
     <div className="relative flex flex-1 flex-col gap-4 min-w-0">
       <SectionSurface
-        title={tTerm('credits.calendar.title')}
-        subtitle={tTerm('credits.calendar.subtitle')}
+        title={tTerm('credits.agenda.title')}
+        subtitle={tTerm('credits.agenda.subtitle')}
         actions={(
-          <div className="flex flex-wrap gap-3 text-xs text-text-secondary">
-            <div className="flex items-center gap-2"><div className="size-3 rounded-full bg-emerald-500" />{tTerm('credits.calendar.legend.paid')}</div>
-            <div className="flex items-center gap-2"><div className="size-3 rounded-full bg-blue-500" />{tTerm('credits.calendar.legend.pending')}</div>
-            <div className="flex items-center gap-2"><div className="size-3 rounded-full bg-red-500" />{tTerm('credits.calendar.legend.overdue')}</div>
+          <div className="credits-calendar-legend" aria-label={tTerm('credits.calendar.legend.title')}>
+            <div className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-[var(--calendar-paid)]" />{tTerm('credits.calendar.legend.paid')}</div>
+            <div className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-[var(--calendar-pending)]" />{tTerm('credits.calendar.legend.pending')}</div>
+            <div className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-[var(--calendar-partial)]" />{tTerm('credits.calendar.legend.partial')}</div>
+            <div className="flex items-center gap-2"><span className="size-2.5 rounded-full bg-[var(--calendar-overdue)]" />{tTerm('credits.calendar.legend.overdue')}</div>
           </div>
         )}
       >
-        <div className="grid gap-3 lg:grid-cols-[minmax(220px,1.3fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_auto]">
+        <div className="credits-calendar-filters">
           <label className="space-y-1">
             <span className="text-xs font-semibold text-text-secondary">{tTerm('credits.calendar.filter.search')}</span>
             <AppInput
@@ -277,112 +394,151 @@ export default function CreditsCalendarView({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-4">
-          {summaryItems.map((item) => (
-            <MetricCard
-              key={item.id}
-              label={item.label}
-              value={item.value}
-              helper={item.helper}
-              icon={item.icon}
-              accent={item.accent}
-            />
-          ))}
-        </div>
-
-        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]">
-          <div className="min-h-[560px] rounded-2xl border border-border-subtle bg-bg-base p-3">
+        <div className="credits-calendar-workspace mt-4">
+          <div className="credits-calendar-workspace__grid p-4 sm:p-5">
             {isCalendarLoading ? (
-              <div className="flex h-full min-h-[520px] items-center justify-center text-text-secondary">
+              <div className="credits-calendar-loading">
                 {tTerm('credits.calendar.loading')}
               </div>
             ) : (
-              <>
-                <AppCalendar
-                  key={defaultCalendarDate.toISOString()}
-                  events={appCalendarEvents}
-                  initialDate={defaultCalendarDate}
-                  selectedDate={selectedDayKey}
-                  onSelectDate={(dayKey) => setSelectedDayKey((current) => (current === dayKey ? null : dayKey))}
-                  onSelectEvent={(eventId) => {
-                    const event = calendarEvents.find((candidate) => candidate.id === eventId);
-                    if (event) onSelectEvent(event);
-                  }}
-                  className="min-h-[520px]"
-                />
-                {selectedDayKey && selectedDayEvents.length > 0 && (
-                  <div className="mt-3 space-y-2 rounded-2xl border border-border-subtle bg-surface p-3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                      {getEventDateLabel(selectedDayEvents[0].start)}
-                    </div>
-                    {selectedDayEvents.map((event) => (
-                      <button
-                        key={event.id}
-                        type="button"
-                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-border-subtle bg-bg-base px-3 py-2 text-left transition hover:border-brand-primary/40"
-                        onClick={() => onSelectEvent(event)}
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-semibold text-text-primary">{event.title}</span>
-                          <span className="block truncate text-xs text-text-secondary">
-                            {tTerm('credits.modal.installmentOf', { number: event.installmentNumber, total: event.totalInstallments })}
-                          </span>
-                        </span>
-                        <span className="flex shrink-0 flex-col items-end">
-                          <span className="text-sm font-semibold text-text-primary">{formatCurrency(event.payableAmount || event.amountToPay)}</span>
-                          <span className={getChipClassName(getInstallmentStatusTone(event.status))}>
-                            {getCalendarStatusLabel(event.status)}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
+              <AppCalendar
+                events={appCalendarEvents}
+                initialDate={calendarInitialDate}
+                selectedDate={selectedDayKey}
+                onSelectDate={(dayKey) => selectDay(dayKey)}
+                onSelectEvent={(dayKey) => selectDay(dayKey)}
+                maxVisiblePerDay={1}
+                className="credits-calendar-month"
+              />
             )}
           </div>
 
-          <aside className="rounded-2xl border border-border-subtle bg-bg-base p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h4 className="text-base font-semibold text-text-primary">{tTerm('credits.agenda.title')}</h4>
-                <p className="mt-1 text-sm text-text-secondary">{tTerm('credits.agenda.subtitle')}</p>
-              </div>
-              <span className="rounded-full bg-hover-bg px-3 py-1 text-xs font-semibold text-text-secondary">
-                {tTerm('credits.agenda.count', { count: visibleAgenda.length })}
-              </span>
-            </div>
-
-            {calendarOverview.nextAction && (
-              <button
-                type="button"
-                className="mt-4 w-full rounded-2xl border border-brand-primary/20 bg-brand-primary/5 p-4 text-left transition hover:border-brand-primary/40"
-                onClick={() => onViewCredit(calendarOverview.nextAction!.loanId)}
-              >
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">{tTerm('credits.agenda.nextAction')}</div>
-                <div className="mt-2 text-base font-semibold text-text-primary">{calendarOverview.nextAction.customerName}</div>
-                <p className="mt-1 text-sm text-text-secondary">
-                  {calendarOverview.nextAction.totalInstallments > 0
-                    ? tTerm('credits.agenda.installmentOf', {
-                      number: calendarOverview.nextAction.installmentNumber,
-                      total: calendarOverview.nextAction.totalInstallments,
-                    })
-                    : tTerm('credits.agenda.installment', { number: calendarOverview.nextAction.installmentNumber })}
-                  {' · '}
-                  {getEventDateLabel(calendarOverview.nextAction.dueDate)}
-                </p>
-              </button>
-            )}
-
-            <div className="mt-4 max-h-[470px] space-y-3 overflow-y-auto pr-1">
-              {!isCalendarLoading && visibleAgenda.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-border-subtle bg-surface p-4 text-sm text-text-secondary">
-                  {calendarEvents.length === 0 ? tTerm('credits.calendar.empty') : tTerm('credits.agenda.empty')}
+          <aside className="credits-calendar-workspace__operation p-4 sm:p-5" aria-label={tTerm('credits.calendar.operation.dayTitle')}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-2.5">
+                <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-brand-primary/10 text-brand-primary">
+                  <CalendarCheck size={18} aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h4 className="text-base font-semibold text-text-primary">
+                    {tTerm('credits.calendar.operation.dayTitle')}
+                  </h4>
+                  <p className="mt-0.5 text-sm leading-5 text-text-secondary">{selectedDayLabel}</p>
                 </div>
-              )}
-              {visibleAgenda.map(renderAgendaCard)}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {userPinnedDay && selectedDayKey !== defaultDayKey && (
+                  <ActionButton
+                    type="button"
+                    variant="ghost"
+                    onClick={() => { setUserPinnedDay(false); setSelectedDayKey(defaultDayKey); }}
+                  >
+                    {tTerm('credits.calendar.operation.showAll')}
+                  </ActionButton>
+                )}
+                <span className="rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-semibold text-text-secondary">
+                  {tTerm('credits.agenda.count', { count: selectedDayEvents.length })}
+                </span>
+              </div>
             </div>
+
+            <div className="credits-day-metrics mt-4" aria-label={tTerm('credits.calendar.operation.dayTitle')}>
+              {dayTiles.map((tile) => (
+                <div key={tile.id} className={`credits-day-tile credits-day-tile--${tile.tone}`}>
+                  <div className="credits-day-tile__value">{tile.value}</div>
+                  <div className="credits-day-tile__label">{tile.label}</div>
+                </div>
+              ))}
+            </div>
+            {!isCalendarLoading && selectedDayEvents.length === 0 && (
+              <div className="credits-calendar-day-empty mt-4">
+                {calendarEvents.length === 0
+                  ? tTerm('credits.calendar.empty')
+                  : tTerm('credits.calendar.dayPanel.empty')}
+              </div>
+            )}
           </aside>
+        </div>
+
+        <div className="credits-calendar-table mt-4">
+          <div className="credits-calendar-table__header">
+            <div>
+              <h3 className="text-base font-semibold text-text-primary">{tTerm('credits.calendar.table.title')}</h3>
+              <p className="mt-1 text-sm text-text-secondary">{selectedDayLabel}</p>
+            </div>
+            <span className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-semibold text-text-secondary">
+              {tTerm('credits.agenda.count', { count: selectedDayEvents.length })}
+            </span>
+          </div>
+
+          <AppTable
+            variant="operational"
+            className="data-table-surface"
+            minWidthClassName="min-w-[820px]"
+            tableClassName="w-full text-left text-sm"
+            statePresentation="shell"
+            hasData={selectedDayEvents.length > 0}
+            emptyContent={<div className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.calendar.table.empty')}</div>}
+            recordsLabel={tTerm('credits.agenda.count', { count: selectedDayEvents.length })}
+            pagination={dayTablePagination}
+          >
+            <thead>
+              <tr>
+                <th className="min-w-[180px] px-3 py-3 font-semibold">{tTerm('credits.calendar.table.client')}</th>
+                <th className="px-3 py-3 font-semibold">{tTerm('credits.calendar.table.credit')}</th>
+                <th className="px-3 py-3 font-semibold">{tTerm('credits.calendar.table.installment')}</th>
+                <th className="px-3 py-3 font-semibold">{tTerm('credits.calendar.table.dueDate')}</th>
+                <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.calendar.table.suggestedCollection')}</th>
+                <th className="px-3 py-3 font-semibold">{tTerm('credits.calendar.table.status')}</th>
+                <TableActionsHeader className="px-3 py-3 font-semibold">{tTerm('credits.calendar.table.actions')}</TableActionsHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {dayTableRows.map((event) => (
+                <tr key={event.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-hover-bg/60">
+                  <td className="px-3 py-4">
+                    <button
+                      type="button"
+                      role="button"
+                      className="flex max-w-full items-center gap-2.5 rounded-lg text-left transition-colors hover:text-brand-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30"
+                      onClick={() => onSelectEvent(event)}
+                    >
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary">
+                        {getClientInitials(event.clientName)}
+                      </span>
+                      <span className="truncate font-semibold text-text-primary">{event.clientName}</span>
+                    </button>
+                  </td>
+                  <td className="px-3 py-4 text-text-secondary">{tTerm('credits.calendar.table.creditRef', { id: event.loanId })}</td>
+                  <td className="px-3 py-4 text-text-secondary">
+                    {event.totalInstallments > 0
+                      ? tTerm('credits.agenda.installmentOf', { number: event.installmentNumber, total: event.totalInstallments })
+                      : tTerm('credits.agenda.installment', { number: event.installmentNumber })}
+                  </td>
+                  <td className="px-3 py-4 text-text-secondary">{getEventDateLabel(event.start)}</td>
+                  <td className="px-3 py-4 text-right font-semibold text-text-primary">{formatCurrency(getEventPayable(event))}</td>
+                  <td className="px-3 py-4">
+                    <div className="flex flex-col items-start gap-1.5">
+                      {renderStatusChip(event.status)}
+                      {event.daysOverdue > 0 && (
+                        <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                          {tTerm('credits.agenda.daysOverdue', { count: event.daysOverdue })}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <TableActionsCell className="px-3 py-4">
+                    <RowActionsWithOverflow
+                      variant="icon"
+                      align="center"
+                      items={getRowActionItems(event)}
+                      ariaLabel={tTerm('credits.calendar.table.actions')}
+                    />
+                  </TableActionsCell>
+                </tr>
+              ))}
+            </tbody>
+          </AppTable>
         </div>
       </SectionSurface>
 
@@ -420,20 +576,23 @@ export default function CreditsCalendarView({
           <div>
             <div className="mb-6 flex items-center gap-3">
               <div className={`rounded-full p-3 ${
-                selectedEvent.type === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                  : selectedEvent.type === 'overdue' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400'
-                    : 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400'
+                modalStatusTone === 'success'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                  : modalStatusTone === 'danger'
+                    ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400'
+                    : modalStatusTone === 'warning'
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                      : 'bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-primary'
               }`}>
-                {selectedEvent.type === 'paid' ? <CheckCircle2 size={24} />
-                  : selectedEvent.type === 'overdue' ? <AlertCircle size={24} />
-                    : <Clock size={24} />}
+                {modalStatusTone === 'success' ? <CheckCircle2 size={24} />
+                  : modalStatusTone === 'danger' ? <AlertCircle size={24} />
+                    : modalStatusTone === 'warning' ? <AlertTriangle size={24} />
+                      : <Clock size={24} />}
               </div>
               <div>
                 <div className="text-sm text-text-secondary">{tTerm('credits.modal.status')}</div>
                 <div className="text-lg font-semibold">
-                  {selectedEvent.type === 'paid' ? tTerm('credits.modal.status.paid')
-                    : selectedEvent.type === 'overdue' ? tTerm('credits.modal.status.overdue')
-                      : tTerm('credits.modal.status.pending')}
+                  {getCalendarStatusLabel(selectedEvent.status)}
                 </div>
               </div>
             </div>
@@ -473,8 +632,9 @@ export default function CreditsCalendarView({
               </div>
 
               {selectedEvent.disabledReason && !selectedEvent.canPay && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  {selectedEvent.disabledReason}
+                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <span>{selectedEvent.disabledReason}</span>
                 </div>
               )}
             </div>

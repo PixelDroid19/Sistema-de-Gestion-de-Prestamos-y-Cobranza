@@ -1,0 +1,187 @@
+/* Credits calendar: compact operational agenda.
+   The day panel is the signature element; everything else stays quiet and administrative. */
+
+.credits-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.credits-calendar-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(14rem, 1.35fr)
+    minmax(11rem, 0.85fr)
+    minmax(8.5rem, 0.62fr)
+    minmax(8.5rem, 0.62fr)
+    auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.credits-calendar-workspace {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: var(--bg-surface);
+  box-shadow: 0 18px 48px -40px color-mix(in srgb, var(--text-primary) 60%, transparent);
+}
+
+.credits-calendar-workspace__grid {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .credits-calendar-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(17rem, 0.62fr);
+  }
+
+  .credits-calendar-workspace__operation {
+    border-top: 0;
+    border-left: 1px solid var(--border-subtle);
+  }
+}
+
+.credits-calendar-workspace__operation {
+  min-width: 0;
+  border-top: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-base) 78%, var(--bg-surface));
+}
+
+.credits-calendar-loading {
+  display: flex;
+  min-height: 24rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.credits-calendar-month {
+  min-height: 24rem;
+}
+
+.credits-calendar-month .app-calendar__day {
+  min-height: 3.8rem;
+}
+
+.credits-calendar-month .app-calendar__grid {
+  flex: 0 0 auto;
+  grid-auto-rows: minmax(3.8rem, auto);
+}
+
+.credits-day-metrics {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--bg-surface);
+}
+
+.credits-day-tile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.35rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.7rem 0.85rem;
+  background: transparent;
+}
+
+.credits-day-tile__value {
+  order: 2;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.credits-day-tile__label {
+  order: 1;
+  margin-top: 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.credits-day-tile:last-child {
+  border-bottom: 0;
+}
+
+.credits-day-tile--paid .credits-day-tile__value { color: var(--calendar-paid); }
+.credits-day-tile--overdue .credits-day-tile__value { color: var(--calendar-overdue); }
+.credits-day-tile--total .credits-day-tile__value {
+  color: var(--brand-primary);
+}
+
+.credits-calendar-day-empty {
+  border: 1px dashed var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--bg-surface);
+  padding: 0.85rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* ── Day table ───────────────────────────────────────────────────────────── */
+.credits-calendar-table {
+  min-width: 0;
+}
+
+.credits-calendar-table__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+@media (max-width: 1180px) {
+  .credits-calendar-filters {
+    grid-template-columns: minmax(16rem, 1fr) minmax(12rem, 0.8fr) repeat(2, minmax(8rem, 0.58fr));
+  }
+
+  .credits-calendar-filters > div:last-child {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1023px) {
+  .credits-calendar-workspace__operation {
+    border-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .credits-calendar-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .credits-calendar-filters > div:last-child {
+    grid-column: auto;
+  }
+
+  .credits-calendar-month .app-calendar__events,
+  .credits-calendar-month .app-calendar__more {
+    display: none !important;
+  }
+
+  .credits-calendar-month .app-calendar__dots {
+    display: flex !important;
+  }
+
+  .credits-calendar-table__header {
+    align-items: flex-start;
+  }
+}

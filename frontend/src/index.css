@@ -36,6 +36,12 @@
     --border-strong: #b9c3b7;
     --shadow-soft: 0 22px 48px -34px rgba(17, 34, 51, 0.3);
     --shadow-card: 0 16px 36px -28px rgba(17, 34, 51, 0.24);
+
+    --calendar-paid: #0f9d6b;
+    --calendar-overdue: #e0334b;
+    --calendar-partial: #c47d12;
+    --calendar-pending: var(--brand-primary);
+    --calendar-neutral: #6b7785;
   }
 
   .dark {
@@ -52,6 +58,12 @@
     --border-strong: #456071;
     --shadow-soft: 0 24px 64px -42px rgba(2, 10, 16, 0.95);
     --shadow-card: 0 18px 42px -32px rgba(2, 10, 16, 0.92);
+
+    --calendar-paid: #2eb87a;
+    --calendar-overdue: #f04a62;
+    --calendar-partial: #e09a2e;
+    --calendar-pending: var(--brand-primary);
+    --calendar-neutral: #8a97a3;
   }
 
   html,
@@ -2208,11 +2220,6 @@
       margin-top: 0.18rem;
       font-size: 0.8rem;
     }
-  }
-
-  .calendar-summary-strip {
-    grid-template-columns: 1fr;
-    gap: 1px;
   }
 
   .calendar-summary-strip .insight-strip-item {

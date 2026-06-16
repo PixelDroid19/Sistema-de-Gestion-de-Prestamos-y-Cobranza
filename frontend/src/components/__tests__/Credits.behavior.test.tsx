@@ -337,9 +337,9 @@ describe('Credits behavioral parity scenarios', () => {
 
 
 
-    expect(await screen.findByText('Agenda operativa')).toBeInTheDocument();
-    expect(screen.getByText('Cobros accionables')).toBeInTheDocument();
-    expect(await screen.findByText('Cliente Prueba')).toBeInTheDocument();
+    expect(await screen.findByText('Cuotas del día')).toBeInTheDocument();
+    expect(screen.getByText('Cobro sugerido total')).toBeInTheDocument();
+    expect(await screen.findAllByText('Cliente Prueba')).not.toHaveLength(0);
     expect(screen.getAllByText(/Cuota 1 de 12/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Crédito #77/i)).not.toBeInTheDocument();
     expect(screen.getByText('4 días de atraso')).toBeInTheDocument();
