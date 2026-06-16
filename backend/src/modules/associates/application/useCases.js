@@ -1369,7 +1369,11 @@ const mapAssociateInterestPayment = ({ payment, associate, paymentType }) => {
     associateId: payment.associateId,
     associateName: associate?.name || null,
     installmentNumber: payment.installmentNumber,
-    displayType: getInterestPaymentDisplayType({ ...payment, paymentType }),
+    displayType: getInterestPaymentDisplayType({
+      paymentType,
+      installmentNumber: payment.installmentNumber,
+      distributionType: null,
+    }),
     paymentType,
     amount: roundCurrency(payment.amount),
     dueDate: payment.dueDate,

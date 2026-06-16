@@ -481,6 +481,60 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
   assert.equal(Object.hasOwn(report, 'loans'), false);
 });
 
+test('createListAssociateFinancialDetails labels scheduled payments even when installments are Sequelize instances', async () => {
+  // Sequelize model instances keep their attributes on `dataValues` rather than
+  // as own-enumerable properties, so `{ ...instance }` drops `installmentNumber`.
+  // The display label must therefore read attributes directly, not via spread.
+  const buildSequelizeLikeInstallment = (attributes) => {
+    const instance = Object.create({
+      toJSON() {
+        return { ...attributes };
+      },
+    });
+    Object.entries(attributes).forEach(([key, value]) => {
+      Object.defineProperty(instance, key, {
+        value,
+        enumerable: false,
+        configurable: true,
+      });
+    });
+    return instance;
+  };
+
+  const listAssociateFinancialDetails = createListAssociateFinancialDetails({
+    associateRepository: {
+      async findById(id) {
+        return { id, name: 'Partner One', interestType: 'monthly', interestRate: '5.0000' };
+      },
+      async listContributionsByAssociate() {
+        return [{ id: 1, amount: 10000 }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [
+          buildSequelizeLikeInstallment({
+            id: 5,
+            installmentNumber: 1,
+            amount: 500,
+            dueDate: new Date('2026-06-01'),
+            status: 'paid',
+            paidAt: new Date('2026-06-16'),
+            paidByUser: { id: 1, name: 'Admin QA' },
+          }),
+        ];
+      },
+    },
+  });
+
+  const report = await listAssociateFinancialDetails({ actor: { id: 1, role: 'admin' }, associateId: 4 });
+
+  assert.equal(report.paymentHistory.length, 1);
+  assert.equal(report.paymentHistory[0].installmentNumber, 1);
+  assert.equal(report.paymentHistory[0].displayType, 'Pago programado #1');
+});
+
 test('createListAssociateFinancialDetails excludes non-completed contributions from capital totals', async () => {
   const listAssociateFinancialDetails = createListAssociateFinancialDetails({
     associateRepository: {
