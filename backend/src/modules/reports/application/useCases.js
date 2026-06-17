@@ -98,7 +98,10 @@ const createGetRecoveryReport = ({ reportRepository, paymentRepository, loanView
   const totalRecoveredAmount = recoveredLoans.reduce((sum, loan) => sum + parseFloat(loan.totalPaid), 0);
   const totalOutstandingAmount = outstandingLoans.reduce((sum, loan) => sum + parseFloat(loan.outstandingAmount), 0);
   const totalLoansAmount = loansWithDetails.reduce((sum, loan) => sum + parseFloat(loan.totalDue), 0);
-  const recoveryRate = totalLoansAmount > 0 ? ((totalRecoveredAmount / totalLoansAmount) * 100).toFixed(2) : '0.00';
+  // Distinct KPI from the dashboard's recoveryRate (recovered principal / originated
+  // principal): this is the collection rate over the recovery cohort — total amount
+  // collected on settled loans divided by the total amount due (principal + interest).
+  const collectionRate = totalLoansAmount > 0 ? ((totalRecoveredAmount / totalLoansAmount) * 100).toFixed(2) : '0.00';
 
   return {
     success: true,
@@ -109,7 +112,8 @@ const createGetRecoveryReport = ({ reportRepository, paymentRepository, loanView
       totalRecoveredAmount: totalRecoveredAmount.toFixed(2),
       totalOutstandingAmount: totalOutstandingAmount.toFixed(2),
       totalLoansAmount: totalLoansAmount.toFixed(2),
-      recoveryRate: `${recoveryRate}%`,
+      collectionRate: `${collectionRate}%`,
+      recoveryRate: `${collectionRate}%`,
     },
     data: {
       recoveredLoans,
@@ -728,7 +732,7 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
           `Créditos pendientes: ${report.summary.outstandingLoans}`,
           `Monto total recuperado: ${formatDisplayMoney(report.summary.totalRecoveredAmount || 0)}`,
           `Saldo total pendiente: ${formatDisplayMoney(report.summary.totalOutstandingAmount || 0)}`,
-          `Tasa de recuperación: ${report.summary.recoveryRate}`,
+          `Tasa de cobro: ${report.summary.collectionRate}`,
         ],
       }),
     };

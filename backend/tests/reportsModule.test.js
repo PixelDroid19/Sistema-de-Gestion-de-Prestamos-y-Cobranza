@@ -113,6 +113,7 @@ test('createGetRecoveryReport preserves recovered and outstanding splits', async
   assert.equal(report.summary.totalLoans, 2);
   assert.equal(report.summary.recoveredLoans, 1);
   assert.equal(report.summary.outstandingLoans, 1);
+  assert.equal(report.summary.collectionRate, '38.46%');
   assert.equal(report.summary.recoveryRate, '38.46%');
 });
 

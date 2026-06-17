@@ -747,9 +747,10 @@ const filterCalendarOverviewEntries = ({ entries, filters }) => entries.filter((
   }
 
   if (filters.endDate) {
-    const inclusiveEnd = new Date(filters.endDate.getTime());
-    inclusiveEnd.setHours(23, 59, 59, 999);
-    if (dueDate.getTime() > inclusiveEnd.getTime()) {
+    // Both dueDate and endDate are UTC date-only (normalizeDateOnly), so an inclusive
+    // upper bound is a plain date comparison. Using setHours here would apply the
+    // server's LOCAL offset and leak entries from the next UTC day in negative TZs.
+    if (dueDate.getTime() > filters.endDate.getTime()) {
       return false;
     }
   }
