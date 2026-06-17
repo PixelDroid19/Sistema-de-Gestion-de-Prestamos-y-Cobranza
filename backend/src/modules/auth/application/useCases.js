@@ -752,6 +752,8 @@ const createRevokeAllUserTokens = ({ refreshTokenRepository, auditService }) => 
 };
 
 module.exports = {
+  validatePasswordStrength,
+  PASSWORD_REQUIREMENTS_MESSAGE,
   sanitizeUser,
   createRegisterUser,
   createLoginUser,

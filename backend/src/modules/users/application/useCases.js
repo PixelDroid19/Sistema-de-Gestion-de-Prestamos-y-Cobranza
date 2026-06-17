@@ -1,6 +1,7 @@
 const { ValidationError, NotFoundError, ConflictError } = require('@/utils/errorHandler');
 const { isAdministrativeLoginRole } = require('@/modules/shared/roles');
 const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
+const { validatePasswordStrength, PASSWORD_REQUIREMENTS_MESSAGE } = require('@/modules/auth/application/useCases');
 
 const DUPLICATE_USER_EMAIL_MESSAGE = 'Ya existe un usuario con ese correo electrónico.';
 
@@ -57,13 +58,26 @@ const createGetUserById = ({ userRepository }) => async (userId) => {
 /**
  * Create the use case that updates a user's role or status
  */
-const createUpdateUser = ({ userRepository }) => async (userId, payload) => {
+const createUpdateUser = ({ userRepository, passwordHasher }) => async (userId, payload) => {
   const user = await userRepository.findById(userId);
   if (!user) {
     throw new NotFoundError('User');
   }
 
   const updates = {};
+
+  if (payload.password !== undefined && payload.password !== '') {
+    if (!passwordHasher || typeof passwordHasher.hash !== 'function') {
+      throw new Error('createUpdateUser requires a passwordHasher to update credentials');
+    }
+    const passwordValidation = validatePasswordStrength(payload.password);
+    if (!passwordValidation.valid) {
+      const error = new ValidationError(PASSWORD_REQUIREMENTS_MESSAGE);
+      error.errors = passwordValidation.errors.map((message) => ({ field: 'password', message }));
+      throw error;
+    }
+    updates.password = await passwordHasher.hash(payload.password);
+  }
 
   if (payload.role !== undefined) {
     validateRole(payload.role);

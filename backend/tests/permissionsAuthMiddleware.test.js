@@ -234,7 +234,7 @@ test('authMiddleware with roles and no permissions does not call permissionServi
   assert.equal(checkMultipleCalled, false);
 });
 
-test('authMiddleware without permissionService ignores permissions option', async () => {
+test('authMiddleware fails closed when permissions are required but no permissionService is configured', async () => {
   const mockTokenService = {
     verify() {
       return { id: 1, role: 'admin' };
@@ -252,7 +252,9 @@ test('authMiddleware without permissionService ignores permissions option', asyn
     headers: { authorization: 'Bearer valid-token' },
   };
 
-  await runMiddleware(auth({ roles: ['admin'], permissions: ['SOME_PERM'] }), req);
-
-  assert.deepEqual(req.user, { id: 1, role: 'admin' });
+  await assert.rejects(
+    runMiddleware(auth({ roles: ['admin'], permissions: ['SOME_PERM'] }), req),
+    /Permission service is not configured/,
+  );
+  assert.equal(req.user, undefined);
 });

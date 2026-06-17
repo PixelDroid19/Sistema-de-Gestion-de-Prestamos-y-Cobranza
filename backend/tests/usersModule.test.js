@@ -109,6 +109,57 @@ test('createUpdateUser rejects invalid roles without exposing the role catalog',
   });
 });
 
+test('createUpdateUser hashes valid password updates before saving', async () => {
+  const updates = [];
+  const updateUser = createUpdateUser({
+    userRepository: {
+      async findById() {
+        return { id: 5, name: 'User', email: 'user@example.com', role: 'employee', isActive: true };
+      },
+      async update(id, payload) {
+        updates.push({ id, payload });
+        return { id, name: 'User', email: 'user@example.com', role: 'employee', ...payload };
+      },
+    },
+    passwordHasher: {
+      async hash(password) {
+        assert.equal(password, 'NewAdmin123');
+        return 'hashed-password';
+      },
+    },
+  });
+
+  const result = await updateUser(5, { password: 'NewAdmin123' });
+
+  assert.equal(result.password, undefined);
+  assert.deepEqual(updates, [{ id: 5, payload: { password: 'hashed-password' } }]);
+});
+
+test('createUpdateUser rejects weak password updates before hashing', async () => {
+  const updateUser = createUpdateUser({
+    userRepository: {
+      async findById() {
+        return { id: 5, name: 'User', email: 'user@example.com', role: 'employee', isActive: true };
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    },
+    passwordHasher: {
+      async hash() {
+        throw new Error('hash should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => updateUser(5, { password: 'weak' }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'La contraseña no cumple los requisitos.');
+    assert.ok(error.errors.some((entry) => entry.field === 'password'));
+    return true;
+  });
+});
+
 test('createDeactivateUser and createReactivateUser persist user activation toggles', async () => {
   const updates = [];
   const userRepository = {

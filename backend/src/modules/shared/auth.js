@@ -83,7 +83,13 @@ const createAuthMiddleware = ({ tokenService, permissionService }) => (options =
         throw new AuthorizationError('No tienes acceso a esta sección.');
       }
 
-      if (requiredPermissions.length > 0 && permissionService) {
+      if (requiredPermissions.length > 0) {
+        if (!permissionService || typeof permissionService.checkMultiple !== 'function') {
+          // Fail closed: a route that declares permission requirements must never be
+          // served when the permission service is missing/misconfigured, otherwise the
+          // checks would be silently skipped and the route left unprotected.
+          throw new Error('Permission service is not configured for a route that requires permissions');
+        }
         const { denied } = await permissionService.checkMultiple(authenticatedUser, requiredPermissions);
         if (denied.length > 0) {
           const err = new AuthorizationError('No tienes permisos suficientes para realizar esta acción.');

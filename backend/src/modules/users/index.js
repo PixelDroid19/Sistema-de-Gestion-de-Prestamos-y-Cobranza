@@ -9,6 +9,7 @@ const {
   createUnlockUser,
 } = require('./application/useCases');
 const { userRepository } = require('./infrastructure/repositories');
+const { passwordHasher } = require('@/modules/auth/infrastructure/repositories');
 
 /**
  * Compose the administrative users module and its user-management router.
@@ -20,7 +21,7 @@ const createUsersModule = ({ sharedRuntime } = {}) => {
   const useCases = {
     listUsers: createListUsers({ userRepository }),
     getUserById: createGetUserById({ userRepository }),
-    updateUser: createUpdateUser({ userRepository }),
+    updateUser: createUpdateUser({ userRepository, passwordHasher }),
     deactivateUser: createDeactivateUser({ userRepository }),
     reactivateUser: createReactivateUser({ userRepository }),
     unlockUser: createUnlockUser({ userRepository }),
