@@ -261,12 +261,9 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     const totalPenaltyPaid = completedPayments.reduce((sum, payment) => sum + toFiniteNumber(payment.penaltyApplied), 0);
     const totalOperatingExpenses = (dashboard.operatingExpenses || []).reduce((sum, expense) => sum + toFiniteNumber(expense.amount), 0);
     const totalAssociatePayments = (dashboard.associatePayments || []).reduce((sum, payment) => sum + toFiniteNumber(payment.amount), 0);
-    const delinquentLoanIds = new Set(
-      (dashboard.alerts || [])
-        .filter((alert) => alert?.status === 'active')
-        .map((alert) => Number(alert?.loanId))
-        .filter((loanId) => Number.isFinite(loanId) && loanId > 0),
-    );
+    // Delinquency is derived live from the canonical schedule (consistent with the
+    // credits list/calendar and profitability), not from stale active-alert rows.
+    const delinquentLoanCount = loansWithDetails.filter((loan) => loan.isOverdue).length;
     const installmentStatus = countInstallmentsByStatus({
       loans: loansWithDetails,
       activeAlerts: dashboard.alerts || [],
@@ -281,7 +278,7 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
       ? (totalPrincipalRecovered / totalPortfolioAmount) * 100
       : 0;
     const arrearsRate = totalOpenPortfolioLoans > 0
-      ? (delinquentLoanIds.size / totalOpenPortfolioLoans) * 100
+      ? (delinquentLoanCount / totalOpenPortfolioLoans) * 100
       : 0;
     const periodProfit = totalInterestPaid + totalPenaltyPaid - totalAssociatePayments - totalOperatingExpenses;
     const periodLoss = loansWithDetails
@@ -294,8 +291,8 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
         summary: {
           totalLoans: loansWithDetails.length,
           activeLoans: loansWithDetails.filter((loan) => ['approved', 'active'].includes(loan.status)).length,
-          delinquentLoans: delinquentLoanIds.size,
-          overdueLoans: delinquentLoanIds.size,
+          delinquentLoans: delinquentLoanCount,
+          overdueLoans: delinquentLoanCount,
           defaultedLoans: loansWithDetails.filter((loan) => loan.status === 'defaulted').length,
           recoveredLoans: loansWithDetails.filter((loan) => loan.recoveryBucket === 'recovered').length,
           finalizedLoans,

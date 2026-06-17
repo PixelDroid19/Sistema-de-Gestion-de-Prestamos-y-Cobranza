@@ -443,11 +443,7 @@ const getRecoveryBucket = ({ loan, snapshot }) => {
     return 'recovered';
   }
 
-  if (outstandingBalance > RECOVERY_BALANCE_TOLERANCE) {
-    return 'outstanding';
-  }
-
-  return 'ignored';
+  return 'outstanding';
 };
 
 // ─── Loan Report Records ────────────────────────────────────────────────────
@@ -463,9 +459,19 @@ const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService 
   const serializedLoan = typeof loan.toJSON === 'function' ? loan.toJSON() : loan;
   const completedPayments = payments.filter((payment) => !payment?.status || payment.status === 'completed');
   const totalInterestPaid = completedPayments.reduce((sum, payment) => sum + Number(payment?.interestApplied || 0), 0);
+  // Live overdue snapshot derived from the canonical schedule (same source as the
+  // credits list/calendar and profitability risk signals), so dashboard delinquency
+  // never relies on stale alert state.
+  const derivedOverdue = deriveLoanOverdueSnapshot(serializedLoan).isOverdue;
+  const loanStatus = String(serializedLoan.status || '').toLowerCase();
+  const recoveryStatus = String(serializedLoan.recoveryStatus || '').toLowerCase();
+  const isOverdue = recoveryStatus !== 'recovered'
+    && (PROFITABILITY_OVERDUE_STATUSES.has(loanStatus) || derivedOverdue);
 
   return {
     ...serializedLoan,
+    derivedOverdue,
+    isOverdue,
     totalPaid: snapshot.totalPaid.toFixed(2),
     totalPrincipalRecovered: Number(snapshot.totalPaidPrincipal || 0).toFixed(2),
     totalDue: snapshot.totalPayable.toFixed(2),
