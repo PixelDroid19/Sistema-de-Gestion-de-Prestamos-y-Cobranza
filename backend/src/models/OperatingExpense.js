@@ -1,13 +1,13 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
+const { moneyColumn } = require('./columnTypes');
 
 const OperatingExpense = sequelize.define('OperatingExpense', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  amount: {
-    type: DataTypes.FLOAT,
+  amount: moneyColumn('amount', {
     allowNull: false,
     validate: { min: 0.01 },
-  },
+  }),
   expenseDate: { type: DataTypes.DATE, allowNull: false },
   category: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.STRING, allowNull: false },

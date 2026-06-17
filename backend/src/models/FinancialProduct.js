@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
+const { rateColumn } = require('./columnTypes');
 
 const FinancialProduct = sequelize.define('FinancialProduct', {
   id: {
@@ -15,10 +16,9 @@ const FinancialProduct = sequelize.define('FinancialProduct', {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
   },
-  interestRate: {
-    type: DataTypes.FLOAT,
+  interestRate: rateColumn('interestRate', {
     allowNull: true,
-  },
+  }),
   termMonths: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -27,10 +27,9 @@ const FinancialProduct = sequelize.define('FinancialProduct', {
     type: DataTypes.STRING(20),
     defaultValue: 'NONE',
   },
-  penaltyRate: {
-    type: DataTypes.FLOAT,
+  penaltyRate: rateColumn('penaltyRate', {
     defaultValue: 0,
-  },
+  }),
 }, {
   timestamps: true,
 });

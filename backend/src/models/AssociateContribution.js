@@ -1,10 +1,11 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
+const { moneyColumn } = require('./columnTypes');
 
 const AssociateContribution = sequelize.define('AssociateContribution', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   associateId: { type: DataTypes.INTEGER, allowNull: false },
-  amount: { type: DataTypes.FLOAT, allowNull: false },
+  amount: moneyColumn('amount', { allowNull: false }),
   contributionDate: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'completed' },
   interestTypeSnapshot: {

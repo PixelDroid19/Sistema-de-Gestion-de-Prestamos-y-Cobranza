@@ -6,6 +6,7 @@ const RolePermission = sequelize.define('RolePermission', {
   role: {
     type: DataTypes.ENUM(...ADMINISTRATIVE_LOGIN_ROLES),
     allowNull: false,
+    primaryKey: true,
     validate: {
       notNull: { msg: 'La relación entre rol y permiso debe incluir ambos datos' },
     },
@@ -13,13 +14,13 @@ const RolePermission = sequelize.define('RolePermission', {
   permissionId: {
     type: DataTypes.INTEGER,
     allowNull: false,
+    primaryKey: true,
     validate: {
       notNull: { msg: 'La relación entre rol y permiso debe incluir ambos datos' },
     },
   },
 }, {
   timestamps: false,
-  primaryKey: true,
   validate: {
     compositePrimaryKey() {
       if (!this.role || !this.permissionId) {

@@ -1,13 +1,14 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
+const { moneyColumn } = require('./columnTypes');
 
 const AssociateInstallment = sequelize.define('AssociateInstallment', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   associateId: { type: DataTypes.INTEGER, allowNull: false },
   installmentNumber: { type: DataTypes.INTEGER, allowNull: false },
-  amount: { type: DataTypes.FLOAT, allowNull: false },
+  amount: moneyColumn('amount', { allowNull: false }),
   dueDate: { type: DataTypes.DATE, allowNull: false },
-  capitalBase: { type: DataTypes.FLOAT, allowNull: true },
+  capitalBase: moneyColumn('capitalBase', { allowNull: true }),
   interestRate: { type: DataTypes.DECIMAL(7, 4), allowNull: true },
   interestType: {
     type: DataTypes.ENUM('monthly', 'annual'),
