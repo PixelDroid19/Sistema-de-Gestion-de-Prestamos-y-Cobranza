@@ -352,7 +352,7 @@ const calculateInstallmentLateFeeDue = ({ loan, row, asOfDate }) => {
   const lateFeeDue = calculateLateFee({
     overdueAmount: lateFeeBase,
     daysOverdue,
-    feeMode: String(loan.lateFeeMode || 'SIMPLE').toUpperCase(),
+    feeMode: String(loan.lateFeeMode || 'NONE').toUpperCase(),
     annualRate: Number(loan.annualLateFeeRate || 0),
   });
 
@@ -497,7 +497,7 @@ const buildInstallmentQuote = ({ loan, schedule, installmentNumber, asOfDate = n
     lateFeeBase: lateFee.lateFeeBase,
     lateFeeBaseType: lateFee.lateFeeBaseType,
     annualLateFeeRate: Number(loan.annualLateFeeRate || 0),
-    lateFeeMode: loan.lateFeeMode || 'SIMPLE',
+    lateFeeMode: loan.lateFeeMode || 'NONE',
     daysOverdue: lateFee.daysOverdue,
     totalDue,
     minimumSuggestedPayment: totalDue,

@@ -100,7 +100,7 @@ const calculateInstallmentLateFee = (row, loan, asOfDate = new Date()) => {
   // Late fee is calculated on the interest portion of the overdue installment
   const overdueInterestAmount = roundCurrency(row.remainingInterest || 0);
   const annualRate = Number(loan.annualLateFeeRate || 0);
-  const feeMode = String(loan.lateFeeMode || 'SIMPLE').toUpperCase();
+  const feeMode = String(loan.lateFeeMode || 'NONE').toUpperCase();
 
   return calculateLateFee({
     overdueAmount: overdueInterestAmount > 0 ? overdueInterestAmount : overdueAmount,
@@ -955,6 +955,7 @@ const createPaymentApplicationService = ({
       let totalPrincipalApplied = 0;
       let totalInterestApplied = 0;
       let penaltyAppliedPartial = 0;
+      let partialTargetInstallment = null;
 
       if (hasOverdue) {
         // Penalizaciones por mora: pay late fees on overdue installments first
@@ -986,6 +987,10 @@ const createPaymentApplicationService = ({
 
           row.paidTotal = roundCurrency((row.paidTotal || 0) + interestToApply + principalToApply);
           updateRowStatus(row, now);
+
+          if (partialTargetInstallment === null && (interestToApply > 0 || principalToApply > 0)) {
+            partialTargetInstallment = row.installmentNumber;
+          }
         }
       }
 
@@ -1015,6 +1020,10 @@ const createPaymentApplicationService = ({
           remainingPayment = roundCurrency(remainingPayment - cappedAmount);
           totalInterestApplied = roundCurrency(totalInterestApplied + interestToApply);
           totalPrincipalApplied = roundCurrency(totalPrincipalApplied + principalToApply);
+
+          if (partialTargetInstallment === null && (interestToApply > 0 || principalToApply > 0)) {
+            partialTargetInstallment = row.installmentNumber;
+          }
         }
       }
 
@@ -1056,7 +1065,7 @@ const createPaymentApplicationService = ({
           interestApplied: totalInterestApplied,
           penaltyApplied: penaltyAppliedPartial,
           remainingBalance: snapshot.outstandingBalance,
-          installmentNumber: schedule.find((r) => (r.paidPrincipal > 0 || r.paidInterest > 0))?.installmentNumber || null,
+          installmentNumber: partialTargetInstallment,
         },
       };
       },

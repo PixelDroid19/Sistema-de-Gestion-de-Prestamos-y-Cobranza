@@ -99,6 +99,11 @@ const createRuntimeApp = ({ actor, useCases, validation = runtimeLoanValidation 
         return actor;
       },
     },
+    permissionService: {
+      async checkMultiple(_user, permissions = []) {
+        return { granted: permissions, denied: [] };
+      },
+    },
   });
 
   app.use(express.json());
