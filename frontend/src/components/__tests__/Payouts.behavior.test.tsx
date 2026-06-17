@@ -77,6 +77,11 @@ vi.mock('../../services/configService', () => ({
   useConfig: () => ({
     paymentMethods: paymentMethodsFixture,
   }),
+  useActivePaymentMethods: () => ({
+    paymentMethods: paymentMethodsFixture,
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('../../services/paymentService', () => ({

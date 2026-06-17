@@ -22,7 +22,7 @@ import {
 import { getChipClassName } from '../constants/uiChips';
 import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type CapitalStrategy, type PaymentMethod } from '../services/loanService';
-import { useConfig } from '../services/configService';
+import { useActivePaymentMethods } from '../services/configService';
 import {
   ActionButton,
   AppInput,
@@ -45,7 +45,7 @@ export default function Payouts() {
   const queryClient = useQueryClient();
   const { user } = useSessionStore();
   const { executeGuardedAction } = useOperationalActions(queryClient);
-  const { paymentMethods: configuredPaymentMethods } = useConfig({ enabled: user?.role === 'admin' });
+  const { paymentMethods: configuredPaymentMethods } = useActivePaymentMethods({ enabled: user?.role === 'admin' || user?.role === 'employee' });
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);

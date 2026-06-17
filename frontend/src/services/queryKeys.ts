@@ -130,6 +130,7 @@ export const queryKeys = {
   },
   config: {
     paymentMethods: ['config.paymentMethods'] as const,
+    activePaymentMethods: ['config.activePaymentMethods'] as const,
     ratePolicies: ['config.ratePolicies'] as const,
     lateFeePolicies: ['config.lateFeePolicies'] as const,
     settings: ['config.settings'] as const,

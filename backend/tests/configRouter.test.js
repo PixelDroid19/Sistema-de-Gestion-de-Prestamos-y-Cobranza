@@ -162,6 +162,53 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   ]);
 });
 
+test('createConfigRouter lets employees read active payment methods only', async (t) => {
+  const calls = [];
+  const app = express();
+
+  app.use(express.json());
+  app.use(createConfigRouter({
+    authMiddleware: allowAdminOnly,
+    useCases: {
+      async listActivePaymentMethods() {
+        calls.push(['listActivePaymentMethods']);
+        return [{ id: 31, label: 'Transferencia activa', key: 'transferencia-activa', isActive: true, requiresReference: true, description: '' }];
+      },
+      async listPaymentMethods() {
+        calls.push(['listPaymentMethods']);
+        return [];
+      },
+      async listRoles() {
+        return ['admin', 'employee'];
+      },
+    },
+  }));
+  app.use(globalErrorHandler);
+
+  const activeServer = await listenForTest(t, app);
+
+  const activeResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/payment-methods/active',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'employee' },
+  });
+  const adminOnlyResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/payment-methods',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'employee' },
+  });
+
+  assert.equal(activeResponse.statusCode, 200);
+  assert.deepEqual(activeResponse.body, {
+    success: true,
+    data: {
+      paymentMethods: [{ id: 31, label: 'Transferencia activa', key: 'transferencia-activa', isActive: true, requiresReference: true, description: '' }],
+    },
+  });
+  assert.equal(adminOnlyResponse.statusCode, 403);
+  assert.deepEqual(calls, [['listActivePaymentMethods']]);
+});
+
 test('createConfigRouter rejects malformed config resource identifiers before executing mutations', async (t) => {
   const calls = [];
   const app = express();

@@ -47,6 +47,28 @@ type UseConfigOptions = {
   enabled?: boolean;
 };
 
+/**
+ * Read-only active payment methods for backoffice operators (admin + employee).
+ * Backed by GET /config/payment-methods/active, so employees can select
+ * admin-configured methods when registering payments without admin config access.
+ */
+export const useActivePaymentMethods = ({ enabled = true }: UseConfigOptions = {}) => {
+  const getActivePaymentMethods = useQuery({
+    queryKey: queryKeys.config.activePaymentMethods,
+    queryFn: async () => {
+      const { data } = await apiClient.get('/config/payment-methods/active');
+      return data;
+    },
+    enabled,
+  });
+
+  return {
+    paymentMethods: toArray(getActivePaymentMethods.data?.data?.paymentMethods).map(mapPaymentMethod),
+    isLoading: getActivePaymentMethods.isLoading,
+    isError: getActivePaymentMethods.isError,
+  };
+};
+
 export const useConfig = ({ enabled = true }: UseConfigOptions = {}) => {
   const getPaymentMethods = useQuery({
     queryKey: queryKeys.config.paymentMethods,

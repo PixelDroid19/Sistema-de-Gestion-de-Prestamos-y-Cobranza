@@ -480,6 +480,16 @@ const createListPaymentMethods = ({ configRepository }) => async () => {
   return entries.map(buildPaymentMethod);
 };
 
+/**
+ * List only the ACTIVE payment methods. Read-only and exposed to backoffice
+ * operators (admin + employee) so they can select admin-configured methods when
+ * registering payments, without granting access to the admin configuration surface.
+ */
+const createListActivePaymentMethods = ({ configRepository }) => async () => {
+  const entries = await configRepository.listActiveByCategory(PAYMENT_METHOD_CATEGORY);
+  return entries.map(buildPaymentMethod);
+};
+
 const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key, description, requiresReference, isActive, type, metadata }) => {
   const normalizedLabel = requireText(label, 'label');
   const normalizedKey = normalizeKey(key || normalizedLabel);
@@ -820,6 +830,7 @@ const createListRoles = () => async () => {
 module.exports = {
   ADMIN_CATALOGS,
   createListPaymentMethods,
+  createListActivePaymentMethods,
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,

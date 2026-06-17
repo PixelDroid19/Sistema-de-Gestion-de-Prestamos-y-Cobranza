@@ -90,6 +90,14 @@ const createConfigRouter = ({ authMiddleware, useCases, auditService, notificati
     res.json({ success: true, data: { roles } });
   }));
 
+  // Read-only active payment methods for backoffice operators (admin + employee),
+  // so employees can pick admin-configured methods when registering payments without
+  // reaching the admin-only configuration surface below.
+  router.get('/payment-methods/active', authMiddleware(['admin', 'employee']), asyncHandler(async (_req, res) => {
+    const paymentMethods = await useCases.listActivePaymentMethods();
+    res.json({ success: true, data: { paymentMethods } });
+  }));
+
   router.use(authMiddleware(['admin']));
 
   router.get('/payment-methods', asyncHandler(async (_req, res) => {

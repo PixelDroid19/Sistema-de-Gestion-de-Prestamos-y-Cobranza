@@ -135,6 +135,11 @@ vi.mock('../../services/configService', () => ({
   useConfig: () => ({
     paymentMethods: creditDetailPaymentMethods,
   }),
+  useActivePaymentMethods: () => ({
+    paymentMethods: creditDetailPaymentMethods,
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('../../services/loanService', () => {

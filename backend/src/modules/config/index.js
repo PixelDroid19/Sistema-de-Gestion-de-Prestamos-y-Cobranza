@@ -1,6 +1,7 @@
 const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListPaymentMethods,
+  createListActivePaymentMethods,
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,
@@ -32,6 +33,7 @@ const createConfigModule = ({ sharedRuntime, auditService } = {}) => {
   const notificationService = sharedRuntime?.notificationService;
   const useCases = {
     listPaymentMethods: createListPaymentMethods({ configRepository }),
+    listActivePaymentMethods: createListActivePaymentMethods({ configRepository }),
     createPaymentMethod: createCreatePaymentMethod({ configRepository }),
     updatePaymentMethod: createUpdatePaymentMethod({ configRepository }),
     deletePaymentMethod: createDeletePaymentMethod({ configRepository }),

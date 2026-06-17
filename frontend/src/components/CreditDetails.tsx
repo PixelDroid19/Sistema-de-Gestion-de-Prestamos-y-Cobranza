@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Bell, Clock, DollarSign, Edit2, ShieldAlert, Activity, AlertCircle, FileText } from 'lucide-react';
 import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
-import { useConfig } from '../services/configService';
+import { useActivePaymentMethods } from '../services/configService';
 import { exportCreditExcel, useCreditReports } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
 import { useResolvedPermissionNames } from '../services/permissionsService';
@@ -93,7 +93,7 @@ export default function CreditDetails() {
   // -------------------------------------------------------------------------
   // Config & payment method options
   // -------------------------------------------------------------------------
-  const { paymentMethods: configuredPaymentMethods } = useConfig({ enabled: isAdmin });
+  const { paymentMethods: configuredPaymentMethods } = useActivePaymentMethods({ enabled: isBackofficeUser });
   const paymentMethodOptions = useMemo(() => {
     const active = configuredPaymentMethods
       .filter((m: any) => m?.isActive !== false)
