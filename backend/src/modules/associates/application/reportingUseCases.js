@@ -25,7 +25,14 @@ const {
 const {
   normalizeAssociateRecord,
   normalizeParticipationPercentage,
+  filterCapitalBearingContributions,
 } = require('./useCases');
+
+// Reinvestments create both a ProfitDistribution and a matching AssociateContribution,
+// so they must be excluded from "distributed profit" to avoid double-counting against
+// the operational financial-detail read-model (which uses interestWithdrawals only).
+const NON_PROFIT_DISTRIBUTION_TYPES = new Set(['capital_return', 'reinvestment']);
+const isDistributedProfit = (distribution) => !NON_PROFIT_DISTRIBUTION_TYPES.has(distribution.distributionType);
 
 const ASSOCIATE_DISTRIBUTION_TYPE_LABELS = {
   proportional: 'Proporcional',
@@ -378,10 +385,11 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
         isWithinDateRange(installment.status === 'paid' ? installment.paidAt : installment.dueDate, dateRange)
       ));
 
-      const totalContributed = filteredContributions.reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0);
+      const totalContributed = filterCapitalBearingContributions(filteredContributions)
+        .reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0);
       const normalizedDistributions = filteredDistributions.map(normalizeReportingDistributionRecord);
       const totalDistributed = normalizedDistributions
-        .filter((distribution) => distribution.distributionType !== 'capital_return')
+        .filter(isDistributedProfit)
         .reduce((sum, distribution) => sum + Number(distribution.amount || 0), 0);
       const totalCapitalReturned = normalizedDistributions
         .filter((distribution) => distribution.distributionType === 'capital_return')
@@ -557,10 +565,11 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
     associateRepository.listProfitDistributionsByAssociate(associate.id),
   ]);
 
-  const totalContributed = contributions.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const totalContributed = filterCapitalBearingContributions(contributions)
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const normalizedDistributions = distributions.map(normalizeReportingDistributionRecord);
   const totalDistributed = normalizedDistributions
-    .filter((item) => item.distributionType !== 'capital_return')
+    .filter(isDistributedProfit)
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalCapitalReturned = normalizedDistributions
     .filter((item) => item.distributionType === 'capital_return')
@@ -574,7 +583,7 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
       totalCapitalReturned: totalCapitalReturned.toFixed(2),
       netProfit: totalDistributed.toFixed(2),
       contributionCount: contributions.length,
-      distributionCount: normalizedDistributions.filter((item) => item.distributionType !== 'capital_return').length,
+      distributionCount: normalizedDistributions.filter(isDistributedProfit).length,
       participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
     },
     data: {

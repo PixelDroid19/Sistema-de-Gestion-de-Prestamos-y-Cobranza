@@ -360,7 +360,11 @@ const associateRepository = {
         distributionKind: d?.basis?.type ?? null,
         displayType: d?.basis?.type === 'capital-return'
           ? 'Devolución de capital'
-          : (d?.basis?.type === 'reinvestment' ? 'Reinversión' : 'Pago manual de rentabilidad'),
+          : (d?.basis?.type === 'reinvestment'
+            ? 'Reinversión'
+            : (d?.basis?.type === 'proportional-participation'
+              ? 'Pago proporcional de rentabilidad'
+              : 'Pago manual de rentabilidad')),
       })),
       installments: installments.map((i) => ({
         id: i.id,

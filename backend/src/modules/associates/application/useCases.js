@@ -906,7 +906,7 @@ const allocateProportionalDistribution = ({ associates, amountCents }) => {
     .map((allocation) => ({
       associate: allocation.associate,
       amountCents: allocation.flooredCents,
-      roundingAdjustmentCents: recipients.includes(allocation) && allocation.flooredCents > Math.floor((amountCents * allocation.associate.participationUnits) / HUNDRED_PERCENT_UNITS)
+      roundingAdjustmentCents: allocation.flooredCents > Math.floor((amountCents * allocation.associate.participationUnits) / HUNDRED_PERCENT_UNITS)
         ? 1
         : 0,
     }))
@@ -2138,6 +2138,7 @@ module.exports = {
   normalizeDistributionRecord,
   normalizeAssociateRecord,
   normalizeParticipationPercentage,
+  filterCapitalBearingContributions,
   createListAssociates,
   createCreateAssociate,
   createGetAssociateById,

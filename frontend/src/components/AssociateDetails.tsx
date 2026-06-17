@@ -47,7 +47,7 @@ const formatSignedCurrency = (value: unknown, type?: string, status?: string) =>
   const numericValue = Number(value || 0);
   const prefix = type === 'contribution'
     ? '+'
-    : (['distribution', 'capitalReturn'].includes(String(type)) ? '-' : (status === 'paid' ? '✓ ' : ''));
+    : (['distribution', 'capitalReturn', 'installment'].includes(String(type)) ? '-' : (status === 'paid' ? '✓ ' : ''));
   return `${prefix}${formatAssociateCurrency(numericValue)}`;
 };
 
