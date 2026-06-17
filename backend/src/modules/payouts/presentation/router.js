@@ -95,6 +95,19 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     });
   }));
 
+  // Project a capital reduction (dry-run) so the UI preview reuses the apply engine.
+  router.post('/capital/preview', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
+    assertBackofficeActor(req.user, 'Solo usuarios administrativos autorizados pueden simular abonos a capital.');
+    const preview = await useCases.previewCapitalPayment({
+      actor: req.user,
+      loanId: req.body?.loanId,
+      amount: req.body?.amount,
+      strategy: req.body?.strategy,
+      newTermMonths: req.body?.newTermMonths,
+    });
+    res.json({ success: true, data: { preview } });
+  }));
+
   // Create capital reduction payment (authorized backoffice users only).
   router.post('/capital', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
     assertBackofficeActor(req.user, 'Solo usuarios administrativos autorizados pueden registrar abonos a capital.');

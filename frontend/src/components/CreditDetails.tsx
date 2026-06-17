@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Bell, Clock, DollarSign, Edit2, ShieldAlert, Activity, AlertCircle, FileText } from 'lucide-react';
 import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
@@ -6,7 +6,7 @@ import { useConfig } from '../services/configService';
 import { exportCreditExcel, useCreditReports } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
 import { useResolvedPermissionNames } from '../services/permissionsService';
-import { downloadVoucher } from '../services/paymentService';
+import { downloadVoucher, useCapitalPaymentPreview } from '../services/paymentService';
 import { toast } from '../lib/toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOperationalActions } from './hooks/useOperationalActions';
@@ -45,7 +45,6 @@ import {
   formatOperationalStatus,
   getStatusInfo,
   getAlertPresentation,
-  computeCapitalPreview,
   PAYABLE_STATUSES,
 } from './creditDetails/creditDetailsHelpers';
 import { CalendarTab } from './creditDetails/CalendarTab';
@@ -339,10 +338,49 @@ export default function CreditDetails() {
     ...(paymentSnapshot || {}),
     ...(calendarSnapshot || {}),
   }), [calendarSnapshot, paymentSnapshot]);
-  const capitalPreview = useMemo(
-    () => computeCapitalPreview(capitalAmount, capitalStrategy, capitalNewTermMonths, loan, currentFinancialSnapshot),
-    [capitalAmount, capitalStrategy, capitalNewTermMonths, loan, currentFinancialSnapshot],
+  // Debounce the capital inputs before hitting the backend preview so typing the
+  // amount does not fire a request per keystroke.
+  const [debouncedCapital, setDebouncedCapital] = useState({ amount: capitalAmount, strategy: capitalStrategy, newTermMonths: capitalNewTermMonths });
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCapital({ amount: capitalAmount, strategy: capitalStrategy, newTermMonths: capitalNewTermMonths });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [capitalAmount, capitalStrategy, capitalNewTermMonths]);
+
+  const capitalPreviewQuery = useCapitalPaymentPreview(
+    { loanId, amount: debouncedCapital.amount, strategy: debouncedCapital.strategy, newTermMonths: debouncedCapital.newTermMonths },
+    { enabled: showCapitalModal },
   );
+
+  // The "current" figures are plain reads from the canonical snapshot; the projected
+  // installment/term come from the backend dry-run so the French amortization formula
+  // lives in exactly one place (the payment engine), never duplicated in the UI.
+  const capitalPreview = useMemo(() => {
+    const amount = parsePositiveMoneyInput(capitalAmount) ?? 0;
+    const currentPrincipal = Number(currentFinancialSnapshot?.outstandingPrincipal ?? loan?.principalOutstanding ?? 0);
+    const remainingInstallments = Number(currentFinancialSnapshot?.outstandingInstallments ?? 0);
+    const currentInstallment = Number(currentFinancialSnapshot?.nextInstallment?.scheduledPayment ?? loan?.installmentAmount ?? 0);
+    const preview = capitalPreviewQuery.data;
+    const amountExceedsPrincipal = amount > currentPrincipal && currentPrincipal > 0;
+    const canShowLocalProjection = Number.isFinite(amount) && amount > 0 && !amountExceedsPrincipal;
+    const newPrincipal = preview
+      ? preview.after.outstandingPrincipal
+      : canShowLocalProjection
+        ? Math.max(0, currentPrincipal - amount)
+        : currentPrincipal;
+    return {
+      amount,
+      currentPrincipal,
+      newPrincipal,
+      currentInstallment,
+      // Until the backend responds, mirror the current figures instead of estimating
+      // locally — no formula is ever recomputed client-side.
+      estimatedPayment: preview && !amountExceedsPrincipal ? preview.after.installmentAmount : currentInstallment,
+      remainingInstallments,
+      estimatedInstallments: preview && !amountExceedsPrincipal ? preview.after.remainingInstallments : remainingInstallments,
+    };
+  }, [capitalAmount, currentFinancialSnapshot, loan, capitalPreviewQuery.data]);
   const defaultCapitalNewTermMonths = useMemo(() => {
     const remainingInstallments = Number(currentFinancialSnapshot?.outstandingInstallments ?? 0);
     return Number.isFinite(remainingInstallments) && remainingInstallments > 0 ? String(remainingInstallments) : '';

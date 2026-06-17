@@ -477,6 +477,111 @@ test('applyCapitalPayment reduce_term keeps the installment fixed, shortens the 
   assert.equal(savedLoan.amount, 2000000);
 });
 
+test('previewCapitalPayment reuses capital prepayment rules without mutating the loan', async () => {
+  const schedule = buildAmortizationSchedule({
+    amount: 2000000,
+    interestRate: 60,
+    termMonths: 12,
+    startDate: '2026-06-10T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  const originalInstallment = schedule[0].scheduledPayment;
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 3302,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 2000000,
+    interestRate: 60,
+    termMonths: 12,
+    calculationMethod: 'FRENCH',
+    installmentAmount: originalInstallment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      throw new Error('preview must not save');
+    },
+  };
+
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  const preview = await createPaymentApplicationService({ loanViewService }).previewCapitalPayment({
+    loanId: 3302,
+    amount: 500000,
+    asOfDate: '2026-07-10T00:00:00.000Z',
+    strategy: 'reduce_term',
+  });
+
+  assert.equal(preview.before.outstandingPrincipal, startingSnapshot.outstandingPrincipal);
+  assert.equal(preview.after.outstandingPrincipal, roundCurrency(startingSnapshot.outstandingPrincipal - 500000));
+  assert.ok(preview.after.remainingInstallments < preview.before.remainingInstallments);
+  assert.equal(preview.after.installmentAmount, originalInstallment);
+  assert.equal(loan.financialSnapshot, startingSnapshot);
+  assert.equal(loan.emiSchedule, schedule);
+});
+
+test('previewCapitalPayment rejects amounts greater than live principal like the apply path', async () => {
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    startDate: '2026-05-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 3303,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[1].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+  };
+
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).previewCapitalPayment({
+    loanId: 3303,
+    amount: startingSnapshot.outstandingPrincipal + 1,
+    asOfDate: '2026-05-15T00:00:00.000Z',
+    strategy: 'reduce_term',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'CAPITAL_PAYMENT_EXCEEDS_PRINCIPAL',
+      message: 'El abono a capital no puede exceder el capital vivo del crédito',
+      outstandingPrincipal: startingSnapshot.outstandingPrincipal,
+      requestedAmount: roundCurrency(startingSnapshot.outstandingPrincipal + 1),
+    }]);
+    return true;
+  });
+});
+
 test('applyCapitalPayment stores the operator who registered the capital movement', async () => {
   let savedPayment;
   const schedule = buildAmortizationSchedule({

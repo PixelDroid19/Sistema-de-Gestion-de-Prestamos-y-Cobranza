@@ -85,6 +85,7 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../../services/paymentService', () => ({
   downloadVoucher: vi.fn(),
+  useCapitalPaymentPreview: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 
 vi.mock('../../services/reportService', () => ({

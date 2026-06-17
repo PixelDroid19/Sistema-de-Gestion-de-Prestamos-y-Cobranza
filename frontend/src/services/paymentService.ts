@@ -89,3 +89,28 @@ export const usePayments = (params?: { page?: number; pageSize?: number; search?
     updatePaymentMetadata,
   };
 };
+
+export type CapitalPaymentPreviewResponse = {
+  strategyRequested: string;
+  strategyApplied: string;
+  newTermMonths: number | null;
+  exceedsPrincipal: boolean;
+  before: { outstandingPrincipal: number; remainingInstallments: number; installmentAmount: number };
+  after: { outstandingPrincipal: number; outstandingBalance: number; remainingInstallments: number; installmentAmount: number };
+};
+
+/**
+ * Dry-run a capital prepayment against the backend so the operator preview uses the
+ * exact same amortization engine as the apply path (no duplicated formulas in the UI).
+ */
+export const useCapitalPaymentPreview = (
+  { loanId, amount, strategy, newTermMonths }: { loanId?: number | string; amount?: string; strategy?: string; newTermMonths?: string },
+  options?: { enabled?: boolean },
+) => useQuery({
+  queryKey: queryKeys.payments.capitalPreview(loanId, amount, strategy, newTermMonths),
+  enabled: (options?.enabled ?? true) && Boolean(loanId) && Number(amount) > 0,
+  queryFn: async () => {
+    const { data } = await apiClient.post('/payments/capital/preview', { loanId, amount, strategy, newTermMonths });
+    return data?.data?.preview as CapitalPaymentPreviewResponse;
+  },
+});

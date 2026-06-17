@@ -158,6 +158,8 @@ export const queryKeys = {
     all: ['payments'] as const,
     listRoot: ['payments.list'] as const,
     list: (params?: PaymentListParams) => ['payments.list', params ?? {}] as const,
+    capitalPreview: (loanId?: number | string, amount?: string, strategy?: string, newTermMonths?: string) =>
+      ['payments.capitalPreview', loanId ?? null, amount ?? '', strategy ?? '', newTermMonths ?? ''] as const,
   },
   notifications: {
     all: ['notifications'] as const,

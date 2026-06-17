@@ -325,6 +325,28 @@ const createCreateCapitalPayment = ({
   }
 };
 
+/**
+ * Create the read-only use case that projects a capital prepayment (dry-run) so the
+ * UI preview uses the exact same engine as the apply path — no duplicated formulas.
+ */
+const createPreviewCapitalPayment = ({
+  paymentApplicationService,
+  loanAccessPolicy,
+}) => async ({ actor, loanId, amount, strategy, newTermMonths }) => {
+  if (!['admin', 'employee'].includes(actor?.role)) {
+    throw new AuthorizationError(CAPITAL_PAYMENT_CREATE_DENIED_MESSAGE);
+  }
+
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+
+  return paymentApplicationService.previewCapitalPayment({
+    loanId: loan.id,
+    amount,
+    strategy,
+    newTermMonths,
+  });
+};
+
 const createCalculateTotalDebt = ({ loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const quote = loanViewService.getPayoffQuote(loan, asOfDate || new Date().toISOString().slice(0, 10));
@@ -544,6 +566,7 @@ module.exports = {
   createCreatePayment,
   createCreatePartialPayment,
   createCreateCapitalPayment,
+  createPreviewCapitalPayment,
   createCalculateTotalDebt,
   createPayTotalDebt,
   createAnnulInstallment,

@@ -1883,10 +1883,94 @@ const createPaymentApplicationService = ({
     return result;
   };
 
+  /**
+   * Dry-run a capital prepayment and return the same before/after projection the
+   * apply path would persist, WITHOUT mutating anything. This is the single source
+   * of truth for the operator-facing preview, so the UI never re-implements the
+   * French installment / reduced-term formulas.
+   */
+  const previewCapitalPayment = ({ loanId, amount, strategy = 'REDUCE_TIME', newTermMonths = null, asOfDate = clock() }) => loanModel.findByPk(loanId).then((loan) => {
+    if (!loan) {
+      throw new NotFoundError('Loan');
+    }
+
+    assertPayableLoanStatus(loan);
+
+    const numericAmount = assertPositiveAmount(amount);
+    const normalizedAsOfDate = normalizePaymentDate(asOfDate);
+    const { schedule: canonicalSchedule, snapshot: canonicalSnapshot } = loanViewService.getCanonicalLoanView(loan);
+    const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedAsOfDate);
+    const capitalStrategy = normalizeCapitalStrategy(strategy);
+
+    const capitalBefore = roundCurrency(canonicalSnapshot.outstandingPrincipal || loan.principalOutstanding || 0);
+    const previousRemainingInstallments = schedule.filter((row) => !isAnnulledOrPaid(row)).length;
+
+    assertCapitalPaymentAllowed({
+      loan,
+      schedule,
+      snapshot: canonicalSnapshot,
+      asOfDate: normalizedAsOfDate,
+    });
+    assertCapitalScheduleCanBeRebuilt({ schedule, asOfDate: normalizedAsOfDate });
+    assertCapitalPaymentDoesNotExceedPrincipal({
+      amount: numericAmount,
+      outstandingPrincipal: capitalBefore,
+    });
+
+    // Lenient term resolution: the live preview must render even before the operator
+    // has typed a valid new term, so fall back to the current remaining count instead
+    // of throwing the way the strict apply path does.
+    const selectedNewTermMonths = capitalStrategy.applied === 'reduce_payment'
+      ? (() => {
+        try {
+          return assertCapitalRescheduleTerm(newTermMonths);
+        } catch {
+          return previousRemainingInstallments || loan.termMonths || null;
+        }
+      })()
+      : null;
+
+    const principalReduction = numericAmount;
+    const principalAfterReduction = roundCurrency(Math.max(0, capitalBefore - principalReduction));
+
+    const rebuiltSchedule = rebuildPendingScheduleAfterCapitalPayment({
+      schedule,
+      loan,
+      principalAfterReduction,
+      capitalStrategy,
+      newTermMonths: selectedNewTermMonths,
+    });
+    const snapshot = applyCapitalAdjustmentToSnapshot({
+      snapshot: buildSnapshot(rebuiltSchedule),
+      previousSnapshot: canonicalSnapshot,
+      principalReduction,
+    });
+    const newRemainingInstallments = rebuiltSchedule.filter((row) => !isAnnulledOrPaid(row)).length;
+
+    return {
+      strategyRequested: capitalStrategy.requested,
+      strategyApplied: capitalStrategy.applied,
+      newTermMonths: selectedNewTermMonths,
+      exceedsPrincipal: numericAmount > capitalBefore,
+      before: {
+        outstandingPrincipal: capitalBefore,
+        remainingInstallments: previousRemainingInstallments,
+        installmentAmount: roundCurrency(canonicalSnapshot.nextInstallment?.scheduledPayment || loan.installmentAmount || 0),
+      },
+      after: {
+        outstandingPrincipal: snapshot.outstandingPrincipal,
+        outstandingBalance: snapshot.outstandingBalance,
+        remainingInstallments: newRemainingInstallments,
+        installmentAmount: roundCurrency(snapshot.nextInstallment?.scheduledPayment || 0),
+      },
+    };
+  });
+
   return {
     applyPayment,
     applyPartialPayment,
     applyCapitalPayment,
+    previewCapitalPayment,
     applyPayoff,
     annulInstallment,
     buildPaymentOperationIdempotencyKey,

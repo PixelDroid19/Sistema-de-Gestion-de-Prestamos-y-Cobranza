@@ -1,6 +1,5 @@
 import { tTerm } from '../../i18n/terminology';
 import { formatLoanAlertTypeLabel } from '../../lib/loanAlertLabels';
-import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -273,6 +272,10 @@ export function getAlertPresentation(
 // Capital preview calculation (pure)
 // ---------------------------------------------------------------------------
 
+// The capital prepayment projection (current vs. estimated installment/term) is
+// produced by the backend dry-run endpoint POST /payments/capital/preview, which
+// reuses the canonical amortization engine. The UI no longer recomputes the French
+// installment / reduced-term formulas; it only renders this shape.
 export type CapitalPreview = {
   amount: number;
   currentPrincipal: number;
@@ -282,46 +285,3 @@ export type CapitalPreview = {
   remainingInstallments: number;
   estimatedInstallments: number;
 };
-
-/**
- * Builds the operator-facing preview for a capital prepayment without applying
- * JavaScript numeric coercions that the real submit path rejects.
- */
-export function computeCapitalPreview(
-  capitalAmount: string,
-  capitalStrategy: string,
-  capitalNewTermMonths: string,
-  loan: any,
-  paymentSnapshot: any,
-): CapitalPreview {
-  const amount = parsePositiveMoneyInput(capitalAmount) ?? 0;
-  const currentPrincipal = Number(paymentSnapshot?.outstandingPrincipal ?? loan?.principalOutstanding ?? 0);
-  const remainingInstallments = Number(paymentSnapshot?.outstandingInstallments ?? 0);
-  const effectiveNewTerm = parsePositiveIntegerInput(capitalNewTermMonths) ?? remainingInstallments;
-  const currentInstallment = Number(paymentSnapshot?.nextInstallment?.scheduledPayment ?? loan?.installmentAmount ?? 0);
-  const annualRate = Number(loan?.interestRate ?? 0);
-  const newPrincipal = Math.max(0, currentPrincipal - (Number.isFinite(amount) ? amount : 0));
-  const monthlyRate = annualRate / 100 / 12;
-
-  const estimatePayment = (principal: number, term: number) => {
-    if (principal <= 0 || term <= 0) return 0;
-    if (monthlyRate <= 0) return principal / term;
-    return (principal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
-  };
-
-  const estimateTerm = () => {
-    if (newPrincipal <= 0) return 0;
-    if (currentInstallment <= 0 || remainingInstallments <= 0) return remainingInstallments;
-    if (monthlyRate <= 0) return Math.min(remainingInstallments, Math.ceil(newPrincipal / currentInstallment));
-    if (currentInstallment <= newPrincipal * monthlyRate) return remainingInstallments;
-    const rawTerm = Math.ceil(-Math.log(1 - ((newPrincipal * monthlyRate) / currentInstallment)) / Math.log(1 + monthlyRate));
-    return Number.isFinite(rawTerm) ? Math.max(1, Math.min(remainingInstallments, rawTerm)) : remainingInstallments;
-  };
-
-  const estimatedInstallments = capitalStrategy === 'reduce_payment' ? effectiveNewTerm : estimateTerm();
-  const estimatedPayment = capitalStrategy === 'reduce_payment'
-    ? estimatePayment(newPrincipal, effectiveNewTerm)
-    : Math.min(currentInstallment, estimatePayment(newPrincipal, estimatedInstallments) || currentInstallment);
-
-  return { amount, currentPrincipal, newPrincipal, currentInstallment, estimatedPayment, remainingInstallments, estimatedInstallments };
-}
