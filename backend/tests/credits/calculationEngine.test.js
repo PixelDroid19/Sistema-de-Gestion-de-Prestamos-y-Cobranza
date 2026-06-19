@@ -33,9 +33,10 @@ test('calculateCredit returns a traceable profile-backed contract', () => {
   assert.equal(result.policySnapshot.ratePolicyId, 2);
   assert.equal(result.policySnapshot.calculationProfileVersionId, 11);
   assert.equal(result.explanation.profile.name, 'Perfil base de cálculo de crédito');
-  assert.equal(result.summary.installmentAmount, 106.27);
-  assert.equal(result.summary.totalInterest, 75.3);
-  assert.equal(result.summary.totalPayable, 1275.3);
+  assert.equal(result.summary.installmentAmount, 106.62);
+  assert.equal(result.summary.totalInterest, 79.42);
+  assert.equal(result.summary.totalPayable, 1279.42);
+  assert.equal(result.explanation.inputs.annualRateConvention, 'TNA_30_360');
   assert.equal(result.schedule.length, 12);
   assert.equal(result.schedule[0].dueDate, '2026-02-01T00:00:00.000Z');
   assert.equal(result.explanation.method.title, 'Sistema francés');
@@ -138,9 +139,9 @@ test('calculateCredit defaults missing startDate to the disbursement day instead
 
 test('calculateCredit supports FRENCH, SIMPLE, and COMPOUND methods with explicit totals', () => {
   const scenarios = [
-    ['FRENCH', { installmentAmount: 106.27, totalInterest: 75.3, totalPayable: 1275.3 }],
+    ['FRENCH', { installmentAmount: 106.62, totalInterest: 79.42, totalPayable: 1279.42 }],
     ['SIMPLE', { installmentAmount: 112, totalInterest: 144, totalPayable: 1344 }],
-    ['COMPOUND', { installmentAmount: 112, totalInterest: 144, totalPayable: 1344 }],
+    ['COMPOUND', { installmentAmount: 112.68, totalInterest: 152.19, totalPayable: 1352.19 }],
   ];
 
   for (const [method, expected] of scenarios) {

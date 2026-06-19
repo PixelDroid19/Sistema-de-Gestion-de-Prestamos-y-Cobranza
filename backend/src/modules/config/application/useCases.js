@@ -44,6 +44,8 @@ const CONFIG_FIELD_LABELS = {
   label: 'El nombre',
   maxAmount: 'El monto máximo',
   minAmount: 'El monto mínimo',
+  ratePolicyAnnualRate: 'La TNA 30/360',
+  lateFeeAnnualEffectiveRate: 'La tasa de mora efectiva anual',
   settingKey: 'El identificador de la configuración',
 };
 
@@ -344,7 +346,7 @@ const normalizeRatePolicyPayload = (payload = {}, existing = null) => {
       minAmount,
       maxAmount,
       annualEffectiveRate: payload.annualEffectiveRate !== undefined
-        ? assertPercent(payload.annualEffectiveRate, 'annualEffectiveRate')
+        ? assertPercent(payload.annualEffectiveRate, 'ratePolicyAnnualRate')
         : Number(existing?.value?.annualEffectiveRate || 0),
       priority: normalizePolicyPriority(payload.priority ?? existing?.value?.priority),
       description: payload.description !== undefined
@@ -372,7 +374,7 @@ const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
     isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : existing?.isActive !== false,
     value: {
       annualEffectiveRate: payload.annualEffectiveRate !== undefined
-        ? assertPercent(payload.annualEffectiveRate, 'annualEffectiveRate')
+        ? assertPercent(payload.annualEffectiveRate, 'lateFeeAnnualEffectiveRate')
         : Number(existing?.value?.annualEffectiveRate || 0),
       lateFeeMode: mode,
       priority: normalizePolicyPriority(payload.priority ?? existing?.value?.priority),

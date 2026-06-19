@@ -225,7 +225,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ?? 0,
   );
   const appliedMonthlyRate = getEquivalentMonthlyRate(appliedAnnualRate);
-  const liveRateFormula = `${formatPercent(appliedAnnualRate, locale)} EA -> ${formatPercent(appliedMonthlyRate, locale)} mensual equivalente`;
+  const liveRateFormula = `${formatPercent(appliedAnnualRate, locale)} TNA / 12 = ${formatPercent(appliedMonthlyRate, locale)}`;
   const termMonths = Number(input.termMonths || 0);
   const pendingCalculationValue = tTerm('newCredit.snapshot.pendingValue');
   const snapshotInstallment = hasValidatedResult
@@ -310,7 +310,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       monthlyRate,
       ruleLabel: String(resolvedRatePolicy.label || ''),
       rangeLabel: formatRange(resolvedRatePolicy.minAmount, resolvedRatePolicy.maxAmount),
-      formulaLabel: `${formatPercent(annualRate, locale)} EA -> ${formatPercent(monthlyRate, locale)} mensual equivalente`,
+      formulaLabel: `${formatPercent(annualRate, locale)} TNA / 12 = ${formatPercent(monthlyRate, locale)}`,
     };
   }, [
     ambiguousRatePolicyMatches,

@@ -46,14 +46,8 @@ export const getRatePolicyConflictsForAmount = (matches: any[]) => {
   return orderedMatches.length > 1 ? orderedMatches : [];
 };
 
-export const getEquivalentMonthlyRate = (annualRate: unknown) => {
-  const normalizedAnnualRate = Number(annualRate || 0) / 100;
-  if (!Number.isFinite(normalizedAnnualRate) || normalizedAnnualRate <= 0) {
-    return 0;
-  }
-
-  return (Math.pow(1 + normalizedAnnualRate, 1 / 12) - 1) * 100;
-};
+// Espeja la celda "Interés equivalente" del simulador: TNA / 12 (nominal), no efectiva compuesta.
+export const getEquivalentMonthlyRate = (annualRate: unknown) => Number(annualRate || 0) / 12;
 
 export const formatRange = (minAmount: unknown, maxAmount: unknown) => {
   const hasMin = minAmount !== null && minAmount !== undefined && minAmount !== '';
@@ -63,7 +57,7 @@ export const formatRange = (minAmount: unknown, maxAmount: unknown) => {
   return `${hasMin ? formatCurrencyValue(minAmount) : formatCurrencyValue(0)} - ${hasMax ? formatCurrencyValue(maxAmount) : tTerm('settings.range.noCap')}`;
 };
 
-export const formatRate = (value: unknown) => `${formatPercentValue(value, { maximumFractionDigits: 2 })} EA`;
+export const formatRate = (value: unknown) => `${formatPercentValue(value, { maximumFractionDigits: 2 })} TNA`;
 
 export const formatMonthlyRate = (value: unknown) => (
   `${formatPercentValue(getEquivalentMonthlyRate(value), { maximumFractionDigits: 2 })} mensual`

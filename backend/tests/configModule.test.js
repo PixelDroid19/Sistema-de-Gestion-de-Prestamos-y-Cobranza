@@ -589,7 +589,7 @@ test('config financial policies reject exponent notation in rates and amount ran
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.equal(error.message, 'La tasa efectiva anual debe estar entre 0 y 100.');
+      assert.equal(error.message, 'La TNA 30/360 debe estar entre 0 y 100.');
       return true;
     },
   );
@@ -604,7 +604,7 @@ test('config financial policies reject exponent notation in rates and amount ran
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.equal(error.message, 'La tasa efectiva anual debe estar entre 0 y 100.');
+      assert.equal(error.message, 'La tasa de mora efectiva anual debe estar entre 0 y 100.');
       return true;
     },
   );

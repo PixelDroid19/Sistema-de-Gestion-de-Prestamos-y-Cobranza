@@ -32,8 +32,8 @@ test('buildAmortizationSchedule defaults missing calculationMethod to french met
   assert.equal(defaultedSchedule[0].scheduledPayment, explicitSchedule[0].scheduledPayment);
 });
 
-test('getEquivalentMonthlyRate converts annual effective rate to monthly equivalent rate', () => {
-  assert.equal(roundCurrency(getEquivalentMonthlyRate(60) * 100), 3.99);
+test('getEquivalentMonthlyRate divides the nominal annual rate by 12 (matches simulador cell D7)', () => {
+  assert.equal(roundCurrency(getEquivalentMonthlyRate(60) * 100), 5);
   assert.equal(getEquivalentMonthlyRate(0), 0);
 });
 
@@ -107,5 +107,5 @@ test('buildAmortizationSchedule applies manual fixed installment before the base
 
   assert.equal(summary.installmentAmount, 200000);
   assert.equal(summary.totalPrincipal, 2000000);
-  assert.equal(summary.totalPayable, 2595802.22);
+  assert.equal(summary.totalPayable, 2808287.36);
 });

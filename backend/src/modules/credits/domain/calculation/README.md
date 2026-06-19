@@ -16,10 +16,12 @@ The retired visual workbench is not part of the runtime calculation path.
 
 ### FRENCH
 
-Fixed installment with amortization over outstanding balance.
+Fixed installment with amortization over outstanding balance. The configured
+credit rate is treated as TNA 30/360 to match the client simulator
+(`simulador.xlsx`: `Interés equivalente = TNA / pagos por año`).
 
 ```text
-monthlyRate = (1 + annualRate / 100)^(1 / 12) - 1
+monthlyRate = TNA / 100 / 12
 installment = principal * monthlyRate * (1 + monthlyRate)^term / ((1 + monthlyRate)^term - 1)
 ```
 
@@ -40,10 +42,11 @@ installment = (principal + totalInterest) / termMonths
 
 ### COMPOUND
 
-Interest is accumulated monthly and distributed evenly.
+Interest is accumulated monthly from the same TNA 30/360 monthly equivalent and
+distributed evenly.
 
 ```text
-monthlyRate = (1 + annualRate / 100)^(1 / 12) - 1
+monthlyRate = TNA / 100 / 12
 totalInterest = principal * ((1 + monthlyRate)^termMonths - 1)
 installment = (principal + totalInterest) / termMonths
 ```

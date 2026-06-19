@@ -35,13 +35,15 @@ const resolveFirstPaymentDate = (startDate) => {
   return addMonths(parsedDate, 1);
 };
 
-const getEquivalentMonthlyRate = (annualEffectiveRate) => {
-  const annualRate = Number(annualEffectiveRate) / 100;
+// "Interés equivalente" en el simulador del cliente (celda D7 = TNA / nº de pagos por año).
+// Es una tasa NOMINAL dividida, no una conversión efectiva compuesta. Mantener TNA/12.
+const getEquivalentMonthlyRate = (annualNominalRate) => {
+  const annualRate = Number(annualNominalRate) / 100;
   if (!Number.isFinite(annualRate) || annualRate <= 0) {
     return 0;
   }
 
-  return Math.pow(1 + annualRate, 1 / 12) - 1;
+  return annualRate / 12;
 };
 
 const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {

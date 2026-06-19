@@ -424,7 +424,7 @@ test('applyCapitalPayment reduce_term keeps the installment fixed, shortens the 
     calculationMethod: 'FRENCH',
   });
   const originalInstallment = schedule[0].scheduledPayment;
-  assert.equal(originalInstallment, 213035.24);
+  assert.equal(originalInstallment, 225650.82);
   schedule[0] = {
     ...schedule[0],
     paidPrincipal: schedule[0].principalComponent,
@@ -468,14 +468,14 @@ test('applyCapitalPayment reduce_term keeps the installment fixed, shortens the 
   assert.ok(result.allocation.newRemainingInstallments < result.allocation.previousRemainingInstallments);
   assert.equal(result.allocation.previousRemainingInstallments, 11);
   assert.equal(result.allocation.newRemainingInstallments, 8);
-  assert.equal(view.snapshot.outstandingPrincipal, 1366852.98);
-  assert.equal(view.snapshot.outstandingInterest, 244693.49);
-  assert.equal(view.snapshot.outstandingBalance, 1611546.47);
+  assert.equal(view.snapshot.outstandingPrincipal, 1374349.18);
+  assert.equal(view.snapshot.outstandingInterest, 306632.81);
+  assert.equal(view.snapshot.outstandingBalance, 1680981.99);
   // Installment stays fixed for every pending row except the smaller final one
   pendingRows.slice(0, -1).forEach((row) => {
     assert.equal(row.scheduledPayment, originalInstallment);
   });
-  assert.equal(pendingRows[pendingRows.length - 1].scheduledPayment, 120299.79);
+  assert.equal(pendingRows[pendingRows.length - 1].scheduledPayment, 101426.25);
   assert.ok(pendingRows[pendingRows.length - 1].scheduledPayment <= originalInstallment + 0.01);
   // Schedule closes exactly to zero
   assert.equal(view.schedule[view.schedule.length - 1].remainingBalance, 0);
@@ -531,6 +531,10 @@ test('previewCapitalPayment reuses capital prepayment rules without mutating the
 
   assert.equal(preview.before.outstandingPrincipal, startingSnapshot.outstandingPrincipal);
   assert.equal(preview.after.outstandingPrincipal, roundCurrency(startingSnapshot.outstandingPrincipal - 500000));
+  assert.equal(preview.before.installmentAmount, 225650.82);
+  assert.equal(preview.after.outstandingPrincipal, 1374349.18);
+  assert.equal(preview.after.outstandingBalance, 1680981.99);
+  assert.equal(preview.after.remainingInstallments, 8);
   assert.ok(preview.after.remainingInstallments < preview.before.remainingInstallments);
   assert.equal(preview.after.installmentAmount, originalInstallment);
   assert.equal(loan.financialSnapshot, startingSnapshot);
@@ -803,6 +807,73 @@ test('applyCapitalPayment reduce_payment rebuilds the remaining principal with t
   assert.ok(result.allocation.newInstallmentAmount < result.allocation.previousInstallmentAmount);
   assert.ok(futureRows.every((row) => row.status === 'pending'));
   assert.ok(futureRows.every((row) => row.paidTotal === 0));
+});
+
+test('applyCapitalPayment reduce_payment uses the loan TNA to recalculate the lower installment', async () => {
+  let savedLoan;
+  const schedule = buildAmortizationSchedule({
+    amount: 2000000,
+    interestRate: 60,
+    termMonths: 12,
+    startDate: '2026-06-10T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  const originalInstallment = schedule[0].scheduledPayment;
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 332,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 2000000,
+    interestRate: 60,
+    termMonths: 12,
+    calculationMethod: 'FRENCH',
+    installmentAmount: originalInstallment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => ({ id: 892, ...payload }));
+
+  const result = await createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 332,
+    amount: 500000,
+    paymentDate: '2026-07-10T00:00:00.000Z',
+    strategy: 'reduce_payment',
+    newTermMonths: 11,
+  });
+
+  const view = loanViewService.getCanonicalLoanView(savedLoan);
+  const pendingRows = view.schedule.filter((row) => row.status !== 'paid');
+
+  assert.equal(result.allocation.strategyApplied, 'reduce_payment');
+  assert.equal(result.allocation.previousInstallmentAmount, 225650.82);
+  assert.equal(result.allocation.newInstallmentAmount, 165456.37);
+  assert.equal(result.allocation.previousRemainingInstallments, 11);
+  assert.equal(result.allocation.newRemainingInstallments, 11);
+  assert.equal(view.snapshot.outstandingPrincipal, 1374349.18);
+  assert.equal(view.snapshot.outstandingInterest, 445670.96);
+  assert.equal(view.snapshot.outstandingBalance, 1820020.14);
+  assert.equal(pendingRows[0].interestComponent, 68717.46);
+  assert.equal(pendingRows[0].principalComponent, 96738.91);
+  assert.equal(pendingRows[0].scheduledPayment, 165456.37);
+  assert.ok(result.allocation.newInstallmentAmount < result.allocation.previousInstallmentAmount);
 });
 
 test('applyCapitalPayment reduce_payment requires an explicit new term', async () => {

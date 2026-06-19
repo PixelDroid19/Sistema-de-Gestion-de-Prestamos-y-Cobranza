@@ -334,7 +334,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '2000000' },
     });
-    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
+    fireEvent.change(getTextboxByAriaLabel('TNA 30/360'), {
       target: { value: '55' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
@@ -376,7 +376,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '1000000' },
     });
-    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
+    fireEvent.change(getTextboxByAriaLabel('TNA 30/360'), {
       target: { value: '48' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
@@ -405,14 +405,14 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto mínimo de tasa'), {
       target: { value: '0' },
     });
-    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
+    fireEvent.change(getTextboxByAriaLabel('TNA 30/360'), {
       target: { value: '1e2' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
-        description: 'Tasa efectiva anual debe estar entre 0 y 100.',
+        description: 'TNA 30/360 debe estar entre 0 y 100.',
       }));
     });
     expect(mockCreateRatePolicy).not.toHaveBeenCalled();
@@ -425,7 +425,7 @@ describe('Settings operational configuration', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
 
-    const rateInput = getTextboxByAriaLabel('Tasa efectiva anual');
+    const rateInput = getTextboxByAriaLabel('TNA 30/360');
     fireEvent.change(rateInput, { target: { value: '55' } });
     expect(rateInput).toHaveDisplayValue('55');
 
@@ -459,7 +459,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '' },
     });
-    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
+    fireEvent.change(getTextboxByAriaLabel('TNA 30/360'), {
       target: { value: '50' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
@@ -553,9 +553,9 @@ describe('Settings operational configuration', () => {
     const previewAmountInput = ratePreview.getByRole('textbox', { name: 'Monto para probar tasa' });
     expect(previewAmountInput).toHaveValue('2.000.000');
     expect(ratePreview.queryByText(/Desde.*5\.000\.001/)).not.toBeInTheDocument();
-    expect(screen.getAllByText('48% EA').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText('3,32% mensual').length).toBeGreaterThanOrEqual(1);
-    expect(ratePreview.getByText('Tasa anual')).toBeInTheDocument();
+    expect(screen.getAllByText('48% TNA').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('4% mensual').length).toBeGreaterThanOrEqual(1);
+    expect(ratePreview.getByText('TNA')).toBeInTheDocument();
     expect(ratePreview.getByText('Tasa mensual')).toBeInTheDocument();
     expect(ratePreview.getByText('Regla')).toBeInTheDocument();
     expect(ratePreview.getByText('Rango aplicable')).toBeInTheDocument();
@@ -563,12 +563,12 @@ describe('Settings operational configuration', () => {
 
     fireEvent.change(previewAmountInput, { target: { value: '6000000' } });
     expect(previewAmountInput).toHaveValue('6.000.000');
-    expect(ratePreview.getByText('60% EA')).toBeInTheDocument();
-    expect(ratePreview.getByText('3,99% mensual')).toBeInTheDocument();
+    expect(ratePreview.getByText('60% TNA')).toBeInTheDocument();
+    expect(ratePreview.getByText('5% mensual')).toBeInTheDocument();
     expect(ratePreview.getByText('Crédito alto')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Políticas de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Tasa anual/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /TNA/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Tasa mensual/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Uso/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Prioridad/ })).not.toBeInTheDocument();
@@ -640,8 +640,8 @@ describe('Settings operational configuration', () => {
     expect(screen.getByText('Hay montos sin tasa configurada.')).toBeInTheDocument();
     expect(screen.getByText(/Falta cubrir:.*COP 0.*COP 999\.999/)).toBeInTheDocument();
     expect(screen.getByText(/Falta cubrir:.*Desde.*COP 5\.000\.001/)).toBeInTheDocument();
-    expect(screen.getAllByText('61% EA').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('4,05% mensual').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('61% TNA').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('5,08% mensual').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Crédito operativo').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Crea una regla activa para este tramo.')).not.toBeInTheDocument();
   });
@@ -665,8 +665,8 @@ describe('Settings operational configuration', () => {
     expect(screen.queryByRole('textbox', { name: 'Monto para probar tasa' })).not.toBeInTheDocument();
     expect(screen.getByText('Ahora mismo todos los montos usan la misma tasa.')).toBeInTheDocument();
     expect(screen.getByText(/Solo hay una regla activa con rango/)).toBeInTheDocument();
-    expect(screen.getAllByText('60% EA').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText('3,99% mensual').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('60% TNA').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('5% mensual').length).toBeGreaterThanOrEqual(2);
   });
 
   it('hides archived seeded catch-all replacements from the operational rate table', () => {
@@ -712,7 +712,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('heading', { name: 'Editar rango de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Nombre de política de tasa' })).toHaveValue('Crédito básico');
 
-    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
+    fireEvent.change(getTextboxByAriaLabel('TNA 30/360'), {
       target: { value: '58' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));

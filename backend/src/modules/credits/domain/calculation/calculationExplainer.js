@@ -3,18 +3,18 @@ const { getEquivalentMonthlyRate } = require('./amortizationMethods');
 const METHOD_EXPLANATIONS = {
   FRENCH: {
     title: 'Sistema francés',
-    formula: 'cuota = capital * tasaMensual * (1 + tasaMensual)^plazo / ((1 + tasaMensual)^plazo - 1)',
-    description: 'Genera una cuota fija. Cada pago cubre primero interés del saldo vigente y el resto reduce capital.',
+    formula: 'tasaMensual = TNA / 12; cuota = capital * tasaMensual * (1 + tasaMensual)^plazo / ((1 + tasaMensual)^plazo - 1)',
+    description: 'Genera una cuota fija usando TNA 30/360. Cada pago cubre primero interés del saldo vigente y el resto reduce capital.',
   },
   SIMPLE: {
     title: 'Interés simple',
-    formula: 'interésTotal = capital * tasaAnual * (plazoMeses / 12); cuota = (capital + interésTotal) / plazo',
+    formula: 'interésTotal = capital * TNA * (plazoMeses / 12); cuota = (capital + interésTotal) / plazo',
     description: 'Calcula interés sobre el capital inicial y lo reparte de forma uniforme entre las cuotas.',
   },
   COMPOUND: {
     title: 'Interés compuesto',
-    formula: 'interésTotal = capital * ((1 + tasaMensual)^plazo - 1); cuota = (capital + interésTotal) / plazo',
-    description: 'Calcula el costo acumulado por capitalización mensual y lo distribuye entre cuotas.',
+    formula: 'tasaMensual = TNA / 12; interésTotal = capital * ((1 + tasaMensual)^plazo - 1); cuota = (capital + interésTotal) / plazo',
+    description: 'Calcula el costo acumulado por capitalización mensual desde TNA 30/360 y lo distribuye entre cuotas.',
   },
 };
 
@@ -45,6 +45,7 @@ const buildCalculationExplanation = ({ method, input, profile, policySnapshot, s
     inputs: {
       amount: Number(input.amount),
       annualInterestRate: annualRate,
+      annualRateConvention: 'TNA_30_360',
       monthlyInterestRate: monthlyRate,
       termMonths: Number(input.termMonths),
       startDate: input.startDate || null,

@@ -113,7 +113,7 @@ export const normalizeComparable = (value: unknown) => String(value || '')
 export const formatCurrency = (value: unknown) => formatCurrencyValue(value);
 export { formatRange, formatRate, formatMonthlyRate };
 export const formatMonthlyRateFormula = (value: unknown) => (
-  `${formatPercentValue(value, { maximumFractionDigits: 2 })} EA -> ${formatPercentValue(getEquivalentMonthlyRate(value), { maximumFractionDigits: 2 })} mensual equivalente`
+  `${formatPercentValue(value, { maximumFractionDigits: 2 })} TNA / 12 = ${formatPercentValue(getEquivalentMonthlyRate(value), { maximumFractionDigits: 2 })}`
 );
 
 // --- Numeric Helpers ---
