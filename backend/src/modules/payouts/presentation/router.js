@@ -50,6 +50,33 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // List all payments (authorized backoffice users only).
   router.get('/', requirePermission('PAYMENTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
+    if (req.query.loanId !== undefined && req.query.loanId !== null && req.query.loanId !== '') {
+      const loanId = parseRequiredRouteId(req.query.loanId, 'loanId');
+      const result = await useCases.listPaymentsByLoan({ actor: req.user, loanId, pagination: req.pagination });
+      if (result?.pagination) {
+        res.json({
+          success: true,
+          count: result.pagination.totalItems,
+          data: {
+            payments: result.items,
+            loan: result.loan,
+            pagination: result.pagination,
+          },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        count: Array.isArray(result?.payments) ? result.payments.length : 0,
+        data: {
+          payments: Array.isArray(result?.payments) ? result.payments : [],
+          loan: result?.loan || null,
+        },
+      });
+      return;
+    }
+
     const result = await useCases.listPayments({
       actor: req.user,
       pagination: req.pagination,

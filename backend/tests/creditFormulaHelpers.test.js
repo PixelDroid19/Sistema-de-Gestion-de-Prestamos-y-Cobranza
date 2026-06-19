@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   buildAmortizationSchedule,
+  getEquivalentMonthlyRate,
   roundCurrency,
   summarizeSchedule,
 } = require('@/modules/credits/application/creditFormulaHelpers');
@@ -29,6 +30,11 @@ test('buildAmortizationSchedule defaults missing calculationMethod to french met
   });
 
   assert.equal(defaultedSchedule[0].scheduledPayment, explicitSchedule[0].scheduledPayment);
+});
+
+test('getEquivalentMonthlyRate converts annual effective rate to monthly equivalent rate', () => {
+  assert.equal(roundCurrency(getEquivalentMonthlyRate(60) * 100), 3.99);
+  assert.equal(getEquivalentMonthlyRate(0), 0);
 });
 
 test('buildAmortizationSchedule rejects invalid calculation methods with a clear error', () => {
@@ -67,7 +73,7 @@ test('buildAmortizationSchedule supports simple interest method as a real schedu
 
 test('buildAmortizationSchedule supports compound interest method as a real schedule', () => {
   const amount = 2000000;
-  const monthlyRate = 60 / 100 / 12;
+  const monthlyRate = getEquivalentMonthlyRate(60);
   const expectedTotalPayable = roundCurrency(amount * Math.pow(1 + monthlyRate, 12));
   const expectedInterest = roundCurrency(expectedTotalPayable - amount);
 
@@ -101,5 +107,5 @@ test('buildAmortizationSchedule applies manual fixed installment before the base
 
   assert.equal(summary.installmentAmount, 200000);
   assert.equal(summary.totalPrincipal, 2000000);
-  assert.equal(summary.totalPayable, 2808287.36);
+  assert.equal(summary.totalPayable, 2595802.22);
 });

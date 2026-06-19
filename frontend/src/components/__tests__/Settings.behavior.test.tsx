@@ -554,7 +554,7 @@ describe('Settings operational configuration', () => {
     expect(previewAmountInput).toHaveValue('2.000.000');
     expect(ratePreview.queryByText(/Desde.*5\.000\.001/)).not.toBeInTheDocument();
     expect(screen.getAllByText('48% EA').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText('4% mensual').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('3,32% mensual').length).toBeGreaterThanOrEqual(1);
     expect(ratePreview.getByText('Tasa anual')).toBeInTheDocument();
     expect(ratePreview.getByText('Tasa mensual')).toBeInTheDocument();
     expect(ratePreview.getByText('Regla')).toBeInTheDocument();
@@ -564,7 +564,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(previewAmountInput, { target: { value: '6000000' } });
     expect(previewAmountInput).toHaveValue('6.000.000');
     expect(ratePreview.getByText('60% EA')).toBeInTheDocument();
-    expect(ratePreview.getByText('5% mensual')).toBeInTheDocument();
+    expect(ratePreview.getByText('3,99% mensual')).toBeInTheDocument();
     expect(ratePreview.getByText('Crédito alto')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Políticas de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
@@ -641,7 +641,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByText(/Falta cubrir:.*COP 0.*COP 999\.999/)).toBeInTheDocument();
     expect(screen.getByText(/Falta cubrir:.*Desde.*COP 5\.000\.001/)).toBeInTheDocument();
     expect(screen.getAllByText('61% EA').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('5,08% mensual').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('4,05% mensual').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Crédito operativo').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Crea una regla activa para este tramo.')).not.toBeInTheDocument();
   });
@@ -666,7 +666,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByText('Ahora mismo todos los montos usan la misma tasa.')).toBeInTheDocument();
     expect(screen.getByText(/Solo hay una regla activa con rango/)).toBeInTheDocument();
     expect(screen.getAllByText('60% EA').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText('5% mensual').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('3,99% mensual').length).toBeGreaterThanOrEqual(2);
   });
 
   it('hides archived seeded catch-all replacements from the operational rate table', () => {

@@ -30,6 +30,7 @@ export default function PaymentSchedule() {
     || permissionSet.has(PERMISSION.REPORTS_VIEW_ALL);
   const { loan, summary, schedule, isLoading, isError, error } = usePaymentSchedule(loanId);
   const [isExporting, setIsExporting] = useState(false);
+  const capitalPrepaymentsAmount = Number.parseFloat(String(summary?.capitalPrepayments ?? '0')) || 0;
 
   const getStatusBadgeClassName = (status: string) => {
     const statusMap: Record<string, string> = {
@@ -152,6 +153,14 @@ export default function PaymentSchedule() {
           aria-label={tTerm('schedule.table.title')}
           items={[
             { id: 'payment-schedule-total-principal', label: tTerm('schedule.stats.totalPrincipal'), value: formatCurrency(parseFloat(summary.totalPrincipal)), helper: tTerm('schedule.stats.totalPrincipalHelper'), icon: <DollarSign size={18} />, accent: 'blue' },
+            ...(capitalPrepaymentsAmount > 0 ? [{
+              id: 'payment-schedule-capital-prepayments',
+              label: tTerm('schedule.stats.capitalPrepayments'),
+              value: formatCurrency(capitalPrepaymentsAmount),
+              helper: tTerm('schedule.stats.capitalPrepaymentsHelper'),
+              icon: <Wallet size={18} />,
+              accent: 'emerald' as const,
+            }] : []),
             { id: 'payment-schedule-total-interest', label: tTerm('schedule.stats.totalInterest'), value: formatCurrency(parseFloat(summary.totalInterest)), helper: tTerm('schedule.stats.totalInterestHelper'), icon: <TrendingUp size={18} />, accent: 'amber' },
             { id: 'payment-schedule-total-payment', label: tTerm('schedule.stats.totalPayment'), value: formatCurrency(parseFloat(summary.totalPayment)), helper: tTerm('schedule.stats.totalPaymentHelper'), icon: <Wallet size={18} />, accent: 'emerald' },
             { id: 'payment-schedule-paid-count', label: tTerm('schedule.stats.paidInstallments'), value: summary.paidInstallments, helper: tTerm('schedule.stats.paidInstallmentsHelper'), icon: <Calendar size={18} />, accent: 'slate' },

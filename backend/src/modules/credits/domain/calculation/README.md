@@ -19,7 +19,7 @@ The retired visual workbench is not part of the runtime calculation path.
 Fixed installment with amortization over outstanding balance.
 
 ```text
-monthlyRate = annualRate / 100 / 12
+monthlyRate = (1 + annualRate / 100)^(1 / 12) - 1
 installment = principal * monthlyRate * (1 + monthlyRate)^term / ((1 + monthlyRate)^term - 1)
 ```
 
@@ -43,7 +43,7 @@ installment = (principal + totalInterest) / termMonths
 Interest is accumulated monthly and distributed evenly.
 
 ```text
-monthlyRate = annualRate / 100 / 12
+monthlyRate = (1 + annualRate / 100)^(1 / 12) - 1
 totalInterest = principal * ((1 + monthlyRate)^termMonths - 1)
 installment = (principal + totalInterest) / termMonths
 ```

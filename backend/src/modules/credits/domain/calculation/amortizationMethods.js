@@ -35,10 +35,19 @@ const resolveFirstPaymentDate = (startDate) => {
   return addMonths(parsedDate, 1);
 };
 
+const getEquivalentMonthlyRate = (annualEffectiveRate) => {
+  const annualRate = Number(annualEffectiveRate) / 100;
+  if (!Number.isFinite(annualRate) || annualRate <= 0) {
+    return 0;
+  }
+
+  return Math.pow(1 + annualRate, 1 / 12) - 1;
+};
+
 const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
   const principal = Number(amount);
   const term = Number(termMonths);
-  const monthlyRate = Number(interestRate) / 100 / 12;
+  const monthlyRate = getEquivalentMonthlyRate(interestRate);
 
   if (!term || term <= 0) {
     return 0;
@@ -102,7 +111,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
   const principal = Number(amount);
   const term = Number(termMonths);
   const annualRate = Number(interestRate) / 100;
-  const monthlyRate = annualRate / 12;
+  const monthlyRate = getEquivalentMonthlyRate(interestRate);
   const customInstallmentAmount = Number(installmentAmount);
   const hasCustomInstallmentAmount = Number.isFinite(customInstallmentAmount) && customInstallmentAmount > 0;
 
@@ -214,6 +223,7 @@ const cloneSchedule = (schedule = []) => JSON.parse(JSON.stringify(schedule));
 module.exports = {
   addMonths,
   resolveFirstPaymentDate,
+  getEquivalentMonthlyRate,
   calculateInstallmentAmount,
   buildAmortizationSchedule,
   summarizeSchedule,

@@ -302,6 +302,100 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
   ]);
 });
 
+test('createPayoutsRouter routes loanId query lookups through loan-scoped payment access', async () => {
+  const calls = [];
+  const payments = [
+    { id: 81, loanId: 22, amount: 90 },
+    { id: 82, loanId: 22, amount: 110 },
+  ];
+  const loan = { id: 22, status: 'approved', paymentContext: { isPayable: true } };
+  const router = createPayoutsRouter({
+    authMiddleware: enforceAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      async listPayments(input) {
+        calls.push(['listPayments', input]);
+        return [];
+      },
+      async createPayment() {
+        throw new Error('createPayment should not be called');
+      },
+      async listPaymentsByLoan(input) {
+        calls.push(['listPaymentsByLoan', input]);
+        return { payments, loan };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/?loanId=22&page=2&pageSize=10',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'admin',
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    count: 2,
+    data: {
+      payments,
+      loan,
+    },
+  });
+  assert.deepEqual(calls, [
+    ['listPaymentsByLoan', { actor: { id: 3, role: 'admin' }, loanId: 22, pagination: { page: 2, pageSize: 10, limit: 10, offset: 10 } }],
+  ]);
+});
+
+test('createPayoutsRouter rejects malformed loanId query before executing payout use cases', async () => {
+  const calls = [];
+  const router = createPayoutsRouter({
+    authMiddleware: enforceAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      async listPayments(input) {
+        calls.push(['listPayments', input]);
+        return [];
+      },
+      async listPaymentsByLoan(input) {
+        calls.push(['listPaymentsByLoan', input]);
+        return { payments: [], loan: { id: input.loanId } };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/?loanId=1e2',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'admin',
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /número del crédito/i);
+  assert.deepEqual(calls, []);
+});
+
 test('createPayoutsRouter rejects malformed route identifiers before executing payout use cases', async () => {
   const calls = [];
   const router = createPayoutsRouter({

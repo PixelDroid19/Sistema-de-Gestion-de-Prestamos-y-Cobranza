@@ -424,6 +424,7 @@ test('applyCapitalPayment reduce_term keeps the installment fixed, shortens the 
     calculationMethod: 'FRENCH',
   });
   const originalInstallment = schedule[0].scheduledPayment;
+  assert.equal(originalInstallment, 213035.24);
   schedule[0] = {
     ...schedule[0],
     paidPrincipal: schedule[0].principalComponent,
@@ -465,10 +466,16 @@ test('applyCapitalPayment reduce_term keeps the installment fixed, shortens the 
 
   // Term shrinks
   assert.ok(result.allocation.newRemainingInstallments < result.allocation.previousRemainingInstallments);
+  assert.equal(result.allocation.previousRemainingInstallments, 11);
+  assert.equal(result.allocation.newRemainingInstallments, 8);
+  assert.equal(view.snapshot.outstandingPrincipal, 1366852.98);
+  assert.equal(view.snapshot.outstandingInterest, 244693.49);
+  assert.equal(view.snapshot.outstandingBalance, 1611546.47);
   // Installment stays fixed for every pending row except the smaller final one
   pendingRows.slice(0, -1).forEach((row) => {
     assert.equal(row.scheduledPayment, originalInstallment);
   });
+  assert.equal(pendingRows[pendingRows.length - 1].scheduledPayment, 120299.79);
   assert.ok(pendingRows[pendingRows.length - 1].scheduledPayment <= originalInstallment + 0.01);
   // Schedule closes exactly to zero
   assert.equal(view.schedule[view.schedule.length - 1].remainingBalance, 0);

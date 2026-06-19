@@ -1,3 +1,5 @@
+const { getEquivalentMonthlyRate } = require('./amortizationMethods');
+
 const METHOD_EXPLANATIONS = {
   FRENCH: {
     title: 'Sistema francés',
@@ -27,6 +29,7 @@ const LATE_FEE_EXPLANATIONS = {
 const buildCalculationExplanation = ({ method, input, profile, policySnapshot, summary, lateFeeMode }) => {
   const methodExplanation = METHOD_EXPLANATIONS[method] || METHOD_EXPLANATIONS.FRENCH;
   const annualRate = Number(input.interestRate || 0);
+  const monthlyRate = getEquivalentMonthlyRate(annualRate);
 
   return {
     profile: {
@@ -42,7 +45,7 @@ const buildCalculationExplanation = ({ method, input, profile, policySnapshot, s
     inputs: {
       amount: Number(input.amount),
       annualInterestRate: annualRate,
-      monthlyInterestRate: annualRate / 100 / 12,
+      monthlyInterestRate: monthlyRate,
       termMonths: Number(input.termMonths),
       startDate: input.startDate || null,
     },

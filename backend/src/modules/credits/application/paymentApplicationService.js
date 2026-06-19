@@ -6,6 +6,7 @@ const {
   calculateInstallmentAmount,
   cloneSchedule,
   addMonths,
+  getEquivalentMonthlyRate,
   roundCurrency,
   summarizeSchedule,
   calculateLateFee,
@@ -483,7 +484,7 @@ const calculateReducedTerm = ({ principal, annualRate, paymentAmount, maxTerm })
   if (principal <= 0.01) return 0;
   if (paymentAmount <= 0 || maxTerm <= 0) return maxTerm;
 
-  const monthlyRate = Number(annualRate || 0) / 100 / 12;
+  const monthlyRate = getEquivalentMonthlyRate(annualRate);
   if (monthlyRate <= 0) {
     return Math.max(1, Math.min(maxTerm, Math.ceil(principal / paymentAmount)));
   }

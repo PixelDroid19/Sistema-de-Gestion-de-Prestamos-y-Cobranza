@@ -46,7 +46,14 @@ export const getRatePolicyConflictsForAmount = (matches: any[]) => {
   return orderedMatches.length > 1 ? orderedMatches : [];
 };
 
-export const getEquivalentMonthlyRate = (annualRate: unknown) => Number(annualRate || 0) / 12;
+export const getEquivalentMonthlyRate = (annualRate: unknown) => {
+  const normalizedAnnualRate = Number(annualRate || 0) / 100;
+  if (!Number.isFinite(normalizedAnnualRate) || normalizedAnnualRate <= 0) {
+    return 0;
+  }
+
+  return (Math.pow(1 + normalizedAnnualRate, 1 / 12) - 1) * 100;
+};
 
 export const formatRange = (minAmount: unknown, maxAmount: unknown) => {
   const hasMin = minAmount !== null && minAmount !== undefined && minAmount !== '';

@@ -104,6 +104,7 @@ export interface PaymentScheduleSummary {
   totalPrincipal: string;
   totalInterest: string;
   totalPayment: string;
+  capitalPrepayments?: string;
   paidInstallments: number;
   pendingInstallments: number;
   totalInstallments: number;

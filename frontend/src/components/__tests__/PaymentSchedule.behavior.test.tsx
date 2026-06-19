@@ -5,6 +5,7 @@ import PaymentSchedule from '../PaymentSchedule';
 const exportCreditExcel = vi.fn().mockResolvedValue(undefined);
 const toastSuccess = vi.fn();
 let scheduleFixture: any[] = [];
+let summaryFixture: any = {};
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../../services/reportService', () => ({
       totalPayment: '1120000',
       paidInstallments: 0,
       pendingInstallments: 12,
+      ...summaryFixture,
     },
     schedule: scheduleFixture,
     isLoading: false,
@@ -60,6 +62,7 @@ vi.mock('../../services/permissionsService', () => ({
 describe('PaymentSchedule behavior', () => {
   beforeEach(() => {
     scheduleFixture = [];
+    summaryFixture = {};
     vi.clearAllMocks();
     sessionState.user = { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com' };
     mockUseResolvedPermissionNames.mockReturnValue(['*']);
@@ -89,6 +92,22 @@ describe('PaymentSchedule behavior', () => {
 
     expect(screen.getByText('En mora')).toBeInTheDocument();
     expect(screen.queryByText(/^defaulted$/i)).not.toBeInTheDocument();
+  });
+
+  it('shows capital prepayments separately when the schedule summary includes them', () => {
+    summaryFixture = {
+      totalPrincipal: '1000000',
+      totalInterest: '100000',
+      totalPayment: '1100000',
+      capitalPrepayments: '300000',
+    };
+
+    render(<PaymentSchedule />);
+
+    expect(screen.getByText('Abonos a capital')).toBeInTheDocument();
+    expect(screen.getByText('Capital pagado fuera de cuotas')).toBeInTheDocument();
+    expect(screen.getByText(/COP 300.000/)).toBeInTheDocument();
+    expect(screen.getByText('Cuotas del plan + abonos')).toBeInTheDocument();
   });
 
   it('hides export when the operator only has credit view permissions', () => {
