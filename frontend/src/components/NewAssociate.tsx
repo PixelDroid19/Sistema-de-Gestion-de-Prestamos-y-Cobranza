@@ -238,21 +238,6 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
             </OperationalSelect>
           </FormField>
 
-          <FormField
-            label={tTerm('newAssociate.field.participation')}
-            helper={tTerm('newAssociate.helper.participation')}
-          >
-            <AppInput
-              id="new-associate-participation"
-              variant="percent"
-              allowZero
-              maxDecimals={4}
-              value={formData.participationPercentage}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, participationPercentage: value }))}
-              placeholder={tTerm('newAssociate.placeholder.participation')}
-            />
-          </FormField>
-
           <div className="grid gap-4 border-t border-border-subtle pt-4 sm:grid-cols-2">
             {!isEditing && (
               <FormField
@@ -328,6 +313,21 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                 variant="date"
                 value={formData.interestStartDate}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, interestStartDate: value }))}
+              />
+            </FormField>
+
+            <FormField
+              label={tTerm('newAssociate.field.participation')}
+              helper={tTerm('newAssociate.helper.participation')}
+            >
+              <AppInput
+                id="new-associate-participation"
+                variant="percent"
+                allowZero
+                maxDecimals={4}
+                value={formData.participationPercentage}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, participationPercentage: value }))}
+                placeholder={tTerm('newAssociate.placeholder.participation')}
               />
             </FormField>
           </div>

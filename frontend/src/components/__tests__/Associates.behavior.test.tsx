@@ -154,7 +154,7 @@ describe('Associates behavior', () => {
     expect(screen.getByText('Capital aportado')).toBeInTheDocument();
     expect(screen.getByText('Interés estimado')).toBeInTheDocument();
     expect(screen.getByText('Socios activos')).toBeInTheDocument();
-    expect(screen.getAllByText('Participación').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Participación opcional').length).toBeGreaterThan(0);
     expect(screen.getByText('COP 2.500.000')).toBeInTheDocument();
   });
 

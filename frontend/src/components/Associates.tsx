@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, Eye, Edit, Download, DollarSign, TrendingUp, Users, Percent, History, CalendarClock, Power, PowerOff } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Download, DollarSign, TrendingUp, Users, History, CalendarClock, Power, PowerOff } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
   formatNumber as formatNumberValue,
@@ -87,22 +87,11 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       const rate = Number(associate.interestRate || 0) / 100;
       return total + (associate.interestType === 'annual' ? (capital * rate) / 12 : capital * rate);
     }, 0));
-    const participationAssigned = Number(summary?.participationAssigned ?? associates.reduce((total: number, associate: any) => (
-      total + Number(associate.participationPercentage || 0)
-    ), 0));
-    const activeWithoutParticipationCount = associates.filter((associate: any) => (
-      associate.status === 'active' && Number(associate.participationPercentage || 0) <= 0
-    )).length;
-    const participationPending = Math.max(0, 100 - participationAssigned);
-
     return {
       activeCount,
-      activeWithoutParticipationCount,
       totalCount: Number(visibleTotal || 0),
       totalContributed,
       monthlyInterestEstimate,
-      participationAssigned,
-      participationPending,
     };
   }, [associates, pagination?.total, pagination?.totalItems, summary]);
 
@@ -326,28 +315,9 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 id: 'associate-active',
                 label: tTerm('associates.summary.active'),
                 value: `${associateStripMetrics.activeCount} / ${associateStripMetrics.totalCount}`,
-                helper: associateStripMetrics.activeWithoutParticipationCount > 0
-                  ? tTerm(
-                    associateStripMetrics.activeWithoutParticipationCount === 1
-                      ? 'associates.summary.activePendingParticipation.one'
-                      : 'associates.summary.activePendingParticipation.many',
-                    { count: associateStripMetrics.activeWithoutParticipationCount },
-                  )
-                  : tTerm('associates.summary.activeHelper'),
+                helper: tTerm('associates.summary.activeHelper'),
                 icon: <Users size={18} />,
-                accent: associateStripMetrics.activeWithoutParticipationCount > 0 ? 'amber' : 'slate',
-              },
-              {
-                id: 'associate-participation',
-                label: tTerm('associates.summary.participation'),
-                value: formatPercent(associateStripMetrics.participationAssigned),
-                helper: associateStripMetrics.participationAssigned === 100
-                  ? tTerm('associates.summary.participationComplete')
-                  : tTerm('associates.summary.participationConfigured', {
-                    pending: formatPercent(associateStripMetrics.participationPending),
-                  }),
-                icon: <Percent size={18} />,
-                accent: associateStripMetrics.participationAssigned === 100 ? 'emerald' : 'amber',
+                accent: 'slate',
               },
             ]}
           />

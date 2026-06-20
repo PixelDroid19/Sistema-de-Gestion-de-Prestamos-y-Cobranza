@@ -322,7 +322,7 @@ export const commonEs = {
 'guidedTour.step.newAssociateHeader.title': 'Guardar o cancelar',
 'guidedTour.step.newAssociateHeader.description': 'Estos controles crean o actualizan el socio, no afectan todavía créditos.',
 'guidedTour.step.newAssociateForm.title': 'Formulario del socio',
-'guidedTour.step.newAssociateForm.description': 'Captura nombre, contacto, estado y participación sobre utilidades.',
+'guidedTour.step.newAssociateForm.description': 'Captura nombre, contacto, estado y datos del aporte del socio.',
 'guidedTour.step.payoutsPage.title': 'Pagos y cobranza',
 'guidedTour.step.payoutsPage.description': 'Reúne recibos, aplicación de pagos y consulta global por préstamo.',
 'guidedTour.step.payoutsHeader.title': 'Registrar pago',

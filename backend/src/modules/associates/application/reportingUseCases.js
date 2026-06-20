@@ -664,7 +664,7 @@ const createExportAssociateProfitabilityReport = ({ associateRepository }) => as
           { indicator: 'Aportes Totales', value: Number(report.summary.totalContributed || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Distribuciones Totales', value: Number(report.summary.totalDistributed || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Capital Devuelto', value: Number(report.summary.totalCapitalReturned || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
-          { indicator: 'Ganancia Neta', value: Number(report.summary.netProfit || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+          { indicator: 'Rentabilidad neta', value: Number(report.summary.netProfit || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0 },
           { indicator: 'Cantidad de Distribuciones', value: report.summary.distributionCount || 0 },
           { indicator: 'Participación', value: report.summary.participationPercentage || '0.0000', __formats: { value: { numFmt: TNA_FORMAT } } },
