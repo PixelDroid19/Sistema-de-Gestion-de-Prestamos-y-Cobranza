@@ -104,13 +104,13 @@ export type CapitalPaymentPreviewResponse = {
  * exact same amortization engine as the apply path (no duplicated formulas in the UI).
  */
 export const useCapitalPaymentPreview = (
-  { loanId, amount, strategy, newTermMonths }: { loanId?: number | string; amount?: string; strategy?: string; newTermMonths?: string },
+  { loanId, amount, asOfDate, strategy, newTermMonths }: { loanId?: number | string; amount?: string; asOfDate?: string; strategy?: string; newTermMonths?: string },
   options?: { enabled?: boolean },
 ) => useQuery({
-  queryKey: queryKeys.payments.capitalPreview(loanId, amount, strategy, newTermMonths),
+  queryKey: queryKeys.payments.capitalPreview(loanId, amount, asOfDate, strategy, newTermMonths),
   enabled: (options?.enabled ?? true) && Boolean(loanId) && Number(amount) > 0,
   queryFn: async () => {
-    const { data } = await apiClient.post('/payments/capital/preview', { loanId, amount, strategy, newTermMonths });
+    const { data } = await apiClient.post('/payments/capital/preview', { loanId, amount, asOfDate, strategy, newTermMonths });
     return data?.data?.preview as CapitalPaymentPreviewResponse;
   },
 });

@@ -602,6 +602,60 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.equal(capitalResponse.body.data.strategyApplied, 'reduce_payment');
 });
 
+test('createPayoutsRouter forwards the selected date in capital payment previews', async () => {
+  const calls = [];
+  const router = createPayoutsRouter({
+    authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      createPartialPayment: unexpectedUseCase('createPartialPayment'),
+      createCapitalPayment: unexpectedUseCase('createCapitalPayment'),
+      annulInstallment: unexpectedUseCase('annulInstallment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+      async previewCapitalPayment(payload) {
+        calls.push(['previewCapitalPayment', payload]);
+        return { after: { installmentAmount: 115487 } };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/capital/preview',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: {
+      loanId: 15,
+      amount: 324349,
+      asOfDate: '2026-06-19',
+      strategy: 'reduce_payment',
+      newTermMonths: 5,
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.data.preview.after.installmentAmount, 115487);
+  assert.deepEqual(calls, [[
+    'previewCapitalPayment',
+    {
+      actor: { id: 3, role: 'admin' },
+      loanId: 15,
+      amount: 324349,
+      asOfDate: '2026-06-19',
+      strategy: 'reduce_payment',
+      newTermMonths: 5,
+    },
+  ]]);
+});
+
 test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compatibility routes', async () => {
   const calls = [];
   const router = createPayoutsRouter({

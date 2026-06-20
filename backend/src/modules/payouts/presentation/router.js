@@ -129,6 +129,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
       actor: req.user,
       loanId: req.body?.loanId,
       amount: req.body?.amount,
+      asOfDate: req.body?.asOfDate,
       strategy: req.body?.strategy,
       newTermMonths: req.body?.newTermMonths,
     });

@@ -332,7 +332,7 @@ const createCreateCapitalPayment = ({
 const createPreviewCapitalPayment = ({
   paymentApplicationService,
   loanAccessPolicy,
-}) => async ({ actor, loanId, amount, strategy, newTermMonths }) => {
+}) => async ({ actor, loanId, amount, asOfDate, strategy, newTermMonths }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
     throw new AuthorizationError(CAPITAL_PAYMENT_CREATE_DENIED_MESSAGE);
   }
@@ -342,6 +342,7 @@ const createPreviewCapitalPayment = ({
   return paymentApplicationService.previewCapitalPayment({
     loanId: loan.id,
     amount,
+    asOfDate,
     strategy,
     newTermMonths,
   });

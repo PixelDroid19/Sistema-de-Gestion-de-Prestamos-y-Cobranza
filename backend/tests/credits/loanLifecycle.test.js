@@ -511,6 +511,38 @@ test('getCanonicalLoanView rebuilds legacy schedules without leaking through roo
   assert.ok(loanView.snapshot.totalPayable > 5000);
 });
 
+test('getCanonicalLoanView excludes annulled installments from pending counts', () => {
+  const schedule = buildAmortizationSchedule({
+    amount: 5000,
+    interestRate: 10,
+    termMonths: 5,
+    startDate: '2026-01-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    status: 'paid',
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+  };
+  schedule[1] = {
+    ...schedule[1],
+    status: 'annulled',
+  };
+
+  const loanView = getCanonicalLoanView({
+    amount: 5000,
+    interestRate: 10,
+    termMonths: 5,
+    startDate: '2026-01-01T00:00:00.000Z',
+    emiSchedule: schedule,
+    financialSnapshot: {},
+  });
+
+  assert.equal(loanView.snapshot.outstandingInstallments, 3);
+  assert.notEqual(loanView.snapshot.nextInstallment.installmentNumber, 2);
+});
+
 test('getCanonicalLoanView rebuilds legacy schedules using the persisted calculation method', () => {
   const expectedSimpleSchedule = buildAmortizationSchedule({
     amount: 5000,

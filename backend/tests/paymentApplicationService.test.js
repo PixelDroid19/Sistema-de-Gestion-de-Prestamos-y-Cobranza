@@ -876,6 +876,109 @@ test('applyCapitalPayment reduce_payment uses the loan TNA to recalculate the lo
   assert.ok(result.allocation.newInstallmentAmount < result.allocation.previousInstallmentAmount);
 });
 
+test('capital payment preview, applied schedule and next quote stay aligned when reducing payment by term', async () => {
+  let savedLoan;
+  const videoPrincipalBefore = 824349;
+  const videoCapitalPayment = 324349;
+  const videoPrincipalAfter = 500000;
+  const schedule = [
+    {
+      installmentNumber: 1,
+      dueDate: '2026-06-19T00:00:00.000Z',
+      openingBalance: 1000000,
+      scheduledPayment: 200000,
+      principalComponent: 175651,
+      interestComponent: 24349,
+      paidPrincipal: 175651,
+      paidInterest: 24349,
+      paidTotal: 200000,
+      remainingPrincipal: 0,
+      remainingInterest: 0,
+      remainingBalance: videoPrincipalBefore,
+      status: 'paid',
+    },
+    ...Array.from({ length: 5 }, (_, index) => {
+      const principal = index === 4 ? 164869 : 164870;
+      return {
+        installmentNumber: index + 2,
+        dueDate: `2026-${String(index + 7).padStart(2, '0')}-19T00:00:00.000Z`,
+        openingBalance: videoPrincipalBefore,
+        scheduledPayment: 200000,
+        principalComponent: principal,
+        interestComponent: 35130,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        remainingPrincipal: principal,
+        remainingInterest: 35130,
+        remainingBalance: Math.max(0, videoPrincipalBefore - (principal * (index + 1))),
+        status: 'pending',
+      };
+    }),
+  ];
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 333,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000000,
+    interestRate: 60,
+    termMonths: 6,
+    calculationMethod: 'FRENCH',
+    installmentAmount: 200000,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => ({ id: 893, ...payload }));
+
+  const service = createPaymentApplicationService({ loanViewService });
+  const preview = await service.previewCapitalPayment({
+    loanId: 333,
+    amount: videoCapitalPayment,
+    asOfDate: '2026-06-19T00:00:00.000Z',
+    strategy: 'reduce_payment',
+    newTermMonths: 5,
+  });
+  const result = await service.applyCapitalPayment({
+    loanId: 333,
+    amount: videoCapitalPayment,
+    paymentDate: '2026-06-19T00:00:00.000Z',
+    strategy: 'reduce_payment',
+    newTermMonths: 5,
+  });
+
+  const quoteLoanAccessPolicy = {
+    async findAuthorizedLoan() {
+      return savedLoan;
+    },
+  };
+  const getInstallmentQuote = createGetInstallmentQuote({ loanAccessPolicy: quoteLoanAccessPolicy, loanViewService });
+  const view = loanViewService.getCanonicalLoanView(savedLoan);
+  const nextPending = view.schedule.find((row) => row.status !== 'paid' && row.status !== 'annulled');
+  const quote = await getInstallmentQuote({
+    actor: { id: 1, role: 'admin' },
+    loanId: 333,
+    installmentNumber: nextPending.installmentNumber,
+    asOfDate: '2026-06-19',
+  });
+
+  assert.equal(preview.after.outstandingPrincipal, videoPrincipalAfter);
+  assert.equal(result.allocation.newInstallmentAmount, preview.after.installmentAmount);
+  assert.equal(nextPending.scheduledPayment, preview.after.installmentAmount);
+  assert.equal(quote.scheduledPayment, preview.after.installmentAmount);
+  assert.equal(quote.minimumSuggestedPayment, preview.after.installmentAmount);
+  assert.equal(quote.totalDue, preview.after.installmentAmount);
+  assert.equal(Math.round(preview.after.installmentAmount), 115487);
+});
+
 test('applyCapitalPayment reduce_payment requires an explicit new term', async () => {
   const schedule = buildAmortizationSchedule({
     amount: 1000,

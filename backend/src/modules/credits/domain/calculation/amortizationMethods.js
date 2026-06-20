@@ -175,7 +175,8 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 };
 
 const summarizeSchedule = (schedule = []) => {
-  const totals = schedule.reduce((summary, row) => {
+  const activeSchedule = schedule.filter((row) => row.status !== 'annulled');
+  const totals = activeSchedule.reduce((summary, row) => {
     summary.totalPrincipal += Number(row.principalComponent || 0);
     summary.totalInterest += Number(row.interestComponent || 0);
     summary.totalPayable += Number(row.scheduledPayment || 0);
@@ -196,10 +197,10 @@ const summarizeSchedule = (schedule = []) => {
     outstandingInterest: 0,
   });
 
-  const nextInstallment = schedule.find((row) => (row.remainingPrincipal || 0) + (row.remainingInterest || 0) > 0) || null;
+  const nextInstallment = activeSchedule.find((row) => (row.remainingPrincipal || 0) + (row.remainingInterest || 0) > 0) || null;
 
   return {
-    installmentAmount: roundCurrency(schedule[0]?.scheduledPayment || 0),
+    installmentAmount: roundCurrency(activeSchedule[0]?.scheduledPayment || 0),
     totalPrincipal: roundCurrency(totals.totalPrincipal),
     totalInterest: roundCurrency(totals.totalInterest),
     totalPayable: roundCurrency(totals.totalPayable),
@@ -209,7 +210,7 @@ const summarizeSchedule = (schedule = []) => {
     outstandingPrincipal: roundCurrency(totals.outstandingPrincipal),
     outstandingInterest: roundCurrency(totals.outstandingInterest),
     outstandingBalance: roundCurrency(totals.outstandingPrincipal + totals.outstandingInterest),
-    outstandingInstallments: schedule.filter((row) => row.status !== 'paid').length,
+    outstandingInstallments: activeSchedule.filter((row) => row.status !== 'paid').length,
     nextInstallment: nextInstallment ? {
       installmentNumber: nextInstallment.installmentNumber,
       dueDate: nextInstallment.dueDate,

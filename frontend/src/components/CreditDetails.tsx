@@ -349,7 +349,7 @@ export default function CreditDetails() {
   }, [capitalAmount, capitalStrategy, capitalNewTermMonths]);
 
   const capitalPreviewQuery = useCapitalPaymentPreview(
-    { loanId, amount: debouncedCapital.amount, strategy: debouncedCapital.strategy, newTermMonths: debouncedCapital.newTermMonths },
+    { loanId, amount: debouncedCapital.amount, asOfDate: capitalPaymentDate, strategy: debouncedCapital.strategy, newTermMonths: debouncedCapital.newTermMonths },
     { enabled: showCapitalModal },
   );
 

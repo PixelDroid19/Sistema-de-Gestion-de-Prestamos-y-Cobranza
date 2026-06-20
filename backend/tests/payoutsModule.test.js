@@ -9,6 +9,7 @@ const {
   createCreatePayment,
   createCreatePartialPayment,
   createCreateCapitalPayment,
+  createPreviewCapitalPayment,
   createAnnulInstallment,
   createListPaymentsByLoan,
   createListPaymentDocuments,
@@ -648,6 +649,41 @@ test('createCreateCapitalPayment delegates payment method to capital application
     newTermMonths: 10,
     actorId: 1,
     idempotencyKey: undefined,
+  });
+});
+
+test('createPreviewCapitalPayment forwards the operator date to the preview engine', async () => {
+  let serviceInput;
+  const previewCapitalPayment = createPreviewCapitalPayment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 5 };
+      },
+    },
+    paymentApplicationService: {
+      async previewCapitalPayment(input) {
+        serviceInput = input;
+        return { after: { installmentAmount: 115487 } };
+      },
+    },
+  });
+
+  const result = await previewCapitalPayment({
+    actor: { id: 1, role: 'admin' },
+    loanId: 5,
+    amount: 324349,
+    asOfDate: '2026-06-19',
+    strategy: 'reduce_payment',
+    newTermMonths: 5,
+  });
+
+  assert.equal(result.after.installmentAmount, 115487);
+  assert.deepEqual(serviceInput, {
+    loanId: 5,
+    amount: 324349,
+    asOfDate: '2026-06-19',
+    strategy: 'reduce_payment',
+    newTermMonths: 5,
   });
 });
 
