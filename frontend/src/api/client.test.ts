@@ -33,6 +33,9 @@ describe('API base URL resolution', () => {
   });
 
   it('uses /api when no build-time or runtime API base is configured', async () => {
+    vi.stubEnv('VITE_API_URL', '');
+    vi.stubEnv('VITE_API_BASE_URL', '');
+
     const { API_BASE_URL } = await import('./client');
 
     expect(API_BASE_URL).toBe('/api');
