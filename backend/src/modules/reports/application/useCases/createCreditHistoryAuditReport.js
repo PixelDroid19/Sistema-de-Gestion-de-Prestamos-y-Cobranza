@@ -49,7 +49,7 @@ const MONTHLY_HISTORY_COLUMNS = [
   moneyColumn('Mora Cobrada', 'penaltiesCollected'),
   { header: 'Créditos Vencidos', key: 'overdueCredits', width: 18, numFmt: INTEGER_FORMAT },
   moneyColumn('Pérdidas/Riesgo', 'lossesAtRisk'),
-  moneyColumn('Ganancias', 'gains'),
+  moneyColumn('Interés y mora', 'gains'),
   moneyColumn('Caja Disponible', 'availableCash'),
 ];
 
@@ -435,7 +435,7 @@ const buildSummaryRows = (summary) => [
   { indicator: 'Mora cobrada', value: Number(summary.totalPenaltiesCollected), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Créditos vencidos', value: summary.overdueCredits },
   { indicator: 'Pérdidas/Riesgo', value: Number(summary.lossesAtRisk), __formats: { value: { numFmt: MONEY_FORMAT } } },
-  { indicator: 'Ganancias', value: Number(summary.gains), __formats: { value: { numFmt: MONEY_FORMAT } } },
+  { indicator: 'Interés y mora', value: Number(summary.gains), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Caja disponible', value: Number(summary.availableCash), __formats: { value: { numFmt: MONEY_FORMAT } } },
 ];
 
@@ -468,20 +468,20 @@ const createExportCreditHistoryAuditExcel = ({ reportRepository }) => async ({ a
   const report = response.data;
 
   return {
-    fileName: `historial-creditos-${toDateOnlyOrNull(report.filters.startDate) || 'inicio'}-${toDateOnlyOrNull(report.filters.endDate) || 'hoy'}.xlsx`,
+    fileName: `creditos-periodo-${toDateOnlyOrNull(report.filters.startDate) || 'inicio'}-${toDateOnlyOrNull(report.filters.endDate) || 'hoy'}.xlsx`,
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     sheets: [
       {
         name: 'Resumen Auditoría',
-        title: 'HISTORIAL DE CRÉDITOS',
+        title: 'CRÉDITOS DEL PERÍODO',
         tabColor: STYLE_COLORS.teal,
         headerFill: STYLE_COLORS.teal,
         columns: SUMMARY_COLUMNS,
         rows: buildSummaryRows(report.summary),
       },
       {
-        name: 'Historial Mensual',
-        title: 'HISTORIAL MENSUAL',
+        name: 'Detalle mensual',
+        title: 'CRÉDITOS Y PAGOS DEL PERÍODO',
         tabColor: STYLE_COLORS.blue,
         headerFill: STYLE_COLORS.blue,
         columns: MONTHLY_HISTORY_COLUMNS,
@@ -520,7 +520,7 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
   ]);
 
   return {
-    fileName: `historial-creditos-${toDateOnlyOrNull(report.filters.startDate) || 'inicio'}-${toDateOnlyOrNull(report.filters.endDate) || 'hoy'}.pdf`,
+    fileName: `creditos-periodo-${toDateOnlyOrNull(report.filters.startDate) || 'inicio'}-${toDateOnlyOrNull(report.filters.endDate) || 'hoy'}.pdf`,
     contentType: 'application/pdf',
     buffer: buildPdfBuffer({
       title: 'Historial de créditos',
@@ -537,7 +537,7 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
         `Mora cobrada: ${formatDisplayMoney(report.summary.totalPenaltiesCollected)}`,
         `Créditos vencidos: ${report.summary.overdueCredits}`,
         `Pérdidas/Riesgo: ${formatDisplayMoney(report.summary.lossesAtRisk)}`,
-        `Ganancias: ${formatDisplayMoney(report.summary.gains)}`,
+        `Interés y mora: ${formatDisplayMoney(report.summary.gains)}`,
         `Caja disponible: ${formatDisplayMoney(report.summary.availableCash)}`,
         ...monthlyDetailLines,
       ],

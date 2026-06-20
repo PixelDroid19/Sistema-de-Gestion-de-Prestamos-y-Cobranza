@@ -375,13 +375,13 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
 
   const excel = await excelUseCase({ actor: { role: 'admin' }, year: 2026 });
   assert.equal(excel.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  assert.match(excel.fileName, /flujo-caja-mensual-2026/);
+  assert.match(excel.fileName, /cierre-contable-mensual-2026/);
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await buildWorkbookBuffer(excel.sheets));
   assert.ok(workbook.getWorksheet('Resumen Financiero'));
-  assert.ok(workbook.getWorksheet('Historial Mensual'));
-  const history = workbook.getWorksheet('Historial Mensual');
+  assert.ok(workbook.getWorksheet('Créditos y Pagos'));
+  const history = workbook.getWorksheet('Créditos y Pagos');
   const headers = history.getRow(2).values;
   assert.ok(headers.includes('Entradas por Cuotas'));
   assert.ok(headers.includes('Salidas por Préstamos'));
@@ -396,7 +396,7 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   const pdf = await pdfUseCase({ actor: { role: 'admin' }, year: 2026 });
   assert.equal(pdf.contentType, 'application/pdf');
   assert.match(pdf.buffer.toString('utf8'), /%PDF-1.4/);
-  assert.match(pdf.buffer.toString('utf8'), /Flujo de caja mensual 2026/);
+  assert.match(pdf.buffer.toString('utf8'), /Cierre contable mensual 2026/);
   assert.match(pdf.buffer.toString('utf8'), /Pagos a socios: COP 3\.000\.000,00/);
   assert.match(pdf.buffer.toString('utf8'), /Gastos operativos: COP 2\.000\.000,00/);
 });
@@ -417,7 +417,7 @@ test('reports router exposes monthly cash flow JSON, Excel and PDF routes with d
         calls.push(['excel', actor.role, year, filters]);
         return {
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          fileName: 'flujo-caja-mensual-2026.xlsx',
+          fileName: 'cierre-contable-mensual-2026.xlsx',
           sheets: [{ name: 'Resumen Financiero', rows: [{ indicador: 'Caja disponible', valor: 10000 }] }],
         };
       },
@@ -425,7 +425,7 @@ test('reports router exposes monthly cash flow JSON, Excel and PDF routes with d
         calls.push(['pdf', actor.role, year, filters]);
         return {
           contentType: 'application/pdf',
-          fileName: 'flujo-caja-mensual-2026.pdf',
+          fileName: 'cierre-contable-mensual-2026.pdf',
           buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
         };
       },

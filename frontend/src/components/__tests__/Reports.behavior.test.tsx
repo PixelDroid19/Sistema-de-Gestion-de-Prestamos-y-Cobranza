@@ -599,23 +599,7 @@ const renderReports = () => {
   );
 };
 
-// Two-level reports navigation: sub-views live under a primary group, so a
-// view is reached by activating its group first, then the view itself.
-const REPORT_VIEW_GROUP: Record<string, string> = {
-  'Analítica': 'Rendimiento',
-  'Rentabilidad de clientes': 'Rendimiento',
-  'Pagos y desembolsos': 'Operación',
-  'Historial mensual': 'Operación',
-  'Créditos en mora': 'Operación',
-  'Gastos operativos': 'Operación',
-  'Calendario de pagos': 'Operación',
-};
-
 const openReportView = (name: string) => {
-  const group = REPORT_VIEW_GROUP[name];
-  if (group) {
-    fireEvent.click(screen.getByRole('tab', { name: group }));
-  }
   fireEvent.click(screen.getByRole('tab', { name }));
 };
 
@@ -815,27 +799,16 @@ describe('Reports behavioral parity scenarios', () => {
     };
   });
 
-  it('groups report views under primary sections and reveals views through the sub-navigation', () => {
+  it('shows report views in one navigation level so each report opens with one click', () => {
     renderReports();
 
-    // Primary sections are always visible; the four-group layout replaces the flat tab list.
-    expect(screen.getByRole('tab', { name: 'Resumen' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Rendimiento' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Flujo de caja' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Operación' })).toBeInTheDocument();
-
-    // On the default Resumen section the deeper views stay collapsed.
-    expect(screen.queryByRole('tab', { name: 'Rentabilidad de clientes' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Pagos y desembolsos' })).not.toBeInTheDocument();
-
-    // Activating a multi-view group exposes its views in the secondary nav.
-    fireEvent.click(screen.getByRole('tab', { name: 'Rendimiento' }));
+    expect(screen.getByRole('tab', { name: 'Dashboard general' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Analítica' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Rentabilidad de clientes' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Operación' }));
-    expect(screen.getByRole('tab', { name: 'Pagos y desembolsos' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Historial mensual' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Cierre contable' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Créditos del período' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Créditos en mora' })).toBeInTheDocument();
   });
 
   it('exports reports when action is in-scope and keeps canonical labels', async () => {
@@ -939,9 +912,9 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
-    openReportView('Historial mensual');
-    fireEvent.change(screen.getByLabelText('Desde historial'), { target: { value: '2026-02-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta historial'), { target: { value: '2026-02-28' } });
+    openReportView('Créditos del período');
+    fireEvent.change(screen.getByLabelText('Desde período'), { target: { value: '2026-02-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta período'), { target: { value: '2026-02-28' } });
     fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
     fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
     fireEvent.change(screen.getByLabelText('Tipo de crédito'), { target: { value: 'prod-comercial' } });
@@ -967,9 +940,9 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps contextual export date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    openReportView('Historial mensual');
-    const fromInput = screen.getByLabelText('Desde historial');
-    const toInput = screen.getByLabelText('Hasta historial');
+    openReportView('Créditos del período');
+    const fromInput = screen.getByLabelText('Desde período');
+    const toInput = screen.getByLabelText('Hasta período');
 
     fireEvent.change(fromInput, { target: { value: '2026-06-01' } });
     fireEvent.change(toInput, { target: { value: '2026-06-30' } });
@@ -1290,12 +1263,12 @@ describe('Reports behavioral parity scenarios', () => {
   it('shows monthly cash flow control and exports Excel/PDF', async () => {
     renderReports();
 
-    openReportView('Flujo de caja');
-    fireEvent.change(screen.getByLabelText('Desde flujo de caja'), { target: { value: '2026-03-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta flujo de caja'), { target: { value: '2026-03-31' } });
+    openReportView('Cierre contable');
+    fireEvent.change(screen.getByLabelText('Desde cierre'), { target: { value: '2026-03-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta cierre'), { target: { value: '2026-03-31' } });
     fireEvent.change(screen.getByLabelText('Fecha de resumen diario'), { target: { value: '2026-03-15' } });
 
-    expect(screen.getByRole('heading', { name: 'Control financiero mensual' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Cierre contable mensual' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Comparativo anual de caja' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Resumen diario de caja' })).toBeInTheDocument();
     expect(screen.getAllByText('Entradas por cuotas').length).toBeGreaterThan(0);
@@ -1350,9 +1323,9 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps monthly cash flow date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    openReportView('Flujo de caja');
-    const fromInput = screen.getByLabelText('Desde flujo de caja');
-    const toInput = screen.getByLabelText('Hasta flujo de caja');
+    openReportView('Cierre contable');
+    const fromInput = screen.getByLabelText('Desde cierre');
+    const toInput = screen.getByLabelText('Hasta cierre');
 
     fireEvent.change(fromInput, { target: { value: '2026-03-01' } });
     fireEvent.change(toInput, { target: { value: '2026-03-31' } });
@@ -1377,21 +1350,21 @@ describe('Reports behavioral parity scenarios', () => {
   it('consults monthly credit history by date range from the reports screen', async () => {
     renderReports();
 
-    openReportView('Historial mensual');
-    fireEvent.change(screen.getByLabelText('Desde historial'), { target: { value: '2026-04-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta historial'), { target: { value: '2026-04-30' } });
+    openReportView('Créditos del período');
+    fireEvent.change(screen.getByLabelText('Desde período'), { target: { value: '2026-04-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta período'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
     fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
     fireEvent.change(screen.getByLabelText('Tipo de crédito'), { target: { value: 'prod-personal' } });
     selectCustomerOption('7');
     selectCreditOption('15');
 
-    expect(screen.getByRole('heading', { name: 'Historial mensual de créditos' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Créditos del período' })).toBeInTheDocument();
     expect(screen.getAllByText('Capital prestado').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cuotas recibidas').length).toBeGreaterThan(0);
     expect(screen.queryByText('Pagos a socios')).not.toBeInTheDocument();
     expect(screen.getAllByText('Gastos operativos').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Ganancias').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Interés y mora').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Caja disponible').length).toBeGreaterThan(0);
     expect(screen.getByText('2026-04')).toBeInTheDocument();
     expect(screen.getAllByText(/4[.,]000[.,]000/).length).toBeGreaterThan(0);
@@ -1413,7 +1386,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('shows detailed credit rows and collection history inside the monthly credit history tab', () => {
     renderReports();
 
-    openReportView('Historial mensual');
+    openReportView('Créditos del período');
 
     expect(screen.getByRole('heading', { name: 'Detalle de créditos' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Historial de recaudo' })).toBeInTheDocument();
@@ -1427,7 +1400,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('requires selecting a credit in monthly credit history instead of typing exponent-like text', async () => {
     renderReports();
 
-    openReportView('Historial mensual');
+    openReportView('Créditos del período');
     fireEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
     const customerSelect = screen.getByRole('combobox', { name: 'Clientes para filtrar' });
     const creditSelect = screen.getByRole('combobox', { name: 'Créditos para filtrar' });
@@ -1454,9 +1427,9 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps monthly credit history date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    openReportView('Historial mensual');
-    const fromInput = screen.getByLabelText('Desde historial');
-    const toInput = screen.getByLabelText('Hasta historial');
+    openReportView('Créditos del período');
+    const fromInput = screen.getByLabelText('Desde período');
+    const toInput = screen.getByLabelText('Hasta período');
 
     fireEvent.change(fromInput, { target: { value: '2026-05-01' } });
     fireEvent.change(toInput, { target: { value: '2026-05-31' } });
@@ -1481,7 +1454,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps cash flow year unchanged when exponent notation is typed', async () => {
     renderReports();
 
-    openReportView('Flujo de caja');
+    openReportView('Cierre contable');
     fireEvent.change(screen.getByLabelText('Año'), { target: { value: '2e3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
@@ -1809,7 +1782,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportación contextual' })).toBeInTheDocument();
 
-    openReportView('Flujo de caja');
+    openReportView('Cierre contable');
 
     expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Exportación contextual' })).not.toBeInTheDocument();
@@ -1914,7 +1887,6 @@ describe('Reports behavioral parity scenarios', () => {
     renderReports();
 
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Operación' }));
     expect(screen.queryByRole('tab', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
   });
 
@@ -2109,7 +2081,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    openReportView('Pagos y desembolsos');
+    openReportView('Pago de cuotas');
 
     expect(screen.queryByRole('columnheader', { name: /ID pago/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Crédito ID/i })).not.toBeInTheDocument();
@@ -2142,7 +2114,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    openReportView('Pagos y desembolsos');
+    openReportView('Pago de cuotas');
 
     expect(screen.getByText('Recaudo de cuotas')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Cuotas cobradas' })).toBeInTheDocument();
@@ -2155,7 +2127,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('filters payout report by movement type', async () => {
     renderReports();
 
-    openReportView('Pagos y desembolsos');
+    openReportView('Pago de cuotas');
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'capital' } });
 
     await waitFor(() => {
@@ -2166,7 +2138,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('filters payout report by payment status', async () => {
     renderReports();
 
-    openReportView('Pagos y desembolsos');
+    openReportView('Pago de cuotas');
     fireEvent.change(screen.getByLabelText('Estado de pago'), { target: { value: 'annulled' } });
 
     await waitFor(() => {
@@ -2177,7 +2149,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('filters payout report by employee who registered the payment', async () => {
     renderReports();
 
-    openReportView('Pagos y desembolsos');
+    openReportView('Pago de cuotas');
     fireEvent.focus(screen.getByRole('combobox', { name: 'Registrado por' }));
     fireEvent.mouseDown(screen.getByRole('option', { name: /Operador Reportes/ }));
 
@@ -2191,7 +2163,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('keeps payout report date range unchanged when the operator enters an inverted range', async () => {
     renderReports();
 
-    openReportView('Pagos y desembolsos');
+    openReportView('Pago de cuotas');
     const fromInput = screen.getByLabelText('Desde pagos');
     const toInput = screen.getByLabelText('Hasta pagos');
 
@@ -2484,7 +2456,6 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Operación' }));
     expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
   });
 
@@ -2505,7 +2476,7 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByText('Cuotas vencidas')).toBeInTheDocument();
     expect(screen.getByText('Caja disponible')).toBeInTheDocument();
     expect(screen.getByText('Recaudo menos créditos, socios y gastos')).toBeInTheDocument();
-    expect(screen.getByText('Ganancia del período')).toBeInTheDocument();
+    expect(screen.getByText('Resultado de intereses y mora')).toBeInTheDocument();
     expect(screen.getByText('Intereses y mora menos socios y gastos')).toBeInTheDocument();
     expect(screen.getByText('Pérdida del período')).toBeInTheDocument();
     const normalizedText = document.body.textContent?.replace(/\s+/g, ' ') ?? '';

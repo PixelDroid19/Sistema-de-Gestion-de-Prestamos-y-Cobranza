@@ -26,7 +26,7 @@ const CASH_FLOW_COLUMNS = [
   moneyColumn('Capital Recuperado', 'principalRecovered'),
   moneyColumn('Interés Cobrado', 'interestCollected'),
   moneyColumn('Mora Cobrada', 'penaltyCollected'),
-  moneyColumn('Ganancia Cobrada', 'collectedProfit'),
+  moneyColumn('Interés y Mora Cobrados', 'collectedProfit'),
   moneyColumn('Pérdidas en Riesgo', 'lossesAtRisk'),
   { header: 'Pagos Recibidos', key: 'paymentCount', width: 16 },
   { header: 'Préstamos Entregados', key: 'loanCount', width: 20 },
@@ -521,23 +521,23 @@ const buildCashFlowSheets = (report) => {
     { label: 'Capital recuperado', value: Number(report.summary.totalPrincipalRecovered), description: 'Parte de pagos que redujo capital vivo.' },
     { label: 'Interés cobrado', value: Number(report.summary.totalInterestCollected), description: 'Interés efectivamente pagado por clientes.' },
     { label: 'Mora cobrada', value: Number(report.summary.totalPenaltyCollected), description: 'Mora o penalidades efectivamente cobradas.' },
-    { label: 'Ganancia cobrada', value: Number(report.summary.totalCollectedProfit), description: 'Interés cobrado más mora cobrada.' },
+    { label: 'Interés y mora cobrados', value: Number(report.summary.totalCollectedProfit), description: 'Interés cobrado más mora cobrada.' },
     { label: 'Pérdidas en riesgo', value: Number(report.summary.lossesAtRisk), description: 'Capital pendiente en créditos vencidos o default.' },
-    { label: 'Resultado neto', value: Number(report.summary.netProfitIndicator), description: 'Ganancia cobrada menos pagos a socios, gastos y pérdidas en riesgo.' },
+    { label: 'Resultado neto', value: Number(report.summary.netProfitIndicator), description: 'Interés y mora menos pagos a socios, gastos y pérdidas en riesgo.' },
   ];
 
   return [
     {
       name: 'Resumen Financiero',
-      title: `CONTROL FINANCIERO MENSUAL ${report.year}`,
+      title: `CIERRE CONTABLE MENSUAL ${report.year}`,
       tabColor: STYLE_COLORS.blue,
       headerFill: STYLE_COLORS.green,
       columns: SUMMARY_COLUMNS,
       rows: summaryRows,
     },
     {
-      name: 'Historial Mensual',
-      title: `HISTORIAL MENSUAL DE FLUJO DE CAJA ${report.year}`,
+      name: 'Créditos y Pagos',
+      title: `CRÉDITOS Y PAGOS DEL PERÍODO ${report.year}`,
       tabColor: STYLE_COLORS.teal,
       headerFill: STYLE_COLORS.headerBlue,
       columns: CASH_FLOW_COLUMNS,
@@ -656,7 +656,7 @@ const resolveCashFlowDateRange = (filters = {}) => {
 };
 
 const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year, filters = {} }) => {
-  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al flujo de caja mensual.');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al cierre contable mensual.');
   const resolvedYear = resolveYear(year);
   const dateRange = resolveCashFlowDateRange(filters);
   const dataset = await reportRepository.listCashFlowDataset({
@@ -680,7 +680,7 @@ const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year,
 };
 
 const createGetDailyCashFlow = ({ reportRepository }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al flujo de caja diario.');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al cierre contable diario.');
   const dateRange = resolveDailyCashFlowDateRange(filters);
   const year = dateRange.fromDate.getUTCFullYear();
   const dataset = await reportRepository.listCashFlowDataset({
@@ -705,7 +705,7 @@ const createGetDailyCashFlow = ({ reportRepository }) => async ({ actor, filters
 };
 
 const createGetAnnualCashFlow = ({ reportRepository }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al flujo de caja anual.');
+  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al cierre contable anual.');
   const annualRange = resolveAnnualRange(filters);
   const fromDate = new Date(Date.UTC(annualRange.fromYear, 0, 1, 0, 0, 0, 0));
   const toDate = new Date(Date.UTC(annualRange.toYear, 11, 31, 23, 59, 59, 999));
@@ -730,7 +730,7 @@ const createExportMonthlyCashFlowExcel = ({ reportRepository }) => async ({ acto
   const response = await createGetMonthlyCashFlow({ reportRepository })({ actor, year, filters });
   const report = response.data;
   return {
-    fileName: `flujo-caja-mensual-${report.year}.xlsx`,
+    fileName: `cierre-contable-mensual-${report.year}.xlsx`,
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     sheets: buildCashFlowSheets(report),
   };
@@ -739,23 +739,23 @@ const createExportMonthlyCashFlowExcel = ({ reportRepository }) => async ({ acto
 const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor, year, filters }) => {
   const response = await createGetMonthlyCashFlow({ reportRepository })({ actor, year, filters });
   const report = response.data;
-  const title = `Flujo de caja mensual ${report.year}`;
+  const title = `Cierre contable mensual ${report.year}`;
   const lines = [
     `Entradas por cuotas: ${formatDisplayMoney(report.summary.totalInflows)}`,
     `Salidas por préstamos: ${formatDisplayMoney(report.summary.totalOutflows)}`,
     `Pagos a socios: ${formatDisplayMoney(report.summary.totalAssociatePayments)}`,
     `Gastos operativos: ${formatDisplayMoney(report.summary.totalOperatingExpenses)}`,
     `Caja disponible: ${formatDisplayMoney(report.summary.availableCash)}`,
-    `Ganancia cobrada: ${formatDisplayMoney(report.summary.totalCollectedProfit)}`,
+    `Interés y mora cobrados: ${formatDisplayMoney(report.summary.totalCollectedProfit)}`,
     `Pérdidas en riesgo: ${formatDisplayMoney(report.summary.lossesAtRisk)}`,
     `Resultado neto: ${formatDisplayMoney(report.summary.netProfitIndicator)}`,
     '',
-    'Historial mensual:',
+    'Créditos y pagos del período:',
     ...report.months.map((month) => `${month.month}: entradas ${formatDisplayMoney(month.inflows)} - prestamos ${formatDisplayMoney(month.outflows)} - socios ${formatDisplayMoney(month.associatePayments)} - gastos ${formatDisplayMoney(month.operatingExpenses)} = caja ${formatDisplayMoney(month.availableCash)}`),
   ].slice(0, 42);
 
   return {
-    fileName: `flujo-caja-mensual-${report.year}.pdf`,
+    fileName: `cierre-contable-mensual-${report.year}.pdf`,
     contentType: 'application/pdf',
     buffer: buildSimplePdfBuffer({ title, lines }),
   };

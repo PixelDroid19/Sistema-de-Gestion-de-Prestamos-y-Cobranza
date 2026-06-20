@@ -68,8 +68,8 @@ test('local browser smoke can include a reports cashflow verification segment', 
 
   assert(commands.includes('open http://127.0.0.1:3000/reports'));
   assert(commands.includes('wait --text Reportes y analítica'));
-  assert(commands.includes('find role tab click --name Flujo de caja'));
-  assert(commands.includes('wait --text Control financiero mensual'));
+  assert(commands.includes('find role tab click --name Cierre contable'));
+  assert(commands.includes('wait --text Cierre contable mensual'));
   assert.equal(steps[steps.length - 1].command, 'close');
 });
 

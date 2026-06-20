@@ -590,7 +590,7 @@ test('export credits use case builds approved workbook fields with current snaps
       'Interés Total Generado',
       'Interés Pendiente',
       'TNA Promedio',
-      'Ganancia Promedio por Millón',
+      'Interés y mora promedio por millón',
       'Tasa de Recaudo',
       '% Total Pagado',
       '% Capital Recuperado',

@@ -297,11 +297,11 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await buildWorkbookBuffer(excel.sheets));
   assert.ok(workbook.getWorksheet('Resumen Auditoría'));
-  assert.ok(workbook.getWorksheet('Historial Mensual'));
+  assert.ok(workbook.getWorksheet('Detalle mensual'));
   assert.ok(workbook.getWorksheet('Detalle Créditos'));
   assert.ok(workbook.getWorksheet('Detalle Pagos'));
 
-  const headers = workbook.getWorksheet('Historial Mensual').getRow(2).values;
+  const headers = workbook.getWorksheet('Detalle mensual').getRow(2).values;
   assert.ok(headers.includes('Créditos Creados'));
   assert.ok(headers.includes('Cuotas Recibidas'));
   assert.ok(headers.includes('Gastos Operativos'));
@@ -309,10 +309,10 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.ok(headers.includes('Capital Recuperado'));
   assert.ok(headers.includes('Créditos Vencidos'));
   assert.ok(headers.includes('Pérdidas/Riesgo'));
-  assert.ok(headers.includes('Ganancias'));
+  assert.ok(headers.includes('Interés y mora'));
   assert.ok(headers.includes('Caja Disponible'));
 
-  const historySheet = workbook.getWorksheet('Historial Mensual');
+  const historySheet = workbook.getWorksheet('Detalle mensual');
   const firstCapitalCell = historySheet.getRow(3).getCell(3);
   const firstReceivedCell = historySheet.getRow(3).getCell(5);
   const firstGainsCell = historySheet.getRow(3).getCell(12);
@@ -371,7 +371,7 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
         calls.push(['excel', actor.role, filters.status, filters.customerId, filters.loanId, filters.financialProductId]);
         return {
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          fileName: 'historial-creditos-2026-01-01-2026-01-31.xlsx',
+          fileName: 'creditos-periodo-2026-01-01-2026-01-31.xlsx',
           sheets: [{ name: 'Resumen Auditoría', rows: [{ indicador: 'Caja disponible', valor: 1000 }] }],
         };
       },
@@ -379,7 +379,7 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
         calls.push(['pdf', actor.role, filters.status, filters.customerId, filters.loanId, filters.financialProductId]);
         return {
           contentType: 'application/pdf',
-          fileName: 'historial-creditos-2026-01-01-2026-01-31.pdf',
+          fileName: 'creditos-periodo-2026-01-01-2026-01-31.pdf',
           buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
         };
       },

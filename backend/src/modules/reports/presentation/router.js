@@ -246,7 +246,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
       dashboardRow('Tasa de recuperación', parseExcelPercent(summary.recoveryRate), PERCENT_FORMAT),
       dashboardRow('Porcentaje de mora', parseExcelPercent(summary.arrearsRate), PERCENT_FORMAT),
       dashboardRow('Caja disponible', parseExcelMoney(summary.availableCash), MONEY_FORMAT),
-      dashboardRow('Ganancia del período', parseExcelMoney(summary.periodProfit), MONEY_FORMAT),
+      dashboardRow('Resultado de intereses y mora', parseExcelMoney(summary.periodProfit), MONEY_FORMAT),
       dashboardRow('Pérdida del período', parseExcelMoney(summary.periodLoss), MONEY_FORMAT),
       dashboardRow('Alertas vencidas', Number(collections.overdueAlerts ?? 0), INTEGER_FORMAT),
       dashboardRow('Compromisos pendientes', Number(collections.pendingPromises ?? 0), INTEGER_FORMAT),

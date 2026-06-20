@@ -89,9 +89,9 @@ const buildSummaryRows = ({
     detail: 'Periodo usado para consolidar tendencias, comparativos y proyecciones.',
   },
   {
-    indicator: 'Ganancia total',
+    indicator: 'Ingresos del año',
     value: toNumber(summary.totalEarnings),
-    detail: 'Interés y mora cobrados en el año.',
+    detail: 'Capital recuperado, interés y mora del periodo.',
     __formats: { value: { numFmt: MONEY_FORMAT } },
   },
   {
@@ -123,7 +123,7 @@ const buildSummaryRows = ({
     __formats: { value: { numFmt: MONEY_FORMAT } },
   },
   {
-    indicator: 'Cambio anual de ganancias',
+    indicator: 'Cambio anual de ingresos',
     value: toPercentDecimal(yearOverYear.earningsChange),
     detail: 'Variación frente al año inmediatamente anterior.',
     __formats: { value: { numFmt: PERCENT_FORMAT } },
@@ -144,7 +144,7 @@ const buildSummaryRows = ({
 
 const buildComparisonRows = (comparison = {}) => {
   const metrics = [
-    ['Ganancias', comparison.earnings, 'currency'],
+    ['Ingresos', comparison.earnings, 'currency'],
     ['Intereses', comparison.interest, 'currency'],
     ['Mora', comparison.penalties, 'currency'],
     ['Pagos', comparison.payments, 'count'],
@@ -273,7 +273,7 @@ const buildAnalyticsSheets = ({
     headerFill: STYLE_COLORS.headerBlue,
     columns: [
       { header: 'Mes', key: 'month', width: 14 },
-      { header: 'Ganancias', key: 'earnings', width: 18, numFmt: MONEY_FORMAT },
+      { header: 'Ingresos', key: 'earnings', width: 18, numFmt: MONEY_FORMAT },
       { header: 'Intereses', key: 'interest', width: 18, numFmt: MONEY_FORMAT },
       { header: 'Mora', key: 'penalties', width: 18, numFmt: MONEY_FORMAT },
       { header: 'Promedio móvil', key: 'movingAverage', width: 18, numFmt: MONEY_FORMAT },
@@ -310,7 +310,7 @@ const buildAnalyticsPdf = ({
 
   const lines = [
     `Año analizado: ${targetYear}`,
-    `Ganancia total: ${formatReportMoney(summary.totalEarnings)}`,
+    `Ingresos del año: ${formatReportMoney(summary.totalEarnings)}`,
     `Intereses cobrados: ${formatReportMoney(summary.totalInterest)}`,
     `Mora cobrada: ${formatReportMoney(summary.totalPenalties)}`,
     `Pagos registrados: ${summary.paymentCount || 0}`,
@@ -318,7 +318,7 @@ const buildAnalyticsPdf = ({
     `Capital desembolsado: ${formatReportMoney(summary.totalLoanAmount)}`,
     '',
     'Comparativo anual:',
-    `Ganancias: ${formatReportMoney(comparison.earnings?.current)} vs ${formatReportMoney(comparison.earnings?.previous)} (${comparison.earnings?.changePercent || 0}%)`,
+    `Ingresos: ${formatReportMoney(comparison.earnings?.current)} vs ${formatReportMoney(comparison.earnings?.previous)} (${comparison.earnings?.changePercent || 0}%)`,
     `Intereses: ${formatReportMoney(comparison.interest?.current)} vs ${formatReportMoney(comparison.interest?.previous)} (${comparison.interest?.changePercent || 0}%)`,
     `Mora: ${formatReportMoney(comparison.penalties?.current)} vs ${formatReportMoney(comparison.penalties?.previous)} (${comparison.penalties?.changePercent || 0}%)`,
     `Pagos: ${comparison.payments?.current || 0} vs ${comparison.payments?.previous || 0}`,
@@ -333,7 +333,7 @@ const buildAnalyticsPdf = ({
     '',
     'Tendencia mensual:',
     ...monthlyRows.map((row) => (
-      `${row.month}: ganancias ${formatReportMoney(row.totalEarnings)} · intereses ${formatReportMoney(row.totalInterest)} · mora ${formatReportMoney(row.totalPenalties)}`
+      `${row.month}: ingresos ${formatReportMoney(row.totalEarnings)} · intereses ${formatReportMoney(row.totalInterest)} · mora ${formatReportMoney(row.totalPenalties)}`
     )),
   ].slice(0, 42);
 

@@ -99,7 +99,7 @@ const buildMockUseCases = (calls = []) => ({
         {
           name: 'Resumen',
           columns: [{ header: 'Indicador', key: 'indicator', width: 24 }],
-          rows: [{ indicator: 'Ganancia total' }],
+          rows: [{ indicator: 'Ingresos del año' }],
         },
       ],
     };

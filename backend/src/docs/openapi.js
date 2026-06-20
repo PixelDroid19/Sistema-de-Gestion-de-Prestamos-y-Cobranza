@@ -133,6 +133,21 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           },
         ],
       },
+      CapitalPaymentPreviewInput: {
+        allOf: [
+          { $ref: '#/components/schemas/CapitalPaymentInput' },
+          {
+            type: 'object',
+            properties: {
+              asOfDate: {
+                type: 'string',
+                format: 'date',
+                description: 'Fecha operativa usada para simular el abono. Debe coincidir con paymentDate al aplicarlo para que preview, calendario y cobro queden alineados.',
+              },
+            },
+          },
+        ],
+      },
       RatePolicy: {
         type: 'object',
         properties: {
@@ -267,6 +282,19 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           },
         },
         responses: { 201: { description: 'Abono aplicado' } },
+      },
+    },
+    '/payments/capital/preview': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Simular abono a capital',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/CapitalPaymentPreviewInput' } },
+          },
+        },
+        responses: { 200: { description: 'Preview del abono a capital' } },
       },
     },
     '/payments/partial': {
@@ -451,61 +479,61 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
     '/reports/cash-flow/monthly': {
       get: {
         tags: ['Reports'],
-        summary: 'Consultar control financiero mensual',
-        description: 'Devuelve el cuadre mensual de caja: entradas por cuotas completadas, salidas por préstamos desembolsados, caja disponible acumulada, ganancia cobrada y pérdidas en riesgo.',
+        summary: 'Consultar cierre contable mensual',
+        description: 'Devuelve el cuadre mensual de caja: entradas por cuotas completadas, salidas por préstamos desembolsados, caja disponible acumulada, interés y mora cobrados, y pérdidas en riesgo.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
           { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
-        responses: { 200: { description: 'Resumen financiero mensual e historial por mes' } },
+        responses: { 200: { description: 'Resumen financiero mensual y detalle por mes' } },
       },
     },
     '/reports/cash-flow/daily': {
       get: {
         tags: ['Reports'],
-        summary: 'Consultar control financiero diario',
+        summary: 'Consultar cierre contable diario',
         description: 'Devuelve el cuadre diario de caja para una fecha o rango: entradas por cuotas, salidas por préstamos, pagos a socios, gastos operativos, caja disponible y pérdidas en riesgo.',
         parameters: [
           { name: 'date', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
-        responses: { 200: { description: 'Resumen financiero diario e historial por día' } },
+        responses: { 200: { description: 'Resumen financiero diario y detalle por día' } },
       },
     },
     '/reports/cash-flow/monthly/excel': {
       get: {
         tags: ['Reports'],
-        summary: 'Exportar flujo de caja mensual a Excel',
-        description: 'Genera un Excel con hojas Resumen Financiero e Historial Mensual. Los totales coinciden con préstamos y pagos completados registrados en base de datos.',
+        summary: 'Exportar cierre contable mensual a Excel',
+        description: 'Genera un Excel con hojas Resumen Financiero y Créditos y Pagos. Los totales coinciden con préstamos y pagos completados registrados en base de datos.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
           { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
-        responses: { 200: { description: 'Archivo Excel de flujo de caja mensual' } },
+        responses: { 200: { description: 'Archivo Excel de cierre contable mensual' } },
       },
     },
     '/reports/cash-flow/monthly/pdf': {
       get: {
         tags: ['Reports'],
-        summary: 'Exportar flujo de caja mensual a PDF',
-        description: 'Genera un PDF ejecutivo con entradas, salidas, caja disponible, ganancia cobrada, pérdidas en riesgo y resultado neto del año seleccionado.',
+        summary: 'Exportar cierre contable mensual a PDF',
+        description: 'Genera un PDF ejecutivo con entradas, salidas, caja disponible, interés y mora cobrados, pérdidas en riesgo y resultado neto del año seleccionado.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
           { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
-        responses: { 200: { description: 'Archivo PDF de flujo de caja mensual' } },
+        responses: { 200: { description: 'Archivo PDF de cierre contable mensual' } },
       },
     },
     '/reports/credit-history/monthly': {
       get: {
         tags: ['Reports'],
-        summary: 'Consultar historial mensual avanzado de créditos',
+        summary: 'Consultar créditos del período con detalle mensual',
         description: [
-          'Devuelve un reporte mensual de auditoría financiera con créditos creados, cuotas recibidas, capital recuperado, intereses cobrados, créditos vencidos, pérdidas/riesgo, ganancias y caja disponible.',
+          'Devuelve un reporte mensual de auditoría financiera con créditos creados, cuotas recibidas, capital recuperado, intereses cobrados, créditos vencidos, pérdidas/riesgo, interés y mora, y caja disponible.',
           'Los datos salen de préstamos y pagos completados registrados en base de datos.',
         ].join(' '),
         parameters: [
@@ -516,16 +544,16 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'customerId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por cliente administrativo.' },
           { name: 'loanId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por crédito específico.' },
         ],
-        responses: { 200: { description: 'Historial mensual avanzado de créditos' } },
+        responses: { 200: { description: 'Créditos del período con detalle mensual avanzado' } },
       },
     },
     '/reports/credit-history/monthly/export': {
       get: {
         tags: ['Reports'],
-        summary: 'Exportar historial mensual avanzado de créditos',
+        summary: 'Exportar créditos del período con detalle mensual',
         description: [
-          'Exporta el historial mensual avanzado en Excel o PDF para auditoría financiera real.',
-          'El Excel incluye Resumen Auditoría, Historial Mensual, Detalle Créditos y Detalle Pagos.',
+          'Exporta los créditos del período con detalle mensual en Excel o PDF para auditoría financiera real.',
+          'El Excel incluye Resumen Auditoría, Detalle mensual, Detalle Créditos y Detalle Pagos.',
           'CSV no forma parte de este contrato.',
         ].join(' '),
         parameters: [
@@ -537,7 +565,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'customerId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por cliente administrativo.' },
           { name: 'loanId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por crédito específico.' },
         ],
-        responses: { 200: { description: 'Archivo Excel o PDF de historial mensual de créditos' } },
+        responses: { 200: { description: 'Archivo Excel o PDF de créditos del período con detalle mensual' } },
       },
     },
     '/reports/payouts/excel': {

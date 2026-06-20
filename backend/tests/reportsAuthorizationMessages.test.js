@@ -83,12 +83,12 @@ test('specialized report use cases reject unsupported actors with Spanish messag
     {
       name: 'monthly cash flow',
       useCase: createGetMonthlyCashFlow({ reportRepository }),
-      expectedMessage: 'Solo usuarios administrativos autorizados pueden acceder al flujo de caja mensual.',
+      expectedMessage: 'Solo usuarios administrativos autorizados pueden acceder al cierre contable mensual.',
     },
     {
       name: 'daily cash flow',
       useCase: createGetDailyCashFlow({ reportRepository }),
-      expectedMessage: 'Solo usuarios administrativos autorizados pueden acceder al flujo de caja diario.',
+      expectedMessage: 'Solo usuarios administrativos autorizados pueden acceder al cierre contable diario.',
     },
   ];
 

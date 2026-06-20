@@ -22,7 +22,7 @@ const primaryItems = [
 const secondaryItems = [
   {
     id: 'secondary-1',
-    label: 'Ganancia',
+    label: 'Resultado',
     value: '$ 50',
     helper: 'Helper secundario',
     accent: 'amber' as const,
@@ -41,16 +41,16 @@ describe('ReportMetricsSection', () => {
     );
 
     expect(screen.getByText('Entradas')).toBeInTheDocument();
-    expect(screen.queryByText('Ganancia')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resultado')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Más indicadores (1)' }));
 
     expect(screen.getByRole('heading', { name: 'Indicadores adicionales' })).toBeInTheDocument();
-    expect(screen.getByText('Ganancia')).toBeInTheDocument();
+    expect(screen.getByText('Resultado')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
 
-    expect(screen.queryByText('Ganancia')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resultado')).not.toBeInTheDocument();
   });
 
   it('renders only primary metrics when secondary items are omitted', () => {

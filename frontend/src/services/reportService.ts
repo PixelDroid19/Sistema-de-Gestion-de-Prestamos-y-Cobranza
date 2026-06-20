@@ -798,7 +798,7 @@ export const exportMonthlyCashFlowExcel = async (
 ): Promise<void> => {
   await downloadBlobWithParams({
     url: '/reports/cash-flow/monthly/excel',
-    fileName: `flujo-caja-mensual-${year || new Date().getFullYear()}.xlsx`,
+    fileName: `cierre-contable-mensual-${year || new Date().getFullYear()}.xlsx`,
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     params: { year, ...filters },
   });
@@ -810,7 +810,7 @@ export const exportMonthlyCashFlowPdf = async (
 ): Promise<void> => {
   await downloadBlobWithParams({
     url: '/reports/cash-flow/monthly/pdf',
-    fileName: `flujo-caja-mensual-${year || new Date().getFullYear()}.pdf`,
+    fileName: `cierre-contable-mensual-${year || new Date().getFullYear()}.pdf`,
     mimeType: 'application/pdf',
     params: { year, ...filters },
   });

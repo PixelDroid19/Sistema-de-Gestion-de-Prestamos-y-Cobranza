@@ -164,7 +164,7 @@ const DETAIL_COLUMNS = [
   dateColumn('Fecha Préstamo', 'loanDate'),
   dateColumn('Próximo Pago', 'nextPaymentDate'),
   dateColumn('Último Pago', 'lastPaymentDate'),
-  moneyColumn('Ganancia/Millón', 'profitPerMillion'),
+  moneyColumn('Interés y mora/Millón', 'profitPerMillion'),
 ];
 
 const SUMMARY_COLUMNS = [
@@ -284,7 +284,7 @@ const buildSummaryRows = (rows) => {
     summaryRow('INTERESES PROYECTADOS', 'Interés Total Generado', totalInterestGenerated, MONEY_FORMAT),
     summaryRow('INTERESES PROYECTADOS', 'Interés Pendiente', totalInterestPending, MONEY_FORMAT),
     summaryRow('MÉTRICAS FINANCIERAS', 'TNA Promedio', averageTNA / 100, PERCENT_FORMAT),
-    summaryRow('MÉTRICAS FINANCIERAS', 'Ganancia Promedio por Millón', averageProfitPerMillion, MONEY_FORMAT),
+    summaryRow('MÉTRICAS FINANCIERAS', 'Interés y mora promedio por millón', averageProfitPerMillion, MONEY_FORMAT),
     summaryRow('MÉTRICAS FINANCIERAS', 'Tasa de Recaudo', totalAmountWithInterest > 0 ? totalPaid / totalAmountWithInterest : 0, PERCENT_FORMAT),
     summaryRow('PORCENTAJES GLOBALES', '% Total Pagado', totalAmountWithInterest > 0 ? totalPaid / totalAmountWithInterest : 0, PERCENT_FORMAT),
     summaryRow('PORCENTAJES GLOBALES', '% Capital Recuperado', totalLoanAmount > 0 ? totalCapitalPaid / totalLoanAmount : 0, PERCENT_FORMAT),
@@ -576,7 +576,7 @@ const buildPdfSummaryLines = (rows) => {
     `Intereses generados: ${formatDisplayMoney(totalInterestGenerated)}`,
     `Mora cobrada: ${formatDisplayMoney(totalLate)}`,
     `Saldo pendiente: ${formatDisplayMoney(totalRemaining)}`,
-    `Ganancia (intereses + mora): ${formatDisplayMoney(profit)}`,
+    `Interés y mora: ${formatDisplayMoney(profit)}`,
     `Caja disponible (cobrado - prestado): ${formatDisplayMoney(availableCash)}`,
   ];
 };
