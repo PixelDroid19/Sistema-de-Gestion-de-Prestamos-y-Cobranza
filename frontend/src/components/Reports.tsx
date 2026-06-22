@@ -42,6 +42,8 @@ import { toast } from '../lib/toast';
 import {
   ActionButton,
   EmptyState,
+  FormField,
+  OperationalSelect,
   PageHeader,
   PageShell,
 } from './shared/Surfaces';
@@ -71,6 +73,15 @@ import {
 } from './reports/reportsExportHelpers';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+
+const PRIMARY_REPORT_TAB_IDS = ['cashflow', 'creditHistory', 'payouts', 'advanced'] as const;
+type PrimaryReportTab = typeof PRIMARY_REPORT_TAB_IDS[number];
+const isPrimaryReportTab = (tabId: string): tabId is PrimaryReportTab => (
+  PRIMARY_REPORT_TAB_IDS.includes(tabId as PrimaryReportTab)
+);
+
+const ADVANCED_REPORT_TAB_IDS = ['dashboard', 'analytics', 'profitability', 'outstanding', 'expenses', 'schedule'] as const;
+type AdvancedReportTab = typeof ADVANCED_REPORT_TAB_IDS[number];
 
 export default function Reports() {
   const queryClient = useQueryClient();
@@ -118,7 +129,8 @@ export default function Reports() {
   const [annullingExpenseId, setAnnullingExpenseId] = useState<number | null>(null);
   const [exportingExpensesFormat, setExportingExpensesFormat] = useState<OperatingExpenseExportFormat | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'cashflow' | 'creditHistory' | 'outstanding' | 'profitability' | 'payouts' | 'schedule' | 'expenses'>('dashboard');
+  const [activeTab, setActiveTab] = useState<PrimaryReportTab>('cashflow');
+  const [advancedReportTab, setAdvancedReportTab] = useState<AdvancedReportTab>('dashboard');
 
   // Payment schedule state
   const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
@@ -155,7 +167,7 @@ export default function Reports() {
     refetch: refetchScheduleAgenda,
   } = usePaymentCalendarOverview(
     scheduleAgendaQueryFilters,
-    activeTab === 'schedule' && canViewPaymentScheduleTab,
+    activeTab === 'advanced' && advancedReportTab === 'schedule' && canViewPaymentScheduleTab,
   );
   const {
     schedule,
@@ -457,7 +469,9 @@ export default function Reports() {
   };
 
   const handleReportsTabChange = (tabId: string) => {
-    setActiveTab(tabId as typeof activeTab);
+    if (isPrimaryReportTab(tabId)) {
+      setActiveTab(tabId);
+    }
   };
 
   const handleExportCashFlow = async (format: 'excel' | 'pdf'): Promise<boolean> => {
@@ -542,56 +556,36 @@ export default function Reports() {
 
   const reportGroups = useMemo<ReportGroup[]>(() => [
     {
-      id: 'overview',
-      label: tTerm('reports.group.overview'),
-      title: tTerm('reports.group.overview.title'),
-      leaves: [
-        { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
-      ],
-    },
-    {
-      id: 'performance',
-      label: tTerm('reports.group.performance'),
-      title: tTerm('reports.group.performance.title'),
-      leaves: [
-        { id: 'analytics', label: tTerm('reports.tab.analytics'), title: tTerm('reports.tab.analytics.title') },
-        { id: 'profitability', label: tTerm('reports.tab.profitability') },
-      ],
-    },
-    {
-      id: 'cashflow',
-      label: tTerm('reports.tab.cashflow'),
-      title: tTerm('reports.tab.cashflow.title'),
+      id: 'core',
+      label: tTerm('reports.group.core'),
+      title: tTerm('reports.group.core.title'),
       leaves: [
         { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
-      ],
-    },
-    {
-      id: 'operations',
-      label: tTerm('reports.group.operations'),
-      title: tTerm('reports.group.operations.title'),
-      leaves: [
-        { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
         { id: 'creditHistory', label: tTerm('reports.tab.creditHistory'), title: tTerm('reports.tab.creditHistory.title') },
-        { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
-        ...(canViewOperatingExpensesTab
-          ? [{ id: 'expenses', label: tTerm('reports.tab.expenses'), title: tTerm('reports.tab.expenses.title') }]
-          : []),
-        ...(canViewPaymentScheduleTab
-          ? [{ id: 'schedule', label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') }]
-          : []),
+        { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
+        { id: 'advanced', label: tTerm('reports.tab.advanced'), title: tTerm('reports.tab.advanced.title') },
       ],
     },
-  ], [canViewOperatingExpensesTab, canViewPaymentScheduleTab]);
+  ], [tTerm]);
+
+  const advancedReportOptions = useMemo(() => [
+    { id: 'dashboard' as const, label: tTerm('reports.tab.dashboard'), title: tTerm('reports.tab.dashboard.title') },
+    { id: 'analytics' as const, label: tTerm('reports.tab.analytics'), title: tTerm('reports.tab.analytics.title') },
+    { id: 'profitability' as const, label: tTerm('reports.tab.profitability'), title: tTerm('reports.tab.profitability.title') },
+    { id: 'outstanding' as const, label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
+    ...(canViewOperatingExpensesTab
+      ? [{ id: 'expenses' as const, label: tTerm('reports.tab.expenses'), title: tTerm('reports.tab.expenses.title') }]
+      : []),
+    ...(canViewPaymentScheduleTab
+      ? [{ id: 'schedule' as const, label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') }]
+      : []),
+  ], [canViewOperatingExpensesTab, canViewPaymentScheduleTab, tTerm]);
 
   useEffect(() => {
-    if (activeTab === 'schedule' && !canViewPaymentScheduleTab) {
-      setActiveTab('dashboard');
+    if (!advancedReportOptions.some((option) => option.id === advancedReportTab)) {
+      setAdvancedReportTab('dashboard');
     }
-    if (activeTab === 'expenses' && !canViewOperatingExpensesTab) {
-      setActiveTab('dashboard');
-    }
-  }, [activeTab, canViewOperatingExpensesTab, canViewPaymentScheduleTab]);
+  }, [advancedReportOptions, advancedReportTab]);
 
   // ─── Loading / Error states ───────────────────────────────────────────────
 
@@ -686,7 +680,30 @@ export default function Reports() {
       )}
 
       <ReportsTabContent>
-      {activeTab === 'dashboard' && (
+      {activeTab === 'advanced' && (
+        <ReportTabPanel
+          title={tTerm('reports.advanced.title')}
+          subtitle={tTerm('reports.advanced.subtitle')}
+          filters={(
+            <FormField label={tTerm('reports.advanced.select.label')}>
+              <OperationalSelect
+                value={advancedReportTab}
+                onChange={(event) => setAdvancedReportTab(event.target.value as AdvancedReportTab)}
+                aria-label={tTerm('reports.advanced.select.label')}
+              >
+                {advancedReportOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </OperationalSelect>
+            </FormField>
+          )}
+          filterColumns={2}
+        />
+      )}
+
+      {activeTab === 'advanced' && advancedReportTab === 'dashboard' && (
         <DashboardTab
           metrics={metrics}
           monthlyData={monthlyData}
@@ -738,7 +755,7 @@ export default function Reports() {
         />
       )}
 
-      {activeTab === 'analytics' && (
+      {activeTab === 'advanced' && advancedReportTab === 'analytics' && (
         <AnalyticsTab
           analyticsYear={analyticsYear}
           onAnalyticsYearChange={setAnalyticsYear}
@@ -794,7 +811,7 @@ export default function Reports() {
         />
       )}
 
-      {activeTab === 'outstanding' && (
+      {activeTab === 'advanced' && advancedReportTab === 'outstanding' && (
         <div className="report-tab-layout">
           <ReportTabPanel
             title={tTerm('reports.outstanding.title')}
@@ -828,7 +845,7 @@ export default function Reports() {
         </div>
       )}
 
-      {activeTab === 'profitability' && (
+      {activeTab === 'advanced' && advancedReportTab === 'profitability' && (
         <ProfitabilityTab
           profitabilityData={profitabilityData}
           customerAnalytics={customerAnalytics}
@@ -901,7 +918,7 @@ export default function Reports() {
         />
       )}
 
-      {activeTab === 'expenses' && (
+      {activeTab === 'advanced' && advancedReportTab === 'expenses' && (
         <OperatingExpensesTab
           expenseFilters={expenseFilters}
           onExpenseFiltersChange={setExpenseFilters}
@@ -923,7 +940,7 @@ export default function Reports() {
         />
       )}
 
-      {activeTab === 'schedule' && (
+      {activeTab === 'advanced' && advancedReportTab === 'schedule' && (
         <ScheduleTab
           scheduleAgenda={scheduleAgenda}
           scheduleAgendaSummary={scheduleAgendaSummary}

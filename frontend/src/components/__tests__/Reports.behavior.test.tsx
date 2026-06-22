@@ -611,8 +611,30 @@ const renderReports = () => {
   );
 };
 
+const advancedReportValuesByLabel: Record<string, string> = {
+  'Dashboard general': 'dashboard',
+  'Analítica': 'analytics',
+  'Rentabilidad de clientes': 'profitability',
+  'Créditos en mora': 'outstanding',
+  'Gastos operativos': 'expenses',
+  'Calendario de pagos': 'schedule',
+};
+
 const openReportView = (name: string) => {
-  fireEvent.click(screen.getByRole('tab', { name }));
+  const directTab = screen.queryByRole('tab', { name });
+  if (directTab) {
+    fireEvent.click(directTab);
+    return;
+  }
+
+  fireEvent.click(screen.getByRole('tab', { name: 'Otros informes' }));
+  const optionValue = advancedReportValuesByLabel[name];
+  if (!optionValue) {
+    throw new Error(`No advanced report mapping configured for ${name}`);
+  }
+  fireEvent.change(screen.getByRole('combobox', { name: 'Informe adicional' }), {
+    target: { value: optionValue },
+  });
 };
 
 const selectComboboxOption = (comboboxName: string, value: string) => {
@@ -811,16 +833,22 @@ describe('Reports behavioral parity scenarios', () => {
     };
   });
 
-  it('shows report views in one navigation level so each report opens with one click', () => {
+  it('keeps the main reports in a short navigation and moves secondary reports out of the tab row', () => {
     renderReports();
 
-    expect(screen.getByRole('tab', { name: 'Dashboard general' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Analítica' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Rentabilidad de clientes' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Cierre contable' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Créditos del período' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Créditos en mora' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Otros informes' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Dashboard general' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Analítica' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Rentabilidad de clientes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Créditos en mora' })).not.toBeInTheDocument();
+
+    openReportView('Dashboard general');
+
+    expect(screen.getByRole('heading', { name: 'Otros informes administrativos' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Informe adicional' })).toHaveDisplayValue('Dashboard general');
   });
 
   it('exports reports when action is in-scope and keeps canonical labels', async () => {
@@ -828,6 +856,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     expect(screen.getByRole('heading', { name: 'Reportes y analítica' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Reportes y Analíticas' })).not.toBeInTheDocument();
+    openReportView('Dashboard general');
     expect(screen.getByText('Capital recuperado')).toBeInTheDocument();
     expect(screen.getByText('Interés pagado')).toBeInTheDocument();
 
@@ -893,6 +922,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('exports contextual report by selected type and date range', async () => {
     renderReports();
 
+    openReportView('Dashboard general');
     fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-01-01' } });
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-01-31' } });
@@ -981,6 +1011,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('clears contextual customer and credit selection when the operator clears the selectors', async () => {
     renderReports();
 
+    openReportView('Dashboard general');
     fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
 
     const customerSelect = document.getElementById('report-customer')!;
@@ -1008,6 +1039,7 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
+    openReportView('Dashboard general');
     fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
     fireEvent.change(screen.getByLabelText('Tipo de crédito'), { target: { value: 'prod-personal' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar historial' }));
@@ -1030,6 +1062,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
+    openReportView('Dashboard general');
     fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
     fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'payouts' } });
 
@@ -1040,6 +1073,7 @@ describe('Reports behavioral parity scenarios', () => {
     mockExportContextualReport.mockClear();
     renderReports();
 
+    openReportView('Dashboard general');
     fireEvent.click(screen.getByRole('button', { name: 'Exportación contextual' }));
 
     const reportType = screen.getByLabelText('Tipo de reporte');
@@ -1781,6 +1815,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
+    openReportView('Dashboard general');
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     expect(screen.getByRole('heading', { name: 'Exportar dashboard general' })).toBeInTheDocument();
 
@@ -1794,6 +1829,8 @@ describe('Reports behavioral parity scenarios', () => {
 
   it('shows dashboard export actions only on the dashboard tab', () => {
     renderReports();
+
+    openReportView('Dashboard general');
 
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportación contextual' })).toBeInTheDocument();
@@ -1860,6 +1897,8 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
+    openReportView('Dashboard general');
+
     await waitFor(() => {
       expect(screen.getByTestId('recharts-area-chart')).toHaveAttribute('data-accessibility-layer', 'false');
       expect(screen.getByTestId('recharts-pie-chart')).toHaveAttribute('data-accessibility-layer', 'false');
@@ -1891,7 +1930,7 @@ describe('Reports behavioral parity scenarios', () => {
     });
   });
 
-  it('hides the payment calendar tab from report-only employees without credit view permission', () => {
+  it('hides the payment calendar from additional reports for report-only employees without credit view permission', () => {
     currentUser = {
       id: 5,
       name: 'Empleado reportes',
@@ -1902,8 +1941,10 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
+    openReportView('Dashboard general');
+
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
   });
 
   it('renders report loan statuses with operational labels instead of raw enum keys', async () => {
@@ -1947,6 +1988,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
+    openReportView('Dashboard general');
     expect(screen.getAllByText('En mora').length).toBeGreaterThan(0);
     expect(screen.queryByText('defaulted')).not.toBeInTheDocument();
 
@@ -2472,11 +2514,15 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
+    openReportView('Dashboard general');
+
+    expect(screen.queryByRole('option', { name: 'Gastos operativos' })).not.toBeInTheDocument();
   });
 
   it('shows the dashboard control indicators from canonical report metrics', async () => {
     renderReports();
+
+    openReportView('Dashboard general');
 
     expect(screen.getByText('Capital recuperado')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Indicadores de control' })).not.toBeInTheDocument();
@@ -2503,6 +2549,7 @@ describe('Reports behavioral parity scenarios', () => {
   it('shows complementary dashboard financial indicators from canonical summary data', async () => {
     renderReports();
 
+    openReportView('Dashboard general');
     fireEvent.click(screen.getByRole('button', { name: 'Más indicadores (14)' }));
 
     expect(await screen.findByRole('dialog', { name: 'Indicadores financieros complementarios' })).toBeInTheDocument();
@@ -2536,6 +2583,7 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
+    openReportView('Dashboard general');
     expect(screen.getByText((_, element) => element?.tagName === 'P' && element.textContent?.includes('Alcance KPI: Totales acumulados históricos de la cartera.') === true)).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.tagName === 'P' && element.textContent?.includes('Alcance gráfico: El gráfico refleja únicamente el rango seleccionado. Rango actual del gráfico: Últimos 6 meses.') === true)).toBeInTheDocument();
     expect(screen.getByText('No hay actividad en el rango seleccionado, aunque existen totales históricos.')).toBeInTheDocument();
