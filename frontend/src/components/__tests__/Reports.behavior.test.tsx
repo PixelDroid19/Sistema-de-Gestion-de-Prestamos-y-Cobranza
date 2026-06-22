@@ -1687,6 +1687,10 @@ describe('Reports behavioral parity scenarios', () => {
     openReportView('Analítica');
 
     await screen.findByRole('heading', { name: 'Analítica financiera' });
+    expect(screen.getByText('Ingresos del año')).toBeInTheDocument();
+    expect(screen.getByText('Interés cobrado')).toBeInTheDocument();
+    expect(screen.getByText('Mora cobrada')).toBeInTheDocument();
+    expect(screen.queryByText('Ganancia total')).not.toBeInTheDocument();
     expect(screen.getByText('Comparativo anual')).toBeInTheDocument();
     expect(screen.getByText('Proyección del siguiente periodo')).toBeInTheDocument();
     expect(screen.getByText('Pagos')).toBeInTheDocument();

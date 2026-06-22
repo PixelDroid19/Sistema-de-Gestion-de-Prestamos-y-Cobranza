@@ -283,6 +283,14 @@ export default function AnalyticsTab({
       accent: 'blue' as const,
     },
     {
+      id: 'analytics-penalties',
+      label: tTerm('reports.analytics.kpi.totalPenalties.label'),
+      value: formatMoney(summary.totalPenalties),
+      helper: tTerm('reports.analytics.kpi.totalPenalties.helper'),
+      icon: <AlertCircle size={18} />,
+      accent: 'rose' as const,
+    },
+    {
       id: 'analytics-yoy-change',
       label: tTerm('reports.analytics.kpi.yearOverYear.label'),
       value: formatSignedPercent(comparison?.earnings?.changePercent ?? yearOverYear.earningsChange ?? 0),
@@ -290,6 +298,9 @@ export default function AnalyticsTab({
       icon: <Activity size={18} />,
       accent: 'amber' as const,
     },
+  ]), [comparison?.earnings?.changePercent, summary.totalEarnings, summary.totalInterest, summary.totalPenalties, yearOverYear.earningsChange]);
+
+  const secondaryItems = useMemo(() => ([
     {
       id: 'analytics-next-projection',
       label: tTerm('reports.analytics.kpi.nextProjection.label'),
@@ -301,17 +312,6 @@ export default function AnalyticsTab({
       ),
       icon: <CalendarClock size={18} />,
       accent: 'slate' as const,
-    },
-  ]), [comparison?.earnings?.changePercent, selectedProjectionValue, summary.totalEarnings, summary.totalInterest, usesCurrentProjection, yearOverYear.earningsChange]);
-
-  const secondaryItems = useMemo(() => ([
-    {
-      id: 'analytics-penalties',
-      label: tTerm('reports.analytics.kpi.totalPenalties.label'),
-      value: formatMoney(summary.totalPenalties),
-      helper: tTerm('reports.analytics.kpi.totalPenalties.helper'),
-      icon: <AlertCircle size={18} />,
-      accent: 'rose' as const,
     },
     {
       id: 'analytics-payments',
@@ -345,7 +345,7 @@ export default function AnalyticsTab({
       icon: <TrendingUp size={18} />,
       accent: 'emerald' as const,
     },
-  ]), [executiveDashboard?.summary?.portfolioAmount, executiveDashboard?.summary?.totalActiveLoans, executiveDashboard?.trends?.earningsMovingAverage, forecastAnalysisSummary?.currentMovingAverage, summary.paymentCount, summary.totalLoanAmount, summary.totalLoans, summary.totalPenalties]);
+  ]), [executiveDashboard?.summary?.portfolioAmount, executiveDashboard?.summary?.totalActiveLoans, executiveDashboard?.trends?.earningsMovingAverage, forecastAnalysisSummary?.currentMovingAverage, selectedProjectionValue, summary.paymentCount, summary.totalLoanAmount, summary.totalLoans, usesCurrentProjection]);
 
   return (
     <div className="report-tab-layout">
