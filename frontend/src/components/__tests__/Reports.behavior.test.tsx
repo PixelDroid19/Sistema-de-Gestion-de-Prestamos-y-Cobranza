@@ -611,30 +611,8 @@ const renderReports = () => {
   );
 };
 
-const advancedReportValuesByLabel: Record<string, string> = {
-  'Dashboard general': 'dashboard',
-  'Analítica': 'analytics',
-  'Rentabilidad de clientes': 'profitability',
-  'Créditos en mora': 'outstanding',
-  'Gastos operativos': 'expenses',
-  'Calendario de pagos': 'schedule',
-};
-
 const openReportView = (name: string) => {
-  const directTab = screen.queryByRole('tab', { name });
-  if (directTab) {
-    fireEvent.click(directTab);
-    return;
-  }
-
-  fireEvent.click(screen.getByRole('tab', { name: 'Otros informes' }));
-  const optionValue = advancedReportValuesByLabel[name];
-  if (!optionValue) {
-    throw new Error(`No advanced report mapping configured for ${name}`);
-  }
-  fireEvent.change(screen.getByRole('combobox', { name: 'Informe adicional' }), {
-    target: { value: optionValue },
-  });
+  fireEvent.click(screen.getByRole('button', { name }));
 };
 
 const selectComboboxOption = (comboboxName: string, value: string) => {
@@ -833,22 +811,24 @@ describe('Reports behavioral parity scenarios', () => {
     };
   });
 
-  it('keeps the main reports in a short navigation and moves secondary reports out of the tab row', () => {
+  it('shows a simple report catalog without nested report tabs', () => {
     renderReports();
 
-    expect(screen.getByRole('tab', { name: 'Cierre contable' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Créditos del período' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Otros informes' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Dashboard general' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Analítica' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Rentabilidad de clientes' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Créditos en mora' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Elige el informe que necesitas' })).toBeInTheDocument();
+    expect(screen.getByText('Informes principales')).toBeInTheDocument();
+    expect(screen.getByText('Otros informes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cierre contable' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Créditos del período' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pago de cuotas' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dashboard general' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analítica' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rentabilidad de clientes' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Otros informes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Informe adicional' })).not.toBeInTheDocument();
 
     openReportView('Dashboard general');
 
-    expect(screen.getByRole('heading', { name: 'Otros informes administrativos' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Informe adicional' })).toHaveDisplayValue('Dashboard general');
+    expect(screen.getByText('Capital recuperado')).toBeInTheDocument();
   });
 
   it('exports reports when action is in-scope and keeps canonical labels', async () => {
