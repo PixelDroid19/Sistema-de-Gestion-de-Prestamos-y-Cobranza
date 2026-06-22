@@ -104,4 +104,31 @@ describe('CreditDetailsModals behavior', () => {
 
     expect(onCloseStatusModal).toHaveBeenCalledTimes(1);
   });
+
+  it('fills the payment amount from the suggested quote total', async () => {
+    const user = userEvent.setup();
+    const onPaymentAmountChange = vi.fn();
+
+    render(
+      <CreditDetailsModals
+        {...buildProps({
+          isRecordPaymentModalOpen: true,
+          selectedInstallmentNumber: 3,
+          installmentQuote: {
+            outstandingAmount: 115487.44,
+            lateFeeDue: 0,
+            daysOverdue: 0,
+            totalDue: 115487.44,
+            canPay: true,
+          },
+          formatCurrency: (value) => `$${Number(value).toFixed(2)}`,
+          onPaymentAmountChange,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Total sugerido $115487.44' }));
+
+    expect(onPaymentAmountChange).toHaveBeenCalledWith('115487.44');
+  });
 });

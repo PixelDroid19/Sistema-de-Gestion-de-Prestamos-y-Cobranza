@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { tTerm } from '../../i18n/terminology';
 import { BACKEND_SUPPORTED_LOAN_STATUSES, getBackendLoanStatusLabel } from '../../constants/loanStates';
 import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
@@ -15,6 +16,41 @@ const toMoneyInputValue = (value: unknown) => {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue.toFixed(2) : '';
 };
+
+type QuoteMetricTone = 'neutral' | 'danger' | 'accent';
+
+const quoteMetricCardClassNames: Record<QuoteMetricTone, string> = {
+  neutral: 'border-border-subtle bg-bg-elevated/75',
+  danger: 'border-red-200 bg-red-50/80 dark:border-red-500/25 dark:bg-red-500/10',
+  accent: 'border-brand-primary/25 bg-brand-primary/10',
+};
+
+const quoteMetricValueClassNames: Record<QuoteMetricTone, string> = {
+  neutral: 'text-text-primary',
+  danger: 'text-red-700 dark:text-red-200',
+  accent: 'text-brand-primary',
+};
+
+function QuoteMetricCard({
+  label,
+  children,
+  tone = 'neutral',
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  tone?: QuoteMetricTone;
+}) {
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${quoteMetricCardClassNames[tone]}`}>
+      <span className="block text-[11px] font-bold uppercase leading-4 tracking-[0.08em] text-text-secondary">
+        {label}
+      </span>
+      <div className={`mt-1 text-sm font-bold leading-5 ${quoteMetricValueClassNames[tone]}`}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export type CreditDetailsModalsProps = {
   formatCurrency: (v: unknown) => string;
@@ -137,6 +173,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
       {props.isRecordPaymentModalOpen && (
         <ModalShell
           title={tTerm('creditDetails.modal.payment.title')}
+          maxWidthClassName="max-w-lg"
           onClose={props.onClosePaymentModal}
           footer={<>
             <ActionButton onClick={props.onClosePaymentModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
@@ -147,49 +184,62 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
             >{tTerm('creditDetails.modal.payment.submit')}</ActionButton>
           </>}
         >
-          <div className="space-y-4">
+          <div className="space-y-5">
             {props.selectedInstallmentNumber && (
-              <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-semibold">{tTerm('creditDetails.paymentQuote.installmentQuoteTitle', { number: props.selectedInstallmentNumber })}</span>
-                  {props.installmentQuoteFetching && <span className="text-xs">{tTerm('creditDetails.paymentQuote.calculating')}</span>}
+              <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-base/70 text-sm shadow-sm">
+                <div className="flex items-start justify-between gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-bold text-text-primary">
+                      {tTerm('creditDetails.paymentQuote.installmentQuoteTitle', { number: props.selectedInstallmentNumber })}
+                    </p>
+                    {!props.installmentQuote && !props.installmentQuoteError && (
+                      <p className="mt-1 text-xs leading-5 text-text-secondary">
+                        {tTerm('creditDetails.paymentQuote.ruleApplied')}
+                      </p>
+                    )}
+                  </div>
+                  {props.installmentQuoteFetching && (
+                    <span className="shrink-0 rounded-full border border-border-subtle bg-bg-base px-2.5 py-1 text-[11px] font-semibold text-text-secondary">
+                      {tTerm('creditDetails.paymentQuote.calculating')}
+                    </span>
+                  )}
                 </div>
                 {props.installmentQuote ? (
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.outstandingBase')}</span>
-                      <span className="font-semibold text-text-primary">{props.formatCurrency(props.installmentQuote.outstandingAmount)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.label.lateFee')}</span>
-                      <span className="font-semibold text-red-700 dark:text-red-300">{props.formatCurrency(props.installmentQuote.lateFeeDue)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.daysOverdue')}</span>
-                      <span className="font-semibold text-text-primary">{props.installmentQuote.daysOverdue || 0}</span>
-                    </div>
-                    <div>
-                      <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.suggestedTotal')}</span>
-                      <ActionButton
-                        type="button"
-                        onClick={() => props.onPaymentAmountChange(toMoneyInputValue(props.installmentQuote.totalDue))}
-                        variant="ghost"
-                        className="!min-h-0 !border-0 !bg-transparent !p-0 !font-semibold !text-brand-primary hover:!bg-transparent"
-                      >
-                        {props.formatCurrency(props.installmentQuote.totalDue)}
-                      </ActionButton>
+                  <div className="space-y-3 px-4 py-4">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <QuoteMetricCard label={tTerm('creditDetails.paymentQuote.outstandingBase')}>
+                        {props.formatCurrency(props.installmentQuote.outstandingAmount)}
+                      </QuoteMetricCard>
+                      <QuoteMetricCard label={tTerm('creditDetails.label.lateFee')} tone={props.installmentQuote.lateFeeDue > 0 ? 'danger' : 'neutral'}>
+                        {props.formatCurrency(props.installmentQuote.lateFeeDue)}
+                      </QuoteMetricCard>
+                      <QuoteMetricCard label={tTerm('creditDetails.paymentQuote.daysOverdue')}>
+                        {props.installmentQuote.daysOverdue || 0}
+                      </QuoteMetricCard>
+                      <QuoteMetricCard label={tTerm('creditDetails.paymentQuote.suggestedTotal')} tone="accent">
+                        <button
+                          type="button"
+                          aria-label={`${tTerm('creditDetails.paymentQuote.suggestedTotal')} ${props.formatCurrency(props.installmentQuote.totalDue)}`}
+                          onClick={() => props.onPaymentAmountChange(toMoneyInputValue(props.installmentQuote.totalDue))}
+                          className="rounded text-left font-extrabold leading-5 tracking-tight text-brand-primary underline-offset-4 transition hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35"
+                        >
+                          {props.formatCurrency(props.installmentQuote.totalDue)}
+                        </button>
+                      </QuoteMetricCard>
                     </div>
                     {!props.installmentQuote.canPay && props.installmentQuote.disabledReason && (
-                      <div className="col-span-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                         {props.installmentQuote.disabledReason}
                       </div>
                     )}
                   </div>
                 ) : props.installmentQuoteError ? (
-                  <p className="text-xs text-red-700 dark:text-red-300">{tTerm('creditDetails.paymentQuote.error')}</p>
-                ) : (
-                  <p className="text-xs text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.ruleApplied')}</p>
-                )}
+                  <div className="px-4 py-3">
+                    <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                      {tTerm('creditDetails.paymentQuote.error')}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             )}
             <FormField label={tTerm('creditDetails.modal.payment.amount')}>
@@ -200,7 +250,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
                 onValueChange={(value) => props.onPaymentAmountChange(value)}
               />
             </FormField>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField label={tTerm('creditDetails.modal.payment.date')}>
                 <AppInput id="credit-payment-date" variant="date" value={props.paymentDate} onValueChange={(value) => props.onPaymentDateChange(value)} />
               </FormField>
