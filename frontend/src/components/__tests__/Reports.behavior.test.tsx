@@ -263,6 +263,8 @@ vi.mock('../../services/reportService', () => ({
           totalAssociatePayments: '3000000.00',
           totalOperatingExpenses: '2000000.00',
           availableCash: '5000000.00',
+          portfolioReceivable: '12500000.00',
+          totalPrincipalRecovered: '37500000.00',
           totalCollectedProfit: '5000000.00',
           lossesAtRisk: '0.00',
           netProfitIndicator: '0.00',
@@ -277,6 +279,8 @@ vi.mock('../../services/reportService', () => ({
             operatingExpenses: '2000000.00',
             netCashFlow: '5000000.00',
             availableCash: '5000000.00',
+            portfolioReceivable: '12500000.00',
+            principalRecovered: '37500000.00',
             collectedProfit: '5000000.00',
             lossesAtRisk: '0.00',
           },
@@ -330,6 +334,8 @@ vi.mock('../../services/reportService', () => ({
           totalAssociatePayments: '4000000.00',
           totalOperatingExpenses: '3000000.00',
           availableCash: '9000000.00',
+          portfolioReceivable: '12500000.00',
+          totalPrincipalRecovered: '37500000.00',
           totalCollectedProfit: '9000000.00',
           lossesAtRisk: '0.00',
           netProfitIndicator: '2000000.00',
@@ -342,6 +348,8 @@ vi.mock('../../services/reportService', () => ({
             associatePayments: '500000.00',
             operatingExpenses: '300000.00',
             netCashFlow: '1200000.00',
+            portfolioReceivable: '1500000.00',
+            principalRecovered: '6500000.00',
             collectedProfit: '1200000.00',
             lossesAtRisk: '0.00',
           },
@@ -352,6 +360,8 @@ vi.mock('../../services/reportService', () => ({
             associatePayments: '500000.00',
             operatingExpenses: '700000.00',
             netCashFlow: '2800000.00',
+            portfolioReceivable: '2500000.00',
+            principalRecovered: '9500000.00',
             collectedProfit: '2800000.00',
             lossesAtRisk: '0.00',
           },
@@ -362,6 +372,8 @@ vi.mock('../../services/reportService', () => ({
             associatePayments: '3000000.00',
             operatingExpenses: '2000000.00',
             netCashFlow: '5000000.00',
+            portfolioReceivable: '8500000.00',
+            principalRecovered: '21500000.00',
             collectedProfit: '5000000.00',
             lossesAtRisk: '0.00',
           },
@@ -1276,6 +1288,10 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getAllByText('Pagos a socios').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Gastos operativos').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Caja disponible').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Cartera por cobrar').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Capital recuperado').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/12[.,]500[.,]000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/37[.,]500[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/2[.,]000[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/700[.,]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('2026-01')).toBeInTheDocument();

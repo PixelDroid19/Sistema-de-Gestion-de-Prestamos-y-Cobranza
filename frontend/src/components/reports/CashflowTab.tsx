@@ -178,6 +178,22 @@ export default function CashflowTab({
             accent: 'emerald',
           },
           {
+            id: 'cashflow-portfolio-receivable',
+            label: tTerm('reports.cashflow.detail.portfolioReceivable.label'),
+            value: formatMoney(cashFlowData?.summary?.portfolioReceivable),
+            helper: tTerm('reports.cashflow.detail.portfolioReceivable.helper'),
+            icon: <Wallet size={18} />,
+            accent: 'slate',
+          },
+          {
+            id: 'cashflow-principal-recovered',
+            label: tTerm('reports.cashflow.detail.principalRecovered.label'),
+            value: formatMoney(cashFlowData?.summary?.totalPrincipalRecovered),
+            helper: tTerm('reports.cashflow.detail.principalRecovered.helper'),
+            icon: <DollarSign size={18} />,
+            accent: 'emerald',
+          },
+          {
             id: 'cashflow-associate-payments',
             label: tTerm('reports.cashflow.detail.associatePayments.label'),
             value: formatMoney(cashFlowData?.summary?.totalAssociatePayments),
@@ -217,6 +233,8 @@ export default function CashflowTab({
                 <th>{tTerm('reports.cashflow.table.operatingExpenses')}</th>
                 <th>{tTerm('reports.cashflow.table.netFlow')}</th>
                 <th>{tTerm('reports.cashflow.table.available')}</th>
+                <th>{tTerm('reports.cashflow.table.portfolioReceivable')}</th>
+                <th>{tTerm('reports.cashflow.table.principalRecovered')}</th>
                 <th>{tTerm('reports.cashflow.table.profit')}</th>
                 <th>{tTerm('reports.cashflow.table.lossRisk')}</th>
               </tr>
@@ -224,11 +242,11 @@ export default function CashflowTab({
             <tbody>
               {isCashFlowLoading ? (
                 <tr>
-                  <td colSpan={9} className="table-empty-state">{tTerm('reports.cashflow.table.loading')}</td>
+                  <td colSpan={11} className="table-empty-state">{tTerm('reports.cashflow.table.loading')}</td>
                 </tr>
               ) : (cashFlowData?.months || []).length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="table-empty-state">{tTerm('reports.cashflow.table.empty')}</td>
+                  <td colSpan={11} className="table-empty-state">{tTerm('reports.cashflow.table.empty')}</td>
                 </tr>
               ) : (
                 (cashFlowData?.months || []).map((month: any) => (
@@ -242,6 +260,8 @@ export default function CashflowTab({
                       {formatMoney(month.netCashFlow)}
                     </td>
                     <td className="font-semibold">{formatMoney(month.availableCash)}</td>
+                    <td className="font-semibold">{formatMoney(month.portfolioReceivable)}</td>
+                    <td className="text-emerald-600">{formatMoney(month.principalRecovered)}</td>
                     <td className="text-emerald-600">{formatMoney(month.collectedProfit)}</td>
                     <td className={Number(month.lossesAtRisk || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}>
                       {formatMoney(month.lossesAtRisk)}
@@ -264,6 +284,8 @@ export default function CashflowTab({
                 <th>{tTerm('reports.cashflow.table.associatePayments')}</th>
                 <th>{tTerm('reports.cashflow.table.operatingExpenses')}</th>
                 <th>{tTerm('reports.cashflow.table.netFlow')}</th>
+                <th>{tTerm('reports.cashflow.table.portfolioReceivable')}</th>
+                <th>{tTerm('reports.cashflow.table.principalRecovered')}</th>
                 <th>{tTerm('reports.cashflow.table.profit')}</th>
                 <th>{tTerm('reports.cashflow.table.lossRisk')}</th>
               </tr>
@@ -271,11 +293,11 @@ export default function CashflowTab({
             <tbody>
               {isAnnualCashFlowLoading ? (
                 <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.annual.table.loading')}</td>
+                  <td colSpan={10} className="table-empty-state">{tTerm('reports.cashflow.annual.table.loading')}</td>
                 </tr>
               ) : (annualCashFlowData?.years || []).length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.cashflow.annual.table.empty')}</td>
+                  <td colSpan={10} className="table-empty-state">{tTerm('reports.cashflow.annual.table.empty')}</td>
                 </tr>
               ) : (
                 (annualCashFlowData?.years || []).map((year: any) => (
@@ -288,6 +310,8 @@ export default function CashflowTab({
                     <td className={Number(year.netCashFlow || 0) < 0 ? 'text-rose-600' : 'text-emerald-600'}>
                       {formatMoney(year.netCashFlow)}
                     </td>
+                    <td className="font-semibold">{formatMoney(year.portfolioReceivable)}</td>
+                    <td className="text-emerald-600">{formatMoney(year.principalRecovered)}</td>
                     <td className="text-emerald-600">{formatMoney(year.collectedProfit)}</td>
                     <td className={Number(year.lossesAtRisk || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}>
                       {formatMoney(year.lossesAtRisk)}

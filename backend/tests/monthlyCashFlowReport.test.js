@@ -88,7 +88,7 @@ test('buildMonthlyCashFlowReport reconciles monthly inflows, outflows, available
   const report = buildMonthlyCashFlowReport({
     year: 2026,
     loans: [
-      makeLoan({ id: 1, amount: 40000000, status: 'active', startDate: '2026-01-02T00:00:00.000Z' }),
+      makeLoan({ id: 1, amount: 40000000, status: 'active', principalOutstanding: 12000000, startDate: '2026-01-02T00:00:00.000Z' }),
       makeLoan({ id: 2, amount: 5000000, status: 'rejected', startDate: '2026-01-08T00:00:00.000Z' }),
       makeLoan({
         id: 3,
@@ -108,6 +108,8 @@ test('buildMonthlyCashFlowReport reconciles monthly inflows, outflows, available
   assert.equal(report.summary.totalInflows, '58000000.00');
   assert.equal(report.summary.totalOutflows, '50000000.00');
   assert.equal(report.summary.availableCash, '8000000.00');
+  assert.equal(report.summary.portfolioReceivable, '19000000.00');
+  assert.equal(report.summary.totalPrincipalRecovered, '52000000.00');
   assert.equal(report.summary.totalCollectedProfit, '6000000.00');
   assert.equal(report.summary.lossesAtRisk, '7000000.00');
   assert.equal(report.summary.netProfitIndicator, '-1000000.00');
@@ -116,12 +118,16 @@ test('buildMonthlyCashFlowReport reconciles monthly inflows, outflows, available
   assert.equal(report.months[0].inflows, '50000000.00');
   assert.equal(report.months[0].outflows, '40000000.00');
   assert.equal(report.months[0].availableCash, '10000000.00');
+  assert.equal(report.months[0].portfolioReceivable, '12000000.00');
+  assert.equal(report.months[0].principalRecovered, '45000000.00');
   assert.equal(report.months[0].collectedProfit, '5000000.00');
 
   assert.equal(report.months[1].month, '2026-02');
   assert.equal(report.months[1].inflows, '8000000.00');
   assert.equal(report.months[1].outflows, '10000000.00');
   assert.equal(report.months[1].availableCash, '8000000.00');
+  assert.equal(report.months[1].portfolioReceivable, '7000000.00');
+  assert.equal(report.months[1].principalRecovered, '7000000.00');
   assert.equal(report.months[1].lossesAtRisk, '7000000.00');
 });
 
@@ -216,7 +222,7 @@ test('buildAnnualCashFlowReport compares annual cash flow with canonical movemen
     fromYear: 2025,
     toYear: 2026,
     loans: [
-      makeLoan({ id: 1, amount: 20000000, status: 'active', startDate: '2025-03-01T00:00:00.000Z' }),
+      makeLoan({ id: 1, amount: 20000000, status: 'active', principalOutstanding: 3000000, startDate: '2025-03-01T00:00:00.000Z' }),
       makeLoan({ id: 2, amount: 10000000, status: 'defaulted', principalOutstanding: 6000000, startDate: '2026-04-01T00:00:00.000Z' }),
     ],
     payments: [
@@ -238,8 +244,11 @@ test('buildAnnualCashFlowReport compares annual cash flow with canonical movemen
   assert.equal(report.summary.totalAssociatePayments, '1200000.00');
   assert.equal(report.summary.totalOperatingExpenses, '700000.00');
   assert.equal(report.summary.availableCash, '2100000.00');
+  assert.equal(report.summary.portfolioReceivable, '9000000.00');
   assert.equal(report.summary.lossesAtRisk, '6000000.00');
   assert.deepEqual(report.years.map((year) => year.year), ['2025', '2026']);
+  assert.equal(report.years[0].portfolioReceivable, '3000000.00');
+  assert.equal(report.years[1].portfolioReceivable, '6000000.00');
   assert.equal(report.years[0].netCashFlow, '5200000.00');
   assert.equal(report.years[1].netCashFlow, '-3100000.00');
 });

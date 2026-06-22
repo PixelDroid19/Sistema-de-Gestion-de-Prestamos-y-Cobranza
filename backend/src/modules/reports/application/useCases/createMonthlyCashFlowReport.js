@@ -23,6 +23,7 @@ const CASH_FLOW_COLUMNS = [
   moneyColumn('Gastos Operativos', 'operatingExpenses', 22),
   moneyColumn('Flujo Neto', 'netCashFlow'),
   moneyColumn('Caja Disponible', 'availableCash'),
+  moneyColumn('Cartera por Cobrar', 'portfolioReceivable'),
   moneyColumn('Capital Recuperado', 'principalRecovered'),
   moneyColumn('Interés Cobrado', 'interestCollected'),
   moneyColumn('Mora Cobrada', 'penaltyCollected'),
@@ -95,6 +96,7 @@ const createEmptyMonth = (month) => ({
   penaltyCollectedRaw: 0,
   associatePaymentsRaw: 0,
   operatingExpensesRaw: 0,
+  portfolioReceivableRaw: 0,
   collectedProfitRaw: 0,
   lossesAtRiskRaw: 0,
   paymentCount: 0,
@@ -109,6 +111,7 @@ const formatMonth = (row, availableCash) => ({
   operatingExpenses: formatMoney(row.operatingExpensesRaw),
   netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.associatePaymentsRaw - row.operatingExpensesRaw),
   availableCash: formatMoney(availableCash),
+  portfolioReceivable: formatMoney(row.portfolioReceivableRaw),
   principalRecovered: formatMoney(row.principalRecoveredRaw),
   interestCollected: formatMoney(row.interestCollectedRaw),
   penaltyCollected: formatMoney(row.penaltyCollectedRaw),
@@ -127,6 +130,7 @@ const createEmptyDay = (date) => ({
   penaltyCollectedRaw: 0,
   associatePaymentsRaw: 0,
   operatingExpensesRaw: 0,
+  portfolioReceivableRaw: 0,
   collectedProfitRaw: 0,
   lossesAtRiskRaw: 0,
   paymentCount: 0,
@@ -142,6 +146,7 @@ const createEmptyYear = (year) => ({
   penaltyCollectedRaw: 0,
   associatePaymentsRaw: 0,
   operatingExpensesRaw: 0,
+  portfolioReceivableRaw: 0,
   collectedProfitRaw: 0,
   lossesAtRiskRaw: 0,
   paymentCount: 0,
@@ -156,6 +161,7 @@ const formatDay = (row, availableCash) => ({
   operatingExpenses: formatMoney(row.operatingExpensesRaw),
   netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.associatePaymentsRaw - row.operatingExpensesRaw),
   availableCash: formatMoney(availableCash),
+  portfolioReceivable: formatMoney(row.portfolioReceivableRaw),
   principalRecovered: formatMoney(row.principalRecoveredRaw),
   interestCollected: formatMoney(row.interestCollectedRaw),
   penaltyCollected: formatMoney(row.penaltyCollectedRaw),
@@ -173,6 +179,7 @@ const formatYear = (row) => ({
   operatingExpenses: formatMoney(row.operatingExpensesRaw),
   netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.associatePaymentsRaw - row.operatingExpensesRaw),
   availableCash: formatMoney(row.inflowsRaw - row.outflowsRaw - row.associatePaymentsRaw - row.operatingExpensesRaw),
+  portfolioReceivable: formatMoney(row.portfolioReceivableRaw),
   principalRecovered: formatMoney(row.principalRecoveredRaw),
   interestCollected: formatMoney(row.interestCollectedRaw),
   penaltyCollected: formatMoney(row.penaltyCollectedRaw),
@@ -271,6 +278,7 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
       if (!monthsByKey[key]) return;
 
       monthsByKey[key].outflowsRaw += toNumber(loan.amount);
+      monthsByKey[key].portfolioReceivableRaw += resolveLoanOutstanding(loan);
       monthsByKey[key].loanCount += 1;
 
       if (LOSS_RISK_STATUSES.has(loan?.status)) {
@@ -290,6 +298,7 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
   const totalAssociatePayments = rawMonths.reduce((sum, row) => sum + row.associatePaymentsRaw, 0);
   const totalOperatingExpenses = rawMonths.reduce((sum, row) => sum + row.operatingExpensesRaw, 0);
   const totalPrincipalRecovered = rawMonths.reduce((sum, row) => sum + row.principalRecoveredRaw, 0);
+  const portfolioReceivable = rawMonths.reduce((sum, row) => sum + row.portfolioReceivableRaw, 0);
   const totalInterestCollected = rawMonths.reduce((sum, row) => sum + row.interestCollectedRaw, 0);
   const totalPenaltyCollected = rawMonths.reduce((sum, row) => sum + row.penaltyCollectedRaw, 0);
   const totalCollectedProfit = totalInterestCollected + totalPenaltyCollected;
@@ -303,6 +312,7 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
       totalAssociatePayments: formatMoney(totalAssociatePayments),
       totalOperatingExpenses: formatMoney(totalOperatingExpenses),
       availableCash: formatMoney(totalInflows - totalOutflows - totalAssociatePayments - totalOperatingExpenses),
+      portfolioReceivable: formatMoney(portfolioReceivable),
       totalPrincipalRecovered: formatMoney(totalPrincipalRecovered),
       totalInterestCollected: formatMoney(totalInterestCollected),
       totalPenaltyCollected: formatMoney(totalPenaltyCollected),
@@ -374,6 +384,7 @@ const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [],
       if (!daysByKey[key]) return;
 
       daysByKey[key].outflowsRaw += toNumber(loan.amount);
+      daysByKey[key].portfolioReceivableRaw += resolveLoanOutstanding(loan);
       daysByKey[key].loanCount += 1;
 
       if (LOSS_RISK_STATUSES.has(loan?.status)) {
@@ -393,6 +404,7 @@ const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [],
   const totalAssociatePayments = rawDays.reduce((sum, row) => sum + row.associatePaymentsRaw, 0);
   const totalOperatingExpenses = rawDays.reduce((sum, row) => sum + row.operatingExpensesRaw, 0);
   const totalPrincipalRecovered = rawDays.reduce((sum, row) => sum + row.principalRecoveredRaw, 0);
+  const portfolioReceivable = rawDays.reduce((sum, row) => sum + row.portfolioReceivableRaw, 0);
   const totalInterestCollected = rawDays.reduce((sum, row) => sum + row.interestCollectedRaw, 0);
   const totalPenaltyCollected = rawDays.reduce((sum, row) => sum + row.penaltyCollectedRaw, 0);
   const totalCollectedProfit = totalInterestCollected + totalPenaltyCollected;
@@ -405,6 +417,7 @@ const buildDailyCashFlowReport = ({ fromDate, toDate, loans = [], payments = [],
       totalAssociatePayments: formatMoney(totalAssociatePayments),
       totalOperatingExpenses: formatMoney(totalOperatingExpenses),
       availableCash: formatMoney(totalInflows - totalOutflows - totalAssociatePayments - totalOperatingExpenses),
+      portfolioReceivable: formatMoney(portfolioReceivable),
       totalPrincipalRecovered: formatMoney(totalPrincipalRecovered),
       totalInterestCollected: formatMoney(totalInterestCollected),
       totalPenaltyCollected: formatMoney(totalPenaltyCollected),
@@ -472,6 +485,7 @@ const buildAnnualCashFlowReport = ({ fromYear, toYear, loans = [], payments = []
       if (!yearsByKey[key]) return;
 
       yearsByKey[key].outflowsRaw += toNumber(loan.amount);
+      yearsByKey[key].portfolioReceivableRaw += resolveLoanOutstanding(loan);
       yearsByKey[key].loanCount += 1;
 
       if (LOSS_RISK_STATUSES.has(loan?.status)) {
@@ -485,6 +499,7 @@ const buildAnnualCashFlowReport = ({ fromYear, toYear, loans = [], payments = []
   const totalAssociatePayments = rawYears.reduce((sum, row) => sum + row.associatePaymentsRaw, 0);
   const totalOperatingExpenses = rawYears.reduce((sum, row) => sum + row.operatingExpensesRaw, 0);
   const totalPrincipalRecovered = rawYears.reduce((sum, row) => sum + row.principalRecoveredRaw, 0);
+  const portfolioReceivable = rawYears.reduce((sum, row) => sum + row.portfolioReceivableRaw, 0);
   const totalInterestCollected = rawYears.reduce((sum, row) => sum + row.interestCollectedRaw, 0);
   const totalPenaltyCollected = rawYears.reduce((sum, row) => sum + row.penaltyCollectedRaw, 0);
   const totalCollectedProfit = totalInterestCollected + totalPenaltyCollected;
@@ -498,6 +513,7 @@ const buildAnnualCashFlowReport = ({ fromYear, toYear, loans = [], payments = []
       totalAssociatePayments: formatMoney(totalAssociatePayments),
       totalOperatingExpenses: formatMoney(totalOperatingExpenses),
       availableCash: formatMoney(totalInflows - totalOutflows - totalAssociatePayments - totalOperatingExpenses),
+      portfolioReceivable: formatMoney(portfolioReceivable),
       totalPrincipalRecovered: formatMoney(totalPrincipalRecovered),
       totalInterestCollected: formatMoney(totalInterestCollected),
       totalPenaltyCollected: formatMoney(totalPenaltyCollected),
@@ -518,6 +534,7 @@ const buildCashFlowSheets = (report) => {
     { label: 'Pagos a socios', value: Number(report.summary.totalAssociatePayments), description: 'Egresos reales registrados por rentabilidad o capital pagado a socios.' },
     { label: 'Gastos operativos', value: Number(report.summary.totalOperatingExpenses), description: 'Salidas administrativas y operativas completadas.' },
     { label: 'Caja disponible', value: Number(report.summary.availableCash), description: 'Entradas menos préstamos, pagos a socios y gastos operativos.' },
+    { label: 'Cartera por cobrar', value: Number(report.summary.portfolioReceivable), description: 'Capital vigente que sigue adeudado en los créditos del período.' },
     { label: 'Capital recuperado', value: Number(report.summary.totalPrincipalRecovered), description: 'Parte de pagos que redujo capital vivo.' },
     { label: 'Interés cobrado', value: Number(report.summary.totalInterestCollected), description: 'Interés efectivamente pagado por clientes.' },
     { label: 'Mora cobrada', value: Number(report.summary.totalPenaltyCollected), description: 'Mora o penalidades efectivamente cobradas.' },
@@ -549,6 +566,7 @@ const buildCashFlowSheets = (report) => {
         operatingExpenses: Number(month.operatingExpenses),
         netCashFlow: Number(month.netCashFlow),
         availableCash: Number(month.availableCash),
+        portfolioReceivable: Number(month.portfolioReceivable),
         principalRecovered: Number(month.principalRecovered),
         interestCollected: Number(month.interestCollected),
         penaltyCollected: Number(month.penaltyCollected),
@@ -746,12 +764,14 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
     `Pagos a socios: ${formatDisplayMoney(report.summary.totalAssociatePayments)}`,
     `Gastos operativos: ${formatDisplayMoney(report.summary.totalOperatingExpenses)}`,
     `Caja disponible: ${formatDisplayMoney(report.summary.availableCash)}`,
+    `Cartera por cobrar: ${formatDisplayMoney(report.summary.portfolioReceivable)}`,
+    `Capital recuperado: ${formatDisplayMoney(report.summary.totalPrincipalRecovered)}`,
     `Interés y mora cobrados: ${formatDisplayMoney(report.summary.totalCollectedProfit)}`,
     `Pérdidas en riesgo: ${formatDisplayMoney(report.summary.lossesAtRisk)}`,
     `Resultado neto: ${formatDisplayMoney(report.summary.netProfitIndicator)}`,
     '',
     'Créditos y pagos del período:',
-    ...report.months.map((month) => `${month.month}: entradas ${formatDisplayMoney(month.inflows)} - prestamos ${formatDisplayMoney(month.outflows)} - socios ${formatDisplayMoney(month.associatePayments)} - gastos ${formatDisplayMoney(month.operatingExpenses)} = caja ${formatDisplayMoney(month.availableCash)}`),
+    ...report.months.map((month) => `${month.month}: cartera ${formatDisplayMoney(month.portfolioReceivable)} - recuperado ${formatDisplayMoney(month.principalRecovered)} - caja ${formatDisplayMoney(month.availableCash)}`),
   ].slice(0, 42);
 
   return {
