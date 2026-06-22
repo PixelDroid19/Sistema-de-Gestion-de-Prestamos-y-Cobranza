@@ -238,6 +238,11 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
             </OperationalSelect>
           </FormField>
 
+          <div className="border-l-4 border-brand-primary pl-4 text-sm">
+            <p className="font-bold text-text-primary">{tTerm('newAssociate.cdt.title')}</p>
+            <p className="mt-1 max-w-2xl leading-5 text-text-secondary">{tTerm('newAssociate.cdt.description')}</p>
+          </div>
+
           <div className="grid gap-4 border-t border-border-subtle pt-4 sm:grid-cols-2">
             {!isEditing && (
               <FormField
@@ -315,10 +320,19 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, interestStartDate: value }))}
               />
             </FormField>
+          </div>
 
+          <details className="border-t border-border-subtle pt-3">
+            <summary className="cursor-pointer text-sm font-bold text-text-primary marker:text-brand-primary">
+              {tTerm('newAssociate.advancedParticipation.summary')}
+            </summary>
+            <p className="mt-2 max-w-2xl text-sm leading-5 text-text-secondary">
+              {tTerm('newAssociate.advancedParticipation.description')}
+            </p>
             <FormField
               label={tTerm('newAssociate.field.participation')}
               helper={tTerm('newAssociate.helper.participation')}
+              className="mt-3"
             >
               <AppInput
                 id="new-associate-participation"
@@ -330,7 +344,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                 placeholder={tTerm('newAssociate.placeholder.participation')}
               />
             </FormField>
-          </div>
+          </details>
 
           <div className="flex gap-3 pt-4">
             <ActionButton type="button" onClick={onBack} fullWidth>
