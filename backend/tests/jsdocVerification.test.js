@@ -102,10 +102,6 @@ test('documentation stays selective for non-obvious helpers only', () => {
     ['src/modules/reports/application/reportLabels.js', 'formatPaymentType'],
     ['src/modules/reports/application/reportLabels.js', 'formatPaymentMethod'],
     ['src/modules/customers/application/useCases.js', 'ensureCustomerDocumentAccess'],
-    ['src/modules/associates/application/useCases.js', 'buildProportionalIdempotencyRequestHash'],
-    ['src/modules/associates/application/useCases.js', 'allocateProportionalDistribution'],
-    ['src/modules/associates/application/useCases.js', 'validateEligibleParticipationPool'],
-    ['src/modules/associates/application/useCases.js', 'createCreateProportionalProfitDistribution'],
     ['src/docs/openapi.js', 'buildOpenApiDocument'],
   ];
 

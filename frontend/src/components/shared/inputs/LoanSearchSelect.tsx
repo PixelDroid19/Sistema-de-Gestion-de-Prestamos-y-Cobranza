@@ -1,4 +1,4 @@
-import { useDeferredValue } from 'react';
+import { useDeferredValue, useMemo } from 'react';
 import { CreditCard } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue } from '../../../i18n/format';
 import { tTerm } from '../../../i18n/terminology';
@@ -15,6 +15,7 @@ type LoanSearchSelectProps = {
   listboxLabel?: string;
   pageSize?: number;
   includeOutstanding?: boolean;
+  fallbackOptions?: SearchableSelectOption[];
   required?: boolean;
   enabled?: boolean;
   invalid?: boolean;
@@ -77,6 +78,30 @@ const getLoanLabel = (loan: any, includeOutstanding: boolean) => {
   });
 };
 
+const normalizeLoans = (response: any) => (
+  Array.isArray(response?.data?.loans)
+    ? response.data.loans
+    : Array.isArray(response?.data)
+      ? response.data
+      : []
+);
+
+const matchesLoanSearch = (loan: any, rawQuery: string) => {
+  const query = rawQuery.trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+
+  const searchableValues = [
+    getLoanCustomerName(loan),
+    String(loan?.id ?? ''),
+    String(loan?.status ?? ''),
+    String(loan?.Customer?.documentNumber ?? loan?.customer?.documentNumber ?? ''),
+  ];
+
+  return searchableValues.some((value) => value.toLowerCase().includes(query));
+};
+
 export default function LoanSearchSelect({
   id,
   selectedLoanId,
@@ -87,30 +112,64 @@ export default function LoanSearchSelect({
   listboxLabel = tTerm('loanSearch.results'),
   pageSize = 100,
   includeOutstanding = false,
+  fallbackOptions = [],
   required = false,
   enabled = true,
   invalid = false,
 }: LoanSearchSelectProps) {
   const deferredSearch = useDeferredValue(searchValue).trim();
-  const { data, isLoading, isError } = useLoans({
+  const fallbackPageSize = Math.max(pageSize, 250);
+  const baseLoansQuery = useLoans({
+    page: 1,
+    pageSize: fallbackPageSize,
+  }, { enabled });
+  const searchLoansQuery = useLoans({
     page: 1,
     pageSize,
     ...(deferredSearch ? { search: deferredSearch } : {}),
-  }, { enabled });
-  const loans = Array.isArray(data?.data?.loans)
-    ? data.data.loans
-    : Array.isArray(data?.data)
-      ? data.data
-      : [];
+  }, {
+    enabled: enabled && deferredSearch.length > 0,
+  });
 
-  const options: SearchableSelectOption[] = loans.map((loan: any) => ({
-    value: String(loan.id),
-    label: getLoanLabel(loan, includeOutstanding),
-    meta: tTerm('loanSearch.optionMeta', {
-      number: String(loan?.id ?? ''),
-      status: getLoanStatusLabel(loan),
-    }),
-  }));
+  const useFallbackResults = deferredSearch.length > 0 && searchLoansQuery.isError;
+  const activeQueryData = deferredSearch.length > 0 && !useFallbackResults
+    ? searchLoansQuery.data
+    : baseLoansQuery.data;
+  const filteredFallbackOptions = useMemo(() => {
+    if (deferredSearch.length === 0) {
+      return fallbackOptions;
+    }
+
+    const normalizedQuery = deferredSearch.toLowerCase();
+    return fallbackOptions.filter((option) => (
+      option.label.toLowerCase().includes(normalizedQuery)
+      || option.meta?.toLowerCase().includes(normalizedQuery)
+    ));
+  }, [deferredSearch, fallbackOptions]);
+  const loans = useMemo(() => {
+    const normalizedLoans = normalizeLoans(activeQueryData);
+    return useFallbackResults
+      ? normalizedLoans.filter((loan: any) => matchesLoanSearch(loan, deferredSearch))
+      : normalizedLoans;
+  }, [activeQueryData, deferredSearch, useFallbackResults]);
+  const hasRenderableFallbackOptions = filteredFallbackOptions.length > 0;
+  const isLoading = deferredSearch.length > 0
+    ? searchLoansQuery.isLoading || (useFallbackResults && baseLoansQuery.isLoading)
+    : baseLoansQuery.isLoading;
+  const isError = deferredSearch.length > 0
+    ? searchLoansQuery.isError && baseLoansQuery.isError && !hasRenderableFallbackOptions
+    : baseLoansQuery.isError && !hasRenderableFallbackOptions;
+
+  const options: SearchableSelectOption[] = loans.length > 0
+    ? loans.map((loan: any) => ({
+      value: String(loan.id),
+      label: getLoanLabel(loan, includeOutstanding),
+      meta: tTerm('loanSearch.optionMeta', {
+        number: String(loan?.id ?? ''),
+        status: getLoanStatusLabel(loan),
+      }),
+    }))
+    : filteredFallbackOptions;
 
   return (
     <SearchableSelect

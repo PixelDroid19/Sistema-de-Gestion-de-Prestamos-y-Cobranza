@@ -70,7 +70,6 @@ const buildAssociatesResponse = (associates: any[]) => ({
         inactiveAssociates: associates.filter((associate) => associate.status === 'inactive').length,
         totalContributed: 2500000,
         monthlyInterestEstimate: 75000,
-        participationAssigned: 25,
       },
     },
   },
@@ -99,7 +98,12 @@ describe('Associates behavior', () => {
         email: 'socio2@example.com',
         phone: '+573001112233',
         status: 'inactive',
-        participationPercentage: '25.0000',
+        totalContributed: 1500000,
+        currentCapital: 1300000,
+        totalCapitalReturned: 200000,
+        interestRate: 2,
+        interestType: 'monthly',
+        nextInterestPaymentDate: '2026-07-05',
         loanCount: 3,
       },
     ]));
@@ -127,14 +131,28 @@ describe('Associates behavior', () => {
   it('exports the associates list with the selected status filter', async () => {
     render(<Associates setCurrentView={vi.fn()} />);
 
+    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre, correo o teléfono…'), {
+      target: { value: 'socio dos' },
+    });
     fireEvent.change(screen.getByDisplayValue('Todos los estados'), {
       target: { value: 'inactive' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
 
     await waitFor(() => {
-      expect(exportAssociatesExcel).toHaveBeenCalledWith({ status: 'inactive' });
+      expect(exportAssociatesExcel).toHaveBeenCalledWith({ search: 'socio dos', status: 'inactive' });
     });
+  });
+
+  it('keeps the associates module navigation available and opens financial tracking from the same domain', () => {
+    const setCurrentView = vi.fn();
+    render(<Associates setCurrentView={setCurrentView} />);
+
+    expect(screen.getByRole('tab', { name: 'Socios' })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Pagos e intereses' }));
+
+    expect(setCurrentView).toHaveBeenCalledWith('associates-tracking');
   });
 
   it('opens the edit action in a modal without leaving the associates table', () => {
@@ -148,14 +166,42 @@ describe('Associates behavior', () => {
     expect(setCurrentView).not.toHaveBeenCalledWith('associates/2/edit');
   });
 
-  it('renders the shared financial insight strip for associates', () => {
+  it('renders the compact financial summary for associates', () => {
     render(<Associates setCurrentView={vi.fn()} />);
 
+    expect(screen.getByLabelText('Resumen operativo de socios inversionistas')).toBeInTheDocument();
     expect(screen.getByText('Capital aportado')).toBeInTheDocument();
-    expect(screen.getByText('Interés estimado')).toBeInTheDocument();
-    expect(screen.getByText('Socios activos')).toBeInTheDocument();
-    expect(screen.getAllByText('Participación opcional').length).toBeGreaterThan(0);
     expect(screen.getByText('COP 2.500.000')).toBeInTheDocument();
+    expect(screen.getByText('Aportes registrados')).toBeInTheDocument();
+    expect(screen.getByText('Interés estimado')).toBeInTheDocument();
+    expect(screen.getByText('COP 75.000')).toBeInTheDocument();
+    expect(screen.getByText('Estimado mensual')).toBeInTheDocument();
+    expect(screen.getByText('Socios activos')).toBeInTheDocument();
+    expect(screen.getByText('0 / 1')).toBeInTheDocument();
+    expect(screen.getByText('Capital vigente')).toBeInTheDocument();
+    expect(screen.getByText('Rentabilidad y próximo pago')).toBeInTheDocument();
+    expect(screen.getByText('COP 1.300.000')).toBeInTheDocument();
+    expect(screen.getAllByText(/Próximo pago/i).length).toBeGreaterThan(0);
+  });
+
+  it('does not invent a 0% interest rate when the list response omits the interest configuration', () => {
+    useAssociatesSpy.mockImplementation(() => buildAssociatesResponse([
+      {
+        id: 2,
+        name: 'Socio Dos',
+        email: 'socio2@example.com',
+        phone: '+573001112233',
+        status: 'inactive',
+        totalContributed: 1500000,
+        currentCapital: 1300000,
+      },
+    ]));
+
+    render(<Associates setCurrentView={vi.fn()} />);
+
+    expect(screen.queryByText('0% mensual')).not.toBeInTheDocument();
+    expect(screen.getByText('No especificado')).toBeInTheDocument();
+    expect(screen.getByText('Requiere configuración')).toBeInTheDocument();
   });
 
   it('reactivates inactive associates through the active status patch flow', async () => {

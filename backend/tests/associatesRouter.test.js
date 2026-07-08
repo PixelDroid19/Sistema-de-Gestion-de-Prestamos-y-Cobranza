@@ -2,7 +2,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { NotFoundError, ValidationError, AuthorizationError, globalErrorHandler } = require('@/utils/errorHandler');
+const { NotFoundError, AuthorizationError, globalErrorHandler } = require('@/utils/errorHandler');
 const { createAssociatesRouter } = require('@/modules/associates/presentation/router');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
@@ -34,9 +34,6 @@ const associateValidation = {
   update(req, res, next) {
     next();
   },
-  proportionalDistribution(req, res, next) {
-    next();
-  },
 };
 
 test('createAssociatesRouter serves CRUD contract responses', async () => {
@@ -60,7 +57,6 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
             inactiveAssociates: 1,
             totalContributed: 3000000,
             monthlyInterestEstimate: 120000,
-            participationAssigned: 100,
           },
         };
       },
@@ -79,16 +75,6 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       async deleteAssociate(input) {
         calls.push(['deleteAssociate', input]);
         return { id: Number(input.associateId), status: 'inactive' };
-      },
-      async createProportionalProfitDistribution({ payload }) {
-        calls.push(['createProportionalProfitDistribution', payload]);
-        return {
-          batchKey: 'batch-1',
-          declaredAmount: '100.00',
-          idempotencyStatus: 'created',
-          idempotencyKey: null,
-          createdRows: [{ id: 9, amount: 60 }],
-        };
       },
       async createAssociateContribution(input) {
         calls.push(['createAssociateContribution', input]);
@@ -113,7 +99,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       async exportAssociateProfitabilityReport(input) {
         calls.push(['exportAssociateProfitabilityReport', input]);
         return {
-          fileName: 'associate-5-profitability.xlsx',
+          fileName: 'associate-5-financial-summary.xlsx',
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           buffer: Buffer.from('PKtest'),
         };
@@ -161,12 +147,6 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     path: '/5',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
-  const proportionalResponse = await requestJson(activeServer, {
-    method: 'POST',
-    path: '/distributions/proportional',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    body: { amount: '100.00' },
-  });
   const contributionResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/5/contributions',
@@ -191,9 +171,9 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { amount: 150 },
   });
-  const profitabilityResponse = await requestJson(activeServer, {
+  const financialSummaryResponse = await requestJson(activeServer, {
     method: 'GET',
-    path: '/5/profitability',
+    path: '/5/financial-summary',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const associateExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/5/export?format=xlsx`, {
@@ -213,7 +193,6 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
         inactiveAssociates: 1,
         totalContributed: 3000000,
         monthlyInterestEstimate: 120000,
-        participationAssigned: 100,
       },
     },
   });
@@ -240,30 +219,16 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     message: 'Socio desactivado correctamente',
     data: { associate: { id: 5, status: 'inactive' } },
   });
-  assert.equal(proportionalResponse.statusCode, 201);
-  assert.deepEqual(proportionalResponse.body, {
-    success: true,
-    message: 'Distribución proporcional de utilidad registrada correctamente',
-    data: {
-      distribution: {
-        batchKey: 'batch-1',
-        declaredAmount: '100.00',
-        idempotencyStatus: 'created',
-        idempotencyKey: null,
-        createdRows: [{ id: 9, amount: 60 }],
-      },
-    },
-  });
   assert.equal(contributionResponse.statusCode, 201);
   assert.equal(contributionResponse.body.message, 'Aporte del socio registrado correctamente');
   assert.equal(distributionResponse.statusCode, 201);
-  assert.equal(distributionResponse.body.message, 'Distribución de utilidad registrada correctamente');
+  assert.equal(distributionResponse.body.message, 'Pago manual de rentabilidad registrado correctamente');
   assert.equal(capitalReturnResponse.statusCode, 201);
   assert.equal(capitalReturnResponse.body.message, 'Devolución de capital registrada correctamente');
   assert.equal(reinvestmentResponse.statusCode, 201);
   assert.equal(reinvestmentResponse.body.message, 'Reinversión del socio registrada correctamente');
-  assert.equal(profitabilityResponse.statusCode, 200);
-  assert.deepEqual(profitabilityResponse.body, {
+  assert.equal(financialSummaryResponse.statusCode, 200);
+  assert.deepEqual(financialSummaryResponse.body, {
     success: true,
     data: { report: { associate: { id: 5 }, summary: { totalContributed: '500.00' } } },
   });
@@ -276,12 +241,12 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.deepEqual(calls[1], ['createAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, payload }]);
   assert.deepEqual(calls[3], ['updateAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { status: 'inactive' } }]);
   assert.deepEqual(calls[4], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
-  assert.deepEqual(calls[6], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 } }]);
-  assert.deepEqual(calls[7], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
-  assert.deepEqual(calls[8], ['createAssociateCapitalReturn', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 120 } }]);
-  assert.deepEqual(calls[9], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
-  assert.deepEqual(calls[10], ['getAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
-  assert.deepEqual(calls[11], ['exportAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, format: 'xlsx' }]);
+  assert.deepEqual(calls[5], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 } }]);
+  assert.deepEqual(calls[6], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
+  assert.deepEqual(calls[7], ['createAssociateCapitalReturn', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 120 } }]);
+  assert.deepEqual(calls[8], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
+  assert.deepEqual(calls[9], ['getAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
+  assert.deepEqual(calls[10], ['exportAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, format: 'xlsx' }]);
 });
 
 test('createAssociatesRouter serves investor tracking before id routes', async () => {
@@ -358,7 +323,7 @@ test('createAssociatesRouter exports associates from the associates module befor
 
   const response = await requestJson(activeServer, {
     method: 'GET',
-    path: '/export?status=inactive',
+    path: '/export?status=inactive&search=Socio%20Dos',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -369,6 +334,7 @@ test('createAssociatesRouter exports associates from the associates module befor
     actor: { id: 1, role: 'admin', name: 'Admin Test' },
     filters: {
       associateId: undefined,
+      search: 'Socio Dos',
       fromDate: undefined,
       toDate: undefined,
       status: 'inactive',
@@ -445,7 +411,7 @@ test('createAssociatesRouter rejects malformed route identifiers before executin
     { method: 'PATCH', path: '/1e2', field: /número del socio/i, body: { status: 'inactive' } },
     { method: 'DELETE', path: '/1.5', field: /número del socio/i },
     { method: 'GET', path: '/abc/financial-details', field: /número del socio/i },
-    { method: 'GET', path: '/abc/profitability', field: /número del socio/i },
+    { method: 'GET', path: '/abc/financial-summary', field: /número del socio/i },
     { method: 'GET', path: '/abc/export', field: /número del socio/i },
     { method: 'POST', path: '/abc/contributions', field: /número del socio/i, body: { amount: 100 } },
     { method: 'POST', path: '/abc/distributions', field: /número del socio/i, body: { amount: 100 } },
@@ -469,58 +435,6 @@ test('createAssociatesRouter rejects malformed route identifiers before executin
   assert.deepEqual(calls, []);
 });
 
-test('createAssociatesRouter replays proportional distributions safely for repeated idempotency keys', async () => {
-  const router = createAssociatesRouter({
-    associateValidation,
-    authMiddleware: roleAwareAuth,
-    useCases: {
-      async createProportionalProfitDistribution({ idempotencyKey, payload }) {
-        assert.equal(idempotencyKey, 'assoc-proportional-2026-03');
-        assert.equal(payload.amount, '100.00');
-        return {
-          batchKey: 'batch-1',
-          declaredAmount: '100.00',
-          idempotencyStatus: 'replayed',
-          idempotencyKey,
-          createdRows: [{ id: 9, amount: 60 }],
-        };
-      },
-    },
-  });
-
-  const app = express();
-  app.use(express.json());
-  app.use(router);
-
-  activeServer = await listen(app);
-
-  const response = await requestJson(activeServer, {
-    method: 'POST',
-    path: '/distributions/proportional',
-    headers: {
-      authorization: 'Bearer valid-token',
-      'x-test-role': 'admin',
-      'idempotency-key': 'assoc-proportional-2026-03',
-    },
-    body: { amount: '100.00' },
-  });
-
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.body, {
-    success: true,
-    message: 'Distribución proporcional de utilidad reutilizada correctamente',
-    data: {
-      distribution: {
-        batchKey: 'batch-1',
-        declaredAmount: '100.00',
-        idempotencyStatus: 'replayed',
-        idempotencyKey: 'assoc-proportional-2026-03',
-        createdRows: [{ id: 9, amount: 60 }],
-      },
-    },
-  });
-});
-
 test('createAssociatesRouter surfaces missing-record errors', async () => {
   const router = createAssociatesRouter({
     associateValidation,
@@ -540,9 +454,6 @@ test('createAssociatesRouter surfaces missing-record errors', async () => {
       },
       async deleteAssociate() {
         throw new Error('deleteAssociate should not be called');
-      },
-      async createProportionalProfitDistribution() {
-        throw new Error('createProportionalProfitDistribution should not be called');
       },
     },
   });
@@ -627,50 +538,6 @@ test('createAssociatesRouter serves administrative associate financial details w
   assert.equal(detailsResponse.body.data.details.associate.id, 7);
   assert.equal(portalResponse.statusCode, 404);
   assert.deepEqual(calls, [['getAssociateFinancialDetails', 7]]);
-});
-
-test('createAssociatesRouter surfaces proportional distribution validation and authorization errors', async () => {
-  const router = createAssociatesRouter({
-    associateValidation: {
-      ...associateValidation,
-      proportionalDistribution(req, res, next) {
-        const error = new ValidationError('La validación falló');
-        error.errors = [{ field: 'amount', message: 'Amount must be positive' }];
-        next(error);
-      },
-    },
-    authMiddleware: roleAwareAuth,
-    useCases: {
-      async createProportionalProfitDistribution() {
-        throw new Error('createProportionalProfitDistribution should not be called');
-      },
-    },
-  });
-
-  const app = express();
-  app.use(express.json());
-  app.use(router);
-  app.use(globalErrorHandler);
-  activeServer = await listen(app);
-
-  const validationResponse = await requestJson(activeServer, {
-    method: 'POST',
-    path: '/distributions/proportional',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    body: { amount: '0' },
-  });
-
-  assert.equal(validationResponse.statusCode, 400);
-  assert.equal(validationResponse.body.error.validationErrors[0].field, 'amount');
-
-  const unauthorizedResponse = await requestJson(activeServer, {
-    method: 'POST',
-    path: '/distributions/proportional',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
-    body: { amount: '100.00' },
-  });
-
-  assert.equal(unauthorizedResponse.statusCode, 403);
 });
 
 test('createAssociatesRouter GET /:id/installments returns installments data', async () => {

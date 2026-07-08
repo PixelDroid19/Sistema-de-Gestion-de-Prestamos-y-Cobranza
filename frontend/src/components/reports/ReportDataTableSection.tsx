@@ -6,6 +6,7 @@ import type { AppTableVariant, OperationalTableMode } from '../shared/tables';
 type ReportDataTableSectionProps = {
   title?: string;
   subtitle?: string;
+  aside?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
   /** Children must be thead/tbody fragments only (no nested table element). */
@@ -17,6 +18,7 @@ type ReportDataTableSectionProps = {
 export function ReportDataTableSection({
   title,
   subtitle,
+  aside,
   children,
   footer,
   tableVariant = 'operational',
@@ -37,7 +39,7 @@ export function ReportDataTableSection({
   return (
     <DataTableSurface>
       {title ? (
-        <TableSectionIntro embedded title={title} description={subtitle} />
+        <TableSectionIntro embedded title={title} description={subtitle} aside={aside} />
       ) : null}
       {tableVariant === 'financial' ? (
         <AppTable

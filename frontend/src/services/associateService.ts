@@ -11,11 +11,12 @@ export type AssociateInstallmentPaymentPayload = {
 };
 
 const downloadAssociateExport = async ({
+  search,
   status,
-}: { status?: string } = {}): Promise<void> => {
+}: { search?: string; status?: string } = {}): Promise<void> => {
   const response = await apiClient.get('/associates/export', {
     responseType: 'blob',
-    params: { status },
+    params: { search, status },
   });
 
   const blob = new Blob([response.data], {
@@ -32,6 +33,25 @@ const downloadAssociateExport = async ({
 };
 
 export const exportAssociatesExcel = downloadAssociateExport;
+
+export const exportAssociateFinancialSummary = async (associateId: number): Promise<void> => {
+  const response = await apiClient.get(`/associates/${associateId}/export`, {
+    responseType: 'blob',
+    params: { format: 'xlsx' },
+  });
+
+  const blob = new Blob([response.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = `associate-${associateId}-financial-summary.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(objectUrl);
+};
 
 export const useAssociates = (
   params?: { page?: number; pageSize?: number; search?: string; status?: string },
@@ -219,13 +239,18 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     },
   });
 
-  const details = getFinancialDetails.data?.data?.details;
+  const financialDetailsPayload = getFinancialDetails.data?.data;
+  const details = financialDetailsPayload?.details ?? financialDetailsPayload;
+  const installmentsPayload = getInstallments.data?.data;
+  const calendarPayload = getCalendar.data?.data;
 
   return {
     details,
-    installments: getInstallments.data?.data?.installments,
+    installments: Array.isArray(installmentsPayload)
+      ? installmentsPayload
+      : (Array.isArray(installmentsPayload?.installments) ? installmentsPayload : installmentsPayload?.installments),
     contributions: details?.contributions,
-    calendar: getCalendar.data?.data?.calendar,
+    calendar: calendarPayload?.calendar ?? calendarPayload,
     isLoading: getFinancialDetails.isLoading || getInstallments.isLoading || getCalendar.isLoading,
     createContribution,
     createDistribution,

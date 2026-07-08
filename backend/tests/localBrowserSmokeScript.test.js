@@ -37,7 +37,16 @@ test('local browser smoke defaults to the non-destructive local admin login flow
   assert(commands.includes('find label Correo electrónico fill qa.admin.20260427@test.local'));
   assert(commands.includes('find label Contraseña fill Admin123!'));
   assert(commands.includes('find role button click --name Iniciar sesión'));
-  assert(commands.includes("wait --fn window.location.pathname === '/dashboard'"));
+  assert(commands.some((command) => (
+    command.startsWith('wait --fn')
+    && command.includes('window.location.pathname ===')
+    && command.includes('/dashboard')
+    && command.includes('No se pudo iniciar sesión')
+  )));
+  assert(commands.some((command) => (
+    command.startsWith('eval ')
+    && command.includes('Check local backend/proxy availability and QA credentials')
+  )));
   assert(commands.includes('wait --text Dashboard'));
   assert(commands.includes('get url'));
   assert.equal(steps[steps.length - 1].command, 'close');
@@ -67,7 +76,7 @@ test('local browser smoke can include a reports cashflow verification segment', 
   const commands = steps.map((step) => [step.command, ...step.args].join(' '));
 
   assert(commands.includes('open http://127.0.0.1:3000/reports'));
-  assert(commands.includes('wait --text Reportes y analítica'));
+  assert(commands.includes('wait --text Reportes operativos'));
   assert(commands.includes('find role tab click --name Cierre contable'));
   assert(commands.includes('wait --text Cierre contable mensual'));
   assert.equal(steps[steps.length - 1].command, 'close');

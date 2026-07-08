@@ -273,7 +273,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByRole('tab', { name: 'Cronograma' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
-    expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
+    expect(screen.getByText('Detalle de la cuota #1')).toBeInTheDocument();
 
     const submitButtons = screen.getAllByRole('button', { name: 'Registrar pago' });
     fireEvent.click(submitButtons[submitButtons.length - 1]);
@@ -297,7 +297,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText('Cotización cuota #1')).not.toBeInTheDocument();
+      expect(screen.queryByText('Detalle de la cuota #1')).not.toBeInTheDocument();
     });
   });
 
@@ -316,6 +316,48 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('shows capital prepayment before and after details in payment history', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    historyPayments = [
+      {
+        id: 9002,
+        amount: 324349,
+        paymentDate: '2026-07-19T00:00:00.000Z',
+        paymentType: 'capital',
+        paymentMethod: 'transfer',
+        status: 'completed',
+        reconciled: false,
+        principalApplied: 324349,
+        interestApplied: 0,
+        paymentMetadata: {
+          capital_reduction: true,
+          strategyApplied: 'reduce_payment',
+          before: {
+            outstandingPrincipal: 824349,
+            remainingInstallments: 5,
+            installmentAmount: 200000,
+          },
+          after: {
+            outstandingPrincipal: 500000,
+            remainingInstallments: 5,
+            installmentAmount: 115487,
+          },
+        },
+      },
+    ];
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Historial de pagos/ }));
+
+    expect(screen.getAllByText('Efecto').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Reducir cuota').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Saldo de capital nuevo/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/COP\s*500\.000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Nueva cuota/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/COP\s*115\.487/).length).toBeGreaterThan(0);
+  });
+
   it('keeps row installment actions working when the calendar installment number is serialized as text', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockCalendarEntries = [
@@ -325,7 +367,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     renderCreditDetails();
 
     fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
-    expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
+    expect(screen.getByText('Detalle de la cuota #1')).toBeInTheDocument();
   });
 
   it('renders installment row actions with overflow menu when there are many actions', async () => {
@@ -467,7 +509,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
 
-    expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
+    expect(screen.getByText('Detalle de la cuota #1')).toBeInTheDocument();
 
     const submitButtons = screen.getAllByRole('button', { name: 'Registrar pago' });
     fireEvent.click(submitButtons[submitButtons.length - 1]);
@@ -673,7 +715,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByText('prueba')).toBeInTheDocument();
     expect(screen.queryByText(/REMINDER|actor:3|status:active/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: /Seguimiento operativo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Actividad/ }));
 
     expect(screen.getByText('Alerta activa')).toBeInTheDocument();
     expect(screen.getByText('Recordatorio de pago · Cuota n.º 1 · Sin saldo pendiente')).toBeInTheDocument();

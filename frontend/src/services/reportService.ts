@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { downloadBlob } from './blobDownload';
+import { getLocalDateInputValue } from '../lib/dateInput';
 import type {
   PaymentCalendarOverviewResponse,
   PaymentScheduleResponse,
@@ -12,15 +13,12 @@ import type {
 import { tTerm } from '../i18n/terminology';
 import type {
   CreditHistoryMonthlyFilters,
-  CustomerProfitabilityFilters,
-  DailyCashFlowFilters,
-  AnnualCashFlowFilters,
   MonthlyCashFlowFilters,
   OperatingExpenseListParams,
   PaymentCalendarOverviewFilters,
 } from './queryKeys';
 
-type ReportContextualType = 'credits' | 'payouts' | 'profitability';
+type ReportContextualType = 'credits' | 'payouts';
 type ReportContextualFormat = 'xlsx' | 'pdf';
 type ReportContextualFilters = {
   fromDate?: string;
@@ -34,10 +32,6 @@ type ReportContextualFilters = {
   format?: ReportContextualFormat;
 };
 
-export type CreditHistoryFinancialProductOption = {
-  id: string;
-  name: string;
-};
 
 export type OperatingExpenseStatus = 'completed' | 'annulled';
 
@@ -140,15 +134,189 @@ const normalizeMonthlyPerformance = (value: unknown) => {
   });
 };
 
-export const useReports = () => {
-  const getDashboardMetrics = useQuery({
-    queryKey: queryKeys.reports.dashboard,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/dashboard');
-      return data;
-    },
-  });
+const toRecord = (value: unknown): Record<string, unknown> => (
+  value && typeof value === 'object' ? value as Record<string, unknown> : {}
+);
 
+const toOperationalDate = (value: unknown) => {
+  if (!value) return null;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
+
+const getIsoWeekKey = (date: Date) => {
+  const utcDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${utcDate.getUTCFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
+};
+
+const sumPayoutField = (payouts: Array<Record<string, unknown>>, keys: string[]): number => (
+  payouts.reduce((total, payout) => {
+    for (const key of keys) {
+      if (key in payout) {
+        return total + toNumber(payout[key]);
+      }
+    }
+    return total;
+  }, 0)
+);
+
+const buildPayoutCollectionAggregates = (payouts: Array<Record<string, unknown>>) => {
+  const buildBuckets = () => ({
+    daily: new Map<string, { installmentCount: number; totalAmount: number; totalInterest: number }>(),
+    weekly: new Map<string, { installmentCount: number; totalAmount: number; totalInterest: number }>(),
+    monthly: new Map<string, { installmentCount: number; totalAmount: number; totalInterest: number }>(),
+  });
+  const buckets = buildBuckets();
+
+  payouts
+    .filter((payout) => String(payout.status || '').toLowerCase() === 'completed')
+    .forEach((payout) => {
+      const paymentDate = toOperationalDate(payout.paymentDate ?? payout.date ?? payout.createdAt);
+      if (!paymentDate) return;
+
+      const keys = {
+        daily: toDateKey(paymentDate),
+        weekly: getIsoWeekKey(paymentDate),
+        monthly: toDateKey(paymentDate).slice(0, 7),
+      };
+
+      (Object.entries(keys) as Array<[keyof typeof buckets, string]>).forEach(([bucketType, key]) => {
+        const current = buckets[bucketType].get(key) || {
+          installmentCount: 0,
+          totalAmount: 0,
+          totalInterest: 0,
+        };
+        current.installmentCount += 1;
+        current.totalAmount += toNumber(payout.amount ?? payout.totalAmount);
+        current.totalInterest += toNumber(payout.interestApplied ?? payout.interest);
+        buckets[bucketType].set(key, current);
+      });
+    });
+
+  return buckets;
+};
+
+const buildCollectionRowsFromAggregates = (
+  aggregates: Map<string, { installmentCount: number; totalAmount: number; totalInterest: number }>,
+) => (
+  Array.from(aggregates.entries())
+    .sort(([left], [right]) => String(right).localeCompare(String(left)))
+    .map(([key, value]) => ({
+      key,
+      label: key,
+      installmentCount: value.installmentCount,
+      totalAmount: value.totalAmount,
+      totalPrincipal: 0,
+      totalInterest: value.totalInterest,
+      totalPenalties: 0,
+    }))
+);
+
+const normalizePayoutCollectionBucket = (
+  value: unknown,
+  fallbackLabel: string,
+  aggregates?: Map<string, { installmentCount: number; totalAmount: number; totalInterest: number }>,
+) => {
+  const bucket = toRecord(value);
+  const key = String(bucket.key ?? bucket.period ?? bucket.label ?? fallbackLabel);
+  const aggregate = aggregates?.get(key);
+
+  return {
+    key,
+    label: String(bucket.label ?? bucket.period ?? bucket.key ?? fallbackLabel),
+    installmentCount: toNumber(bucket.installmentCount ?? bucket.installments ?? bucket.count ?? aggregate?.installmentCount),
+    totalAmount: bucket.totalAmount ?? bucket.amount ?? aggregate?.totalAmount ?? 0,
+    totalPrincipal: bucket.totalPrincipal ?? bucket.principal ?? 0,
+    totalInterest: bucket.totalInterest ?? bucket.interest ?? aggregate?.totalInterest ?? 0,
+    totalPenalties: bucket.totalPenalties ?? bucket.penalties ?? bucket.penaltyApplied ?? 0,
+  };
+};
+
+const normalizePayoutCollectionBreakdown = (
+  value: unknown,
+  payouts: Array<Record<string, unknown>>,
+) => {
+  const source = toRecord(value);
+  const aggregates = buildPayoutCollectionAggregates(payouts);
+  const dailyBuckets = toArray(source.daily);
+  const weeklyBuckets = toArray(source.weekly);
+  const monthlyBuckets = toArray(source.monthly);
+  return {
+    daily: dailyBuckets.length > 0
+      ? dailyBuckets.map((bucket) => normalizePayoutCollectionBucket(bucket, 'daily', aggregates.daily))
+      : buildCollectionRowsFromAggregates(aggregates.daily),
+    weekly: weeklyBuckets.length > 0
+      ? weeklyBuckets.map((bucket) => normalizePayoutCollectionBucket(bucket, 'weekly', aggregates.weekly))
+      : buildCollectionRowsFromAggregates(aggregates.weekly),
+    monthly: monthlyBuckets.length > 0
+      ? monthlyBuckets.map((bucket) => normalizePayoutCollectionBucket(bucket, 'monthly', aggregates.monthly))
+      : buildCollectionRowsFromAggregates(aggregates.monthly),
+  };
+};
+
+const normalizePayoutEntry = (value: unknown) => {
+  const payout = toRecord(value);
+  const creatorName = payout.createdByName ?? payout.createdByUserName ?? payout.registeredByName;
+  const loanRecord = toRecord(payout.loan ?? payout.Loan);
+  const customerRecord = toRecord(
+    payout.customer
+    ?? payout.Customer
+    ?? loanRecord.customer
+    ?? loanRecord.Customer,
+  );
+  const customerName = payout.customerName
+    ?? payout.customerLabel
+    ?? customerRecord.name;
+  const loanId = payout.loanId
+    ?? payout.creditId
+    ?? loanRecord.id
+    ?? null;
+
+  return {
+    ...payout,
+    id: payout.id ?? payout.paymentId ?? payout.payoutId ?? null,
+    loanId,
+    creditId: loanId,
+    customerName: customerName ? String(customerName) : '',
+    amount: payout.amount ?? payout.totalAmount ?? 0,
+    paymentDate: payout.paymentDate ?? payout.date ?? payout.createdAt ?? null,
+    paymentType: payout.paymentType ?? payout.type ?? '',
+    status: payout.status ?? payout.paymentStatus ?? '',
+    principalApplied: payout.principalApplied ?? payout.principal ?? payout.capitalApplied ?? 0,
+    interestApplied: payout.interestApplied ?? payout.interest ?? 0,
+    penaltyApplied: payout.penaltyApplied ?? payout.penalties ?? payout.lateFeeApplied ?? 0,
+    paymentMethod: payout.paymentMethod ?? payout.method ?? null,
+    installmentNumber: payout.installmentNumber ?? payout.installment ?? null,
+    createdBy: payout.createdBy
+      ?? payout.CreatedBy
+      ?? (creatorName ? { name: String(creatorName) } : null),
+  };
+};
+
+const normalizePayoutSummary = (
+  value: unknown,
+  payouts: Array<Record<string, unknown>>,
+) => {
+  const summary = toRecord(value);
+  const collectionSource = summary.collectionBreakdown ?? summary.collections;
+
+  return {
+    totalPayouts: toNumber(summary.totalPayouts ?? summary.totalPayments ?? summary.count ?? payouts.length),
+    totalAmount: summary.totalAmount ?? summary.amount ?? sumPayoutField(payouts, ['amount', 'totalAmount']),
+    totalPrincipal: summary.totalPrincipal ?? summary.principal ?? sumPayoutField(payouts, ['principalApplied', 'principal', 'capitalApplied']),
+    totalInterest: summary.totalInterest ?? summary.interest ?? sumPayoutField(payouts, ['interestApplied', 'interest']),
+    totalPenalties: summary.totalPenalties ?? summary.penalties ?? sumPayoutField(payouts, ['penaltyApplied', 'penalties', 'lateFeeApplied']),
+    collectionBreakdown: normalizePayoutCollectionBreakdown(collectionSource, payouts),
+  };
+};
+
+export const useReports = () => {
   const getOutstandingReport = useQuery({
     queryKey: queryKeys.reports.outstanding,
     queryFn: async () => {
@@ -157,43 +325,12 @@ export const useReports = () => {
     },
   });
 
-  const getRecoveredReport = useQuery({
-    queryKey: queryKeys.reports.recovered,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/recovered');
-      return data;
-    },
-  });
-
-  const getRecoveryReport = useQuery({
-    queryKey: queryKeys.reports.recovery,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/recovery');
-      return data;
-    },
-  });
-
-  const getLoanProfitability = useQuery({
-    queryKey: queryKeys.reports.profitabilityLoans,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/profitability/loans');
-      return data;
-    },
-  });
-
   return {
-    dashboardData: (() => {
-      const data = getDashboardMetrics.data?.data;
-      return normalizeDashboardData(data);
-    })(),
+    dashboardData: undefined,
     outstandingData: getOutstandingReport.data,
-    recoveredData: getRecoveredReport.data,
-    recoveryData: getRecoveryReport.data,
-    loanProfitabilityData: getLoanProfitability.data,
-    monthlyPerformance: normalizeMonthlyPerformance(
-      getDashboardMetrics.data?.data?.monthlyPerformance
-      ?? getRecoveryReport.data?.data?.monthlyPerformance,
-    ),
+    recoveredData: undefined,
+    recoveryData: undefined,
+    monthlyPerformance: [],
     statusBreakdown: (() => {
       const backendStatuses = toArray<{ status: string; count: number }>(getOutstandingReport.data?.data?.byStatus);
       if (backendStatuses.length > 0) return backendStatuses;
@@ -219,75 +356,15 @@ export const useReports = () => {
 
       return {
         ...loan,
+        customerName: loan.customerName ?? loan.Customer?.name,
         daysOverdue,
         overdueAmount: toNumber(loan.overdueAmount ?? loan.outstandingAmount),
-        remainingCapital: toNumber(loan.remainingCapital ?? loan.outstandingAmount),
+        remainingCapital: toNumber(loan.remainingCapital ?? loan.outstandingPrincipalAmount ?? loan.outstandingAmount),
       };
     }),
-    isLoading:
-      getDashboardMetrics.isLoading ||
-      getOutstandingReport.isLoading ||
-      getRecoveryReport.isLoading,
-    isError:
-      getDashboardMetrics.isError ||
-      getOutstandingReport.isError ||
-      getRecoveryReport.isError,
-    error:
-      getDashboardMetrics.error ||
-      getOutstandingReport.error ||
-      getRecoveryReport.error,
-  };
-};
-
-const normalizeCustomerProfitabilityItems = (value: unknown) => {
-  const payload = (value as { data?: { items?: unknown; customers?: unknown } })?.data ?? value;
-  const items = toArray<any>(
-    (payload as { items?: unknown })?.items
-    ?? (payload as { customers?: unknown })?.customers,
-  );
-
-  return items.map((item) => ({
-    ...item,
-    totalLoans: item.totalLoans ?? item.loanCount ?? 0,
-    activeLoanCount: toNumber(item.activeLoanCount),
-    closedLoanCount: toNumber(item.closedLoanCount),
-    overdueLoanCount: toNumber(item.overdueLoanCount),
-    defaultedLoanCount: toNumber(item.defaultedLoanCount),
-    paymentCount: toNumber(item.paymentCount),
-    outstandingBalance: toNumber(item.outstandingBalance),
-    lateFeesCollected: toNumber(item.lateFeesCollected ?? item.penaltyCollected),
-    paymentBehavior: item.paymentBehavior ?? 'current',
-    riskLevel: item.riskLevel ?? 'low',
-    isDelinquent: Boolean(item.isDelinquent),
-  }));
-};
-
-export const useCustomerProfitability = (filters: CustomerProfitabilityFilters = {}) => {
-  const queryFilters = useMemo(() => ({
-    ...(filters.fromDate ? { fromDate: filters.fromDate } : {}),
-    ...(filters.toDate ? { toDate: filters.toDate } : {}),
-    ...(filters.page ? { page: filters.page } : {}),
-    ...(filters.pageSize ? { pageSize: filters.pageSize } : {}),
-  }), [filters.fromDate, filters.page, filters.pageSize, filters.toDate]);
-
-  const query = useQuery({
-    queryKey: queryKeys.reports.profitabilityCustomers(queryFilters),
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/profitability/customers', {
-        params: queryFilters,
-      });
-      return data;
-    },
-  });
-
-  return {
-    items: normalizeCustomerProfitabilityItems(query.data),
-    customerAnalytics: (query.data as any)?.summary?.customerAnalytics ?? null,
-    summary: (query.data as any)?.summary ?? null,
-    pagination: (query.data as any)?.data?.pagination ?? null,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    error: query.error,
+    isLoading: getOutstandingReport.isLoading,
+    isError: getOutstandingReport.isError,
+    error: getOutstandingReport.error,
   };
 };
 
@@ -405,61 +482,6 @@ export const useCreditReports = (loanId: number) => {
   };
 };
 
-// === Financial Analytics Hooks ===
-
-export const useCreditEarnings = () => {
-  const getCreditEarnings = useQuery({
-    queryKey: queryKeys.reports.creditEarnings,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/credit-earnings');
-      return data;
-    },
-  });
-
-  return {
-    data: getCreditEarnings.data?.data,
-    isLoading: getCreditEarnings.isLoading,
-    isError: getCreditEarnings.isError,
-    error: getCreditEarnings.error,
-  };
-};
-
-export const useInterestEarnings = (year?: number) => {
-  const getInterestEarnings = useQuery({
-    queryKey: queryKeys.reports.interestEarnings(year),
-    queryFn: async () => {
-      const params = year ? { year } : {};
-      const { data } = await apiClient.get('/reports/interest-earnings', { params });
-      return data;
-    },
-  });
-
-  return {
-    data: getInterestEarnings.data?.data,
-    isLoading: getInterestEarnings.isLoading,
-    isError: getInterestEarnings.isError,
-    error: getInterestEarnings.error,
-  };
-};
-
-export const useMonthlyEarnings = (year?: number) => {
-  const getMonthlyEarnings = useQuery({
-    queryKey: queryKeys.reports.monthlyEarnings(year),
-    queryFn: async () => {
-      const params = year ? { year } : {};
-      const { data } = await apiClient.get('/reports/monthly-earnings', { params });
-      return data;
-    },
-  });
-
-  return {
-    data: getMonthlyEarnings.data?.data,
-    isLoading: getMonthlyEarnings.isLoading,
-    isError: getMonthlyEarnings.isError,
-    error: getMonthlyEarnings.error,
-  };
-};
-
 export const useMonthlyCashFlow = (year?: number, filters: MonthlyCashFlowFilters = {}) => {
   const getMonthlyCashFlow = useQuery({
     queryKey: queryKeys.reports.monthlyCashFlow(year, filters),
@@ -475,40 +497,6 @@ export const useMonthlyCashFlow = (year?: number, filters: MonthlyCashFlowFilter
     isLoading: getMonthlyCashFlow.isLoading,
     isError: getMonthlyCashFlow.isError,
     error: getMonthlyCashFlow.error,
-  };
-};
-
-export const useDailyCashFlow = (filters: DailyCashFlowFilters = {}) => {
-  const getDailyCashFlow = useQuery({
-    queryKey: queryKeys.reports.dailyCashFlow(filters),
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/cash-flow/daily', { params: filters });
-      return data;
-    },
-  });
-
-  return {
-    data: getDailyCashFlow.data?.data,
-    isLoading: getDailyCashFlow.isLoading,
-    isError: getDailyCashFlow.isError,
-    error: getDailyCashFlow.error,
-  };
-};
-
-export const useAnnualCashFlow = (filters: AnnualCashFlowFilters = {}) => {
-  const getAnnualCashFlow = useQuery({
-    queryKey: queryKeys.reports.annualCashFlow(filters),
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/cash-flow/annual', { params: filters });
-      return data;
-    },
-  });
-
-  return {
-    data: getAnnualCashFlow.data?.data,
-    isLoading: getAnnualCashFlow.isLoading,
-    isError: getAnnualCashFlow.isError,
-    error: getAnnualCashFlow.error,
   };
 };
 
@@ -529,90 +517,6 @@ export const useCreditHistoryMonthly = (filters: CreditHistoryMonthlyFilters = {
   };
 };
 
-export const useCreditHistoryFinancialProducts = () => {
-  const getCreditHistoryFinancialProducts = useQuery({
-    queryKey: queryKeys.reports.creditHistoryFinancialProducts,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/reports/credit-history/financial-products');
-      return data;
-    },
-  });
-
-  return {
-    financialProducts: toArray<CreditHistoryFinancialProductOption>(
-      getCreditHistoryFinancialProducts.data?.data?.financialProducts,
-    ),
-    isLoading: getCreditHistoryFinancialProducts.isLoading,
-    isError: getCreditHistoryFinancialProducts.isError,
-    error: getCreditHistoryFinancialProducts.error,
-  };
-};
-
-export const useMonthlyInterest = (year?: number) => {
-  const getMonthlyInterest = useQuery({
-    queryKey: queryKeys.reports.monthlyInterest(year),
-    queryFn: async () => {
-      const params = year ? { year } : {};
-      const { data } = await apiClient.get('/reports/monthly-interest', { params });
-      return data;
-    },
-  });
-
-  return {
-    data: getMonthlyInterest.data?.data,
-    isLoading: getMonthlyInterest.isLoading,
-    isError: getMonthlyInterest.isError,
-    error: getMonthlyInterest.error,
-  };
-};
-
-// Combined hook for financial analytics dashboard.
-// The six overlapping analytics endpoints are fetched as a single consolidated
-// bundle (`/reports/financial-analytics`) in one round-trip; the earnings
-// series keep their own queries since they feed other tabs too.
-export const useFinancialAnalytics = (year?: number) => {
-  const creditEarnings = useCreditEarnings();
-  const interestEarnings = useInterestEarnings(year);
-  const monthlyEarnings = useMonthlyEarnings(year);
-  const monthlyInterest = useMonthlyInterest(year);
-
-  const analyticsBundle = useQuery({
-    queryKey: queryKeys.reports.financialAnalytics(year),
-    queryFn: async () => {
-      const params = year ? { year } : {};
-      const { data } = await apiClient.get('/reports/financial-analytics', { params });
-      return data;
-    },
-  });
-
-  const bundle = analyticsBundle.data?.data;
-  const section = (value: any) => ({
-    data: value?.data,
-    isLoading: analyticsBundle.isLoading,
-    isError: analyticsBundle.isError,
-    error: analyticsBundle.error,
-  });
-
-  return {
-    creditEarnings,
-    interestEarnings,
-    monthlyEarnings,
-    monthlyInterest,
-    performanceAnalysis: section(bundle?.performanceAnalysis),
-    executiveDashboard: section(bundle?.executiveDashboard),
-    comprehensiveAnalytics: section(bundle?.comprehensiveAnalytics),
-    comparativeAnalysis: section(bundle?.comparativeAnalysis),
-    forecastAnalysis: section(bundle?.forecastAnalysis),
-    nextMonthProjection: section(bundle?.nextMonthProjection),
-    isLoading:
-      creditEarnings.isLoading ||
-      interestEarnings.isLoading ||
-      monthlyEarnings.isLoading ||
-      monthlyInterest.isLoading ||
-      analyticsBundle.isLoading,
-  };
-};
-
 export const usePayoutsReport = (filters: PayoutsReportFilters = {}, page = 1, pageSize = 20) => {
   const getPayouts = useQuery({
     queryKey: queryKeys.reports.payouts(filters, page, pageSize),
@@ -627,10 +531,19 @@ export const usePayoutsReport = (filters: PayoutsReportFilters = {}, page = 1, p
     },
   });
 
+  const normalizedPayouts = toArray<Record<string, unknown>>(getPayouts.data?.data?.payouts)
+    .map(normalizePayoutEntry);
+
+  const normalizedSummary = getPayouts.data?.summary || normalizedPayouts.length > 0
+    ? normalizePayoutSummary(getPayouts.data?.summary, normalizedPayouts)
+    : undefined;
+
   return {
-    data: getPayouts.data?.data,
-    summary: getPayouts.data?.summary,
-    payouts: getPayouts.data?.data?.payouts || [],
+    data: getPayouts.data?.data
+      ? { ...getPayouts.data.data, payouts: normalizedPayouts }
+      : undefined,
+    summary: normalizedSummary,
+    payouts: normalizedPayouts,
     pagination: getPayouts.data?.data?.pagination,
     isLoading: getPayouts.isLoading,
     isError: getPayouts.isError,
@@ -646,7 +559,13 @@ export const usePaymentCalendarOverview = (
     queryKey: queryKeys.reports.paymentCalendarOverview(filters),
     queryFn: async () => {
       const { data } = await apiClient.get('/loans/calendar/overview', { params: filters });
-      return data?.data?.calendar as PaymentCalendarOverviewResponse;
+      return (data?.data?.calendar ?? data?.data ?? {
+        summary: {},
+        agenda: [],
+        actionableEntries: [],
+        entries: [],
+        nextAction: null,
+      }) as PaymentCalendarOverviewResponse;
     },
     enabled,
   });
@@ -665,13 +584,177 @@ export const usePaymentCalendarOverview = (
   };
 };
 
+const normalizeScheduleStatus = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || 'pending';
+};
+
+const isPaidScheduleStatus = (value: unknown) => {
+  const normalized = normalizeScheduleStatus(value);
+  return normalized === 'paid' || normalized === 'completed';
+};
+
+const normalizeRatePercent = (value: unknown) => {
+  const rate = toNumber(value);
+  if (rate > 0 && rate <= 1) {
+    return rate * 100;
+  }
+  return rate;
+};
+
+const normalizePaymentScheduleLoanRecord = (
+  value: unknown,
+  normalizedSchedule: Array<Record<string, unknown>>,
+) => {
+  const loan = toRecord(value);
+  return {
+    id: toNumber(loan.id),
+    customerId: toNumber(loan.customerId),
+    customerName: String(
+      loan.customerName
+      ?? toRecord(loan.customer).name
+      ?? toRecord(loan.Customer).name
+      ?? '',
+    ) || null,
+    amount: toNumber(loan.amount ?? loan.loanAmount ?? loan.principalAmount),
+    interestRate: normalizeRatePercent(loan.interestRate ?? loan.rate),
+    termMonths: toNumber(loan.termMonths ?? loan.totalInstallments ?? normalizedSchedule.length),
+    startDate: String(loan.startDate ?? loan.disbursementDate ?? '') || null,
+    status: String(loan.status ?? ''),
+    installmentAmount: toNumber(
+      loan.installmentAmount
+      ?? loan.installment
+      ?? normalizedSchedule[0]?.scheduledPayment,
+    ) || null,
+  };
+};
+
+const normalizePaymentScheduleRows = (
+  value: unknown,
+  baseAmount: number,
+) => {
+  let previousRemainingBalance = baseAmount;
+
+  return toArray<Record<string, unknown>>(value).map((entry, index) => {
+    const scheduledPayment = toNumber(entry.scheduledPayment ?? entry.amount ?? entry.payment);
+    const interestComponent = toNumber(
+      entry.interestComponent
+      ?? entry.interestAmount
+      ?? entry.interest
+      ?? entry.remainingInterest,
+    );
+    const principalComponent = toNumber(
+      entry.principalComponent
+      ?? entry.principalAmount
+      ?? entry.principal
+      ?? Math.max(0, scheduledPayment - interestComponent),
+    );
+
+    const explicitOpeningBalance = Number(
+      entry.openingBalance
+      ?? entry.initialBalance
+      ?? entry.balanceBefore,
+    );
+    const openingBalance = Number.isFinite(explicitOpeningBalance)
+      ? explicitOpeningBalance
+      : (index === 0 ? baseAmount : previousRemainingBalance);
+
+    const explicitRemainingBalance = Number(
+      entry.remainingBalance
+      ?? entry.closingBalance
+      ?? entry.balanceAfter,
+    );
+    const remainingBalance = Number.isFinite(explicitRemainingBalance)
+      ? explicitRemainingBalance
+      : Math.max(0, openingBalance - principalComponent);
+
+    previousRemainingBalance = remainingBalance;
+
+    const status = normalizeScheduleStatus(entry.status);
+    const paidAmount = entry.paidAmount ?? entry.paidTotal ?? (isPaidScheduleStatus(status) ? scheduledPayment : null);
+
+    return {
+      ...entry,
+      installmentNumber: toNumber(entry.installmentNumber ?? entry.period ?? index + 1),
+      dueDate: String(entry.dueDate ?? '') || null,
+      openingBalance,
+      scheduledPayment,
+      principalComponent,
+      interestComponent,
+      paidPrincipal: toNumber(entry.paidPrincipal ?? (isPaidScheduleStatus(status) ? principalComponent : 0)),
+      paidInterest: toNumber(entry.paidInterest ?? (isPaidScheduleStatus(status) ? interestComponent : 0)),
+      paidTotal: toNumber(paidAmount),
+      remainingPrincipal: toNumber(entry.remainingPrincipal ?? Math.max(0, remainingBalance)),
+      remainingInterest: toNumber(entry.remainingInterest ?? 0),
+      remainingBalance,
+      status,
+      paidAmount: paidAmount === null ? null : toNumber(paidAmount),
+      paidDate: String(entry.paidDate ?? '') || null,
+      paymentId: entry.paymentId ?? null,
+    };
+  });
+};
+
+const normalizePaymentScheduleSummaryRecord = (
+  value: unknown,
+  normalizedSchedule: Array<Record<string, unknown>>,
+  normalizedLoan: Record<string, unknown>,
+) => {
+  const summary = toRecord(value);
+  const totalPrincipal = normalizedSchedule.reduce((total, entry) => total + toNumber(entry.principalComponent), 0);
+  const totalInterest = normalizedSchedule.reduce((total, entry) => total + toNumber(entry.interestComponent), 0);
+  const totalPayment = normalizedSchedule.reduce((total, entry) => total + toNumber(entry.scheduledPayment), 0);
+  const paidInstallments = normalizedSchedule.filter((entry) => isPaidScheduleStatus(entry.status)).length;
+  const totalInstallments = toNumber(
+    summary.totalInstallments
+    ?? normalizedLoan.termMonths
+    ?? normalizedSchedule.length,
+  ) || normalizedSchedule.length;
+  const pendingInstallments = toNumber(
+    summary.pendingInstallments
+    ?? Math.max(totalInstallments - paidInstallments, 0),
+  );
+
+  return {
+    totalPrincipal: (summary.totalPrincipal ?? totalPrincipal).toString(),
+    totalInterest: (summary.totalInterest ?? totalInterest).toString(),
+    totalPayment: (summary.totalPayment ?? summary.totalDue ?? totalPayment).toString(),
+    capitalPrepayments: summary.capitalPrepayments ? String(summary.capitalPrepayments) : undefined,
+    paidInstallments: toNumber(summary.paidInstallments ?? paidInstallments),
+    pendingInstallments,
+    totalInstallments,
+  };
+};
+
+export const normalizePaymentSchedulePayload = (value: unknown) => {
+  const payload = toRecord(value);
+  const loanSeed = toRecord(payload.loan);
+  const seedAmount = toNumber(loanSeed.amount ?? loanSeed.loanAmount ?? loanSeed.principalAmount);
+  const normalizedSchedule = normalizePaymentScheduleRows(payload.schedule, seedAmount);
+  const normalizedLoan = normalizePaymentScheduleLoanRecord(payload.loan, normalizedSchedule);
+  const normalizedSummary = normalizePaymentScheduleSummaryRecord(
+    payload.summary,
+    normalizedSchedule,
+    normalizedLoan,
+  );
+
+  return {
+    loan: normalizedLoan,
+    summary: normalizedSummary,
+    schedule: normalizedSchedule,
+  };
+};
+
 export const usePaymentSchedule = (loanId: number | null) => {
   const getSchedule = useQuery({
     queryKey: queryKeys.reports.paymentSchedule(loanId),
     queryFn: async () => {
       if (!loanId) throw new Error(tTerm('reports.export.invalidLoan'));
       const { data } = await apiClient.get(`/reports/payment-schedule/${loanId}`);
-      return data as PaymentScheduleResponse;
+      return {
+        ...data,
+        data: normalizePaymentSchedulePayload(data?.data),
+      } as PaymentScheduleResponse;
     },
     enabled: !!loanId,
   });
@@ -731,23 +814,6 @@ export const annulOperatingExpense = async (expenseId: number, reason: string) =
 
 // === Export Functions ===
 
-export const exportFinancialAnalyticsReport = async (
-  year: number,
-  format: ReportContextualFormat = 'xlsx',
-): Promise<void> => {
-  const extension = format === 'pdf' ? 'pdf' : 'xlsx';
-  const mimeType = format === 'pdf'
-    ? 'application/pdf'
-    : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-  await downloadBlobWithParams({
-    url: '/reports/analytics/export',
-    fileName: `analitica_financiera_${year}.${extension}`,
-    mimeType,
-    params: { year, format },
-  });
-};
-
 export const exportCreditsExcel = async (filters: ReportContextualFilters = {}): Promise<void> => {
   await downloadBlobWithParams({
     url: '/reports/credits/excel',
@@ -776,19 +842,6 @@ export const downloadCreditReport = async (loanId: number): Promise<void> => {
     url: `/reports/credit-history/loan/${loanId}/export?format=pdf`,
     fileName: `credit-${loanId}-report.pdf`,
     mimeType: 'application/pdf',
-  });
-};
-
-export const exportDashboardSummary = async (format: ReportContextualFormat = 'xlsx'): Promise<void> => {
-  const extension = format === 'pdf' ? 'pdf' : 'xlsx';
-  const mimeType = format === 'pdf'
-    ? 'application/pdf'
-    : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-  await downloadBlob({
-    url: format === 'pdf' ? '/reports/dashboard/pdf' : '/reports/dashboard/excel',
-    fileName: `dashboard-report.${extension}`,
-    mimeType,
   });
 };
 
@@ -839,6 +892,20 @@ export const exportOperatingExpensesReport = async (
       status: filters.status,
       employeeId: filters.employeeId,
     },
+  });
+};
+
+export const exportOutstandingReport = async (format: 'xlsx' | 'pdf'): Promise<void> => {
+  const stamp = getLocalDateInputValue();
+  const mimeType = format === 'pdf'
+    ? 'application/pdf'
+    : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  await downloadBlobWithParams({
+    url: '/reports/outstanding/export',
+    fileName: `cartera_por_cobrar_${stamp}.${format}`,
+    mimeType,
+    params: { format },
   });
 };
 
@@ -896,25 +963,6 @@ export const exportContextualReport = async (
         loanId: filters.loanId,
         financialProductId: filters.financialProductId,
         status: filters.status,
-      },
-    });
-    return;
-  }
-
-  if (type === 'profitability') {
-    const extension = format === 'pdf' ? 'pdf' : 'xlsx';
-    const mimeType = format === 'pdf'
-      ? 'application/pdf'
-      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-    await downloadBlobWithParams({
-      url: '/reports/profitability/customers/export',
-      fileName: `rentabilidad_clientes_${suffix}.${extension}`,
-      mimeType,
-      params: {
-        format,
-        fromDate,
-        toDate,
       },
     });
     return;

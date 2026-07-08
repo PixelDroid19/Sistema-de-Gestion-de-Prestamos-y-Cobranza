@@ -16,6 +16,8 @@ const MOBILE_VIEWPORT_MAX_WIDTH = 767;
 const BROWSER_ERRORS_CLEAR_COMMAND = 'browser-errors-clear';
 const BROWSER_ERRORS_ASSERT_COMMAND = 'browser-errors-assert';
 const ACCESSIBILITY_AUDIT_COMMAND = 'accessibility-audit';
+const DEFAULT_LOGIN_ERROR_TEXT = 'No se pudo iniciar sesión';
+const DEFAULT_LOGIN_SUCCESS_PATH = '/dashboard';
 const DEFAULT_EMPLOYEE_GUARDED_PATHS = [
   '/settings',
   '/dashboard',
@@ -33,7 +35,7 @@ const DEFAULT_ADMIN_ROUTE_CHECKS = [
   { path: '/customers', text: 'Clientes', label: 'Clientes' },
   { path: '/credits', text: 'Operación de créditos', label: 'Créditos' },
   { path: '/credit-calculator', text: 'Cálculo de crédito', label: 'Cálculo de crédito' },
-  { path: '/reports', text: 'Reportes y analítica', label: 'Reportes' },
+  { path: '/reports', text: 'Reportes operativos', label: 'Reportes' },
   { path: '/associates', text: 'Socios', label: 'Socios' },
   { path: '/payouts', text: 'Pagos y cobranza', label: 'Pagos y cobranza' },
   { path: '/notifications', text: 'Notificaciones', label: 'Notificaciones' },
@@ -115,6 +117,8 @@ const resolveBrowserSmokeConfig = (env = process.env, argv = []) => {
     emailLabel: env.BROWSER_SMOKE_EMAIL_LABEL || 'Correo electrónico',
     passwordLabel: env.BROWSER_SMOKE_PASSWORD_LABEL || 'Contraseña',
     submitButtonName: env.BROWSER_SMOKE_SUBMIT_NAME || 'Iniciar sesión',
+    loginErrorText: env.BROWSER_SMOKE_LOGIN_ERROR_TEXT || DEFAULT_LOGIN_ERROR_TEXT,
+    loginSuccessPath: env.BROWSER_SMOKE_LOGIN_SUCCESS_PATH || DEFAULT_LOGIN_SUCCESS_PATH,
     mobileMenuButtonName: env.BROWSER_SMOKE_MOBILE_MENU_BUTTON || 'Abrir menú',
     logoutButtonName: env.BROWSER_SMOKE_LOGOUT_NAME || 'Cerrar sesión',
     dashboardText: env.BROWSER_SMOKE_DASHBOARD_TEXT || 'Dashboard',
@@ -129,7 +133,7 @@ const resolveBrowserSmokeConfig = (env = process.env, argv = []) => {
     newCreditRegisterButtonName: env.BROWSER_SMOKE_NEW_CREDIT_REGISTER_BUTTON || 'Registrar crédito',
     newCreditEmptyStateText: env.BROWSER_SMOKE_NEW_CREDIT_EMPTY_STATE || 'Aún no hay cálculo generado',
     includeReports: isTrue(env.BROWSER_SMOKE_INCLUDE_REPORTS),
-    reportsPageText: env.BROWSER_SMOKE_REPORTS_TEXT || 'Reportes y analítica',
+    reportsPageText: env.BROWSER_SMOKE_REPORTS_TEXT || 'Reportes operativos',
     reportsCashflowTab: env.BROWSER_SMOKE_REPORTS_CASHFLOW_TAB || 'Cierre contable',
     reportsCashflowHeading: env.BROWSER_SMOKE_REPORTS_CASHFLOW_HEADING || 'Cierre contable mensual',
     includeSettings: isTrue(env.BROWSER_SMOKE_INCLUDE_SETTINGS),
@@ -409,6 +413,22 @@ const buildButtonDisabledWaitStep = (buttonName) => {
   };
 };
 
+const buildLoginOutcomeWaitExpression = (config) => (
+  `window.location.pathname === ${JSON.stringify(config.loginSuccessPath)} || document.body.innerText.includes(${JSON.stringify(config.loginErrorText)})`
+);
+
+const buildLoginOutcomeAssertExpression = (config) => (
+  `(() => {
+    if (window.location.pathname === ${JSON.stringify(config.loginSuccessPath)}) {
+      return 'ok';
+    }
+    if (document.body.innerText.includes(${JSON.stringify(config.loginErrorText)})) {
+      throw new Error('Login failed before reaching the dashboard. Check local backend/proxy availability and QA credentials.');
+    }
+    throw new Error('Login did not reach the dashboard or an explicit login error state.');
+  })()`
+);
+
 const buildNewCreditSmokeSteps = (config) => [
   {
     command: 'open',
@@ -597,7 +617,11 @@ const buildBrowserSmokeSteps = (config) => [
   },
   {
     command: 'wait',
-    args: ['--fn', "window.location.pathname === '/dashboard'"],
+    args: ['--fn', buildLoginOutcomeWaitExpression(config)],
+  },
+  {
+    command: 'eval',
+    args: [buildLoginOutcomeAssertExpression(config)],
   },
   {
     command: 'wait',

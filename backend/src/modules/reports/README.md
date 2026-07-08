@@ -1,16 +1,18 @@
 # Reports Module
 
-Read-only reporting, analytics, and export generation.
+Read-only operational reporting and export generation for the credit business.
+This module is intentionally scoped to credit operations: portfolio, payments,
+disbursements, cashflow, expenses, movements, and payment schedules.
 
 ## Architecture
 
 ```
 reports/
 ├── application/
-│   ├── useCases.js         # Legacy portfolio/recovery/customer reports
-│   ├── useCases/           # Extracted analytics & export use cases
+│   ├── useCases.js         # Portfolio, cashflow, payouts, schedule, and export use cases
+│   ├── useCases/           # Extracted report/export use cases
 │   ├── reportHelpers.js    # Authorization & date range utilities
-│   ├── reportInternals.js  # PDF/CSV builders, profitability helpers, timeline
+│   ├── reportInternals.js  # PDF/CSV builders, credit timelines, row helpers
 │   └── workbookBuilder.js  # Excel workbook generation (ExcelJS)
 ├── infrastructure/         # Report-specific DB queries
 └── presentation/
@@ -23,3 +25,6 @@ reports/
 - Report totals derive from canonical loan/payment data, never frontend calculations.
 - Exports use Spanish operational headers for user-facing output.
 - Only `admin` and `employee` roles can access reports (enforced by `ensureAdmin`).
+- Investor-associate reporting stays in the associates module. Do not add
+  socio capital, obligations, manual profitability payments, or interest-payment
+  tracking to `/api/reports`; use `/api/associates` report/export routes instead.

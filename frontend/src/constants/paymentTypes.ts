@@ -12,9 +12,23 @@ export const getPaymentTypeLabel = (value: unknown): string => {
   const paymentTypeLabels: Record<string, string> = {
     installment: tTerm('payment.type.installment'),
     regular: tTerm('payment.type.installment'),
+    regular_payment: tTerm('payment.type.installment'),
+    pago_regular: tTerm('payment.type.installment'),
+    cuota: tTerm('payment.type.installment'),
     partial: tTerm('payment.type.partial'),
+    parcial: tTerm('payment.type.partial'),
+    penalty: tTerm('payment.type.penalty'),
+    late_fee: tTerm('payment.type.penalty'),
+    mora: tTerm('payment.type.penalty'),
+    adjustment_fee: tTerm('payment.type.penalty'),
     capital: tTerm('payment.type.capital'),
+    principal: tTerm('payment.type.capital'),
+    principal_prepayment: tTerm('payment.type.capital'),
+    abono_capital: tTerm('payment.type.capital'),
     payoff: tTerm('payment.type.payoff'),
+    total: tTerm('payment.type.payoff'),
+    pago_total: tTerm('payment.type.payoff'),
+    liquidacion: tTerm('payment.type.payoff'),
   };
   if (!normalized) return tTerm('payment.type.unknown');
   return paymentTypeLabels[normalized] ?? tTerm('payment.type.unknown');

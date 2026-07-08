@@ -88,15 +88,34 @@ describe('NewAssociate behavior', () => {
     expect(container.querySelector('#new-associate-initial-capital')).toHaveValue('');
   });
 
-  it('does not accept malformed participation percentages into form state', () => {
+  it('no longer asks for a profit participation percentage', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+
+    expect(container.querySelector('#new-associate-participation')).toBeNull();
+  });
+
+  it('submits only the associate creation fields supported by the current contract', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     fillRequiredFields(container);
-    fireEvent.change(container.querySelector('#new-associate-participation') as HTMLInputElement, {
-      target: { value: '1e2' },
+    fireEvent.change(container.querySelector('#new-associate-initial-capital') as HTMLInputElement, {
+      target: { value: '2000000' },
     });
 
-    expect(container.querySelector('#new-associate-participation')).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+
+    const submittedPayload = runSubmitMock.mock.calls.at(-1)?.[0];
+    expect(Object.keys(submittedPayload).sort()).toEqual([
+      'email',
+      'initialCapital',
+      'interestPaymentDay',
+      'interestPaymentMonth',
+      'interestRate',
+      'interestType',
+      'name',
+      'phone',
+      'status',
+    ]);
   });
 
   it('normalizes decimal interest rates and rejects exponent-like values', () => {

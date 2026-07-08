@@ -3,8 +3,6 @@ const assert = require('node:assert/strict');
 
 const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
 const {
-  allocateProportionalDistribution,
-  buildProportionalIdempotencyRequestHash,
   createListAssociates,
   createCreateAssociate,
   createGetAssociateById,
@@ -16,7 +14,6 @@ const {
   createCreateProfitDistribution,
   createCreateAssociateCapitalReturn,
   createCreateAssociateReinvestment,
-  createCreateProportionalProfitDistribution,
   createGetAssociateInstallments,
   createPayAssociateInstallment,
   createGetAssociateCalendar,
@@ -33,8 +30,8 @@ test('createListAssociates returns repository results in name order', async () =
 
   const associates = await listAssociates();
   assert.deepEqual(associates, [
-    { id: 4, participationPercentage: null, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
-    { id: 3, participationPercentage: null, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+    { id: 4, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+    { id: 3, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
   ]);
 });
 
@@ -43,7 +40,7 @@ test('createListAssociates preserves pagination metadata with normalized associa
     associateRepository: {
       async listPage() {
         return {
-          items: [{ id: 4, participationPercentage: '25.0000' }, { id: 3, participationPercentage: null }],
+          items: [{ id: 4 }, { id: 3 }],
           pagination: { page: 2, pageSize: 5, totalItems: 7, totalPages: 2 },
         };
       },
@@ -54,10 +51,106 @@ test('createListAssociates preserves pagination metadata with normalized associa
 
   assert.deepEqual(result, {
     items: [
-      { id: 4, participationPercentage: '25.0000', interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
-      { id: 3, participationPercentage: null, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+      { id: 4, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+      { id: 3, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
     ],
     pagination: { page: 2, pageSize: 5, totalItems: 7, totalPages: 2 },
+  });
+});
+
+test('createListAssociates enriches paginated rows with capital and next payment snapshots when financial data is available', async () => {
+  const listAssociates = createListAssociates({
+    associateRepository: {
+      async listPage() {
+        return {
+          items: [{
+            id: 4,
+            name: 'Ana Associate',
+            interestRate: '2.0000',
+            interestType: 'monthly',
+          }],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+        };
+      },
+      async getFinancialDatasetByAssociateIds() {
+        return {
+          contributions: [
+            {
+              id: 91,
+              associateId: 4,
+              amount: 1000,
+              contributionDate: '2099-01-01',
+              status: 'completed',
+            },
+          ],
+          distributions: [
+            {
+              id: 92,
+              associateId: 4,
+              amount: 200,
+              distributionDate: '2099-03-01',
+              basis: { type: 'capital-return' },
+            },
+            {
+              id: 93,
+              associateId: 4,
+              amount: 15,
+              distributionDate: '2099-04-01',
+              distributionType: 'manual',
+              basis: { type: 'manual-interest' },
+            },
+          ],
+          installments: [
+            {
+              id: 94,
+              associateId: 4,
+              installmentNumber: 1,
+              amount: 20,
+              dueDate: '2099-07-05',
+              status: 'pending',
+            },
+            {
+              id: 95,
+              associateId: 4,
+              installmentNumber: 2,
+              amount: 25,
+              dueDate: '2099-06-05',
+              paidAt: '2099-06-05',
+              status: 'paid',
+            },
+          ],
+        };
+      },
+    },
+  });
+
+  const result = await listAssociates({ pagination: { page: 1, pageSize: 25 } });
+
+  assert.deepEqual(result, {
+    items: [{
+      id: 4,
+      name: 'Ana Associate',
+      interestRate: '2.0000',
+      interestType: 'monthly',
+      interestPaymentDay: 1,
+      interestPaymentMonth: null,
+      totalContributed: 1000,
+      currentCapital: 800,
+      totalCapitalReturned: 200,
+      interestPending: 20,
+      interestOverdue: 0,
+      scheduledInterestPaid: 25,
+      manualInterestPaid: 15,
+      interestPaid: 40,
+      nextPaymentDate: '2099-07-05',
+      nextInterestPaymentDate: '2099-07-05',
+      lastPaymentDate: '2099-06-05',
+      pendingInstallments: 1,
+      overdueInstallments: 0,
+      paidInstallments: 1,
+      debtStatus: 'pending',
+    }],
+    pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
   });
 });
 
@@ -68,7 +161,7 @@ test('createListAssociates forwards normalized search and status filters to the 
       async listPage({ filters }) {
         forwardedFilters = filters;
         return {
-          items: [{ id: 9, participationPercentage: null }],
+          items: [{ id: 9 }],
           pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
         };
       },
@@ -184,30 +277,35 @@ test('createDeleteAssociate preserves financial history by deactivating instead 
   assert.equal(result.name, 'Socio Histórico');
 });
 
-test('createCreateAssociate delegates persistence to the repository', async () => {
+test('createCreateAssociate rejects removed associate contract fields', async () => {
+  const createCalls = [];
   const createAssociate = createCreateAssociate({
     associateRepository: {
       async findConflictingContact() {
         return null;
       },
       async create(payload) {
+        createCalls.push(payload);
         return { id: 12, ...payload };
       },
     },
   });
 
-  const associate = await createAssociate({
+  await assert.rejects(() => createAssociate({
     actor: { id: 1, role: 'admin' },
     payload: {
       name: 'New Associate',
       email: 'associate@example.com',
       phone: '+573001112255',
-      participationPercentage: '25',
+      interestStartsAt: '2026-01-01',
     },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /contrato de socios/i);
+    return true;
   });
 
-  assert.equal(associate.id, 12);
-  assert.equal(associate.participationPercentage, '25.0000');
+  assert.equal(createCalls.length, 0);
 });
 
 test('createCreateAssociate records initial capital and schedules the first monthly interest payment', async () => {
@@ -245,7 +343,6 @@ test('createCreateAssociate records initial capital and schedules the first mont
       interestType: 'monthly',
       interestRate: '2.5',
       interestPaymentDay: 15,
-      interestStartDate: '2026-05-02',
     },
   });
 
@@ -262,7 +359,7 @@ test('createCreateAssociate records initial capital and schedules the first mont
   assert.equal(calls[2][1].capitalBase, 2000000);
   assert.equal(calls[2][1].interestType, 'monthly');
   assert.equal(calls[2][1].interestRate, '2.5000');
-  assert.equal(calls[2][1].dueDate.toISOString().slice(0, 10), '2026-05-15');
+  assert.equal(calls[2][1].dueDate.getUTCDate(), 15);
 });
 
 test('createCreateAssociate schedules annual interest on the configured month and day', async () => {
@@ -299,7 +396,6 @@ test('createCreateAssociate schedules annual interest on the configured month an
       interestRate: 12,
       interestPaymentMonth: 12,
       interestPaymentDay: 20,
-      interestStartDate: '2026-05-02',
     },
   });
 
@@ -332,22 +428,6 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
   }), (error) => {
     assert.ok(error instanceof ValidationError);
     assert.equal(error.message, 'El tipo de interés debe ser mensual o anual');
-    return true;
-  });
-
-  await assert.rejects(() => createAssociate({
-    actor: { id: 1, role: 'admin' },
-    payload: {
-      name: 'Bad Date',
-      email: 'bad.date@example.com',
-      phone: '+573001112247',
-      interestType: 'monthly',
-      interestRate: 2,
-      interestStartDate: '60517-02-14',
-    },
-  }), (error) => {
-    assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'La fecha de inicio de intereses debe tener formato AAAA-MM-DD');
     return true;
   });
 
@@ -417,7 +497,7 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
   const listAssociateFinancialDetails = createListAssociateFinancialDetails({
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000', interestType: 'monthly', interestRate: '2.0000' };
+        return { id, name: 'Partner One', interestType: 'monthly', interestRate: '2.0000' };
       },
       async listContributionsByAssociate() {
         return [{ id: 1, amount: 1000 }];
@@ -429,12 +509,7 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
             amount: 150,
             distributionDate: new Date('2026-04-18T00:00:00.000Z'),
             createdBy: { id: 7, name: 'Operador Socios' },
-            basis: {
-              type: 'proportional-participation',
-              sourceAmount: '600.00',
-              allocatedAmount: '150.00',
-              participationPercentage: '25.0000',
-            },
+            basis: { type: 'manual-interest' },
           },
           { id: 3, amount: 50, distributionDate: new Date('2026-04-10T00:00:00.000Z'), basis: { type: 'capital-return' } },
         ];
@@ -459,7 +534,6 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
   const report = await listAssociateFinancialDetails({ actor: { id: 1, role: 'admin' }, associateId: 12 });
 
   assert.equal(report.associate.id, 12);
-  assert.equal(report.associate.participationPercentage, '25.0000');
   assert.equal(report.summary.totalContributed, 1000);
   assert.equal(report.summary.currentCapital, 950);
   assert.equal(report.summary.totalCapitalReturned, 50);
@@ -471,11 +545,11 @@ test('createListAssociateFinancialDetails aggregates financial details for autho
   assert.equal(report.summary.nextInterestPaymentDate, '2026-05-15');
   assert.equal(report.summary.debtStatus, 'pending');
   assert.equal(report.paymentHistory.length, 3);
-  assert.equal(report.paymentHistory[0].displayType, 'Pago proporcional de rentabilidad');
+  assert.equal(report.paymentHistory[0].displayType, 'Pago manual de rentabilidad');
   assert.equal(report.paymentHistory[0].paidByUser.name, 'Operador Socios');
   assert.equal(report.paymentHistory[1].displayType, 'Pago programado #1');
   assert.equal(report.paymentHistory[2].displayType, 'Devolución de capital');
-  assert.equal(report.distributions[0].distributionType, 'proportional');
+  assert.equal(report.distributions[0].distributionType, 'manual');
   assert.equal(report.distributions[1].distributionType, 'capital_return');
   assert.equal(report.capitalReturns.length, 1);
   assert.equal(Object.hasOwn(report, 'loans'), false);
@@ -539,7 +613,7 @@ test('createListAssociateFinancialDetails excludes non-completed contributions f
   const listAssociateFinancialDetails = createListAssociateFinancialDetails({
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000', interestType: 'monthly', interestRate: '2.0000' };
+        return { id, name: 'Partner One', interestType: 'monthly', interestRate: '2.0000' };
       },
       async listContributionsByAssociate() {
         return [
@@ -578,7 +652,6 @@ test('createGetAssociateTracking aggregates investor obligations inside associat
               id: 12,
               name: 'Socio Imagen',
               status: 'active',
-              participationPercentage: '50.0000',
               interestType: 'monthly',
               interestRate: '2.0000',
               interestPaymentDay: 15,
@@ -653,7 +726,6 @@ test('createGetAssociateTracking excludes non-completed contributions from capit
               id: 12,
               name: 'Socio Imagen',
               status: 'active',
-              participationPercentage: '50.0000',
               interestType: 'monthly',
               interestRate: '2.0000',
               interestPaymentDay: 15,
@@ -697,7 +769,6 @@ test('createGetAssociateTracking preserves the full open obligations dataset wit
               id: 12,
               name: 'Socio Escalable',
               status: 'active',
-              participationPercentage: '50.0000',
               interestType: 'monthly',
               interestRate: '2.0000',
               interestPaymentDay: 15,
@@ -1157,49 +1228,12 @@ test('createCreateProfitDistribution rejects non-admin actors', async () => {
   });
 });
 
-test('associate reinvestment and proportional distribution reject non-admin actors with operator-facing messages', async () => {
-  const createAssociateReinvestment = createCreateAssociateReinvestment({
-    associateRepository: {
-      async findById() {
-        throw new Error('findById should not be called');
-      },
-    },
-  });
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async listActive() {
-        throw new Error('listActive should not be called');
-      },
-    },
-  });
-
-  await assert.rejects(() => createAssociateReinvestment({
-    actor: { id: 9, role: 'socio', associateId: 12 },
-    associateId: 12,
-    payload: { amount: 50 },
-  }), (error) => {
-    assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar reinversiones de socios.');
-    return true;
-  });
-
-  await assert.rejects(() => createProportionalProfitDistribution({
-    actor: { id: 9, role: 'socio', associateId: 12 },
-    idempotencyKey: 'dist-prop-1',
-    payload: { amount: 50 },
-  }), (error) => {
-    assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden registrar distribuciones proporcionales.');
-    return true;
-  });
-});
-
 test('createCreateAssociateReinvestment records paired distribution and contribution entries', async () => {
   const calls = [];
   const createAssociateReinvestment = createCreateAssociateReinvestment({
     associateRepository: {
       async findById() {
-        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
+        return { id: 12, name: 'Partner One' };
       },
       async runInTransaction(work) {
         return work();
@@ -1224,292 +1258,6 @@ test('createCreateAssociateReinvestment records paired distribution and contribu
   assert.equal(result.distribution.id, 41);
   assert.equal(result.contribution.id, 42);
   assert.equal(calls.length, 2);
-});
-
-test('allocateProportionalDistribution assigns remainder deterministically by highest fractional remainder then associate id', () => {
-  const allocations = allocateProportionalDistribution({
-    amountCents: 100,
-    associates: [
-      { id: 1, participationUnits: 333300, participationPercentage: '33.3300' },
-      { id: 2, participationUnits: 333300, participationPercentage: '33.3300' },
-      { id: 3, participationUnits: 333400, participationPercentage: '33.3400' },
-    ],
-  });
-
-  assert.deepEqual(allocations.map((entry) => ({ id: entry.associate.id, amountCents: entry.amountCents, roundingAdjustmentCents: entry.roundingAdjustmentCents })), [
-    { id: 1, amountCents: 33, roundingAdjustmentCents: 0 },
-    { id: 2, amountCents: 33, roundingAdjustmentCents: 0 },
-    { id: 3, amountCents: 34, roundingAdjustmentCents: 1 },
-  ]);
-});
-
-test('createCreateProportionalProfitDistribution rejects missing active associates', async () => {
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async listActiveAssociatesWithParticipation() {
-        return [];
-      },
-    },
-  });
-
-  await assert.rejects(() => createProportionalProfitDistribution({
-    actor: { id: 1, role: 'admin' },
-    payload: { amount: '100.00' },
-  }), (error) => {
-    assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Debe existir al menos un socio activo para distribuir utilidades.');
-    return true;
-  });
-});
-
-test('createCreateProportionalProfitDistribution rejects missing or non-positive active participation percentages', async () => {
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async listActiveAssociatesWithParticipation() {
-        return [
-          { id: 4, participationPercentage: null },
-          { id: 8, participationPercentage: '0.0000' },
-        ];
-      },
-    },
-  });
-
-  await assert.rejects(() => createProportionalProfitDistribution({
-    actor: { id: 1, role: 'admin' },
-    payload: { amount: '100.00' },
-  }), (error) => {
-    assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'Completa la participación de los socios activos antes de distribuir utilidades.');
-    assert.deepEqual(error.errors, [
-      {
-        field: 'participationPercentage',
-        message: 'Completa el porcentaje de participación de todos los socios activos.',
-      },
-      {
-        field: 'participationPercentage',
-        message: 'Los porcentajes de participación de socios activos deben ser mayores que cero.',
-      },
-    ]);
-    return true;
-  });
-});
-
-test('createCreateProportionalProfitDistribution rejects pools that do not total exactly 100 percent', async () => {
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async listActiveAssociatesWithParticipation() {
-        return [
-          { id: 1, participationPercentage: '60.0000' },
-          { id: 2, participationPercentage: '39.9999' },
-        ];
-      },
-    },
-  });
-
-  await assert.rejects(() => createProportionalProfitDistribution({
-    actor: { id: 1, role: 'admin' },
-    payload: { amount: '100.00' },
-  }), (error) => {
-    assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'La participación activa de socios debe sumar exactamente 100%.');
-    return true;
-  });
-});
-
-test('createCreateProportionalProfitDistribution creates deterministic transactional batch output', async () => {
-  const batchPayloads = [];
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async listActiveAssociatesWithParticipation() {
-        return [
-          { id: 1, participationPercentage: '33.3300' },
-          { id: 2, participationPercentage: '33.3300' },
-          { id: 3, participationPercentage: '33.3400' },
-        ];
-      },
-      async createProfitDistributionBatch(payloads) {
-        batchPayloads.push(...payloads);
-        return payloads.map((payload, index) => ({ id: index + 1, ...payload }));
-      },
-    },
-  });
-
-  const result = await createProportionalProfitDistribution({
-    actor: { id: 7, role: 'admin' },
-    payload: {
-      amount: '1.00',
-      distributionDate: '2026-03-19T00:00:00.000Z',
-      notes: 'Monthly distribution',
-      basis: { source: 'statement-2026-03' },
-    },
-  });
-
-  assert.equal(result.declaredAmount, '1.00');
-  assert.equal(result.totalAllocatedAmount, '1.00');
-  assert.equal(result.eligibleAssociateCount, 3);
-  assert.equal(result.idempotencyStatus, 'created');
-  assert.equal(result.idempotencyKey, null);
-  assert.match(result.batchKey, /^assoc-proportional:7:/);
-  assert.deepEqual(batchPayloads.map((entry) => ({
-    associateId: entry.associateId,
-    amount: entry.amount,
-    roundingAdjustment: entry.basis.roundingAdjustment,
-    allocatedAmount: entry.basis.allocatedAmount,
-    participationPercentage: entry.basis.participationPercentage,
-    type: entry.basis.type,
-    source: entry.basis.source,
-  })), [
-    { associateId: 1, amount: 0.33, roundingAdjustment: '0.00', allocatedAmount: '0.33', participationPercentage: '33.3300', type: 'proportional-participation', source: 'statement-2026-03' },
-    { associateId: 2, amount: 0.33, roundingAdjustment: '0.00', allocatedAmount: '0.33', participationPercentage: '33.3300', type: 'proportional-participation', source: 'statement-2026-03' },
-    { associateId: 3, amount: 0.34, roundingAdjustment: '0.01', allocatedAmount: '0.34', participationPercentage: '33.3400', type: 'proportional-participation', source: 'statement-2026-03' },
-  ]);
-  assert.equal(result.createdRows[2].distributionType, 'proportional');
-  assert.equal(result.createdRows[2].declaredProportionalTotal, '1.00');
-  assert.equal(batchPayloads[0].basis.idempotencyKey, null);
-});
-
-test('createCreateProportionalProfitDistribution replays an exact retry with the same idempotency key', async () => {
-  const actor = { id: 7, role: 'admin' };
-  const payload = {
-    amount: '1.00',
-    distributionDate: '2026-03-19T00:00:00.000Z',
-    notes: 'Monthly distribution',
-    basis: { source: 'statement-2026-03', reference: 'abc' },
-  };
-  const idempotencyKey = 'assoc-proportional-2026-03-19';
-  const idempotencyRecords = new Map();
-  const batchPayloads = [];
-  const findRecord = (transactionLookup) => transactionLookup.get(`${actor.id}:${idempotencyKey}`) || null;
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async runInTransaction(work) {
-        return work(idempotencyRecords);
-      },
-      async findProportionalDistributionIdempotency({ actorId, idempotencyKey: lookupKey, transaction }) {
-        return (transaction || idempotencyRecords).get(`${actorId}:${lookupKey}`) || null;
-      },
-      async createProportionalDistributionIdempotency(payloadToPersist, { transaction }) {
-        const record = { ...payloadToPersist };
-        record.update = async (updates) => {
-          Object.assign(record, updates);
-          return record;
-        };
-        (transaction || idempotencyRecords).set(`${payloadToPersist.actorId}:${payloadToPersist.idempotencyKey}`, record);
-        return record;
-      },
-      async updateProportionalDistributionIdempotency(record, updates) {
-        Object.assign(record, updates);
-        return record;
-      },
-      async listActiveAssociatesWithParticipation() {
-        return [
-          { id: 1, participationPercentage: '50.0000' },
-          { id: 2, participationPercentage: '50.0000' },
-        ];
-      },
-      async createProfitDistributionBatch(payloads) {
-        batchPayloads.push(...payloads);
-        return payloads.map((entry, index) => ({ id: index + 1, ...entry }));
-      },
-    },
-  });
-
-  const firstResult = await createProportionalProfitDistribution({ actor, idempotencyKey, payload });
-  const replayResult = await createProportionalProfitDistribution({ actor, idempotencyKey, payload: { ...payload, basis: { reference: 'abc', source: 'statement-2026-03' } } });
-
-  assert.equal(firstResult.idempotencyStatus, 'created');
-  assert.equal(replayResult.idempotencyStatus, 'replayed');
-  assert.deepEqual(replayResult.createdRows, firstResult.createdRows);
-  assert.equal(batchPayloads.length, 2);
-  assert.equal(batchPayloads[0].basis.idempotencyKey, idempotencyKey);
-  assert.equal(findRecord(idempotencyRecords).status, 'completed');
-});
-
-test('createCreateProportionalProfitDistribution rejects a reused idempotency key with a mismatched payload', async () => {
-  const actor = { id: 7, role: 'admin' };
-  const idempotencyKey = 'assoc-proportional-2026-03-19';
-  const originalPayload = {
-    amount: '100.00',
-    distributionDate: '2026-03-19T00:00:00.000Z',
-    notes: 'Monthly distribution',
-    basis: { source: 'statement-2026-03' },
-  };
-  const existingRecord = {
-    requestHash: buildProportionalIdempotencyRequestHash({
-      amount: '100.00',
-      basis: { source: 'statement-2026-03' },
-      distributionDate: '2026-03-19T00:00:00.000Z',
-      notes: 'Monthly distribution',
-    }),
-    status: 'completed',
-    responsePayload: { batchKey: 'batch-1', declaredAmount: '100.00', createdRows: [] },
-  };
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async findProportionalDistributionIdempotency() {
-        return existingRecord;
-      },
-      async runInTransaction() {
-        throw new Error('runInTransaction should not be called');
-      },
-    },
-  });
-
-  await assert.rejects(() => createProportionalProfitDistribution({
-    actor,
-    idempotencyKey,
-    payload: { ...originalPayload, amount: '101.00' },
-  }), (error) => {
-    assert.equal(error.name, 'ConflictError');
-    assert.equal(error.statusCode, 409);
-    assert.equal(error.message, 'Esta distribución proporcional ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.');
-    assert.equal(error.errors[0].field, 'idempotencyKey');
-    assert.equal(error.errors[0].message, 'Esta distribución proporcional ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.');
-    return true;
-  });
-});
-
-test('createCreateProportionalProfitDistribution prevents a near-concurrent duplicate submission when the key is already pending', async () => {
-  const actor = { id: 7, role: 'admin' };
-  const idempotencyKey = 'assoc-proportional-2026-03-19';
-  const payload = {
-    amount: '100.00',
-    distributionDate: '2026-03-19T00:00:00.000Z',
-    notes: 'Monthly distribution',
-    basis: { source: 'statement-2026-03' },
-  };
-  const requestHash = buildProportionalIdempotencyRequestHash({
-    amount: '100.00',
-    basis: { source: 'statement-2026-03' },
-    distributionDate: '2026-03-19T00:00:00.000Z',
-    notes: 'Monthly distribution',
-  });
-  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
-    associateRepository: {
-      async findProportionalDistributionIdempotency() {
-        return {
-          requestHash,
-          status: 'pending',
-          responsePayload: {},
-        };
-      },
-      async runInTransaction() {
-        throw new Error('runInTransaction should not be called');
-      },
-    },
-  });
-
-  await assert.rejects(() => createProportionalProfitDistribution({
-    actor,
-    idempotencyKey,
-    payload,
-  }), (error) => {
-    assert.equal(error.name, 'ConflictError');
-    assert.equal(error.statusCode, 409);
-    assert.equal(error.message, 'Esta distribución proporcional ya se está procesando. Espera el resultado antes de intentar nuevamente.');
-    assert.equal(error.errors[0].message, 'Esta distribución proporcional ya se está procesando. Espera el resultado antes de intentar nuevamente.');
-    return true;
-  });
 });
 
 test('createGetAssociateInstallments returns installments with totals', async () => {

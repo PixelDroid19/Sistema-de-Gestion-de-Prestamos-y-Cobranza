@@ -2,8 +2,6 @@ const {
   assertDateRangeOrder,
   ensureAdmin,
   formatMoney,
-  formatDisplayMoney,
-  buildPdfBuffer,
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
@@ -498,108 +496,8 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
   };
 };
 
-const buildCreditsRowsForExport = async ({ loans, paymentRepository, loanViewService }) => Promise.all(
-  loans.map(async (loan) => {
-    const payments = await paymentRepository.listByLoan(loan.id);
-    const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
-    const customer = getLoanCustomer(loan);
-    const completedPayments = payments.filter((payment) => payment.status === 'completed');
-    const totalPaid = completedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    const totalPrincipal = completedPayments.reduce((sum, payment) => sum + Number(payment.principalApplied || 0), 0);
-    const totalInterest = completedPayments.reduce((sum, payment) => sum + Number(payment.interestApplied || 0), 0);
-    const totalPenalty = completedPayments.reduce((sum, payment) => sum + Number(payment.penaltyApplied || 0), 0);
-    const totalInterestGenerated = Number(snapshot.totalInterest || 0);
-    const totalPayable = Number(snapshot.totalPayable || 0);
-    const termMonths = Number(loan.termMonths || schedule.length || 0);
-
-    return {
-      creditId: loan.id,
-      customerId: loan.customerId,
-      customerName: customer?.name || 'N/A',
-      customerDocument: pickCustomerDocument(customer),
-      loanAmount: roundMoney(loan.amount),
-      totalAmount: roundMoney(totalPayable),
-      remainingAmount: roundMoney(snapshot.outstandingPrincipal),
-      remainingBalance: roundMoney(snapshot.outstandingBalance),
-      tna: Number(loan.interestRate || 0),
-      termMonths,
-      totalQuotas: schedule.length,
-      status: loan.status || 'N/A',
-      recoveryStatus: loan.recoveryStatus || 'N/A',
-      isOverdue: isLoanScheduleOverdue(loan, schedule),
-      totalPaid: roundMoney(totalPaid),
-      totalCapitalPaid: roundMoney(totalPrincipal),
-      totalInterestPaid: roundMoney(totalInterest),
-      totalInterestGenerated: roundMoney(totalInterestGenerated),
-      totalLatePaymentInterest: roundMoney(totalPenalty),
-      paymentCount: completedPayments.length,
-      loanDate: pickLoanDate(loan),
-    };
-  }),
-);
-
-const sumColumn = (rows, key) => roundMoney(rows.reduce((total, row) => total + Number(row[key] || 0), 0));
-
-const countByStatus = (rows, predicates) => predicates.reduce((acc, [label, predicate]) => {
-  acc[label] = rows.filter(predicate).length;
-  return acc;
-}, {});
-
-const buildPdfSummaryLines = (rows) => {
-  const totalCustomers = new Set(rows.map((row) => row.customerId).filter(Boolean)).size;
-  const counts = countByStatus(rows, [
-    ['Activos', (row) => !['closed', 'completed', 'paid'].includes(String(row.status || '').toLowerCase())],
-    ['Cerrados', (row) => ['closed', 'completed', 'paid'].includes(String(row.status || '').toLowerCase())],
-    ['Vencidos', isLateCredit],
-  ]);
-  const totalLoanAmount = sumColumn(rows, 'loanAmount');
-  const totalPaid = sumColumn(rows, 'totalPaid');
-  const totalCapitalPaid = sumColumn(rows, 'totalCapitalPaid');
-  const totalInterestPaid = sumColumn(rows, 'totalInterestPaid');
-  const totalInterestGenerated = sumColumn(rows, 'totalInterestGenerated');
-  const totalRemaining = sumColumn(rows, 'remainingAmount');
-  const totalLate = sumColumn(rows, 'totalLatePaymentInterest');
-  const availableCash = roundMoney(totalPaid - totalLoanAmount);
-  const profit = roundMoney(totalInterestPaid + totalLate);
-
-  return [
-    `Generado: ${new Date().toISOString()}`,
-    `Total clientes: ${totalCustomers}`,
-    `Total créditos: ${rows.length}`,
-    `Créditos activos: ${counts.Activos}`,
-    `Créditos cerrados: ${counts.Cerrados}`,
-    `Créditos vencidos: ${counts.Vencidos}`,
-    `Total prestado (capital): ${formatDisplayMoney(totalLoanAmount)}`,
-    `Cuotas recibidas (total cobrado): ${formatDisplayMoney(totalPaid)}`,
-    `Capital recuperado: ${formatDisplayMoney(totalCapitalPaid)}`,
-    `Intereses cobrados: ${formatDisplayMoney(totalInterestPaid)}`,
-    `Intereses generados: ${formatDisplayMoney(totalInterestGenerated)}`,
-    `Mora cobrada: ${formatDisplayMoney(totalLate)}`,
-    `Saldo pendiente: ${formatDisplayMoney(totalRemaining)}`,
-    `Interés y mora: ${formatDisplayMoney(profit)}`,
-    `Caja disponible (cobrado - prestado): ${formatDisplayMoney(availableCash)}`,
-  ];
-};
-
-const createExportCreditsPdf = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar datos de créditos.');
-  const { loans } = await buildCreditsExportDataset({ reportRepository, paymentRepository, loanViewService, filters });
-  const rows = await buildCreditsRowsForExport({ loans, paymentRepository, loanViewService });
-  const buffer = buildPdfBuffer({
-    title: 'Reporte de Créditos',
-    lines: buildPdfSummaryLines(rows),
-  });
-
-  return {
-    fileName: `reporte-creditos-${new Date().toISOString().slice(0, 10)}.pdf`,
-    contentType: 'application/pdf',
-    buffer,
-  };
-};
-
 module.exports = {
   createExportCreditsExcel,
-  createExportCreditsPdf,
   normalizeCreditExportFilters,
   matchesFilters,
 };

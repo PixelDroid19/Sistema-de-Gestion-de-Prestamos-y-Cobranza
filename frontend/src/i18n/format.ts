@@ -5,7 +5,7 @@ type DateOptions = Intl.DateTimeFormatOptions;
 type NumberOptions = Intl.NumberFormatOptions;
 
 export const BASE_CURRENCY_CODE = 'COP' as const;
-export const BASE_CURRENCY_SYMBOL = '$' as const;
+export const BASE_CURRENCY_SYMBOL = 'COP' as const;
 
 export const getBaseCurrencyLabel = (): string => tTerm('common.currency.baseLabel');
 
@@ -61,13 +61,32 @@ export const isValidOperationalDateOnly = (value: unknown): boolean => {
 };
 
 export const formatCurrency = (value: unknown, options: NumberOptions = {}): string => {
-  return new Intl.NumberFormat(getIntlLocaleTag(), {
+  const numericValue = toNumber(value);
+  const formatter = new Intl.NumberFormat(getIntlLocaleTag(), {
     ...options,
     style: 'currency',
     currency: BASE_CURRENCY_CODE,
     currencyDisplay: options.currencyDisplay ?? 'code',
     maximumFractionDigits: options.maximumFractionDigits ?? 0,
-  }).format(toNumber(value)).replace(/\u00a0/g, ' ');
+  });
+  const currencyDisplay = options.currencyDisplay ?? 'code';
+
+  if (numericValue >= 0 || currencyDisplay !== 'code') {
+    return formatter.format(numericValue).replace(/\u00a0/g, ' ');
+  }
+
+  const absoluteParts = formatter.formatToParts(Math.abs(numericValue));
+  const firstNumericPartIndex = absoluteParts.findIndex((part) => (
+    part.type === 'integer' || part.type === 'nan' || part.type === 'infinity'
+  ));
+
+  if (firstNumericPartIndex <= 0) {
+    return `-${absoluteParts.map((part) => part.value).join('').replace(/\u00a0/g, ' ')}`;
+  }
+
+  const prefix = absoluteParts.slice(0, firstNumericPartIndex).map((part) => part.value).join('').replace(/\u00a0/g, ' ');
+  const suffix = absoluteParts.slice(firstNumericPartIndex).map((part) => part.value).join('').replace(/\u00a0/g, ' ');
+  return `${prefix}-${suffix}`;
 };
 
 export const formatCompactCurrency = (value: unknown, options: NumberOptions = {}): string => {

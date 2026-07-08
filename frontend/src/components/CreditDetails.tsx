@@ -198,6 +198,7 @@ export default function CreditDetails() {
         installmentNumber: p.installmentNumber, principalApplied: p.principalApplied,
         interestApplied: p.interestApplied, penaltyApplied: p.penaltyApplied,
         paymentMethod: p.paymentMethod,
+        paymentMetadata: p.paymentMetadata,
         createdBy: p.createdBy,
         paymentStatus: p.status,
         paymentReconciled: Boolean(p.reconciled || p.isReconciled || String(p.status || '').toLowerCase().includes('reconcil')),
@@ -788,12 +789,6 @@ export default function CreditDetails() {
     setShowEditPaymentMethodModal(true);
   };
 
-  const calculationProfileSummary = loan?.calculationProfile?.name
-    ? tTerm('creditDetails.calculationProfile.namedVersion', { name: loan.calculationProfile.name })
-    : loan?.calculationProfileVersionId
-      ? tTerm('creditDetails.calculationProfile.versionedRule')
-      : tTerm('creditDetails.calculationProfile.frozenSnapshot');
-
   // -------------------------------------------------------------------------
   // Installment action renderer (passed to CalendarTab)
   // -------------------------------------------------------------------------
@@ -937,7 +932,7 @@ export default function CreditDetails() {
     <div className="credit-detail-page mx-auto w-full max-w-[88rem] min-w-0 px-4 pb-32 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
       <CreditDetailHeader
         loanId={loan.id} statusInfo={statusInfo} subtitle={creditDetailSubtitle}
-        customerLabel={customerLabel} calculationProfileSummary={calculationProfileSummary}
+        customerLabel={customerLabel}
         canAccessBackofficeActions={isBackofficeUser} canExportCreditExcel={user?.role === 'admin' || creditReportDownloadGuard.visible}
         isExportingCreditExcel={isExportingCreditExcel}
         lateFeeUpdateGuard={lateFeeUpdateGuard} creditStatusUpdateGuard={creditStatusUpdateGuard}

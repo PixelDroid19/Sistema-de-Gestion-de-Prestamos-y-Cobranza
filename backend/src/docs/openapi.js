@@ -185,17 +185,15 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           email: { type: 'string', format: 'email' },
           phone: { type: 'string' },
           status: { type: 'string', enum: ['active', 'inactive'] },
-          participationPercentage: { type: 'number', minimum: 0, maximum: 100, nullable: true },
           initialCapital: {
             type: 'number',
             minimum: 0.01,
-            description: 'Capital inicial opcional. Si se envía, el backend registra aporte inicial y agenda el primer pago de interés.',
+            description: 'Capital inicial aportado. Si se envía, el backend registra el aporte inicial y agenda el primer pago de interés.',
           },
           interestType: { type: 'string', enum: ['monthly', 'annual'], description: 'Periodicidad de interés reconocido al socio.' },
           interestRate: { type: 'number', minimum: 0, maximum: 100, description: 'Tasa pactada por periodo: mensual si interestType=monthly, anual si interestType=annual.' },
           interestPaymentDay: { type: 'integer', minimum: 1, maximum: 28 },
           interestPaymentMonth: { type: 'integer', minimum: 1, maximum: 12, description: 'Mes de pago cuando el interés es anual.' },
-          interestStartDate: { type: 'string', format: 'date', description: 'Fecha desde la que se calcula el primer vencimiento de interés.' },
         },
       },
       AssociateInstallmentPaymentInput: {
@@ -400,12 +398,12 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Pago registrado y siguiente vencimiento de interés generado' } },
       },
     },
-    '/associates/{associateId}/profitability': {
+    '/associates/{associateId}/financial-summary': {
       get: {
         tags: ['Associates'],
-        summary: 'Consultar rentabilidad y movimientos del socio',
+        summary: 'Consultar resumen financiero del socio',
         parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
-        responses: { 200: { description: 'Resumen de aportes, intereses/retiros y capital devuelto del socio' } },
+        responses: { 200: { description: 'Resumen de aportes, intereses programados, pagos realizados y capital devuelto del socio' } },
       },
     },
     '/associates/{associateId}/export': {
@@ -468,14 +466,6 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Archivo Excel de créditos' } },
       },
     },
-    '/reports/dashboard/excel': {
-      get: {
-        tags: ['Reports'],
-        summary: 'Exportar dashboard ejecutivo a Excel',
-        description: 'Genera hojas operativas en español para resumen, evolución y actividad reciente del dashboard.',
-        responses: { 200: { description: 'Archivo Excel del dashboard' } },
-      },
-    },
     '/reports/cash-flow/monthly': {
       get: {
         tags: ['Reports'],
@@ -487,19 +477,6 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
         responses: { 200: { description: 'Resumen financiero mensual y detalle por mes' } },
-      },
-    },
-    '/reports/cash-flow/daily': {
-      get: {
-        tags: ['Reports'],
-        summary: 'Consultar cierre contable diario',
-        description: 'Devuelve el cuadre diario de caja para una fecha o rango: entradas por cuotas, salidas por préstamos, pagos a socios, gastos operativos, caja disponible y pérdidas en riesgo.',
-        parameters: [
-          { name: 'date', in: 'query', schema: { type: 'string', format: 'date' } },
-          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
-          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
-        ],
-        responses: { 200: { description: 'Resumen financiero diario y detalle por día' } },
       },
     },
     '/reports/cash-flow/monthly/excel': {
@@ -568,22 +545,6 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Archivo Excel o PDF de créditos del período con detalle mensual' } },
       },
     },
-    '/reports/payouts/excel': {
-      get: {
-        tags: ['Reports'],
-        summary: 'Exportar pagos a Excel desde backend',
-        description: 'Genera un reporte operativo de pagos con columnas en español, formatos monetarios y filtros canónicos.',
-        parameters: [
-          { name: 'customerId', in: 'query', schema: { type: 'integer' } },
-          { name: 'loanId', in: 'query', schema: { type: 'integer' } },
-          { name: 'creditId', in: 'query', schema: { type: 'integer' } },
-          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
-          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
-          { name: 'paymentType', in: 'query', schema: { type: 'string', enum: ['installment', 'partial', 'capital', 'payoff'] } },
-        ],
-        responses: { 200: { description: 'Archivo Excel de pagos' } },
-      },
-    },
     '/reports/payouts/export': {
       get: {
         tags: ['Reports'],
@@ -600,6 +561,17 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'paymentType', in: 'query', schema: { type: 'string', enum: ['installment', 'partial', 'capital', 'payoff'] } },
         ],
         responses: { 200: { description: 'Archivo de pagos en el formato solicitado' } },
+      },
+    },
+    '/reports/outstanding/export': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar cartera por cobrar a Excel o PDF',
+        description: 'Genera el detalle de créditos con saldo pendiente (cliente, atraso, saldo y capital restante).',
+        parameters: [
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' } },
+        ],
+        responses: { 200: { description: 'Archivo de cartera en el formato solicitado' } },
       },
     },
     '/notifications': {

@@ -5,6 +5,7 @@ describe('currency formatting', () => {
   it('renders Colombian pesos with an explicit COP code', () => {
     expect(formatCurrency(2000000)).toBe('COP 2.000.000');
     expect(formatCurrency(120554.5, { minimumFractionDigits: 2, maximumFractionDigits: 2 })).toBe('COP 120.554,50');
+    expect(formatCurrency(-15868470)).toBe('COP -15.868.470');
   });
 
   it('renders compact chart values with the COP code', () => {

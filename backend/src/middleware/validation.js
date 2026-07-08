@@ -11,9 +11,7 @@ const {
   validateTermMonths,
   validateIntegerId,
   validateOptionalDateInput,
-  validateIdempotencyKey,
   validateIntegerRange,
-  validateParticipationPercentage,
   validateAssociateInterestRate,
 } = require('@/modules/shared/validators');
 const { isValidDateOnly } = require('@/modules/shared/dateUtils');
@@ -31,6 +29,11 @@ const buildValidationError = (errors, message = 'Corrige los errores indicados')
 };
 
 const EMAIL_VALIDATION_MESSAGE = 'Ingresa un correo válido (por ejemplo, usuario@empresa.com)';
+const REMOVED_ASSOCIATE_FIELDS = new Set([
+  'participationPercentage',
+  'interestStartDate',
+  'interestStartsAt',
+]);
 
 /**
  * Adapt a schema validator into Express middleware that raises backend validation errors.
@@ -58,13 +61,6 @@ const validate = (schema) => {
 
 const usesPolicySource = (value) => String(value || '').trim().toLowerCase() === 'policy';
 
-
-const pushParticipationPercentageError = (errors, field = 'participationPercentage') => {
-  errors.push({
-    field,
-    message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
-  });
-};
 
 const pushNameValidation = ({ errors, name, required }) => {
   if (required && (!name || String(name).trim().length < 2)) {
@@ -111,15 +107,7 @@ const pushCustomerStatusValidation = ({ errors, status }) => {
   }
 };
 
-const pushParticipationValidation = ({ req, errors, participationPercentage }) => {
-  if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
-    errors.push({ field: 'participationPercentage', message: 'Solo los administradores pueden definir el porcentaje de participación' });
-  } else if (!validateParticipationPercentage(participationPercentage)) {
-    pushParticipationPercentageError(errors);
-  }
-};
-
-const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital, interestStartDate, interestStartsAt }) => {
+const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital }) => {
   if (interestType !== undefined && !['monthly', 'annual'].includes(String(interestType).trim().toLowerCase())) {
     errors.push({ field: 'interestType', message: 'El tipo de interés debe ser mensual o anual' });
   }
@@ -140,10 +128,17 @@ const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestR
     errors.push({ field: 'initialCapital', message: 'El capital inicial debe ser un número positivo con máximo 2 decimales' });
   }
 
-  const effectiveStartDate = interestStartsAt ?? interestStartDate;
-  if (!validateOptionalDateInput(effectiveStartDate)) {
-    errors.push({ field: 'interestStartDate', message: 'La fecha de inicio de intereses debe ser válida' });
-  }
+};
+
+const pushRemovedAssociateFieldValidation = ({ errors, body }) => {
+  Object.keys(body || {}).forEach((field) => {
+    if (REMOVED_ASSOCIATE_FIELDS.has(field)) {
+      errors.push({
+        field,
+        message: 'El contrato de socios ya no acepta campos de participación ni fechas opcionales de inicio de intereses.',
+      });
+    }
+  });
 };
 
 const attachPagination = ({ defaultPage, defaultPageSize, maxPageSize } = {}) => (req, _res, next) => {
@@ -512,14 +507,11 @@ const associateValidation = {
       email,
       phone,
       status,
-      participationPercentage,
       interestType,
       interestRate,
       interestPaymentDay,
       interestPaymentMonth,
       initialCapital,
-      interestStartDate,
-      interestStartsAt,
     } = req.body;
     const errors = [];
 
@@ -527,8 +519,8 @@ const associateValidation = {
     pushEmailValidation({ errors, email, required: true });
     pushPhoneValidation({ errors, phone, required: true });
     pushActiveInactiveStatusValidation({ errors, status });
-    pushParticipationValidation({ req, errors, participationPercentage });
-    pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital, interestStartDate, interestStartsAt });
+    pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital });
+    pushRemovedAssociateFieldValidation({ errors, body: req.body });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));
@@ -544,13 +536,10 @@ const associateValidation = {
       email,
       phone,
       status,
-      participationPercentage,
       interestType,
       interestRate,
       interestPaymentDay,
       interestPaymentMonth,
-      interestStartDate,
-      interestStartsAt,
     } = req.body;
     const errors = [];
 
@@ -558,39 +547,8 @@ const associateValidation = {
     pushEmailValidation({ errors, email, required: false });
     pushPhoneValidation({ errors, phone, required: false });
     pushActiveInactiveStatusValidation({ errors, status });
-    pushParticipationValidation({ req, errors, participationPercentage });
-    pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, interestStartDate, interestStartsAt });
-
-    if (errors.length > 0) {
-      return next(buildValidationError(errors));
-    }
-
-    next();
-  },
-  /** @type {import('express').RequestHandler} */
-  proportionalDistribution: (req, res, next) => {
-    const { amount, distributionDate, basis, idempotencyKey } = req.body;
-    const errors = [];
-    const headerIdempotencyKey = req.headers['idempotency-key'];
-    const effectiveIdempotencyKey = typeof headerIdempotencyKey === 'string' && headerIdempotencyKey.trim()
-      ? headerIdempotencyKey
-      : idempotencyKey;
-
-    if (!validateAmount(Number(amount)) || !validateCurrencyPrecision(amount)) {
-      errors.push({ field: 'amount', message: 'El monto debe ser un número positivo con máximo 2 decimales' });
-    }
-
-    if (!validateOptionalDateInput(distributionDate)) {
-      errors.push({ field: 'distributionDate', message: 'La fecha de distribución debe ser válida cuando se indique' });
-    }
-
-    if (basis !== undefined && (typeof basis !== 'object' || basis === null || Array.isArray(basis))) {
-      errors.push({ field: 'basis', message: 'La base de distribución debe ser un objeto cuando se indique' });
-    }
-
-    if (!validateIdempotencyKey(effectiveIdempotencyKey)) {
-      errors.push({ field: 'idempotencyKey', message: 'La clave de idempotencia debe tener entre 8 y 160 caracteres cuando se indique' });
-    }
+    pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth });
+    pushRemovedAssociateFieldValidation({ errors, body: req.body });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));

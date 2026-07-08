@@ -1,8 +1,8 @@
+const { buildReportPdf } = require('@/modules/shared/pdfReport');
 const {
   ensureAdmin,
   formatDisplayMoney,
   parseDateRange,
-  buildPdfBuffer,
   parseOptionalReportId,
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
@@ -109,16 +109,33 @@ const buildOperatingExpenseSheets = (rows) => [{
 
 const buildOperatingExpensePdf = (rows) => {
   const total = rows.reduce((sum, row) => sum + toNumber(row.amount), 0);
-  const lines = [
-    `Registros incluidos: ${rows.length}`,
-    `Total reportado: ${formatDisplayMoney(total)}`,
-    '',
-    ...rows.map((row) => `${row.expenseDate || 'Sin fecha'} - ${row.category}: ${formatDisplayMoney(row.amount)} - ${row.status}`),
-  ].slice(0, 42);
 
-  return buildPdfBuffer({
-    title: 'Gastos operativos',
-    lines,
+  return buildReportPdf({
+    title: 'Gastos del negocio',
+    subtitle: 'Gastos registrados en el rango seleccionado.',
+    summary: [
+      { label: 'Registros incluidos', value: rows.length },
+      { label: 'Total reportado', value: formatDisplayMoney(total) },
+    ],
+    sections: [{
+      heading: 'Detalle de gastos',
+      table: {
+        columns: [
+          { header: 'Fecha', key: 'date', width: 70 },
+          { header: 'Categoría', key: 'category', width: 100 },
+          { header: 'Descripción', key: 'description' },
+          { header: 'Estado', key: 'status', width: 70 },
+          { header: 'Monto', key: 'amount', width: 90, align: 'right', bold: true },
+        ],
+        rows: rows.map((row) => ({
+          date: row.expenseDate instanceof Date ? row.expenseDate.toISOString().slice(0, 10) : (row.expenseDate || 'Sin fecha'),
+          category: row.category,
+          description: row.description,
+          status: row.status,
+          amount: formatDisplayMoney(row.amount),
+        })),
+      },
+    }],
   });
 };
 
@@ -138,7 +155,7 @@ const createExportOperatingExpensesReport = ({ reportRepository }) => async ({ a
     return {
       fileName: `gastos-operativos-${date}.pdf`,
       contentType: 'application/pdf',
-      buffer: buildOperatingExpensePdf(rows),
+      buffer: await buildOperatingExpensePdf(rows),
     };
   }
 

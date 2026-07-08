@@ -6,6 +6,8 @@ const {
   buildAmortizationSchedule,
   calculateInstallmentAmount,
   cloneSchedule,
+  addMonths,
+  getEquivalentMonthlyRate,
   roundCurrency,
   summarizeSchedule,
 } = require('@/modules/credits/application/creditFormulaHelpers');
@@ -60,7 +62,7 @@ const isBadCapitalRow = (row) => {
 
 const calculateReducedTerm = ({ principal, annualRate, paymentAmount, maxTerm }) => {
   if (principal <= 0.01) return 0;
-  const monthlyRate = Number(annualRate || 0) / 100 / 12;
+  const monthlyRate = getEquivalentMonthlyRate(annualRate);
   if (monthlyRate <= 0) return Math.max(1, Math.min(maxTerm, Math.ceil(principal / paymentAmount)));
   if (paymentAmount <= principal * monthlyRate) return maxTerm;
 
@@ -114,7 +116,7 @@ const buildRepairedSchedule = ({ loan, schedule, firstAffectedIndex, capitalRedu
     amount: principalAfterReduction,
     interestRate: loan.interestRate,
     termMonths: rebuiltTerm,
-    startDate: firstDamagedRow.dueDate,
+    startDate: addMonths(firstDamagedRow.dueDate, -1),
     calculationMethod: loan.calculationMethod || 'FRENCH',
     ...(strategy === 'reduce_term' ? { installmentAmount: currentInstallmentAmount } : {}),
   }).map((row, index) => ({

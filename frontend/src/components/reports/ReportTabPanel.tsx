@@ -1,7 +1,7 @@
 import type { FormEventHandler, ReactNode } from 'react';
 import { ReportTabActionsBar } from './ReportTabActionsBar';
 
-type FilterColumns = 2 | 3 | 4 | 5;
+type FilterColumns = 1 | 2 | 3 | 4 | 5;
 
 type ReportTabPanelProps = {
   title?: string;

@@ -1,9 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { useSessionStore } from '../store/sessionStore';
+import { isAdministrativeUser, useSessionStore } from '../store/sessionStore';
 
 const authQueryKeys = {
   profile: ['auth.profile'] as const,
+};
+
+const toProfileRecord = (value: unknown): Record<string, unknown> => (
+  value && typeof value === 'object' ? value as Record<string, unknown> : {}
+);
+
+export const normalizeAuthProfilePayload = (payload: unknown) => {
+  const record = toProfileRecord(payload);
+  const data = toProfileRecord(record.data);
+  const nestedUserCandidate = data.user ?? record.user ?? null;
+  const userCandidate = isAdministrativeUser(nestedUserCandidate)
+    ? nestedUserCandidate
+    : (isAdministrativeUser(record.data) ? record.data : null);
+
+  return isAdministrativeUser(userCandidate) ? userCandidate : null;
 };
 
 type LogoutSessionSnapshot = {
@@ -23,6 +38,7 @@ export const useAuth = () => {
       // Login now receives token pair: { accessToken, refreshToken, user }
       const { accessToken, refreshToken, user } = data.data;
       login({ accessToken, refreshToken, user });
+      queryClient.setQueryData(authQueryKeys.profile, user);
       queryClient.invalidateQueries({ queryKey: authQueryKeys.profile });
     },
   });
@@ -48,7 +64,7 @@ export const useAuth = () => {
     queryKey: authQueryKeys.profile,
     queryFn: async () => {
       const { data } = await apiClient.get('/auth/profile');
-      return data.data.user;
+      return normalizeAuthProfilePayload(data) ?? useSessionStore.getState().user ?? null;
     },
     enabled: !!useSessionStore.getState().accessToken,
   });
@@ -58,8 +74,15 @@ export const useAuth = () => {
       const { data } = await apiClient.put('/auth/profile', profileData);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: authQueryKeys.profile });
+    onSuccess: (data) => {
+      const nextProfile = normalizeAuthProfilePayload(data);
+
+      if (nextProfile) {
+        useSessionStore.setState({ user: nextProfile });
+        queryClient.setQueryData(authQueryKeys.profile, nextProfile);
+      } else {
+        queryClient.invalidateQueries({ queryKey: authQueryKeys.profile });
+      }
     }
   });
 

@@ -4,12 +4,55 @@ const {
   AssociateContribution,
   AssociateInstallment,
   ProfitDistribution,
-  IdempotencyKey,
   User,
 } = require('@/models');
 const { paginateModel } = require('@/modules/shared/pagination');
 
-const PROPORTIONAL_DISTRIBUTION_SCOPE = 'associates.proportional-distribution';
+const getFinancialDatasetByAssociateIds = async (associateIds = []) => {
+  if (!Array.isArray(associateIds) || associateIds.length === 0) {
+    return {
+      contributions: [],
+      distributions: [],
+      installments: [],
+    };
+  }
+
+  const normalizedAssociateIds = associateIds
+    .map((associateId) => Number(associateId))
+    .filter((associateId) => Number.isFinite(associateId));
+
+  if (normalizedAssociateIds.length === 0) {
+    return {
+      contributions: [],
+      distributions: [],
+      installments: [],
+    };
+  }
+
+  const [contributions, distributions, installments] = await Promise.all([
+    AssociateContribution.findAll({
+      where: { associateId: { [Op.in]: normalizedAssociateIds } },
+      include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
+      order: [['contributionDate', 'DESC'], ['createdAt', 'DESC']],
+    }),
+    ProfitDistribution.findAll({
+      where: { associateId: { [Op.in]: normalizedAssociateIds } },
+      include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
+      order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']],
+    }),
+    AssociateInstallment.findAll({
+      where: { associateId: { [Op.in]: normalizedAssociateIds } },
+      include: [{ model: User, as: 'paidByUser', attributes: ['id', 'name', 'email', 'role'] }],
+      order: [['dueDate', 'ASC'], ['installmentNumber', 'ASC']],
+    }),
+  ]);
+
+  return {
+    contributions,
+    distributions,
+    installments,
+  };
+};
 
 const buildAssociateListWhere = (filters = {}) => {
   const clauses = [];
@@ -60,7 +103,7 @@ const associateRepository = {
     const where = buildAssociateListWhere(filters);
     const associates = await Associate.findAll({
       where,
-      attributes: ['id', 'status', 'participationPercentage', 'interestRate', 'interestType'],
+      attributes: ['id', 'status', 'interestRate', 'interestType'],
       raw: true,
     });
     const associateIds = associates.map((associate) => associate.id);
@@ -97,7 +140,6 @@ const associateRepository = {
       summary.inactiveAssociates += associate.status === 'inactive' ? 1 : 0;
       summary.totalContributed += totalContributed;
       summary.monthlyInterestEstimate += monthlyInterest;
-      summary.participationAssigned += Number(associate.participationPercentage || 0);
       return summary;
     }, {
       totalAssociates: 0,
@@ -105,7 +147,6 @@ const associateRepository = {
       inactiveAssociates: 0,
       totalContributed: 0,
       monthlyInterestEstimate: 0,
-      participationAssigned: 0,
     });
   },
   async getTrackingDataset(filters = {}) {
@@ -115,41 +156,16 @@ const associateRepository = {
       order: [['name', 'ASC']],
     });
     const associateIds = associates.map((associate) => associate.id);
-
-    if (associateIds.length === 0) {
-      return {
-        associates,
-        contributions: [],
-        distributions: [],
-        installments: [],
-      };
-    }
-
-    const [contributions, distributions, installments] = await Promise.all([
-      AssociateContribution.findAll({
-        where: { associateId: { [Op.in]: associateIds } },
-        include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
-        order: [['contributionDate', 'DESC'], ['createdAt', 'DESC']],
-      }),
-      ProfitDistribution.findAll({
-        where: { associateId: { [Op.in]: associateIds } },
-        include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
-        order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']],
-      }),
-      AssociateInstallment.findAll({
-        where: { associateId: { [Op.in]: associateIds } },
-        include: [{ model: User, as: 'paidByUser', attributes: ['id', 'name', 'email', 'role'] }],
-        order: [['dueDate', 'ASC'], ['installmentNumber', 'ASC']],
-      }),
-    ]);
+    const dataset = await getFinancialDatasetByAssociateIds(associateIds);
 
     return {
       associates,
-      contributions,
-      distributions,
-      installments,
+      contributions: dataset.contributions,
+      distributions: dataset.distributions,
+      installments: dataset.installments,
     };
   },
+  getFinancialDatasetByAssociateIds,
   findById(id, { transaction } = {}) {
     return Associate.findByPk(id, { transaction });
   },
@@ -222,7 +238,7 @@ const associateRepository = {
 
     return AssociateInstallment.create(payload, { transaction });
   },
-  listActiveAssociatesWithParticipation({ transaction } = {}) {
+  listActiveAssociates({ transaction } = {}) {
     return Associate.findAll({
       where: { status: 'active' },
       order: [['id', 'ASC']],
@@ -242,44 +258,8 @@ const associateRepository = {
   createProfitDistribution(payload, { transaction } = {}) {
     return ProfitDistribution.create(payload, { transaction });
   },
-  createProfitDistributionBatch(payloads, { transaction } = {}) {
-    if (transaction) {
-      return ProfitDistribution.bulkCreate(payloads, {
-        transaction,
-        returning: true,
-      });
-    }
-
-    return Associate.sequelize.transaction(async (managedTransaction) => ProfitDistribution.bulkCreate(payloads, {
-      transaction: managedTransaction,
-      returning: true,
-    }));
-  },
   runInTransaction(work) {
     return Associate.sequelize.transaction(work);
-  },
-  findProportionalDistributionIdempotency({ actorId, idempotencyKey, transaction } = {}) {
-    return IdempotencyKey.findOne({
-      where: {
-        scope: PROPORTIONAL_DISTRIBUTION_SCOPE,
-        createdByUserId: actorId,
-        idempotencyKey,
-      },
-      transaction,
-    });
-  },
-  createProportionalDistributionIdempotency({ actorId, idempotencyKey, requestHash, status = 'pending', responsePayload = {} }, { transaction } = {}) {
-    return IdempotencyKey.create({
-      scope: PROPORTIONAL_DISTRIBUTION_SCOPE,
-      createdByUserId: actorId,
-      idempotencyKey,
-      requestHash,
-      status,
-      responsePayload,
-    }, { transaction });
-  },
-  updateProportionalDistributionIdempotency(record, payload, { transaction } = {}) {
-    return record.update(payload, { transaction });
   },
   findInstallmentsByAssociateId(associateId, { transaction } = {}) {
     return AssociateInstallment.findAll({
@@ -362,9 +342,7 @@ const associateRepository = {
           ? 'Devolución de capital'
           : (d?.basis?.type === 'reinvestment'
             ? 'Reinversión'
-            : (d?.basis?.type === 'proportional-participation'
-              ? 'Pago proporcional de rentabilidad'
-              : 'Pago manual de rentabilidad')),
+            : 'Pago manual de rentabilidad'),
       })),
       installments: installments.map((i) => ({
         id: i.id,

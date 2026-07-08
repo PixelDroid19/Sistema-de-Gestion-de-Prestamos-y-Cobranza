@@ -61,6 +61,7 @@ type InsightStripItem = {
 type InsightStripProps = React.HTMLAttributes<HTMLElement> & {
   items: InsightStripItem[];
   className?: string;
+  density?: 'default' | 'compact';
 };
 
 type StatusChipProps = React.HTMLAttributes<HTMLSpanElement> & {
@@ -278,12 +279,14 @@ export function MetricCard({
 export function InsightStrip({
   items,
   className = '',
+  density = 'default',
   ...rest
 }: InsightStripProps) {
   const countClassName = `insight-strip--count-${Math.min(items.length, 6)}`;
+  const densityClassName = density === 'compact' ? 'insight-strip--compact' : '';
 
   return (
-    <section className={`insight-strip ${countClassName} ${className}`} {...rest}>
+    <section className={`insight-strip ${countClassName} ${densityClassName} ${className}`.trim()} {...rest}>
       {items.map((item) => (
         <article key={item.id} className={`insight-strip-item insight-strip-item--${item.accent ?? 'slate'}`}>
           {item.icon ? (

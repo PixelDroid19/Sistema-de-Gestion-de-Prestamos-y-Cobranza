@@ -78,6 +78,8 @@ test('createApp exposes OpenAPI documentation for registered production surfaces
   assert.equal(response.body.paths['/loans/calculations'].post.tags[0], 'Credits');
   assert.equal(response.body.paths['/config/rate-policies'].get.tags[0], 'Config');
   assert.equal(response.body.paths['/payments'].post.summary, 'Registrar pago de cuota por operador interno');
+  assert.equal(response.body.paths['/associates/{associateId}/financial-summary'].get.summary, 'Consultar resumen financiero del socio');
+  assert.equal(response.body.paths['/associates/{associateId}/profitability'], undefined);
   assert.equal(response.body['x-module-endpoints'].credits, '/api/loans');
   assert.deepEqual(response.body.components.schemas.CreditCalculationInput.properties.lateFeeMode.enum, ['NONE', 'SIMPLE', 'COMPOUND']);
   assert.deepEqual(response.body.components.schemas.LateFeePolicy.properties.lateFeeMode.enum, ['NONE', 'SIMPLE', 'COMPOUND']);

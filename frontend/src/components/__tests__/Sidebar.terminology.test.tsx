@@ -288,7 +288,7 @@ describe('Sidebar canonical terminology parity', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Gestión de socios' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Seguimiento financiero' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pagos e intereses' })).toBeInTheDocument();
 
     rerender(
       <Sidebar
@@ -302,7 +302,7 @@ describe('Sidebar canonical terminology parity', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Gestión de socios' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Seguimiento financiero' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pagos e intereses' })).not.toBeInTheDocument();
   });
 
   it('clears the local session and redirects immediately on logout', async () => {

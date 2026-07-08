@@ -37,7 +37,6 @@ describe('CreditDetails i18n contracts', () => {
     [
       'Tipo',
       'Monto',
-      'Capital',
       'Método',
       'Estado',
       'Acciones',
@@ -46,6 +45,7 @@ describe('CreditDetails i18n contracts', () => {
     ].forEach((text) => {
       expect(payoutsSource).not.toContain(text);
     });
+    expect(payoutsSource).not.toMatch(/['"`]Capital['"`]/);
 
     [
       'Resumen operativo del crédito',

@@ -90,6 +90,24 @@ describe('sessionStore administrative session contract', () => {
     });
   });
 
+  it('persists the active access token for the same browser tab session', () => {
+    useSessionStore.getState().login({
+      accessToken: 'session-access-token',
+      refreshToken: 'session-refresh-token',
+      user: {
+        id: 3,
+        name: 'Administrador QA',
+        email: 'qa@test.local',
+        role: 'admin',
+      },
+    });
+
+    const persistedSession = window.sessionStorage.getItem('lendflow-session');
+
+    expect(persistedSession).toContain('session-access-token');
+    expect(persistedSession).toContain('session-refresh-token');
+  });
+
   it('marks the session as hydrated when there is no persisted session', async () => {
     window.sessionStorage.clear();
     vi.resetModules();

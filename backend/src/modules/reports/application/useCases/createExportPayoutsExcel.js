@@ -1,3 +1,4 @@
+const { buildReportPdf } = require('@/modules/shared/pdfReport');
 const {
   ensureAdmin,
   formatDisplayMoney,
@@ -5,7 +6,6 @@ const {
   buildPaymentDateWhere,
   parseOptionalReportId,
   normalizePayoutStatusFilter,
-  buildPdfBuffer,
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
@@ -157,24 +157,41 @@ const createExportPayoutsPdf = ({ paymentRepository }) => async ({ actor, filter
   ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar datos de pagos.');
 
   const rows = await buildPayoutExportRows({ paymentRepository, filters });
-  const lines = [
-    `Pagos incluidos: ${rows.length}`,
-    `Total recibido: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'amount'))}`,
-    `Capital aplicado: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'principalApplied'))}`,
-    `Interes aplicado: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'interestApplied'))}`,
-    `Mora aplicada: ${formatDisplayMoney(sumRowsByMoneyKey(rows, 'penaltyApplied'))}`,
-    'Detalle operativo:',
-    ...rows.slice(0, 20).map((row) => (
-      `Pago ${row.paymentId} | Credito ${row.loanId} | ${row.customerName} | ${row.paymentDate} | ${formatDisplayMoney(row.amount)} | ${row.paymentType} | ${row.status} | ${row.createdBy}`
-    )),
-  ];
 
   return {
     fileName: 'reporte-pagos.pdf',
     contentType: 'application/pdf',
-    buffer: buildPdfBuffer({
-      title: 'REPORTE DE PAGOS Y MOVIMIENTOS',
-      lines,
+    buffer: await buildReportPdf({
+      title: 'Pago de cuotas',
+      subtitle: 'Pagos y movimientos recibidos en el rango seleccionado.',
+      summary: [
+        { label: 'Pagos incluidos', value: rows.length },
+        { label: 'Total recibido', value: formatDisplayMoney(sumRowsByMoneyKey(rows, 'amount')) },
+        { label: 'Capital aplicado', value: formatDisplayMoney(sumRowsByMoneyKey(rows, 'principalApplied')) },
+        { label: 'Interés aplicado', value: formatDisplayMoney(sumRowsByMoneyKey(rows, 'interestApplied')) },
+        { label: 'Mora aplicada', value: formatDisplayMoney(sumRowsByMoneyKey(rows, 'penaltyApplied')) },
+      ],
+      sections: [{
+        heading: 'Detalle de pagos',
+        table: {
+          columns: [
+            { header: 'Fecha', key: 'paymentDate', width: 70 },
+            { header: 'Cliente', key: 'customerName' },
+            { header: 'Crédito', key: 'loanId', width: 50 },
+            { header: 'Movimiento', key: 'paymentType', width: 85 },
+            { header: 'Monto', key: 'amount', width: 85, align: 'right', bold: true },
+            { header: 'Capital', key: 'principalApplied', width: 80, align: 'right' },
+          ],
+          rows: rows.map((row) => ({
+            paymentDate: row.paymentDate,
+            customerName: row.customerName,
+            loanId: `#${row.loanId}`,
+            paymentType: row.paymentType,
+            amount: formatDisplayMoney(row.amount),
+            principalApplied: formatDisplayMoney(row.principalApplied),
+          })),
+        },
+      }],
     }),
   };
 };

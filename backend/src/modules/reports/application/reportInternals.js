@@ -13,7 +13,7 @@ const { buildPaginationMeta, paginateArray } = require('@/modules/shared/paginat
 const { toDateOnlyOrNull } = require('@/modules/shared/dateUtils');
 const { deriveLoanOverdueSnapshot } = require('@/modules/credits/application/useCases');
 const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
-const { buildCsv, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
+const { buildCsv } = require('@/modules/reports/application/reportHelpers');
 
 // ─── Date Formatting ────────────────────────────────────────────────────────
 
@@ -510,7 +510,6 @@ const paginateCollection = (items, pagination) => {
 };
 
 module.exports = {
-  buildPdfBuffer,
   buildCsv,
   formatIsoDate,
   moneyColumn,
@@ -531,5 +530,6 @@ module.exports = {
   getRecoveryBucket,
   buildLoanReportRecord,
   buildLoansWithDetails,
+  deriveLoanOverdueSnapshot,
   paginateCollection,
 };

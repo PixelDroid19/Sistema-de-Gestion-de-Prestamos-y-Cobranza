@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../api/client';
-import { exportAssociatesExcel, useAssociateDetails, useAssociateTracking } from '../associateService';
+import { exportAssociateFinancialSummary, exportAssociatesExcel, useAssociateDetails, useAssociateTracking } from '../associateService';
 
 vi.mock('../../api/client', () => ({
   apiClient: {
@@ -68,6 +68,50 @@ describe('associateService', () => {
     expect('portal' in result.current).toBe(false);
   });
 
+  it('accepts associate detail payloads returned directly under data', async () => {
+    mockGet.mockImplementation(async (url) => {
+      if (url === '/associates/12/financial-details') {
+        return jsonResponse({
+          data: {
+            associate: { id: 12, name: 'Socio QA' },
+            summary: { totalContributed: 1000000 },
+            payments: [{ id: 1, amount: 50000 }],
+          },
+        });
+      }
+
+      if (url === '/associates/12/installments') {
+        return jsonResponse({
+          data: {
+            installments: [{ installmentNumber: 1, amount: 50000 }],
+            summary: { totalPending: 50000 },
+          },
+        });
+      }
+
+      if (url === '/associates/12/calendar-events') {
+        return jsonResponse({
+          data: {
+            events: [{ id: 'interest-1', eventType: 'interest_payment', amount: 50000 }],
+            summary: { installmentCount: 1 },
+          },
+        });
+      }
+
+      return jsonResponse({ data: {} });
+    });
+
+    const { result } = renderHook(() => useAssociateDetails(12), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.details?.associate?.name).toBe('Socio QA');
+    });
+
+    expect(result.current.details?.payments).toHaveLength(1);
+    expect(result.current.installments?.installments).toHaveLength(1);
+    expect(result.current.calendar?.events).toHaveLength(1);
+  });
+
   it('loads associate calendar events with the selected operational date range', async () => {
     renderHook(() => useAssociateDetails(12, {
       startDate: '2026-05-01',
@@ -116,14 +160,50 @@ describe('associateService', () => {
     });
     mockGet.mockResolvedValueOnce(jsonResponse(new Blob(['xlsx'])));
 
-    await exportAssociatesExcel({ status: 'inactive' });
+    await exportAssociatesExcel({ search: 'socio qa', status: 'inactive' });
 
     expect(mockGet).toHaveBeenCalledWith('/associates/export', {
       responseType: 'blob',
-      params: { status: 'inactive' },
+      params: { search: 'socio qa', status: 'inactive' },
     });
     expect(mockGet).not.toHaveBeenCalledWith('/reports/associates/excel', expect.anything());
     expect(click).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:associate-export');
+
+    createElement.mockRestore();
+    appendChild.mockRestore();
+    removeChild.mockRestore();
+  });
+
+  it('exports one associate financial summary from the associate detail route', async () => {
+    const click = vi.fn();
+    const appendChild = vi.spyOn(document.body, 'appendChild');
+    const removeChild = vi.spyOn(document.body, 'removeChild');
+    const createElement = vi.spyOn(document, 'createElement');
+    createElement.mockImplementation((tagName: string, options?: ElementCreationOptions) => {
+      const element = document.createElementNS('http://www.w3.org/1999/xhtml', tagName) as HTMLElement;
+      if (tagName.toLowerCase() === 'a') {
+        Object.defineProperty(element, 'click', {
+          configurable: true,
+          value: click,
+        });
+      }
+      if (options?.is) {
+        element.setAttribute('is', options.is);
+      }
+      return element;
+    });
+    mockGet.mockResolvedValueOnce(jsonResponse(new Blob(['xlsx'])));
+
+    await exportAssociateFinancialSummary(12);
+
+    expect(mockGet).toHaveBeenCalledWith('/associates/12/export', {
+      responseType: 'blob',
+      params: { format: 'xlsx' },
+    });
+    expect(click).toHaveBeenCalledTimes(1);
+    expect((appendChild.mock.calls[0]?.[0] as HTMLAnchorElement).download).toBe('associate-12-financial-summary.xlsx');
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:associate-export');
 

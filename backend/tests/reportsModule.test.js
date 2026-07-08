@@ -1,59 +1,20 @@
 const test = require('node:test');
+const { extractPdfText } = require('./helpers/pdfText');
 const assert = require('node:assert/strict');
-const ExcelJS = require('exceljs');
 
 const { AuthorizationError } = require('@/utils/errorHandler');
 const {
-  createGetRecoveredLoans,
   createGetOutstandingLoans,
-  createGetRecoveryReport,
   createGetDashboardSummary,
   createGetCustomerHistory,
   createGetCustomerCreditProfile,
   createGetCustomerCreditHistory,
-  createExportCustomerHistory,
-  createExportCustomerCreditProfile,
   createExportCustomerCreditHistory,
-  createExportRecoveryReport,
-  createGetCustomerProfitabilityReport,
-  createExportCustomerProfitabilityReport,
-  createGetLoanProfitabilityReport,
+  createExportOutstandingReport,
   createGetPayoutsReport,
   createExportPayoutsExcel,
 } = require('@/modules/reports/application/useCases');
 const { createReportsModule } = require('@/modules/reports');
-
-test('createGetRecoveredLoans builds report records and summary totals', async () => {
-  const getRecoveredLoans = createGetRecoveredLoans({
-    reportRepository: {
-      async listRecoveredLoans() {
-        return [{ id: 4, status: 'closed', recoveryStatus: 'pending', totalPaid: 1200 }];
-      },
-    },
-    paymentRepository: {
-      async listByLoan() {
-        return [{ id: 1, paymentDate: '2026-01-12' }];
-      },
-    },
-    loanViewService: {
-      getSnapshot() {
-        return {
-          totalPaid: 1200,
-          totalPayable: 1500,
-          outstandingBalance: 0,
-          installmentAmount: 125,
-          nextInstallment: null,
-        };
-      },
-    },
-  });
-
-  const report = await getRecoveredLoans({ actor: { id: 1, role: 'admin' } });
-
-  assert.equal(report.count, 1);
-  assert.equal(report.summary.totalRecoveredAmount, '1200.00');
-  assert.equal(report.data.loans[0].paymentCount, 1);
-});
 
 test('createGetOutstandingLoans rejects non-admin users', async () => {
   const getOutstandingLoans = createGetOutstandingLoans({
@@ -78,43 +39,6 @@ test('createGetOutstandingLoans rejects non-admin users', async () => {
     assert.ok(error instanceof AuthorizationError);
     return true;
   });
-});
-
-test('createGetRecoveryReport preserves recovered and outstanding splits', async () => {
-  const getRecoveryReport = createGetRecoveryReport({
-    reportRepository: {
-      async listRecoveryLoans() {
-        return [
-          { id: 7, status: 'closed', recoveryStatus: 'pending', totalPaid: 500 },
-          { id: 8, status: 'defaulted', recoveryStatus: 'recovered', totalPaid: 100 },
-        ];
-      },
-    },
-    paymentRepository: {
-      async listByLoan() {
-        return [];
-      },
-    },
-    loanViewService: {
-      getSnapshot(loan) {
-        return {
-          totalPaid: loan.totalPaid,
-          totalPayable: loan.id === 7 ? 500 : 800,
-          outstandingBalance: loan.id === 7 ? 0 : 700,
-          installmentAmount: 100,
-          nextInstallment: null,
-        };
-      },
-    },
-  });
-
-  const report = await getRecoveryReport({ actor: { id: 1, role: 'admin' } });
-
-  assert.equal(report.summary.totalLoans, 2);
-  assert.equal(report.summary.recoveredLoans, 1);
-  assert.equal(report.summary.outstandingLoans, 1);
-  assert.equal(report.summary.collectionRate, '38.46%');
-  assert.equal(report.summary.recoveryRate, '38.46%');
 });
 
 test('createGetOutstandingLoans classifies outstanding loans from canonical state instead of recoveryStatus flags', async () => {
@@ -234,139 +158,7 @@ test('createGetCustomerCreditHistory does not surface quote-only activity when n
   assert.equal(history.closure.closureReason, null);
 });
 
-test('customer report export use-cases return downloadable files', async () => {
-  const exportCustomerHistory = createExportCustomerHistory({
-    reportRepository: {
-      async getCustomerHistory() {
-        return {
-          customer: { id: 7, name: 'Ana Customer' },
-          loans: [{ id: 11, status: 'approved', createdAt: '2026-01-01T00:00:00.000Z' }],
-          payments: [{ id: 12, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z', createdAt: '2026-02-01T00:00:00.000Z' }],
-          documents: [],
-          alerts: [],
-          promises: [],
-          notifications: [],
-        };
-      },
-    },
-  });
-  const exportCustomerCreditProfile = createExportCustomerCreditProfile({
-    reportRepository: {
-      async getCustomerCreditProfileDataset() {
-        return {
-          customer: { id: 7, name: 'Ana Customer' },
-          loans: [{ id: 11, customerId: 7, status: 'active' }],
-          payments: [{ id: 12, loanId: 11, amount: 100, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z' }],
-          documents: [{ id: 18 }],
-          alerts: [],
-          promises: [],
-          notifications: [],
-        };
-      },
-    },
-  });
-  const exportCustomerCreditHistory = createExportCustomerCreditHistory({
-    paymentRepository: {
-      async listByLoan() {
-        return [{ id: 1, amount: 120, paymentType: 'installment', status: 'completed', paymentDate: '2026-02-15T00:00:00.000Z' }];
-      },
-    },
-    loanViewService: {
-      getSnapshot() {
-        return { outstandingBalance: 80, totalPaid: 120 };
-      },
-    },
-    loanAccessPolicy: {
-      async findAuthorizedLoan() {
-        return { id: 22, customerId: 7, status: 'active', closedAt: null, closureReason: null };
-      },
-    },
-  });
-
-  const [historyFile, profileFile, loanFile] = await Promise.all([
-    exportCustomerHistory({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'pdf' }),
-    exportCustomerCreditProfile({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'pdf' }),
-    exportCustomerCreditHistory({ actor: { id: 7, role: 'customer' }, loanId: 22, format: 'pdf' }),
-  ]);
-
-  assert.equal(historyFile.fileName, 'customer-7-history.pdf');
-  assert.equal(historyFile.contentType, 'application/pdf');
-  assert.equal(historyFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
-  assert.match(historyFile.buffer.toString('utf8'), /Historial del cliente #7/);
-  assert.doesNotMatch(historyFile.buffer.toString('utf8'), /Customer History|Loans:|Payments:/);
-  assert.equal(profileFile.fileName, 'customer-7-credit-profile.pdf');
-  assert.equal(profileFile.contentType, 'application/pdf');
-  assert.equal(profileFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
-  assert.match(profileFile.buffer.toString('utf8'), /Perfil crediticio del cliente #7/);
-  assert.doesNotMatch(profileFile.buffer.toString('utf8'), /Customer Credit Profile|Total loans|Complete profile/);
-  assert.equal(loanFile.fileName, 'loan-22-credit-history.pdf');
-  assert.equal(loanFile.contentType, 'application/pdf');
-  assert.equal(loanFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
-  assert.match(loanFile.buffer.toString('utf8'), /Historial del crédito #22/);
-  assert.doesNotMatch(loanFile.buffer.toString('utf8'), /Loan Credit History|Customer ID|Outstanding balance/);
-});
-
-test('customer report CSV exports use Spanish operational headers', async () => {
-  const reportRepository = {
-    async getCustomerHistory() {
-      return {
-        customer: { id: 7, name: 'Ana Cliente' },
-        loans: [{ id: 11, status: 'approved', createdAt: '2026-01-01T00:00:00.000Z' }],
-        payments: [{ id: 12, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z', createdAt: '2026-02-01T00:00:00.000Z' }],
-        documents: [],
-        alerts: [],
-        promises: [],
-        notifications: [],
-      };
-    },
-    async getCustomerCreditProfileDataset() {
-      return {
-        customer: { id: 7, name: 'Ana Cliente' },
-        loans: [{ id: 11, customerId: 7, status: 'active' }],
-        payments: [{ id: 12, loanId: 11, amount: 100, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z' }],
-        documents: [{ id: 18 }],
-        alerts: [],
-        promises: [],
-        notifications: [],
-      };
-    },
-  };
-  const exportCustomerHistory = createExportCustomerHistory({ reportRepository });
-  const exportCustomerCreditProfile = createExportCustomerCreditProfile({ reportRepository });
-  const exportCustomerCreditHistory = createExportCustomerCreditHistory({
-    paymentRepository: {
-      async listByLoan() {
-        return [{ id: 1, amount: 120, paymentType: 'installment', status: 'completed', paymentDate: '2026-02-15T00:00:00.000Z' }];
-      },
-    },
-    loanViewService: {
-      getSnapshot() {
-        return { outstandingBalance: 80, totalPaid: 120 };
-      },
-    },
-    loanAccessPolicy: {
-      async findAuthorizedLoan() {
-        return { id: 22, customerId: 7, status: 'active', closedAt: null, closureReason: null };
-      },
-    },
-  });
-
-  const [historyCsv, profileCsv, loanCsv] = await Promise.all([
-    exportCustomerHistory({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'csv' }),
-    exportCustomerCreditProfile({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'csv' }),
-    exportCustomerCreditHistory({ actor: { id: 1, role: 'admin' }, loanId: 22, format: 'csv' }),
-  ]);
-
-  assert.match(historyCsv.buffer.toString('utf8'), /^Tipo de evento,Entidad,Fecha/);
-  assert.match(profileCsv.buffer.toString('utf8'), /^ID Cliente,Cliente,Créditos Totales,Créditos Activos/);
-  assert.match(loanCsv.buffer.toString('utf8'), /^ID Pago,Fecha de pago,Tipo de pago,Estado,Monto/);
-  assert.doesNotMatch(
-    `${historyCsv.buffer}\n${profileCsv.buffer}\n${loanCsv.buffer}`,
-    /eventType|entityType|customerId|customerName|paymentId|paymentType|missingSections/,
-  );
-});
-
-test('customer credit history exports use operational fallbacks instead of raw enum-like values', async () => {
+test('customer credit history exports preserve recorded values when they are not catalog values', async () => {
   const exportCustomerCreditHistory = createExportCustomerCreditHistory({
     paymentRepository: {
       async listByLoan() {
@@ -402,13 +194,13 @@ test('customer credit history exports use operational fallbacks instead of raw e
     exportCustomerCreditHistory({ actor: { id: 1, role: 'admin' }, loanId: 22, format: 'pdf' }),
   ]);
   const csvText = csvFile.buffer.toString('utf8');
-  const pdfText = pdfFile.buffer.toString('utf8');
+  const pdfText = extractPdfText(pdfFile.buffer);
 
-  assert.match(csvText, /Tipo de pago no clasificado/);
-  assert.match(csvText, /Estado no clasificado/);
-  assert.match(pdfText, /Estado del crédito: Estado no clasificado/);
-  assert.match(pdfText, /Motivo de cierre: Estado no clasificado/);
-  assert.doesNotMatch(`${csvText}\n${pdfText}`, /manual_hold|adjustment_fee|written_off|manual hold|adjustment fee|written off/);
+  assert.match(csvText, /adjustment_fee/);
+  assert.match(csvText, /manual_hold/);
+  assert.match(pdfText, /manual_hold/);
+  assert.match(pdfText, /motivo de cierre/i);
+  assert.doesNotMatch(`${csvText}\n${pdfText}`, /Tipo de pago no clasificado|Estado no clasificado/);
 });
 
 test('createGetDashboardSummary aggregates dashboard sections and degrades to empty sections on repository failure', async () => {
@@ -611,356 +403,58 @@ test('createGetCustomerCreditProfile returns completeness flags and servicing no
   assert.equal(profile.data.profile.servicingNotes.length, 2);
 });
 
-test('profitability reports reconcile customer and loan totals from shared calculations', async () => {
-  const reportRepository = {
-    async listProfitabilityDataset() {
+const buildOutstandingExportDeps = () => ({
+  reportRepository: {
+    async listOutstandingLoans() {
+      return [{
+        id: 11,
+        status: 'active',
+        recoveryStatus: 'pending',
+        Customer: { name: 'Ana' },
+        amount: 1000,
+        totalPaid: 300,
+      }];
+    },
+  },
+  paymentRepository: {
+    async listByLoan() {
+      return [];
+    },
+  },
+  loanViewService: {
+    getSnapshot() {
       return {
-        loans: [
-          { id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
-          { id: 2, customerId: 7, amount: 500, status: 'closed', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 0 } },
-        ],
-        payments: [
-          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
-          { id: 2, loanId: 2, amount: 550, status: 'completed', principalApplied: 500, interestApplied: 50, penaltyApplied: 0, paymentDate: '2026-03-02T00:00:00.000Z' },
-        ],
+        totalPaid: 300,
+        totalPayable: 1000,
+        outstandingBalance: 700,
+        outstandingPrincipal: 650,
+        installmentAmount: 100,
+        nextInstallment: null,
       };
     },
-  };
-
-  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
-  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
-
-  assert.equal(customerReport.data.customers.length, 1);
-  assert.equal(customerReport.summary.totalProfit, '100.00');
-  assert.equal(loanReport.summary.totalProfit, '100.00');
-  assert.equal(customerReport.data.customers[0].totalCollected, '850.00');
-  assert.equal(customerReport.data.customers[0].activeLoanCount, 1);
-  assert.equal(customerReport.data.customers[0].closedLoanCount, 1);
-  assert.equal(customerReport.data.customers[0].paymentCount, 2);
-  assert.equal(customerReport.data.customers[0].paymentBehavior, 'current');
-  assert.equal(customerReport.data.customers[0].riskLevel, 'low');
-  assert.equal(customerReport.summary.customerAnalytics.summary.customerCount, 1);
-  assert.equal(loanReport.data.loans[0].customerName, 'Ana');
+  },
 });
 
-test('customer profitability report flags delinquent customers and risk from loan state', async () => {
-  const reportRepository = {
-    async listProfitabilityDataset() {
-      return {
-        loans: [
-          { id: 1, customerId: 7, amount: 1000, status: 'overdue', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 800 } },
-          { id: 2, customerId: 7, amount: 500, status: 'defaulted', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 400 } },
-          { id: 3, customerId: 8, amount: 200, status: 'active', Customer: { name: 'Luis' }, financialSnapshot: { outstandingBalance: 200 } },
-        ],
-        payments: [
-          { id: 1, loanId: 1, amount: 100, status: 'completed', principalApplied: 80, interestApplied: 20, penaltyApplied: 0, paymentDate: '2026-03-01T00:00:00.000Z' },
-        ],
-      };
-    },
-  };
+test('createExportOutstandingReport returns a XLSX attachment with operator-facing labels', async () => {
+  const exportOutstandingReport = createExportOutstandingReport(buildOutstandingExportDeps());
 
-  const report = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
-  const ana = report.data.customers.find((customer) => customer.customerName === 'Ana');
-  const luis = report.data.customers.find((customer) => customer.customerName === 'Luis');
-
-  assert.equal(ana.overdueLoanCount, 2);
-  assert.equal(ana.defaultedLoanCount, 1);
-  assert.equal(ana.isDelinquent, true);
-  assert.equal(ana.paymentBehavior, 'critical');
-  assert.equal(ana.riskLevel, 'high');
-  assert.equal(luis.paymentBehavior, 'without_payments');
-  assert.equal(luis.riskLevel, 'medium');
-  assert.equal(report.summary.customerAnalytics.summary.delinquentCustomerCount, 1);
-  assert.equal(report.summary.customerAnalytics.summary.highRiskCustomerCount, 1);
-});
-
-test('customer profitability Excel export uses the same values shown in profitability report', async () => {
-  const reportRepository = {
-    async listProfitabilityDataset() {
-      return {
-        loans: [
-          { id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
-          { id: 2, customerId: 7, amount: 500, status: 'closed', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 0 } },
-        ],
-        payments: [
-          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
-          { id: 2, loanId: 2, amount: 550, status: 'completed', principalApplied: 500, interestApplied: 50, penaltyApplied: 0, paymentDate: '2026-03-02T00:00:00.000Z' },
-        ],
-      };
-    },
-  };
-
-  const exportFile = await createExportCustomerProfitabilityReport({ reportRepository })({
-    actor: { id: 1, role: 'admin' },
-  });
-
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(exportFile.buffer);
-  const sheet = workbook.getWorksheet('Rentabilidad Clientes');
+  const exportFile = await exportOutstandingReport({ actor: { id: 1, role: 'admin' }, format: 'xlsx' });
 
   assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  assert.ok(sheet);
-  assert.equal(sheet.getRow(2).values.includes('Interés Cobrado'), true);
-  assert.equal(sheet.getRow(2).values.includes('Mora Cobrada'), true);
-  assert.equal(sheet.getRow(2).values.includes('Rentabilidad Total'), true);
-  assert.equal(sheet.getRow(3).getCell(2).value, 'Ana');
-  assert.equal(sheet.getRow(3).getCell(12).value, 'COP 90,00');
-  assert.equal(sheet.getRow(3).getCell(13).value, 'COP 10,00');
-  assert.equal(sheet.getRow(3).getCell(14).value, 'COP 100,00');
-  assert.equal(sheet.getRow(3).getCell(16).value, 'Al día');
-  assert.equal(sheet.getRow(3).getCell(17).value, 'Bajo');
+  assert.match(exportFile.fileName, /^cartera-por-cobrar-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
 });
 
-test('customer profitability PDF export summarizes risk and balances', async () => {
-  const reportRepository = {
-    async listProfitabilityDataset() {
-      return {
-        loans: [
-          { id: 1, customerId: 7, amount: 1000, status: 'defaulted', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
-        ],
-        payments: [
-          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
-        ],
-      };
-    },
-  };
+test('createExportOutstandingReport returns a readable PDF summary', async () => {
+  const exportOutstandingReport = createExportOutstandingReport(buildOutstandingExportDeps());
 
-  const exportFile = await createExportCustomerProfitabilityReport({ reportRepository })({
-    actor: { id: 1, role: 'admin' },
-    format: 'pdf',
-  });
-
-  assert.equal(exportFile.contentType, 'application/pdf');
-  assert.equal(exportFile.fileName, 'rentabilidad-clientes.pdf');
-  const pdfText = exportFile.buffer.toString('utf8');
-  assert.match(pdfText, /Rentabilidad y riesgo por cliente/);
-  assert.match(pdfText, /Clientes morosos: 1/);
-  assert.match(pdfText, /Ana/);
-});
-
-test('customer profitability export rejects inverted date ranges before reading report data', async () => {
-  let repositoryCalled = false;
-  const exportCustomerProfitabilityReport = createExportCustomerProfitabilityReport({
-    reportRepository: {
-      async listProfitabilityDataset() {
-        repositoryCalled = true;
-        return { loans: [], payments: [] };
-      },
-    },
-  });
-
-  await assert.rejects(() => exportCustomerProfitabilityReport({
-    actor: { id: 1, role: 'admin' },
-    filters: { fromDate: '2026-05-31', toDate: '2026-05-01' },
-  }), /fecha inicial debe ser anterior o igual a la fecha final/i);
-  assert.equal(repositoryCalled, false);
-});
-
-test('profitability reports return empty summaries when the dataset has no loans or posted payments', async () => {
-  const reportRepository = {
-    async listProfitabilityDataset() {
-      return {
-        loans: [],
-        payments: [],
-      };
-    },
-  };
-
-  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
-  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
-
-  assert.equal(customerReport.count, 0);
-  assert.deepEqual(customerReport.data.customers, []);
-  assert.equal(customerReport.summary.totalCollected, '0.00');
-  assert.equal(customerReport.summary.totalProfit, '0.00');
-  assert.equal(loanReport.count, 0);
-  assert.deepEqual(loanReport.data.loans, []);
-  assert.equal(loanReport.summary.totalCollected, '0.00');
-  assert.equal(loanReport.summary.totalProfit, '0.00');
-});
-
-test('profitability reports keep zero-activity loans and customers non-profitable', async () => {
-  const reportRepository = {
-    async listProfitabilityDataset() {
-      return {
-        loans: [
-          {
-            id: 31,
-            customerId: 7,
-            amount: 1200,
-            status: 'approved',
-            Customer: { name: 'Ana' },
-            financialSnapshot: { outstandingBalance: 1200 },
-          },
-        ],
-        payments: [
-          {
-            id: 91,
-            loanId: 31,
-            amount: 100,
-            status: 'pending',
-            principalApplied: 0,
-            interestApplied: 0,
-            penaltyApplied: 0,
-            paymentDate: '2026-03-01T00:00:00.000Z',
-          },
-        ],
-      };
-    },
-  };
-
-  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
-  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
-
-  assert.equal(customerReport.count, 1);
-  assert.equal(customerReport.data.customers[0].totalCollected, '0.00');
-  assert.equal(customerReport.data.customers[0].totalProfit, '0.00');
-  assert.equal(customerReport.data.customers[0].profitableLoanCount, 0);
-  assert.equal(customerReport.data.customers[0].paymentBehavior, 'without_payments');
-  assert.equal(customerReport.data.customers[0].riskLevel, 'medium');
-  assert.equal(loanReport.count, 1);
-  assert.equal(loanReport.data.loans[0].paymentCount, 0);
-  assert.equal(loanReport.data.loans[0].totalCollected, '0.00');
-  assert.equal(loanReport.data.loans[0].totalProfit, '0.00');
-  assert.equal(loanReport.data.loans[0].profitable, false);
-});
-
-test('profitability reports use repository-level paged queries when pagination is requested', async () => {
-  const calls = [];
-  const reportRepository = {
-    async listProfitabilityDataset() {
-      calls.push('listProfitabilityDataset');
-      return {
-        loans: [
-          { id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
-          { id: 2, customerId: 8, amount: 500, status: 'closed', Customer: { name: 'Luis' }, financialSnapshot: { outstandingBalance: 0 } },
-        ],
-        payments: [
-          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
-          { id: 2, loanId: 2, amount: 550, status: 'completed', principalApplied: 500, interestApplied: 50, penaltyApplied: 0, paymentDate: '2026-03-02T00:00:00.000Z' },
-        ],
-      };
-    },
-    async listCustomerProfitabilityPage({ page, pageSize }) {
-      calls.push(['listCustomerProfitabilityPage', page, pageSize]);
-      return {
-        items: {
-          customers: [{ id: 7, name: 'Ana' }],
-          loans: [{ id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } }],
-          payments: [{ id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' }],
-        },
-        pagination: { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 },
-      };
-    },
-    async listLoanProfitabilityPage({ page, pageSize }) {
-      calls.push(['listLoanProfitabilityPage', page, pageSize]);
-      return {
-        items: {
-          loans: [{ id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } }],
-          payments: [{ id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' }],
-        },
-        pagination: { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 },
-      };
-    },
-  };
-
-  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({
-    actor: { id: 1, role: 'admin' },
-    pagination: { page: 2, pageSize: 1, limit: 1, offset: 1 },
-  });
-  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({
-    actor: { id: 1, role: 'admin' },
-    pagination: { page: 2, pageSize: 1, limit: 1, offset: 1 },
-  });
-
-  assert.deepEqual(calls, [
-    'listProfitabilityDataset',
-    ['listCustomerProfitabilityPage', 2, 1],
-    'listProfitabilityDataset',
-    ['listLoanProfitabilityPage', 2, 1],
-  ]);
-  assert.equal(customerReport.data.customers.length, 1);
-  assert.deepEqual(customerReport.data.pagination, { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 });
-  assert.equal(loanReport.data.loans.length, 1);
-  assert.deepEqual(loanReport.data.pagination, { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 });
-});
-
-test('createExportRecoveryReport returns a CSV attachment contract', async () => {
-  const exportRecoveryReport = createExportRecoveryReport({
-    reportRepository: {
-      async listRecoveryLoans() {
-        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, amount: 500, totalPaid: 500 }];
-      },
-    },
-    paymentRepository: {
-      async listByLoan() {
-        return [];
-      },
-    },
-    loanViewService: {
-      getSnapshot() {
-        return { totalPaid: 500, totalPayable: 500, outstandingBalance: 0, installmentAmount: 100, nextInstallment: null };
-      },
-    },
-  });
-
-  const exportFile = await exportRecoveryReport({ actor: { id: 1, role: 'admin' }, format: 'csv' });
-
-  assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
-  assert.match(exportFile.buffer.toString('utf8'), /Sección,ID Crédito,Cliente/);
-  assert.match(exportFile.buffer.toString('utf8'), /Recuperados,7,Ana/);
-});
-
-test('createExportRecoveryReport returns a valid PDF attachment contract', async () => {
-  const exportRecoveryReport = createExportRecoveryReport({
-    reportRepository: {
-      async listRecoveryLoans() {
-        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, amount: 500, totalPaid: 500 }];
-      },
-    },
-    paymentRepository: {
-      async listByLoan() {
-        return [];
-      },
-    },
-    loanViewService: {
-      getSnapshot() {
-        return { totalPaid: 500, totalPayable: 500, outstandingBalance: 0, installmentAmount: 100, nextInstallment: null };
-      },
-    },
-  });
-
-  const exportFile = await exportRecoveryReport({ actor: { id: 1, role: 'admin' }, format: 'pdf' });
+  const exportFile = await exportOutstandingReport({ actor: { id: 1, role: 'admin' }, format: 'pdf' });
 
   assert.equal(exportFile.contentType, 'application/pdf');
   assert.equal(exportFile.buffer.subarray(0, 4).toString('utf8'), '%PDF');
-  assert.match(exportFile.buffer.toString('utf8'), /Reporte de recuperación CrediCobranza/);
-  assert.doesNotMatch(exportFile.buffer.toString('utf8'), /Recovery Report|Total loans|Recovered loans|Outstanding loans/);
-});
-
-test('createExportRecoveryReport returns a valid XLSX attachment contract', async () => {
-  const exportRecoveryReport = createExportRecoveryReport({
-    reportRepository: {
-      async listRecoveryLoans() {
-        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, amount: 500, totalPaid: 500 }];
-      },
-    },
-    paymentRepository: {
-      async listByLoan() {
-        return [];
-      },
-    },
-    loanViewService: {
-      getSnapshot() {
-        return { totalPaid: 500, totalPayable: 500, outstandingBalance: 0, installmentAmount: 100, nextInstallment: null };
-      },
-    },
-  });
-
-  const exportFile = await exportRecoveryReport({ actor: { id: 1, role: 'admin' }, format: 'xlsx' });
-
-  assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
+  const pdfText = extractPdfText(exportFile.buffer);
+  assert.match(pdfText, /Cartera por cobrar/);
+  assert.match(pdfText, /Ana/);
 });
 
 test('createExportPayoutsExcel formats payout methods and states as operational report labels', async () => {

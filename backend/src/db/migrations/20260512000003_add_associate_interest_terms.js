@@ -22,11 +22,6 @@ module.exports = {
       type: Sequelize.INTEGER,
       allowNull: true,
     });
-    await queryInterface.addColumn('Associates', 'interestStartsAt', {
-      type: Sequelize.DATEONLY,
-      allowNull: true,
-    });
-
     await queryInterface.addColumn('AssociateInstallments', 'capitalBase', {
       type: Sequelize.FLOAT,
       allowNull: true,
@@ -66,7 +61,6 @@ module.exports = {
     await queryInterface.removeColumn('AssociateInstallments', 'interestRate');
     await queryInterface.removeColumn('AssociateInstallments', 'capitalBase');
 
-    await queryInterface.removeColumn('Associates', 'interestStartsAt');
     await queryInterface.removeColumn('Associates', 'interestPaymentMonth');
     await queryInterface.removeColumn('Associates', 'interestPaymentDay');
     await queryInterface.removeColumn('Associates', 'interestRate');

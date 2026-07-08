@@ -1,4 +1,4 @@
-export type ReportExportType = 'credits' | 'payouts' | 'profitability';
+export type ReportExportType = 'credits' | 'payouts';
 
 export type ReportExportFormat = 'xlsx' | 'pdf';
 
@@ -46,20 +46,13 @@ export const buildContextualExportParams = (
     toDate: input.toDate || undefined,
   };
 
-  if (type === 'profitability') {
-    params.format = input.format;
-    return params;
-  }
-
   if (type === 'credits' || type === 'payouts') {
     if (input.status) {
       params.status = input.status;
     }
   }
 
-  if (type === 'credits' || type === 'payouts') {
-    params.format = input.format;
-  }
+  params.format = input.format;
 
   if (type === 'payouts' && input.paymentType) {
     params.paymentType = input.paymentType;

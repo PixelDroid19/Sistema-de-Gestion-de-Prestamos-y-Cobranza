@@ -81,13 +81,6 @@ export type PaymentCalendarOverviewFilters = {
   limit?: number;
 };
 
-export type CustomerProfitabilityFilters = {
-  fromDate?: string;
-  toDate?: string;
-  page?: number;
-  pageSize?: number;
-};
-
 export type OperatingExpenseListParams = {
   page?: number;
   pageSize?: number;
@@ -173,9 +166,6 @@ export const queryKeys = {
     outstanding: ['reports.outstanding'] as const,
     recovered: ['reports.recovered'] as const,
     recovery: ['reports.recovery'] as const,
-    profitabilityCustomers: (filters?: CustomerProfitabilityFilters) =>
-      ['reports.profitability.customers', filters ?? {}] as const,
-    profitabilityLoans: ['reports.profitability.loans'] as const,
     customerHistory: (customerId: number) => ['reports.customerHistory', customerId] as const,
     customerCreditProfile: (customerId: number) => ['reports.customerCreditProfile', customerId] as const,
     creditHistory: (loanId: number) => ['reports.creditHistory', loanId] as const,
@@ -191,14 +181,6 @@ export const queryKeys = {
     creditHistoryMonthly: (filters?: CreditHistoryMonthlyFilters) =>
       ['reports.creditHistoryMonthly', filters ?? {}] as const,
     creditHistoryFinancialProducts: ['reports.creditHistoryFinancialProducts'] as const,
-    monthlyInterest: (year?: number) => ['reports.monthlyInterest', year] as const,
-    performanceAnalysis: (year?: number) => ['reports.performanceAnalysis', year] as const,
-    executiveDashboard: ['reports.executiveDashboard'] as const,
-    comprehensiveAnalytics: (year?: number) => ['reports.comprehensiveAnalytics', year] as const,
-    comparativeAnalysis: (year?: number) => ['reports.comparativeAnalysis', year] as const,
-    forecastAnalysis: (year?: number) => ['reports.forecastAnalysis', year] as const,
-    nextMonthProjection: ['reports.nextMonthProjection'] as const,
-    financialAnalytics: (year?: number) => ['reports.financialAnalytics', year] as const,
     payoutsRoot: ['reports.payouts'] as const,
     payouts: (filters: object, page: number, pageSize: number) =>
       ['reports.payouts', filters, page, pageSize] as const,

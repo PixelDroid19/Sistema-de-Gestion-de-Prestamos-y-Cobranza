@@ -166,31 +166,28 @@ test('associateValidation.create accepts a valid associate payload', async () =>
       email: 'ana@example.com',
       phone: '+573001112233',
       status: 'active',
-      participationPercentage: '25.1250',
+      interestType: 'monthly',
+      interestRate: '2.5000',
+      interestPaymentDay: 5,
     },
   }));
 });
 
-test('associateValidation.update rejects invalid participation percentage precision', async () => {
-  const error = await captureMiddlewareError(associateValidation.update, {
+test('associateValidation.update rejects removed associate contract fields', async () => {
+  await assert.rejects(() => runMiddleware(associateValidation.update, {
     user: { role: 'admin' },
     body: {
       participationPercentage: '25.12345',
     },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.errors[0].field, 'participationPercentage');
+    return true;
   });
-
-  assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Corrige los errores indicados');
-  assert.deepEqual(error.errors, [
-    {
-      field: 'participationPercentage',
-      message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
-    },
-  ]);
 });
 
-test('associateValidation.create rejects negative participation percentage values', async () => {
-  const error = await captureMiddlewareError(associateValidation.create, {
+test('associateValidation.create rejects removed associate contract fields', async () => {
+  await assert.rejects(() => runMiddleware(associateValidation.create, {
     user: { role: 'admin' },
     body: {
       name: 'Ana Associate',
@@ -199,69 +196,11 @@ test('associateValidation.create rejects negative participation percentage value
       status: 'active',
       participationPercentage: '-0.0001',
     },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.errors[0].field, 'participationPercentage');
+    return true;
   });
-
-  assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Corrige los errores indicados');
-  assert.deepEqual(error.errors, [
-    {
-      field: 'participationPercentage',
-      message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
-    },
-  ]);
-});
-
-test('associateValidation.update rejects participation percentage values above one hundred', async () => {
-  const error = await captureMiddlewareError(associateValidation.update, {
-    user: { role: 'admin' },
-    body: {
-      participationPercentage: '100.0001',
-    },
-  });
-
-  assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Corrige los errores indicados');
-  assert.deepEqual(error.errors, [
-    {
-      field: 'participationPercentage',
-      message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
-    },
-  ]);
-});
-
-test('associateValidation.update rejects socio participation percentage mutations', async () => {
-  const error = await captureMiddlewareError(associateValidation.update, {
-    user: { role: 'socio' },
-    body: {
-      participationPercentage: '25.0000',
-    },
-  });
-
-  assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Corrige los errores indicados');
-  assert.deepEqual(error.errors, [
-    {
-      field: 'participationPercentage',
-      message: 'Solo los administradores pueden definir el porcentaje de participación',
-    },
-  ]);
-});
-
-test('associateValidation.proportionalDistribution rejects invalid declared amount precision', async () => {
-  const error = await captureMiddlewareError(associateValidation.proportionalDistribution, {
-    body: {
-      amount: '10.999',
-    },
-  });
-
-  assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Corrige los errores indicados');
-  assert.deepEqual(error.errors, [
-    {
-      field: 'amount',
-      message: 'El monto debe ser un número positivo con máximo 2 decimales',
-    },
-  ]);
 });
 
 test('buildPayoffQuote returns principal plus mid-cycle actual/365 accrual without future interest before any installment is overdue', () => {

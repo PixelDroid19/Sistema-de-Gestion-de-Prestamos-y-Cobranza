@@ -30,7 +30,7 @@ test('createGetAssociateProfitabilityReport rejects socio records as report user
     actor: { id: 9, role: 'socio', associateId: 12 },
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder al resumen financiero de socios.');
     return true;
   });
 });
@@ -58,7 +58,7 @@ test('createGetAssociateProfitabilityReport rejects socio records before associa
     associateId: 99,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder al resumen financiero de socios.');
     return true;
   });
 });
@@ -96,16 +96,16 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
     reportRepository: {
       async getAssociateExportDataset() {
         return {
-          associate: { id: 12, participationPercentage: '25.0000' },
+          associate: { id: 12 },
           contributions: [{ id: 1, amount: 1000, contributionDate: '2026-01-01' }],
-          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }],
+          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'manual-interest' } }],
           loans: [{ id: 5, amount: 4000, status: 'active', Customer: { name: 'Ana' } }],
         };
       },
     },
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000' };
+        return { id, name: 'Partner One' };
       },
       async listContributionsByAssociate() {
         contributionReads += 1;
@@ -114,6 +114,27 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
       async listProfitDistributionsByAssociate() {
         distributionReads += 1;
         return [{ id: 2, amount: 150 }];
+      },
+      async findInstallmentsByAssociateId() {
+        return [
+          {
+            id: 3,
+            installmentNumber: 1,
+            amount: 200,
+            dueDate: '2026-03-01',
+            paidAt: '2026-03-02',
+            status: 'paid',
+            paymentMethod: 'transferencia',
+            paidByUser: { name: 'Admin QA' },
+          },
+          {
+            id: 4,
+            installmentNumber: 2,
+            amount: 250,
+            dueDate: '2026-04-01',
+            status: 'pending',
+          },
+        ];
       },
       async listLoansByAssociate() {
         return [{ id: 5, amount: 4000 }];
@@ -129,25 +150,23 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(exportFile.buffer);
   const serializedWorkbookValues = JSON.stringify(workbook.worksheets.map((sheet) => sheet.getSheetValues()));
-  assert.match(serializedWorkbookValues, /Proporcional/);
-  assert.doesNotMatch(serializedWorkbookValues, /proportional|distributionType|proportional-participation/);
+  assert.match(serializedWorkbookValues, /Manual/);
   const summarySheet = workbook.getWorksheet('Resumen General');
   const summaryHeaders = summarySheet.getRow(2).values;
   assert.equal(summaryHeaders.includes('Unidad'), false);
   let totalContributedRow = null;
-  let participationRow = null;
   summarySheet.eachRow((row) => {
     if (row.getCell(1).value === 'Aportes Totales') {
       totalContributedRow = row;
     }
-    if (row.getCell(1).value === 'Participación') {
-      participationRow = row;
-    }
   });
   assert.equal(totalContributedRow?.getCell(2).value, 'COP 1.000,00');
-  assert.equal(participationRow?.getCell(2).value, '25,00%');
   assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, 'COP 1.000,00');
-  assert.equal(workbook.getWorksheet('Distribuciones').getRow(3).getCell(3).value, 'COP 150,00');
+  assert.equal(workbook.getWorksheet('Pagos manuales').getRow(3).getCell(3).value, 'COP 150,00');
+  assert.equal(workbook.getWorksheet('Cronograma').getRow(3).getCell(2).value, 'COP 200,00');
+  assert.equal(workbook.getWorksheet('Cronograma').getRow(4).getCell(2).value, 'COP 250,00');
+  assert.match(serializedWorkbookValues, /Interés Pendiente/);
+  assert.match(serializedWorkbookValues, /CRONOGRAMA/);
   assert.equal(contributionReads, 1);
   assert.equal(distributionReads, 1);
 });
@@ -161,7 +180,7 @@ test('createExportAssociateProfitabilityReport rejects socio export requests', a
     },
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Other Partner', participationPercentage: '75.0000' };
+        return { id, name: 'Other Partner' };
       },
       async listContributionsByAssociate() {
         throw new Error('listContributionsByAssociate should not be called');
@@ -181,32 +200,51 @@ test('createExportAssociateProfitabilityReport rejects socio export requests', a
     format: 'xlsx',
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder a reportes de rentabilidad.');
+    assert.equal(error.message, 'Solo usuarios administrativos autorizados pueden acceder al resumen financiero de socios.');
     return true;
   });
 });
 
-test('createExportAssociateProfitabilityReport includes proportional audit columns in csv exports', async () => {
+test('createExportAssociateProfitabilityReport keeps csv exports focused on recorded associate movements', async () => {
   const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
     reportRepository: {
       async getAssociateExportDataset() {
         return {
-          associate: { id: 12, participationPercentage: '25.0000' },
+          associate: { id: 12 },
           contributions: [],
-          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }],
+          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'manual-interest' } }],
           loans: [],
         };
       },
     },
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000' };
+        return { id, name: 'Partner One' };
       },
       async listContributionsByAssociate() {
         return [];
       },
       async listProfitDistributionsByAssociate() {
-        return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
+        return [{ id: 2, amount: 150, basis: { type: 'manual-interest' } }];
+      },
+      async findInstallmentsByAssociateId() {
+        return [
+          {
+            id: 3,
+            installmentNumber: 1,
+            amount: 200,
+            dueDate: '2026-03-01',
+            paidAt: '2026-03-02',
+            status: 'paid',
+          },
+          {
+            id: 4,
+            installmentNumber: 2,
+            amount: 250,
+            dueDate: '2026-04-01',
+            status: 'pending',
+          },
+        ];
       },
       async listLoansByAssociate() {
         return [];
@@ -216,11 +254,11 @@ test('createExportAssociateProfitabilityReport includes proportional audit colum
 
   const exportFile = await exportAssociateProfitabilityReport({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'csv' });
 
+  assert.equal(exportFile.fileName, 'associate-12-financial-summary.csv');
   assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
-  assert.match(exportFile.buffer.toString('utf8'), /Participación %,Tipo Distribución,Total Proporcional,Monto Asignado/);
-  assert.match(exportFile.buffer.toString('utf8'), /25.0000,Proporcional,600.00,150.00/);
-  assert.doesNotMatch(
-    exportFile.buffer.toString('utf8'),
-    /participationPercentage|distributionType|declaredProportionalTotal|allocatedAmount|proportional-participation/,
-  );
+  assert.match(exportFile.buffer.toString('utf8'), /Sección,ID,Referencia,Monto,Fecha,Estado,Tipo de Movimiento,Notas/);
+  assert.match(exportFile.buffer.toString('utf8'), /Pago manual de rentabilidad,2,,150,,,Manual,/);
+  assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,1,,200,2026-03-02,Pagado/);
+  assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,2,,250,2026-04-01,Vencido/);
+  assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,2,,250,2026-04-01,Vencido/);
 });

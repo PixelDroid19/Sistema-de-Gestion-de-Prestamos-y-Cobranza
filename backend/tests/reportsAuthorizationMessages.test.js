@@ -2,20 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { AuthorizationError } = require('@/utils/errorHandler');
-const { createExportCreditsExcel, createExportCreditsPdf } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
+const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
 const { createExportPayoutsExcel, createExportPayoutsPdf } = require('@/modules/reports/application/useCases/createExportPayoutsExcel');
-const { createGetComparativeAnalysis } = require('@/modules/reports/application/useCases/createGetComparativeAnalysis');
-const { createGetComprehensiveAnalytics } = require('@/modules/reports/application/useCases/createGetComprehensiveAnalytics');
-const { createGetCreditEarnings } = require('@/modules/reports/application/useCases/createGetCreditEarnings');
-const { createGetDailyCashFlow, createGetMonthlyCashFlow } = require('@/modules/reports/application/useCases/createMonthlyCashFlowReport');
-const { createGetExecutiveDashboard } = require('@/modules/reports/application/useCases/createGetExecutiveDashboard');
-const { createGetForecastAnalysis } = require('@/modules/reports/application/useCases/createGetForecastAnalysis');
-const { createGetInterestEarnings } = require('@/modules/reports/application/useCases/createGetInterestEarnings');
-const { createGetMonthlyEarnings } = require('@/modules/reports/application/useCases/createGetMonthlyEarnings');
-const { createGetMonthlyInterest } = require('@/modules/reports/application/useCases/createGetMonthlyInterest');
-const { createGetNextMonthProjection } = require('@/modules/reports/application/useCases/createGetNextMonthProjection');
+const { createGetMonthlyCashFlow } = require('@/modules/reports/application/useCases/createMonthlyCashFlowReport');
 const { createGetPayoutsReport } = require('@/modules/reports/application/useCases/createGetPayoutsReport');
-const { createGetPerformanceAnalysis } = require('@/modules/reports/application/useCases/createGetPerformanceAnalysis');
 
 const unauthorizedActor = { id: 99, role: 'customer' };
 const reportRepository = {};
@@ -33,26 +23,6 @@ const assertAuthorizationMessage = async ({ name, useCase, expectedMessage }) =>
   );
 };
 
-test('financial analytics report use cases reject unsupported actors with Spanish messages', async () => {
-  const expectedMessage = 'Solo usuarios administrativos autorizados pueden acceder a reportes financieros.';
-  const cases = [
-    ['comparative analysis', createGetComparativeAnalysis({ reportRepository })],
-    ['performance analysis', createGetPerformanceAnalysis({ reportRepository })],
-    ['next month projection', createGetNextMonthProjection({ reportRepository })],
-    ['forecast analysis', createGetForecastAnalysis({ reportRepository })],
-    ['executive dashboard', createGetExecutiveDashboard({ reportRepository, paymentRepository })],
-    ['comprehensive analytics', createGetComprehensiveAnalytics({ reportRepository, paymentRepository })],
-    ['credit earnings', createGetCreditEarnings({ reportRepository })],
-    ['interest earnings', createGetInterestEarnings({ paymentRepository })],
-    ['monthly earnings', createGetMonthlyEarnings({ reportRepository })],
-    ['monthly interest', createGetMonthlyInterest({ paymentRepository })],
-  ];
-
-  for (const [name, useCase] of cases) {
-    await assertAuthorizationMessage({ name, useCase, expectedMessage });
-  }
-});
-
 test('specialized report use cases reject unsupported actors with Spanish messages', async () => {
   const cases = [
     {
@@ -63,11 +33,6 @@ test('specialized report use cases reject unsupported actors with Spanish messag
     {
       name: 'credits Excel export',
       useCase: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
-      expectedMessage: 'Solo usuarios administrativos autorizados pueden exportar datos de créditos.',
-    },
-    {
-      name: 'credits PDF export',
-      useCase: createExportCreditsPdf({ reportRepository, paymentRepository, loanViewService }),
       expectedMessage: 'Solo usuarios administrativos autorizados pueden exportar datos de créditos.',
     },
     {
@@ -84,11 +49,6 @@ test('specialized report use cases reject unsupported actors with Spanish messag
       name: 'monthly cash flow',
       useCase: createGetMonthlyCashFlow({ reportRepository }),
       expectedMessage: 'Solo usuarios administrativos autorizados pueden acceder al cierre contable mensual.',
-    },
-    {
-      name: 'daily cash flow',
-      useCase: createGetDailyCashFlow({ reportRepository }),
-      expectedMessage: 'Solo usuarios administrativos autorizados pueden acceder al cierre contable diario.',
     },
   ];
 

@@ -47,6 +47,7 @@ export const invalidateAfterPayment = async (queryClient: QueryClient, input: In
   if (input.loanId) {
     invalidations.push(
       queryClient.invalidateQueries({ queryKey: ['loans.payoffQuote', input.loanId] }),
+      queryClient.invalidateQueries({ queryKey: ['loans.installmentQuote', input.loanId] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.paymentSchedule(input.loanId) }),
     );
   }

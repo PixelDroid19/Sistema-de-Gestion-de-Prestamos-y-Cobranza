@@ -13,7 +13,7 @@ interface User {
 }
 
 interface SessionState {
-  // Access token - used for API requests (stored in memory for security)
+  // Access token - kept for API requests and restored per browser tab session
   accessToken: string | null;
   // Refresh token - used to obtain new access tokens
   refreshToken: string | null;
@@ -77,9 +77,9 @@ export const useSessionStore = create<SessionState>()(
       name: 'lendflow-session',
       storage: createJSONStorage(() => safeSessionStateStorage),
       partialize: (state) => ({
+        accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         user: state.user,
-        // Don't persist accessToken for security - it should be short-lived
       }),
       merge: (persistedState, currentState) => ({
         ...currentState,

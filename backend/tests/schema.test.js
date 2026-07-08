@@ -40,8 +40,8 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'Associates') {
     return {
-      id: {}, name: {}, email: {}, phone: {}, address: {}, status: {}, participationPercentage: {},
-      interestType: {}, interestRate: {}, interestPaymentDay: {}, interestPaymentMonth: {}, interestStartsAt: {},
+      id: {}, name: {}, email: {}, phone: {}, address: {}, status: {},
+      interestType: {}, interestRate: {}, interestPaymentDay: {}, interestPaymentMonth: {},
       notes: {}, createdAt: {}, updatedAt: {},
     };
   }
@@ -249,7 +249,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('failedLoginAttempts'));
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('lockedUntil'));
   assert.ok(associates.columns.includes('email'));
-  assert.ok(associates.columns.includes('participationPercentage'));
+  assert.equal(associates.columns.includes('participationPercentage'), false);
+  assert.equal(associates.columns.includes('interestStartsAt'), false);
   assert.ok(associates.columns.includes('interestType'));
   assert.ok(associates.columns.includes('interestRate'));
   assert.ok(associates.columns.includes('interestPaymentDay'));

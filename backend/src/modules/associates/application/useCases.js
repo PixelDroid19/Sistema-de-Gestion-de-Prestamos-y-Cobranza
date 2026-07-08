@@ -1,10 +1,8 @@
-const crypto = require('node:crypto');
 
 const {
   NotFoundError,
   ValidationError,
   AuthorizationError,
-  ConflictError,
 } = require('@/utils/errorHandler');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { parsePositiveCurrencyAmount, roundCurrency, formatCurrency } = require('@/modules/shared/money');
@@ -12,14 +10,11 @@ const { validateIntegerRange } = require('@/modules/shared/validators');
 const {
   buildDateRangeMessage,
   normalizeOperationalDate,
-  normalizeOptionalDateOnlyString,
   normalizeOptionalOperationalDate,
   toDateOnlyOrNull,
   toOperationalDateOrNull,
 } = require('@/modules/shared/dateUtils');
 
-const PERCENTAGE_SCALE = 10000;
-const HUNDRED_PERCENT_UNITS = 100 * PERCENTAGE_SCALE;
 const ALLOWED_ASSOCIATE_STATUSES = new Set(['active', 'inactive']);
 const ALLOWED_INTEREST_TYPES = new Set(['monthly', 'annual']);
 const ALLOWED_ASSOCIATE_CONTRIBUTION_STATUSES = new Set(['completed', 'pending', 'annulled', 'manual_hold']);
@@ -32,44 +27,23 @@ const ASSOCIATE_CURRENCY_FIELD_LABELS = {
   initialCapital: 'El capital inicial',
 };
 const ASSOCIATE_DATE_FIELD_LABELS = {
-  interestStartDate: 'La fecha de inicio de intereses',
   contributionDate: 'La fecha del aporte',
   distributionDate: 'La fecha de distribución',
   capitalReturnDate: 'La fecha de devolución de capital',
   reinvestmentDate: 'La fecha de reinversión',
   paymentDate: 'La fecha de pago',
 };
+const REMOVED_ASSOCIATE_FIELDS = new Set([
+  'participationPercentage',
+  'interestStartDate',
+  'interestStartsAt',
+]);
 const ASSOCIATE_FINANCIAL_DETAILS_REQUIRED_MESSAGE = 'Selecciona un socio para consultar su información financiera.';
-const PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_CONFLICT_MESSAGE = 'Esta distribución proporcional ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.';
-const PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_PENDING_MESSAGE = 'Esta distribución proporcional ya se está procesando. Espera el resultado antes de intentar nuevamente.';
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
 const getAssociateCurrencyFieldLabel = (fieldName) => ASSOCIATE_CURRENCY_FIELD_LABELS[fieldName] || 'El monto';
 const getAssociateDateFieldLabel = (fieldName) => ASSOCIATE_DATE_FIELD_LABELS[fieldName] || 'La fecha';
-
-const parsePercentageToUnits = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-
-  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
-  if (!/^\d+(\.\d{1,4})?$/.test(normalizedValue)) {
-    throw new ValidationError('El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales');
-  }
-
-  const numericValue = Number(normalizedValue);
-  if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
-    throw new ValidationError('El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales');
-  }
-
-  return Math.round(numericValue * PERCENTAGE_SCALE);
-};
-
-const normalizeParticipationPercentage = (value) => {
-  const units = parsePercentageToUnits(value);
-  return units === null ? null : (units / PERCENTAGE_SCALE).toFixed(4);
-};
 
 const parseCurrencyAmount = (value, fieldName) => {
   if (value === undefined || value === null || value === '') {
@@ -184,17 +158,6 @@ const normalizePaymentMonth = (value) => {
   return Number(typeof value === 'string' ? value.trim() : value);
 };
 
-const normalizeOptionalDateOnly = (value, fieldName) => {
-  try {
-    return normalizeOptionalDateOnlyString(value, fieldName);
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      throw new ValidationError(`${getAssociateDateFieldLabel(fieldName)} debe tener formato AAAA-MM-DD`);
-    }
-    throw error;
-  }
-};
-
 const normalizeOptionalOperationDate = (value, fieldName) => (
   (() => {
     try {
@@ -219,9 +182,10 @@ const mapValidDatedRows = (rows, getDate, mapRow) => rows
 
 const normalizeAssociatePayload = (payload) => {
   const normalizedPayload = { ...payload };
+  const removedField = Object.keys(normalizedPayload).find((field) => REMOVED_ASSOCIATE_FIELDS.has(field));
 
-  if (hasOwn(payload, 'participationPercentage')) {
-    normalizedPayload.participationPercentage = normalizeParticipationPercentage(payload.participationPercentage);
+  if (removedField) {
+    throw new ValidationError('El contrato de socios ya no acepta campos de participación ni fechas opcionales de inicio de intereses.');
   }
 
   if (hasOwn(payload, 'interestType')) {
@@ -238,14 +202,6 @@ const normalizeAssociatePayload = (payload) => {
 
   if (hasOwn(payload, 'interestPaymentMonth')) {
     normalizedPayload.interestPaymentMonth = normalizePaymentMonth(payload.interestPaymentMonth);
-  }
-
-  if (hasOwn(payload, 'interestStartDate') || hasOwn(payload, 'interestStartsAt')) {
-    normalizedPayload.interestStartsAt = normalizeOptionalDateOnly(
-      payload.interestStartsAt ?? payload.interestStartDate,
-      'interestStartDate',
-    );
-    delete normalizedPayload.interestStartDate;
   }
 
   delete normalizedPayload.initialCapital;
@@ -272,6 +228,98 @@ const normalizeAssociateListFilters = (filters = {}) => {
   return normalized;
 };
 
+const buildAssociateTrackingRowSnapshot = ({ associate, contributions = [], distributions = [], installments = [], asOfDate = new Date() }) => {
+  const capitalBearingContributions = filterCapitalBearingContributions(contributions);
+  const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
+  const { capitalReturns, interestWithdrawals } = splitAssociateDistributions(distributions);
+  const pendingInstallments = installments.filter((installment) => resolveAssociateInstallmentStatus(installment, asOfDate) === 'pending');
+  const overdueInstallments = installments.filter((installment) => resolveAssociateInstallmentStatus(installment, asOfDate) === 'overdue');
+  const paidInstallments = installments.filter((installment) => installment.status === 'paid');
+  const scheduledInterestPaid = sumAmounts(paidInstallments);
+  const manualInterestPaid = sumAmounts(interestWithdrawals);
+  const nextInstallment = getFirstDatedInstallment([...overdueInstallments, ...pendingInstallments]);
+  const lastPaidInstallment = getLastPaidInstallment(paidInstallments);
+
+  return {
+    associate,
+    totalContributed: sumAmounts(capitalBearingContributions),
+    currentCapital: roundCurrency(capitalState.totalCurrentCapital),
+    totalCapitalReturned: capitalReturns.reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
+    interestPending: sumAmounts(pendingInstallments),
+    interestOverdue: sumAmounts(overdueInstallments),
+    scheduledInterestPaid,
+    manualInterestPaid,
+    interestPaid: roundCurrency(scheduledInterestPaid + manualInterestPaid),
+    nextPaymentDate: nextInstallment?.dueDate ? toDateOnlyOrNull(nextInstallment.dueDate) : null,
+    lastPaymentDate: lastPaidInstallment?.paidAt ? toDateOnlyOrNull(lastPaidInstallment.paidAt) : null,
+    pendingInstallments: pendingInstallments.length,
+    overdueInstallments: overdueInstallments.length,
+    paidInstallments: paidInstallments.length,
+    debtStatus: overdueInstallments.length > 0 ? 'overdue' : (pendingInstallments.length > 0 ? 'pending' : 'current'),
+  };
+};
+
+const hydrateAssociateListFinancialSnapshot = async ({ associateRepository, associates = [], asOfDate = new Date() }) => {
+  if (!Array.isArray(associates) || associates.length === 0 || typeof associateRepository.getFinancialDatasetByAssociateIds !== 'function') {
+    return associates;
+  }
+
+  const associateIds = associates
+    .map((associate) => Number(associate?.id))
+    .filter((associateId) => Number.isFinite(associateId));
+
+  if (associateIds.length === 0) {
+    return associates;
+  }
+
+  const dataset = await associateRepository.getFinancialDatasetByAssociateIds(associateIds);
+  const contributionsByAssociate = groupRowsByAssociateId(dataset.contributions);
+  const distributionsByAssociate = groupRowsByAssociateId(dataset.distributions);
+  const installmentsByAssociate = groupRowsByAssociateId(dataset.installments);
+  const normalizedInstallmentsByAssociate = new Map();
+
+  for (const associate of associates) {
+    const associateId = Number(associate.id);
+    const installments = await persistExpiredAssociateInstallments({
+      associateRepository,
+      associateId,
+      installments: installmentsByAssociate.get(associateId) || [],
+      asOfDate,
+    });
+    normalizedInstallmentsByAssociate.set(associateId, installments);
+  }
+
+  return associates.map((associate) => {
+    const associateId = Number(associate.id);
+    const trackingRow = buildAssociateTrackingRowSnapshot({
+      associate,
+      contributions: contributionsByAssociate.get(associateId) || [],
+      distributions: distributionsByAssociate.get(associateId) || [],
+      installments: normalizedInstallmentsByAssociate.get(associateId) || [],
+      asOfDate,
+    });
+
+    return {
+      ...associate,
+      totalContributed: trackingRow.totalContributed,
+      currentCapital: trackingRow.currentCapital,
+      totalCapitalReturned: roundCurrency(trackingRow.totalCapitalReturned),
+      interestPending: trackingRow.interestPending,
+      interestOverdue: trackingRow.interestOverdue,
+      scheduledInterestPaid: trackingRow.scheduledInterestPaid,
+      manualInterestPaid: trackingRow.manualInterestPaid,
+      interestPaid: trackingRow.interestPaid,
+      nextPaymentDate: trackingRow.nextPaymentDate,
+      nextInterestPaymentDate: trackingRow.nextPaymentDate,
+      lastPaymentDate: trackingRow.lastPaymentDate,
+      pendingInstallments: trackingRow.pendingInstallments,
+      overdueInstallments: trackingRow.overdueInstallments,
+      paidInstallments: trackingRow.paidInstallments,
+      debtStatus: trackingRow.debtStatus,
+    };
+  });
+};
+
 const normalizeAssociateRecord = (associate) => {
   const serializedAssociate = typeof associate?.toJSON === 'function' ? associate.toJSON() : associate;
   if (!serializedAssociate) {
@@ -280,10 +328,6 @@ const normalizeAssociateRecord = (associate) => {
 
   return {
     ...serializedAssociate,
-    participationPercentage: serializedAssociate.participationPercentage === null
-      || serializedAssociate.participationPercentage === undefined
-      ? null
-      : normalizeParticipationPercentage(serializedAssociate.participationPercentage),
     interestType: normalizeInterestType(serializedAssociate.interestType),
     interestRate: normalizeInterestRate(serializedAssociate.interestRate),
     interestPaymentDay: normalizePaymentDay(serializedAssociate.interestPaymentDay),
@@ -765,17 +809,12 @@ const normalizeDistributionRecord = (distribution) => {
     ? 'capital_return'
     : (basis.type === 'reinvestment'
       ? 'reinvestment'
-      : (basis.type === 'proportional-participation' ? 'proportional' : 'manual'));
-  const isProportional = normalizedDistributionType === 'proportional';
+      : 'manual');
 
   return {
     ...serializedDistribution,
     distributionType: normalizedDistributionType,
-    declaredProportionalTotal: isProportional ? basis.sourceAmount || null : null,
-    allocatedAmount: isProportional ? basis.allocatedAmount || formatCurrency(serializedDistribution.amount) : formatCurrency(serializedDistribution.amount),
-    participationPercentage: isProportional ? basis.participationPercentage || null : null,
-    roundingAdjustment: isProportional ? basis.roundingAdjustment || '0.00' : null,
-    batchKey: isProportional ? basis.batchKey || null : null,
+    allocatedAmount: formatCurrency(serializedDistribution.amount),
     basis,
   };
 };
@@ -790,180 +829,6 @@ const splitAssociateDistributions = (distributions = []) => {
       !['capital_return', 'reinvestment'].includes(distribution.distributionType)
     )),
   };
-};
-
-const parseCurrencyToCents = (value) => {
-  if (value === undefined || value === null || value === '') {
-    throw new ValidationError('El monto de la distribución debe ser mayor a 0');
-  }
-
-  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
-  if (!/^\d+(\.\d{1,2})?$/.test(normalizedValue)) {
-    throw new ValidationError('El monto de la distribución debe ser mayor a 0 y usar máximo 2 decimales');
-  }
-
-  const [wholePart, decimalPart = ''] = normalizedValue.split('.');
-  const cents = (Number(wholePart) * 100) + Number(decimalPart.padEnd(2, '0'));
-
-  if (!Number.isFinite(cents) || cents <= 0) {
-    throw new ValidationError('El monto de la distribución debe ser mayor a 0');
-  }
-
-  return cents;
-};
-
-const canonicalizeJson = (value) => {
-  if (Array.isArray(value)) {
-    return value.map(canonicalizeJson);
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.keys(value)
-      .sort()
-      .reduce((result, key) => {
-        const normalizedValue = value[key];
-        if (normalizedValue !== undefined) {
-          result[key] = canonicalizeJson(normalizedValue);
-        }
-        return result;
-      }, {});
-  }
-
-  return value;
-};
-
-/**
- * Builds the canonical request hash used to distinguish safe retries from
- * conflicting proportional distribution submissions.
- * @param {object} payload - Normalized distribution request payload.
- * @returns {string} SHA-256 hash of the canonical payload.
- */
-const buildProportionalIdempotencyRequestHash = (payload) => crypto
-  .createHash('sha256')
-  .update(JSON.stringify(canonicalizeJson(payload)))
-  .digest('hex');
-
-const buildProportionalIdempotencyPayload = ({ amountCents, distributionDate, notes, basis }) => ({
-  amount: formatCurrency(amountCents / 100),
-  distributionDate: distributionDate.toISOString(),
-  notes,
-  basis: canonicalizeJson(basis || {}),
-});
-
-const buildIdempotencyConflictError = (message) => {
-  const error = new ConflictError(message);
-  error.errors = [{ field: 'idempotencyKey', message }];
-  return error;
-};
-
-const serializeIdempotentDistributionResult = (result, idempotencyStatus) => ({
-  ...result,
-  idempotencyStatus,
-});
-
-const buildBatchKey = ({ actorId, distributionDate, amountCents, associateIds }) => [
-  'assoc-proportional',
-  actorId,
-  distributionDate.toISOString(),
-  amountCents,
-  associateIds.join('-'),
-  Date.now(),
-].join(':');
-
-/**
- * Allocates a declared distribution amount across eligible associates using
- * participation units and deterministic largest-remainder rounding.
- * @param {{associates: Array<object>, amountCents: number}} params
- * @returns {Array<{associate: object, amountCents: number, roundingAdjustmentCents: number}>}
- */
-const allocateProportionalDistribution = ({ associates, amountCents }) => {
-  const baseAllocations = associates.map((associate) => {
-    const numerator = amountCents * associate.participationUnits;
-    const flooredCents = Math.floor(numerator / HUNDRED_PERCENT_UNITS);
-
-    return {
-      associate,
-      flooredCents,
-      fractionalRemainder: numerator % HUNDRED_PERCENT_UNITS,
-    };
-  });
-
-  const allocatedCents = baseAllocations.reduce((sum, allocation) => sum + allocation.flooredCents, 0);
-  const remainingCents = amountCents - allocatedCents;
-  const recipients = [...baseAllocations].sort((left, right) => {
-    if (right.fractionalRemainder !== left.fractionalRemainder) {
-      return right.fractionalRemainder - left.fractionalRemainder;
-    }
-
-    return Number(left.associate.id) - Number(right.associate.id);
-  });
-
-  recipients.slice(0, remainingCents).forEach((allocation) => {
-    allocation.flooredCents += 1;
-  });
-
-  return baseAllocations
-    .map((allocation) => ({
-      associate: allocation.associate,
-      amountCents: allocation.flooredCents,
-      roundingAdjustmentCents: allocation.flooredCents > Math.floor((amountCents * allocation.associate.participationUnits) / HUNDRED_PERCENT_UNITS)
-        ? 1
-        : 0,
-    }))
-    .sort((left, right) => Number(left.associate.id) - Number(right.associate.id));
-};
-
-/**
- * Validates and normalizes the active associate pool before proportional
- * distributions so allocated money always closes against exactly 100.0000%.
- * @param {Array<object>} associates
- * @returns {Array<object>} Associates with normalized participation units.
- * @throws {ValidationError} When the active pool is empty, incomplete, or does not total 100%.
- */
-const validateEligibleParticipationPool = (associates) => {
-  if (!associates.length) {
-    throw new ValidationError('Debe existir al menos un socio activo para distribuir utilidades.');
-  }
-
-  const errors = [];
-  let totalUnits = 0;
-  const normalizedAssociates = associates.map((associate) => {
-    const participationUnits = parsePercentageToUnits(associate.participationPercentage);
-
-    if (participationUnits === null) {
-      errors.push({
-        field: 'participationPercentage',
-        message: 'Completa el porcentaje de participación de todos los socios activos.',
-      });
-      return { ...normalizeAssociateRecord(associate), participationUnits: null };
-    }
-
-    if (participationUnits <= 0) {
-      errors.push({
-        field: 'participationPercentage',
-        message: 'Los porcentajes de participación de socios activos deben ser mayores que cero.',
-      });
-    }
-
-    totalUnits += participationUnits;
-
-    return {
-      ...normalizeAssociateRecord(associate),
-      participationUnits,
-    };
-  });
-
-  if (errors.length > 0) {
-    const error = new ValidationError('Completa la participación de los socios activos antes de distribuir utilidades.');
-    error.errors = errors;
-    throw error;
-  }
-
-  if (totalUnits !== HUNDRED_PERCENT_UNITS) {
-    throw new ValidationError('La participación activa de socios debe sumar exactamente 100%.');
-  }
-
-  return normalizedAssociates;
 };
 
 const buildAssociateConflictError = ({ existingAssociate, email, phone }) => {
@@ -1006,8 +871,13 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination, f
 
   if (pagination) {
     const result = await associateRepository.listPage({ ...pagination, filters: normalizedFilters });
+    const normalizedItems = result.items.map(normalizeAssociateRecord);
+    const items = await hydrateAssociateListFinancialSnapshot({
+      associateRepository,
+      associates: normalizedItems,
+    });
     const response = {
-      items: result.items.map(normalizeAssociateRecord),
+      items,
       pagination: result.pagination,
     };
     if (summary) {
@@ -1017,7 +887,11 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination, f
   }
 
   const associates = await associateRepository.list(normalizedFilters);
-  const items = associates.map(normalizeAssociateRecord);
+  const normalizedItems = associates.map(normalizeAssociateRecord);
+  const items = await hydrateAssociateListFinancialSnapshot({
+    associateRepository,
+    associates: normalizedItems,
+  });
   return summary ? { items, summary } : items;
 };
 
@@ -1040,10 +914,11 @@ const createCreateAssociate = ({ associateRepository, auditService }) => {
     const createAssociateWithFinancialTrace = async (transaction) => {
       const associate = await associateRepository.create(normalizedPayload, { transaction });
       if (initialCapital !== null) {
+        const operationDate = new Date();
         await associateRepository.createContribution({
           associateId: associate.id,
           amount: initialCapital,
-          contributionDate: normalizedPayload.interestStartsAt ? new Date(normalizedPayload.interestStartsAt) : new Date(),
+          contributionDate: operationDate,
           ...buildContributionTermsSnapshot(associate),
           createdByUserId: actor?.id || null,
           notes: 'Capital inicial registrado al crear el socio',
@@ -1053,7 +928,7 @@ const createCreateAssociate = ({ associateRepository, auditService }) => {
           associateRepository,
           associate,
           transaction,
-          fromDate: normalizedPayload.interestStartsAt ? new Date(normalizedPayload.interestStartsAt) : new Date(),
+          fromDate: operationDate,
           capitalBaseOverride: initialCapital,
         });
       }
@@ -1333,9 +1208,7 @@ const getInterestPaymentDisplayType = (payment) => {
   }
 
   if (payment?.paymentType === 'manual') {
-    return payment?.distributionType === 'proportional'
-      ? 'Pago proporcional de rentabilidad'
-      : 'Pago manual de rentabilidad';
+    return 'Pago manual de rentabilidad';
   }
 
   const installmentNumber = Number(payment?.installmentNumber || 0);
@@ -1425,37 +1298,13 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
 
   const associateRows = normalizedAssociates.map((associate) => {
     const associateId = Number(associate.id);
-    const contributions = contributionsByAssociate.get(associateId) || [];
-    const distributions = distributionsByAssociate.get(associateId) || [];
-    const capitalBearingContributions = filterCapitalBearingContributions(contributions);
-    const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
-    const { capitalReturns, interestWithdrawals } = splitAssociateDistributions(distributions);
-    const installments = installmentsByAssociate.get(associateId) || [];
-    const pendingInstallments = installments.filter((installment) => resolveAssociateInstallmentStatus(installment, asOfDate) === 'pending');
-    const overdueInstallments = installments.filter((installment) => resolveAssociateInstallmentStatus(installment, asOfDate) === 'overdue');
-    const paidInstallments = installments.filter((installment) => installment.status === 'paid');
-    const scheduledInterestPaid = sumAmounts(paidInstallments);
-    const manualInterestPaid = sumAmounts(interestWithdrawals);
-    const nextInstallment = getFirstDatedInstallment([...overdueInstallments, ...pendingInstallments]);
-    const lastPaidInstallment = getLastPaidInstallment(paidInstallments);
-
-    return {
+    return buildAssociateTrackingRowSnapshot({
       associate,
-      totalContributed: sumAmounts(capitalBearingContributions),
-      currentCapital: roundCurrency(capitalState.totalCurrentCapital),
-      totalCapitalReturned: capitalReturns.reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
-      interestPending: sumAmounts(pendingInstallments),
-      interestOverdue: sumAmounts(overdueInstallments),
-      scheduledInterestPaid,
-      manualInterestPaid,
-      interestPaid: roundCurrency(scheduledInterestPaid + manualInterestPaid),
-      nextPaymentDate: nextInstallment?.dueDate ? toDateOnlyOrNull(nextInstallment.dueDate) : null,
-      lastPaymentDate: lastPaidInstallment?.paidAt ? toDateOnlyOrNull(lastPaidInstallment.paidAt) : null,
-      pendingInstallments: pendingInstallments.length,
-      overdueInstallments: overdueInstallments.length,
-      paidInstallments: paidInstallments.length,
-      debtStatus: overdueInstallments.length > 0 ? 'overdue' : (pendingInstallments.length > 0 ? 'pending' : 'current'),
-    };
+      contributions: contributionsByAssociate.get(associateId) || [],
+      distributions: distributionsByAssociate.get(associateId) || [],
+      installments: installmentsByAssociate.get(associateId) || [],
+      asOfDate,
+    });
   });
 
   const openObligations = normalizedInstallments
@@ -1809,157 +1658,8 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
 };
 
 /**
- * Creates the proportional profit distribution use case with idempotency,
- * deterministic allocation, transactional persistence, and audit recording.
- * @param {object} dependencies
- * @param {object} dependencies.associateRepository
- * @param {object} [dependencies.auditService]
- * @returns {Function} Use case for creating a proportional distribution batch.
- */
-const createCreateProportionalProfitDistribution = ({ associateRepository, auditService }) => {
-  const useCase = async ({ actor, idempotencyKey, payload }) => {
-    if (!['admin', 'employee'].includes(actor.role)) {
-      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar distribuciones proporcionales.');
-    }
-
-    const amountCents = parseCurrencyToCents(payload.amount);
-    const distributionDate = normalizeOptionalOperationDate(payload.distributionDate, 'distributionDate');
-
-    const notes = payload.notes ? String(payload.notes).trim() : null;
-    const customBasis = payload.basis && typeof payload.basis === 'object' ? payload.basis : {};
-    const idempotencyPayload = buildProportionalIdempotencyPayload({
-      amountCents,
-      distributionDate,
-      notes,
-      basis: customBasis,
-    });
-    const requestHash = idempotencyKey
-      ? buildProportionalIdempotencyRequestHash(idempotencyPayload)
-      : null;
-
-    const buildCreatedResult = ({ batchKey, eligibleAssociates, createdRows }) => serializeIdempotentDistributionResult({
-      batchKey,
-      idempotencyKey: idempotencyKey || null,
-      distributionDate: distributionDate.toISOString(),
-      declaredAmount: formatCurrency(amountCents / 100),
-      totalAllocatedAmount: formatCurrency(createdRows.reduce((sum, row) => sum + Number(row.amount || 0), 0)),
-      eligibleAssociateCount: eligibleAssociates.length,
-      createdRows: createdRows.map(normalizeDistributionRecord),
-    }, 'created');
-
-    const createDistributionBatch = async ({ transaction } = {}) => {
-      const eligibleAssociates = validateEligibleParticipationPool(
-        await associateRepository.listActiveAssociatesWithParticipation({ transaction }),
-      );
-      const allocations = allocateProportionalDistribution({ associates: eligibleAssociates, amountCents });
-      const batchKey = buildBatchKey({
-        actorId: actor.id,
-        distributionDate,
-        amountCents,
-        associateIds: eligibleAssociates.map((associate) => associate.id),
-      });
-      const createdRows = await associateRepository.createProfitDistributionBatch(
-        allocations.map((allocation) => ({
-          associateId: allocation.associate.id,
-          loanId: null,
-          amount: allocation.amountCents / 100,
-          distributionDate,
-          createdByUserId: actor.id,
-          notes,
-          basis: {
-            ...customBasis,
-            type: 'proportional-participation',
-            version: 1,
-            batchKey,
-            idempotencyKey: idempotencyKey || null,
-            participationPercentage: allocation.associate.participationPercentage,
-            sourceAmount: formatCurrency(amountCents / 100),
-            allocatedAmount: formatCurrency(allocation.amountCents / 100),
-            roundingAdjustment: formatCurrency(allocation.roundingAdjustmentCents / 100),
-            eligibleAssociateCount: eligibleAssociates.length,
-            manual: false,
-          },
-        })),
-        { transaction },
-      );
-
-      return buildCreatedResult({ batchKey, eligibleAssociates, createdRows });
-    };
-
-    if (!idempotencyKey) {
-      return createDistributionBatch();
-    }
-
-    const resolveExistingIdempotency = async () => {
-      const existingRecord = await associateRepository.findProportionalDistributionIdempotency({
-        actorId: actor.id,
-        idempotencyKey,
-      });
-
-      if (!existingRecord) {
-        return null;
-      }
-
-      if (existingRecord.requestHash !== requestHash) {
-        throw buildIdempotencyConflictError(PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_CONFLICT_MESSAGE);
-      }
-
-      if (existingRecord.status === 'completed') {
-        return serializeIdempotentDistributionResult(existingRecord.responsePayload, 'replayed');
-      }
-
-      throw buildIdempotencyConflictError(PROPORTIONAL_DISTRIBUTION_IDEMPOTENCY_PENDING_MESSAGE);
-    };
-
-    const existingResult = await resolveExistingIdempotency();
-    if (existingResult) {
-      return existingResult;
-    }
-
-    try {
-      return await associateRepository.runInTransaction(async (transaction) => {
-        await associateRepository.createProportionalDistributionIdempotency({
-          actorId: actor.id,
-          idempotencyKey,
-          requestHash,
-          status: 'pending',
-        }, { transaction });
-
-        const result = await createDistributionBatch({ transaction });
-
-        const idempotencyRecord = await associateRepository.findProportionalDistributionIdempotency({
-          actorId: actor.id,
-          idempotencyKey,
-          transaction,
-        });
-        await associateRepository.updateProportionalDistributionIdempotency(idempotencyRecord, {
-          status: 'completed',
-          responsePayload: result,
-        }, { transaction });
-
-        return result;
-      });
-    } catch (error) {
-      if (error?.name === 'SequelizeUniqueConstraintError') {
-        const replayedResult = await resolveExistingIdempotency();
-        if (replayedResult) {
-          return replayedResult;
-        }
-      }
-
-      throw error;
-    }
-  };
-
-  if (auditService) {
-    return withAudit({ auditService, action: 'CREATE', module: 'associates', getEntityId: () => null, getEntityType: () => 'ProportionalProfitDistribution' })(useCase);
-  }
-  return useCase;
-};
-
-/**
- * Create the use case that retrieves installments for an associate.
- * @param {{ associateRepository: object }} dependencies
+ * Create the use case that lists scheduled interest installments for an associate.
+ * @param {{ associateRepository: object, clock?: Function }} dependencies
  * @returns {Function}
  */
 const createGetAssociateInstallments = ({ associateRepository, clock = () => new Date() }) => async ({ actor, associateId }) => {
@@ -2105,7 +1805,7 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
     ...mapValidDatedRows(events.distributions, (d) => d.date, (d, date) => ({
       ...d,
       date,
-      displayType: d.displayType || 'Distribución',
+      displayType: d.displayType || 'Pago manual de rentabilidad',
       displayAmount: `-${d.amount.toFixed(2)}`,
     })),
     ...mapValidDatedRows(events.installments, (i) => i.dueDate, (i, date) => ({
@@ -2133,11 +1833,8 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
 };
 
 module.exports = {
-  allocateProportionalDistribution,
-  buildProportionalIdempotencyRequestHash,
   normalizeDistributionRecord,
   normalizeAssociateRecord,
-  normalizeParticipationPercentage,
   filterCapitalBearingContributions,
   createListAssociates,
   createCreateAssociate,
@@ -2150,7 +1847,6 @@ module.exports = {
   createCreateProfitDistribution,
   createCreateAssociateCapitalReturn,
   createCreateAssociateReinvestment,
-  createCreateProportionalProfitDistribution,
   createGetAssociateInstallments,
   createPayAssociateInstallment,
   createGetAssociateCalendar,

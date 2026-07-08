@@ -1,16 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, Calendar, CheckCircle, Clock, AlertCircle, CircleDollarSign } from 'lucide-react';
+import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
-import { useAssociateDetails } from '../services/associateService';
+import { exportAssociateFinancialSummary, useAssociateDetails } from '../services/associateService';
+import {
+  getAssociateInterestRateValue,
+  getAssociateInterestTypeValue,
+} from '../lib/associateInterest';
 import { parseFormattedPositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
 import { getPaymentMethodLabel } from '../constants/paymentTypes';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { AssociateDetailToolbar, type AssociateMoneyActionType } from './associateDetails/AssociateDetailToolbar';
+import AssociateModuleNavigation from './associates/AssociateModuleNavigation';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import { useResolvedPermissionNames } from '../services/permissionsService';
@@ -22,11 +27,11 @@ import {
   InsightStrip,
   ModalShell,
   CurrencyInput,
+  OperationalSelect,
   PageHeader,
   PageShell,
   SectionSurface,
   AppInput,
-  ViewTabs,
 } from './shared/Surfaces';
 import {
   AppTable,
@@ -47,7 +52,7 @@ const formatSignedCurrency = (value: unknown, type?: string, status?: string) =>
   const numericValue = Number(value || 0);
   const prefix = type === 'contribution'
     ? '+'
-    : (['distribution', 'capitalReturn', 'installment'].includes(String(type)) ? '-' : (status === 'paid' ? '✓ ' : ''));
+    : (['distribution', 'capitalReturn', 'installment', 'interest_payment'].includes(String(type)) ? '-' : (status === 'paid' ? '✓ ' : ''));
   return `${prefix}${formatAssociateCurrency(numericValue)}`;
 };
 
@@ -97,18 +102,22 @@ const getPaymentHistoryLabel = (entry: any) => {
     return tTerm('associateDetails.paymentHistory.capitalReturn');
   }
   if (paymentType === 'manual') {
-    return entry?.distributionType === 'proportional'
-      ? tTerm('associateDetails.paymentHistory.proportionalProfitability')
-      : tTerm('associateDetails.paymentHistory.manualProfitability');
+    return tTerm('associateDetails.paymentHistory.manualProfitability');
   }
   if (entry?.installmentNumber) {
     return tTerm('associateDetails.paymentHistory.installmentLabel', { number: entry.installmentNumber });
+  }
+  if (entry?.type === 'interest_payment' || entry?.paymentType === 'interest_payment') {
+    return tTerm('associateDetails.calendar.eventType.installment');
   }
   if (entry?.type === 'distribution') {
     return tTerm('associateDetails.calendar.eventType.distribution');
   }
   if (entry?.type === 'contribution') {
     return tTerm('associateDetails.calendar.eventType.contribution');
+  }
+  if (typeof entry?.displayType === 'string' && entry.displayType.trim()) {
+    return entry.displayType.trim();
   }
   return tTerm('common.notAvailable');
 };
@@ -117,7 +126,7 @@ const getCalendarEventBadgeClass = (event: any) => {
   if (event?.type === 'contribution') {
     return 'bg-emerald-100 text-emerald-700';
   }
-  if (event?.type === 'installment') {
+  if (event?.type === 'installment' || event?.type === 'interest_payment') {
     return 'bg-amber-100 text-amber-700';
   }
   if (event?.type === 'distribution') {
@@ -135,13 +144,268 @@ const getCalendarEventBadgeClass = (event: any) => {
 const getCalendarEventTypeLabel = (event: any) => {
   if (event?.type === 'contribution') return tTerm('associateDetails.calendar.eventType.contribution');
   if (event?.type === 'distribution') return tTerm('associateDetails.calendar.eventType.distribution');
-  if (event?.type === 'installment') return tTerm('associateDetails.calendar.eventType.installment');
+  if (event?.type === 'installment' || event?.type === 'interest_payment') return tTerm('associateDetails.calendar.eventType.installment');
   return tTerm('common.notAvailable');
 };
 
 const formatAlertDayCount = (value: unknown) => {
   const days = Number(value || 0);
   return formatNumber(days, { maximumFractionDigits: 0 });
+};
+
+const buildCompactOperationalSummary = (items: Array<{ label: string; value: string; helper?: string }>) => (
+  items
+    .filter((item) => item.value.trim().length > 0)
+    .map((item) => `${item.label}: ${item.value}${item.helper ? ` (${item.helper})` : ''}`)
+    .join(' · ')
+);
+
+const normalizeNumericValue = (value: unknown) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const resolveMoneyFallback = (...values: unknown[]) => {
+  for (const value of values) {
+    const numericValue = normalizeNumericValue(value);
+    if (numericValue !== null) {
+      return numericValue;
+    }
+  }
+
+  return 0;
+};
+
+const resolveUserLabel = (...values: unknown[]) => {
+  for (const value of values) {
+    if (!value) {
+      continue;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      if (normalized) {
+        return normalized;
+      }
+      continue;
+    }
+
+    if (typeof value === 'object') {
+      const userValue = value as { name?: string; email?: string };
+      const candidate = userValue.name || userValue.email;
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+  }
+
+  return '-';
+};
+
+const toUtcDateOnly = (value: unknown) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(String(value));
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return Date.UTC(
+    parsedDate.getUTCFullYear(),
+    parsedDate.getUTCMonth(),
+    parsedDate.getUTCDate(),
+  );
+};
+
+const diffCalendarDaysUtc = (left: unknown, right: unknown) => {
+  const leftUtc = toUtcDateOnly(left);
+  const rightUtc = toUtcDateOnly(right);
+  if (leftUtc === null || rightUtc === null) {
+    return null;
+  }
+
+  return Math.round((leftUtc - rightUtc) / (24 * 60 * 60 * 1000));
+};
+
+const normalizeAssociatePaymentHistoryEntry = (entry: any) => ({
+  ...entry,
+  paymentType: entry?.paymentType ?? entry?.type ?? null,
+  distributionType: entry?.distributionType ?? entry?.movementType ?? null,
+  displayType: entry?.displayType ?? entry?.label ?? null,
+  installmentNumber: entry?.installmentNumber ?? null,
+  amount: resolveMoneyFallback(entry?.amount, entry?.value, entry?.totalAmount),
+  dueDate: entry?.dueDate ?? entry?.scheduledDate ?? null,
+  paidAt: entry?.paidAt ?? entry?.distributionDate ?? entry?.paymentDate ?? entry?.date ?? null,
+  paymentMethod: entry?.paymentMethod ?? entry?.method ?? null,
+  paidByUser: entry?.paidByUser ?? entry?.createdBy ?? null,
+  paidBy: entry?.paidBy ?? entry?.responsible ?? null,
+  responsibleUser: entry?.responsibleUser ?? entry?.createdBy ?? entry?.paidBy ?? null,
+});
+
+const getAssociatePaymentMethodLabel = (value: unknown) => {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) {
+    return getPaymentMethodLabel(value);
+  }
+
+  const catalogLabel = getPaymentMethodLabel(rawValue);
+  return catalogLabel === tTerm('payment.method.unknown') ? rawValue : catalogLabel;
+};
+
+const normalizeAssociateAlertEntry = (alert: any, installmentsByNumber: Map<number, any>, asOfDate: Date) => {
+  const normalizedType = String(alert?.type || '').toLowerCase();
+  if (!['overdue', 'upcoming'].includes(normalizedType)) {
+    return null;
+  }
+
+  const installmentNumber = normalizeNumericValue(alert?.installmentNumber);
+  const relatedInstallment = installmentNumber !== null
+    ? installmentsByNumber.get(installmentNumber)
+    : null;
+  const dueDate = alert?.dueDate ?? relatedInstallment?.dueDate ?? null;
+  const amount = resolveMoneyFallback(alert?.amount, relatedInstallment?.amount);
+  const dayDelta = diffCalendarDaysUtc(dueDate, asOfDate);
+
+  if (!dueDate || dayDelta === null) {
+    return null;
+  }
+
+  if (normalizedType === 'overdue') {
+    const explicitDaysOverdue = normalizeNumericValue(alert?.daysOverdue);
+    if (explicitDaysOverdue === null && dayDelta > 0) {
+      return null;
+    }
+
+    return {
+      ...alert,
+      type: 'overdue',
+      installmentNumber,
+      amount,
+      dueDate,
+      daysUntilDue: null,
+      daysOverdue: explicitDaysOverdue ?? Math.abs(dayDelta),
+    };
+  }
+
+  const explicitDaysUntilDue = normalizeNumericValue(alert?.daysUntilDue);
+  if (explicitDaysUntilDue === null && dayDelta < 0) {
+    return null;
+  }
+
+  return {
+    ...alert,
+    type: 'upcoming',
+    installmentNumber,
+    amount,
+    dueDate,
+    daysUntilDue: explicitDaysUntilDue ?? Math.max(dayDelta, 0),
+    daysOverdue: null,
+  };
+};
+
+const buildFallbackAssociateAlerts = (installments: any[], asOfDate: Date) => installments
+  .map((installment) => {
+    const dueDate = installment?.dueDate;
+    const dayDelta = diffCalendarDaysUtc(dueDate, asOfDate);
+    if (!dueDate || dayDelta === null) {
+      return null;
+    }
+
+    const normalizedStatus = String(installment?.status || '').toLowerCase();
+    if (['paid', 'completed'].includes(normalizedStatus)) {
+      return null;
+    }
+
+    if (normalizedStatus === 'overdue' || dayDelta < 0) {
+      return {
+        type: 'overdue',
+        installmentNumber: normalizeNumericValue(installment?.installmentNumber),
+        amount: resolveMoneyFallback(installment?.amount),
+        dueDate,
+        daysUntilDue: null,
+        daysOverdue: Math.abs(dayDelta),
+      };
+    }
+
+    if (normalizedStatus === 'pending') {
+      return {
+        type: 'upcoming',
+        installmentNumber: normalizeNumericValue(installment?.installmentNumber),
+        amount: resolveMoneyFallback(installment?.amount),
+        dueDate,
+        daysUntilDue: Math.max(dayDelta, 0),
+        daysOverdue: null,
+      };
+    }
+
+    return null;
+  })
+  .filter(Boolean);
+
+const resolveInterestDebtValue = (detailsSummary: any, associate: any) => {
+  if (detailsSummary?.interestDebt !== undefined && detailsSummary?.interestDebt !== null) {
+    return resolveMoneyFallback(detailsSummary.interestDebt);
+  }
+
+  if (detailsSummary?.pendingInterest !== undefined && detailsSummary?.pendingInterest !== null) {
+    return resolveMoneyFallback(detailsSummary.pendingInterest);
+  }
+
+  if (detailsSummary?.interestPending !== undefined || detailsSummary?.interestOverdue !== undefined) {
+    return resolveMoneyFallback(detailsSummary?.interestPending) + resolveMoneyFallback(detailsSummary?.interestOverdue);
+  }
+
+  if (associate?.pendingInterest !== undefined || associate?.interestPending !== undefined || associate?.interestOverdue !== undefined) {
+    return resolveMoneyFallback(associate?.pendingInterest, associate?.interestPending) + resolveMoneyFallback(associate?.interestOverdue);
+  }
+
+  return 0;
+};
+
+const sumInstallmentAmountsByStatus = (rows: any[], statuses: string[]) => rows.reduce((total, row) => {
+  const normalizedStatus = String(row?.status || '').toLowerCase();
+  if (!statuses.includes(normalizedStatus)) return total;
+  return total + Number(row?.amount || 0);
+}, 0);
+
+const normalizeAssociateInstallmentsData = (value: any) => {
+  const rows = Array.isArray(value)
+    ? value
+    : (Array.isArray(value?.installments) ? value.installments : []);
+  const totals = value && !Array.isArray(value) && value.totals
+    ? value.totals
+    : {};
+
+  return {
+    installments: rows,
+    totals: {
+      totalPending: totals.totalPending ?? sumInstallmentAmountsByStatus(rows, ['pending']),
+      totalPaid: totals.totalPaid ?? sumInstallmentAmountsByStatus(rows, ['paid']),
+      totalOverdue: totals.totalOverdue ?? sumInstallmentAmountsByStatus(rows, ['overdue']),
+    },
+    alerts: Array.isArray(value?.alerts) ? value.alerts : [],
+  };
+};
+
+const normalizeAssociateCalendarData = (value: any) => {
+  const events = Array.isArray(value)
+    ? value
+    : (Array.isArray(value?.events) ? value.events : []);
+  const summary = value && !Array.isArray(value) && value.summary
+    ? value.summary
+    : {};
+
+  return {
+    events,
+    summary: {
+      contributionCount: summary.contributionCount ?? events.filter((event: any) => event?.type === 'contribution').length,
+      distributionCount: summary.distributionCount ?? events.filter((event: any) => event?.type === 'distribution').length,
+      installmentCount: summary.installmentCount ?? events.filter((event: any) => event?.type === 'installment' || event?.type === 'interest_payment').length,
+      pendingInstallments: summary.pendingInstallments ?? events.filter((event: any) => String(event?.status || '').toLowerCase() === 'pending').length,
+    },
+  };
 };
 
 const getTodayDateInputValue = () => {
@@ -222,6 +486,7 @@ export default function AssociateDetails() {
     paymentDate: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExportingFinancialSummary, setIsExportingFinancialSummary] = useState(false);
   const [paymentHistoryPage, setPaymentHistoryPage] = useState(1);
   const [paymentHistoryPageSize, setPaymentHistoryPageSize] = useState<number>(DETAILS_PAGE_SIZE_OPTIONS[0]);
   const [installmentsPage, setInstallmentsPage] = useState(1);
@@ -239,11 +504,19 @@ export default function AssociateDetails() {
     }
   }, [associateId]);
 
-  const detailsSummary = details?.summary;
-  const paymentHistory = Array.isArray(details?.paymentHistory) ? details.paymentHistory : [];
-  const installmentsData = installments || { installments: [], totals: { totalPending: 0, totalPaid: 0, totalOverdue: 0 }, alerts: [] };
-  const calendarData = calendar || { events: [], summary: { contributionCount: 0, distributionCount: 0, installmentCount: 0, pendingInstallments: 0 } };
-  const calendarEvents = Array.isArray(calendarData.events) ? calendarData.events : [];
+  const detailsSummary = {
+    ...(details?.financials ?? {}),
+    ...(details?.summary ?? {}),
+  };
+  const paymentHistory = (Array.isArray(details?.paymentHistory)
+    ? details.paymentHistory
+    : (Array.isArray(details?.payments)
+      ? details.payments
+      : (Array.isArray(details?.distributions) ? details.distributions : [])))
+    .map(normalizeAssociatePaymentHistoryEntry);
+  const installmentsData = normalizeAssociateInstallmentsData(installments);
+  const calendarData = normalizeAssociateCalendarData(calendar);
+  const calendarEvents = calendarData.events;
 
   const paymentHistoryTotalPages = Math.max(1, Math.ceil(paymentHistory.length / paymentHistoryPageSize));
   const currentPaymentHistoryPage = Math.min(paymentHistoryPage, paymentHistoryTotalPages);
@@ -339,23 +612,50 @@ export default function AssociateDetails() {
     ? associate.name.trim()
     : [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || tTerm('associateDetails.fallback.name');
 
-  const totalContributions = detailsSummary?.totalContributed ?? details?.totalContributions ?? 0;
-  const currentCapital = detailsSummary?.currentCapital ?? totalContributions;
-  const totalCapitalReturned = detailsSummary?.totalCapitalReturned ?? 0;
-  const totalInterestPaid = detailsSummary?.totalInterestPaid ?? 0;
-  const interestDebt = detailsSummary?.interestDebt ?? 0;
-  const nextInterestPaymentDate = detailsSummary?.nextInterestPaymentDate ?? null;
+  const totalContributions = resolveMoneyFallback(detailsSummary?.totalContributed, details?.totalContributions, associate?.totalContributed);
+  const currentCapital = resolveMoneyFallback(detailsSummary?.currentCapital, associate?.currentCapital, totalContributions);
+  const totalCapitalReturned = resolveMoneyFallback(detailsSummary?.totalCapitalReturned, detailsSummary?.capitalReturned, associate?.totalCapitalReturned);
+  const totalInterestPaid = resolveMoneyFallback(
+    detailsSummary?.totalInterestPaid,
+    detailsSummary?.paidInterest,
+    detailsSummary?.interestPaid,
+    associate?.paidInterest,
+    associate?.interestPaid,
+  );
+  const interestDebt = resolveInterestDebtValue(detailsSummary, associate);
+  const nextInterestPaymentDate = detailsSummary?.nextInterestPaymentDate ?? detailsSummary?.nextPaymentDate ?? associate?.nextPaymentDate ?? null;
   const debtStatus = getDebtStatusLabel(detailsSummary?.debtStatus);
-  const interestTypeLabel = tTerm(associate?.interestType === 'annual' ? 'common.interestType.annual' : 'common.interestType.monthly').toLowerCase();
-  const interestRateLabel = tTerm('associateDetails.interestRateLabel', {
-    rate: formatNumber(associate?.interestRate || 0, { maximumFractionDigits: 4 }),
-    interestType: interestTypeLabel,
-  });
+  const interestRate = getAssociateInterestRateValue(associate);
+  const interestType = getAssociateInterestTypeValue(associate);
+  const interestTypeLabel = interestType
+    ? tTerm(interestType === 'annual' ? 'common.interestType.annual' : 'common.interestType.monthly').toLowerCase()
+    : null;
+  const interestRateLabel = interestRate !== null && interestTypeLabel
+    ? tTerm('associateDetails.interestRateLabel', {
+      rate: formatNumber(interestRate, { maximumFractionDigits: 4 }),
+      interestType: interestTypeLabel,
+    })
+    : tTerm('common.notSpecified');
 
-  const associatePaymentAlerts = Array.isArray(installmentsData.alerts) ? installmentsData.alerts : [];
+  const asOfDate = new Date();
+  const installmentsByNumber = new Map<number, any>(
+    installmentsData.installments
+      .map((installment: any) => [normalizeNumericValue(installment?.installmentNumber), installment] as const)
+      .filter((entry: readonly [number | null, any]): entry is readonly [number, any] => entry[0] !== null),
+  );
+  const normalizedAssociateAlerts = (Array.isArray(installmentsData.alerts) ? installmentsData.alerts : [])
+    .map((alert: any) => normalizeAssociateAlertEntry(alert, installmentsByNumber, asOfDate))
+    .filter(Boolean);
+  const associatePaymentAlerts = normalizedAssociateAlerts.length > 0
+    ? normalizedAssociateAlerts
+    : buildFallbackAssociateAlerts(installmentsData.installments, asOfDate);
 
   const getAssociatePaymentAlertTitle = (alert: any) => {
-    const installmentNumber = alert?.installmentNumber ?? tTerm('common.notAvailable');
+    if (!Number.isFinite(Number(alert?.installmentNumber))) {
+      return null;
+    }
+
+    const installmentNumber = Number(alert.installmentNumber);
     if (alert?.type === 'overdue') {
       return tTerm(Number(alert.daysOverdue) === 1
         ? 'associateDetails.alerts.item.overdue.one'
@@ -448,6 +748,22 @@ export default function AssociateDetails() {
     setShowModal(action);
   };
 
+  const handleExportFinancialSummary = async () => {
+    if (!Number.isFinite(associateId) || isExportingFinancialSummary) {
+      return;
+    }
+
+    try {
+      setIsExportingFinancialSummary(true);
+      await exportAssociateFinancialSummary(associateId);
+      toast.success({ title: tTerm('associateDetails.toast.exportFinancialSummary.success') });
+    } catch (error) {
+      toast.apiErrorSafe(error, { domain: 'associates' });
+    } finally {
+      setIsExportingFinancialSummary(false);
+    }
+  };
+
   const handleOpenPayInstallmentModal = (installmentNumber: number) => {
     setPayingInstallmentNumber(installmentNumber);
     setInstallmentPaymentErrors({
@@ -506,49 +822,34 @@ export default function AssociateDetails() {
 
   const renderOverviewTab = () => (
     <div className="space-y-6">
-      <InsightStrip
-        className="associate-detail-summary-strip"
-        aria-label={tTerm('associateDetails.overview.ariaLabel')}
-        items={[
+      <p className="associate-detail-summary-line" aria-label={tTerm('associateDetails.overview.ariaLabel')}>
+        {buildCompactOperationalSummary([
           {
-            id: 'associate-detail-capital',
             label: tTerm('associateDetails.overview.metric.currentCapital'),
             value: formatAssociateCurrency(currentCapital),
             helper: tTerm('associateDetails.overview.metric.currentCapitalHelper', {
               contributed: formatAssociateCurrency(totalContributions),
               returned: formatAssociateCurrency(totalCapitalReturned),
             }),
-            icon: <Wallet size={18} />,
-            accent: 'blue',
           },
           {
-            id: 'associate-detail-interest-paid',
             label: tTerm('associateDetails.overview.metric.interestPaid'),
             value: formatAssociateCurrency(totalInterestPaid),
-            helper: tTerm('associateDetails.overview.metric.interestPaidHelper.recognized'),
-            icon: <CheckCircle size={18} />,
-            accent: 'emerald',
           },
           {
-            id: 'associate-detail-debt',
             label: tTerm('associateDetails.overview.metric.debt'),
             value: formatAssociateCurrency(interestDebt),
             helper: interestDebt > 0
               ? tTerm('associateDetails.overview.metric.debtHelper.pending')
               : tTerm('associateDetails.overview.metric.debtHelper.none'),
-            icon: <AlertCircle size={18} />,
-            accent: interestDebt > 0 ? 'rose' : 'slate',
           },
           {
-            id: 'associate-detail-next-payment',
             label: tTerm('associateDetails.overview.metric.nextPayment'),
             value: nextInterestPaymentDate ? formatAssociateDate(nextInterestPaymentDate) : tTerm('associateDetails.overview.metric.nextPayment.none'),
             helper: tTerm('associateDetails.overview.metric.nextPaymentHelper'),
-            icon: <Calendar size={18} />,
-            accent: 'slate',
           },
-        ]}
-      />
+        ])}
+      </p>
 
       {associatePaymentAlerts.length > 0 && (
         <SectionSurface
@@ -556,124 +857,71 @@ export default function AssociateDetails() {
           subtitle={tTerm('associateDetails.alerts.description')}
           bodyClassName="grid gap-2"
         >
-          {associatePaymentAlerts.map((alert: any) => (
-            <div
-              key={`associate-payment-alert-${alert.type}-${alert.installmentNumber}-${alert.dueDate}`}
-              className={`flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
-                alert.type === 'overdue'
-                  ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100'
-                  : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100'
-              }`}
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">{getAssociatePaymentAlertTitle(alert)}</p>
-                <p className="mt-1 text-xs opacity-80">
-                  {tTerm('associateDetails.alerts.item.detail', {
-                    amount: formatAssociateCurrency(alert.amount),
-                    date: formatAssociateDate(alert.dueDate),
-                  })}
-                </p>
+          {associatePaymentAlerts.map((alert: any) => {
+            const title = getAssociatePaymentAlertTitle(alert);
+            if (!title) {
+              return null;
+            }
+
+            return (
+              <div
+                key={`associate-payment-alert-${alert.type}-${alert.installmentNumber}-${alert.dueDate}`}
+                className={`flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                  alert.type === 'overdue'
+                    ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100'
+                    : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100'
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{title}</p>
+                  <p className="mt-1 text-xs opacity-80">
+                    {tTerm('associateDetails.alerts.item.detail', {
+                      amount: formatAssociateCurrency(alert.amount),
+                      date: formatAssociateDate(alert.dueDate),
+                    })}
+                  </p>
+                </div>
+                <span className="inline-flex w-fit items-center rounded-full bg-bg-surface/80 px-2.5 py-1 text-xs font-semibold text-text-primary">
+                  {alert.type === 'overdue' ? tTerm('schedule.status.overdue') : tTerm('schedule.status.pending')}
+                </span>
               </div>
-              <span className="inline-flex w-fit items-center rounded-full bg-bg-surface/80 px-2.5 py-1 text-xs font-semibold text-text-primary">
-                {alert.type === 'overdue' ? tTerm('schedule.status.overdue') : tTerm('schedule.status.pending')}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </SectionSurface>
       )}
-
-      <DataTableSurface>
-        <TableSectionIntro
-          embedded
-          title={tTerm('associateDetails.paymentHistory.title')}
-          description={tTerm('associateDetails.paymentHistory.description')}
-        />
-        <AppTable variant="operational"
-          hasData={paymentHistory.length > 0}
-          emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.paymentHistory.empty')}</div>}
-          recordsLabel={tTerm('associateDetails.paymentHistory.recordsLabel')}
-          pagination={paymentHistoryPagination}
-          className={TABLE_EMBEDDED_SHELL_CLASS}
-          surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
-        >
-            <thead>
-              <tr>
-                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.installment')}</th>
-                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.amount')}</th>
-                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.dueDate')}</th>
-                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.paidAt')}</th>
-                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.method')}</th>
-                <th className="font-medium">{tTerm('associateTracking.table.responsibleUser')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedPaymentHistory.map((entry: any) => (
-                <tr key={`associate-payment-history-${entry.id}-${entry.installmentNumber}`}>
-                  <td>
-                    <p className="font-medium text-text-primary">
-                      {getPaymentHistoryLabel(entry)}
-                    </p>
-                  </td>
-                  <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
-                  <td>{formatAssociateDate(entry.dueDate)}</td>
-                  <td>{formatAssociateDate(entry.paidAt)}</td>
-                  <td className="text-text-secondary">{getPaymentMethodLabel(entry.paymentMethod)}</td>
-                  <td className="text-text-secondary">{entry.paidByUser?.name || entry.paidByUser?.email || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-        </AppTable>
-      </DataTableSurface>
 
     </div>
   );
 
   const renderInstallmentsTab = () => (
     <div className="space-y-4">
-      <InsightStrip
-        aria-label={tTerm('associateDetails.installments.ariaLabel')}
-        items={[
-          {
-            id: 'associate-installments-pending',
-            label: tTerm('associateDetails.installments.metric.pending'),
-            value: formatAssociateCurrency(installmentsData.totals.totalPending),
-            helper: tTerm('associateDetails.installments.metric.pendingHelper'),
-            icon: <Clock size={18} />,
-            accent: 'amber',
-          },
-          {
-            id: 'associate-installments-paid',
-            label: tTerm('associateDetails.installments.metric.paid'),
-            value: formatAssociateCurrency(installmentsData.totals.totalPaid),
-            helper: tTerm('associateDetails.installments.metric.paidHelper'),
-            icon: <CheckCircle size={18} />,
-            accent: 'emerald',
-          },
-          {
-            id: 'associate-installments-overdue',
-            label: tTerm('associateDetails.installments.metric.overdue'),
-            value: formatAssociateCurrency(installmentsData.totals.totalOverdue),
-            helper: tTerm('associateDetails.installments.metric.overdueHelper'),
-            icon: <AlertCircle size={18} />,
-            accent: Number(installmentsData.totals.totalOverdue || 0) > 0 ? 'rose' : 'slate',
-          },
-          {
-            id: 'associate-installments-count',
-            label: tTerm('associateDetails.installments.metric.count'),
-            value: formatNumber(installmentsData.installments.length),
-            helper: tTerm('associateDetails.installments.metric.countHelper'),
-            icon: <Calendar size={18} />,
-            accent: 'slate',
-          },
-        ]}
-      />
-
-      {/* Installments Table */}
       <DataTableSurface>
         <TableSectionIntro
           embedded
           title={tTerm('associateDetails.installments.title')}
           description={tTerm('associateDetails.installments.description')}
+          aside={(
+            <p className="max-w-[28rem] text-xs leading-5 text-text-secondary">
+              {buildCompactOperationalSummary([
+                {
+                  label: tTerm('associateDetails.installments.metric.pending'),
+                  value: formatAssociateCurrency(installmentsData.totals.totalPending),
+                },
+                {
+                  label: tTerm('associateDetails.installments.metric.paid'),
+                  value: formatAssociateCurrency(installmentsData.totals.totalPaid),
+                },
+                {
+                  label: tTerm('associateDetails.installments.metric.overdue'),
+                  value: formatAssociateCurrency(installmentsData.totals.totalOverdue),
+                },
+                {
+                  label: tTerm('associateDetails.installments.metric.count'),
+                  value: formatNumber(installmentsData.installments.length),
+                },
+              ])}
+            </p>
+          )}
         />
         <AppTable variant="operational"
           hasData={installmentsData.installments.length > 0}
@@ -730,55 +978,87 @@ export default function AssociateDetails() {
             </tbody>
         </AppTable>
       </DataTableSurface>
+
+      <DataTableSurface>
+        <TableSectionIntro
+          embedded
+          title={tTerm('associateDetails.paymentHistory.title')}
+          description={tTerm('associateDetails.paymentHistory.description')}
+        />
+        <AppTable variant="operational"
+          hasData={paymentHistory.length > 0}
+          emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.paymentHistory.empty')}</div>}
+          recordsLabel={tTerm('associateDetails.paymentHistory.recordsLabel')}
+          pagination={paymentHistoryPagination}
+          className={TABLE_EMBEDDED_SHELL_CLASS}
+          surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
+        >
+            <thead>
+              <tr>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.installment')}</th>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.amount')}</th>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.dueDate')}</th>
+                <th className="font-medium">{tTerm('associateTracking.table.registration')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedPaymentHistory.map((entry: any) => (
+                <tr key={`associate-payment-history-${entry.id}-${entry.installmentNumber}`}>
+                  <td>
+                    <p className="font-medium text-text-primary">
+                      {getPaymentHistoryLabel(entry)}
+                    </p>
+                  </td>
+                  <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
+                  <td>{formatAssociateDate(entry.dueDate ?? entry.paymentDate ?? entry.date)}</td>
+                  <td>
+                    <div className="report-record-stack">
+                      <p className="report-record-stack__title">{formatAssociateDate(entry.paidAt ?? entry.paymentDate ?? entry.date)}</p>
+                      <p className="report-record-stack__meta">
+                        {[
+                          getAssociatePaymentMethodLabel(entry.paymentMethod),
+                          resolveUserLabel(entry.paidByUser, entry.paidBy, entry.responsibleUser, entry.createdBy),
+                        ].filter((value) => value && value !== '-' && value !== tTerm('common.notAvailable')).join(' · ') || tTerm('common.notAvailable')}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+        </AppTable>
+      </DataTableSurface>
     </div>
   );
 
   const renderCalendarTab = () => (
     <div className="space-y-4">
-      <InsightStrip
-        aria-label={tTerm('associateDetails.calendar.ariaLabel')}
-        items={[
-          {
-            id: 'associate-calendar-contributions',
-            label: tTerm('associateDetails.calendar.metric.contributions'),
-            value: formatNumber(calendarData.summary.contributionCount),
-            helper: tTerm('associateDetails.calendar.metric.contributionsHelper'),
-            icon: <Wallet size={18} />,
-            accent: 'blue',
-          },
-          {
-            id: 'associate-calendar-distributions',
-            label: tTerm('associateDetails.calendar.metric.distributions'),
-            value: formatNumber(calendarData.summary.distributionCount),
-            helper: tTerm('associateDetails.calendar.metric.distributionsHelper'),
-            icon: <CircleDollarSign size={18} />,
-            accent: 'emerald',
-          },
-          {
-            id: 'associate-calendar-installments',
-            label: tTerm('associateDetails.calendar.metric.installments'),
-            value: formatNumber(calendarData.summary.installmentCount),
-            helper: tTerm('associateDetails.calendar.metric.installmentsHelper'),
-            icon: <Calendar size={18} />,
-            accent: 'slate',
-          },
-          {
-            id: 'associate-calendar-pending',
-            label: tTerm('associateDetails.calendar.metric.pending'),
-            value: formatNumber(calendarData.summary.pendingInstallments),
-            helper: tTerm('associateDetails.calendar.metric.pendingHelper'),
-            icon: <Clock size={18} />,
-            accent: calendarData.summary.pendingInstallments > 0 ? 'amber' : 'slate',
-          },
-        ]}
-      />
-
-      {/* Calendar Events */}
       <DataTableSurface>
         <TableSectionIntro
           embedded
           title={tTerm('associateDetails.calendar.title')}
           description={tTerm('associateDetails.calendar.description')}
+          aside={(
+            <p className="max-w-[28rem] text-xs leading-5 text-text-secondary">
+              {buildCompactOperationalSummary([
+                {
+                  label: tTerm('associateDetails.calendar.metric.contributions'),
+                  value: formatNumber(calendarData.summary.contributionCount),
+                },
+                {
+                  label: tTerm('associateDetails.calendar.metric.distributions'),
+                  value: formatNumber(calendarData.summary.distributionCount),
+                },
+                {
+                  label: tTerm('associateDetails.calendar.metric.installments'),
+                  value: formatNumber(calendarData.summary.installmentCount),
+                },
+                {
+                  label: tTerm('associateDetails.calendar.metric.pending'),
+                  value: formatNumber(calendarData.summary.pendingInstallments),
+                },
+              ])}
+            </p>
+          )}
         />
         <div className="border-b border-border-subtle px-4 py-4 sm:px-5">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -837,6 +1117,23 @@ export default function AssociateDetails() {
     </div>
   );
 
+  const detailViewOptions = [
+    {
+      id: 'overview',
+      label: tTerm('associateDetails.tab.overview'),
+    },
+    {
+      id: 'installments',
+      label: tTerm('associateDetails.tab.installments'),
+      count: installmentsData.installments.length,
+    },
+    {
+      id: 'calendar',
+      label: tTerm('associateDetails.tab.calendar'),
+      count: calendarEvents.length,
+    },
+  ] satisfies Array<{ id: TabType; label: string; count?: number }>;
+
   return (
     <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
       <PageHeader
@@ -860,27 +1157,40 @@ export default function AssociateDetails() {
         )}
       />
 
+      <AssociateModuleNavigation
+        activeSection="registry"
+        setCurrentView={(view) => navigate(`/${view}`)}
+      />
+
       <AssociateDetailToolbar
         canManageMovements={canManageAssociateMovements}
         onOpenContributionHistory={() => setContributionModalMode('history')}
         onOpenInterestSchedule={() => setShowInstallmentsModal(true)}
+        onExportFinancialSummary={handleExportFinancialSummary}
+        isExportingFinancialSummary={isExportingFinancialSummary}
         onOpenCapitalContribution={() => setContributionModalMode('create')}
         onOpenInterestPayments={() => setActiveTab('installments')}
         onOpenMoneyAction={openMoneyActionModal}
       />
 
-      {/* Tabs */}
-      <ViewTabs
-        data-tour="associate-details-tabs"
-        ariaLabel={tTerm('associateDetails.tabs.ariaLabel')}
-        activeTab={activeTab}
-        onChange={(tabId) => setActiveTab(tabId as TabType)}
-        tabs={[
-          { id: 'overview', label: tTerm('associateDetails.tab.overview') },
-          { id: 'installments', label: tTerm('associateDetails.tab.installments'), icon: CheckCircle },
-          { id: 'calendar', label: tTerm('associateDetails.tab.calendar'), icon: Calendar },
-        ]}
-      />
+      <div className="associate-detail-query" data-tour="associate-details-tabs">
+        <FormField label={tTerm('associateDetails.query.label')}>
+          <OperationalSelect
+            id="associate-detail-query"
+            value={activeTab}
+            aria-label={tTerm('associateDetails.query.label')}
+            onChange={(event) => setActiveTab(event.target.value as TabType)}
+          >
+            {detailViewOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {typeof option.count === 'number'
+                  ? `${option.label} (${formatNumber(option.count)})`
+                  : option.label}
+              </option>
+            ))}
+          </OperationalSelect>
+        </FormField>
+      </div>
 
       {/* Tab Content */}
       <div data-tour="associate-details-content">

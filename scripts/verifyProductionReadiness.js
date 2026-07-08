@@ -31,7 +31,6 @@ const frontendRuntimeConfig = read('frontend/scripts/write-runtime-config.sh');
 const frontendApiClient = read('frontend/src/api/client.ts');
 const readme = read('README.md');
 const setupGuide = read('setup.md');
-const associateTrainingGuide = read('docs/training/notifications-profile-associates.md');
 
 const forbiddenRenderKeys = ['DATABASE_URL', 'CORS_ORIGIN'];
 for (const key of forbiddenRenderKeys) {
@@ -185,8 +184,6 @@ assert(readme.includes('`BROWSER_SMOKE_TIMEOUT_MS`: timeout por paso, por defect
 assert(setupGuide.includes('Roles de login administrativos: `admin`, `employee`.'), 'setup guide must document only administrative login roles');
 assert(!setupGuide.includes('Roles validos: `admin`, `customer`, `socio`.'), 'setup guide must not document customer/socio login roles');
 assert(!setupGuide.includes('grafo DAG'), 'setup guide must not describe retired DAG setup as current behavior');
-assert(associateTrainingGuide.includes('detalle administrativo del socio'), 'associate training guide must describe administrative associate details');
-assert(!/portal del socio/i.test(associateTrainingGuide), 'associate training guide must not reference a socio portal');
 assert(
   readme.includes('VITE_API_URL')
     && readme.includes('origen del backend')

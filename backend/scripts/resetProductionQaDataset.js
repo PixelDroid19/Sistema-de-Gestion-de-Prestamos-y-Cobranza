@@ -109,7 +109,6 @@ const seedQaUsers = async ({ users, password }) => {
       phone: users.socio.phone,
       address: 'QA seeded associate address',
       status: 'active',
-      participationPercentage: 100,
       interestType: users.socio.interestType,
       interestRate: users.socio.interestRate,
       interestPaymentDay: users.socio.interestPaymentDay,

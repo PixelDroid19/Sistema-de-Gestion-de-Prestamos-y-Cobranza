@@ -32,10 +32,6 @@ const PAYMENT_METHOD_LABELS = {
   other: 'Otro',
 };
 
-const UNKNOWN_OPERATIONAL_STATUS_LABEL = 'Estado no clasificado';
-const UNKNOWN_PAYMENT_TYPE_LABEL = 'Tipo de pago no clasificado';
-const UNKNOWN_PAYMENT_METHOD_LABEL = 'Método no clasificado';
-
 /**
  * Formats backend enum-like values for operator-facing report artifacts.
  *
@@ -44,8 +40,9 @@ const UNKNOWN_PAYMENT_METHOD_LABEL = 'Método no clasificado';
  */
 const formatOperationalStatus = (value) => {
   if (!value) return 'N/A';
-  const normalized = String(value).trim().toLowerCase();
-  return OPERATIONAL_STATUS_LABELS[normalized] || UNKNOWN_OPERATIONAL_STATUS_LABEL;
+  const rawValue = String(value).trim();
+  const normalized = rawValue.toLowerCase();
+  return OPERATIONAL_STATUS_LABELS[normalized] || rawValue;
 };
 
 /**
@@ -56,8 +53,9 @@ const formatOperationalStatus = (value) => {
  */
 const formatPaymentType = (value) => {
   if (!value) return 'N/A';
-  const normalized = String(value).trim().toLowerCase();
-  return PAYMENT_TYPE_LABELS[normalized] || UNKNOWN_PAYMENT_TYPE_LABEL;
+  const rawValue = String(value).trim();
+  const normalized = rawValue.toLowerCase();
+  return PAYMENT_TYPE_LABELS[normalized] || rawValue;
 };
 
 /**
@@ -68,8 +66,9 @@ const formatPaymentType = (value) => {
  */
 const formatPaymentMethod = (value) => {
   if (!value) return 'N/A';
-  const normalized = String(value).trim().toLowerCase();
-  return PAYMENT_METHOD_LABELS[normalized] || UNKNOWN_PAYMENT_METHOD_LABEL;
+  const rawValue = String(value).trim();
+  const normalized = rawValue.toLowerCase();
+  return PAYMENT_METHOD_LABELS[normalized] || rawValue;
 };
 
 module.exports = {

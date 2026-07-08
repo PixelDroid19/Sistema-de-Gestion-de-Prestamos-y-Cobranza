@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
-import { isValidOperationalDateOnly } from '../i18n/format';
+import { formatCurrency } from '../i18n/format';
 import { useAssociateById, useAssociates } from '../services/associateService';
 import { parsePercentageWithPrecisionInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
@@ -24,13 +24,11 @@ interface AssociateFormData {
   email: string;
   phone: string;
   status: string;
-  participationPercentage: string;
   initialCapital: string;
   interestType: string;
   interestRate: string;
   interestPaymentDay: string;
   interestPaymentMonth: string;
-  interestStartDate: string;
 }
 
 interface NewAssociateProps {
@@ -44,13 +42,11 @@ const EMPTY_FORM: AssociateFormData = {
   email: '',
   phone: '',
   status: 'active',
-  participationPercentage: '',
   initialCapital: '',
   interestType: 'monthly',
   interestRate: '0',
   interestPaymentDay: '1',
   interestPaymentMonth: '1',
-  interestStartDate: '',
 };
 
 const MONTH_TERM_KEYS = [
@@ -92,13 +88,11 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       email: existingAssociate.email || '',
       phone: existingAssociate.phone || '',
       status: existingAssociate.status || 'active',
-      participationPercentage: existingAssociate.participationPercentage || '',
       initialCapital: '',
       interestType: existingAssociate.interestType || 'monthly',
       interestRate: existingAssociate.interestRate || '0',
       interestPaymentDay: String(existingAssociate.interestPaymentDay || 1),
       interestPaymentMonth: String(existingAssociate.interestPaymentMonth || 1),
-      interestStartDate: existingAssociate.interestStartsAt || '',
     });
   }, [existingAssociate, isEditing]);
 
@@ -135,11 +129,6 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       return;
     }
 
-    if (formData.participationPercentage.trim() && parsePercentageWithPrecisionInput(formData.participationPercentage, 4) === null) {
-      toast.error({ title: tTerm('newAssociate.validation.participationRange') });
-      return;
-    }
-
     const interestRate = parsePercentageWithPrecisionInput(formData.interestRate, 4);
     if (interestRate === null) {
       toast.error({ title: tTerm('newAssociate.validation.rateRange') });
@@ -149,11 +138,6 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
     const paymentDay = parsePositiveIntegerInput(formData.interestPaymentDay);
     if (paymentDay === null || paymentDay > 28) {
       toast.error({ title: tTerm('newAssociate.validation.dayRange') });
-      return;
-    }
-
-    if (formData.interestStartDate.trim() && !isValidOperationalDateOnly(formData.interestStartDate)) {
-      toast.error({ title: tTerm('newAssociate.validation.startDate') });
       return;
     }
 
@@ -184,9 +168,19 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
     );
   }
 
+  const capitalValue = parsePositiveMoneyInput(formData.initialCapital) ?? 0;
+  const rateValue = parsePercentageWithPrecisionInput(formData.interestRate, 4) ?? 0;
+  const estimatedInterest = capitalValue > 0 && rateValue > 0 ? (capitalValue * rateValue) / 100 : 0;
+
   const form = (
     <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form" className={embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}>
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-text-primary">{tTerm('newAssociate.section.person')}</h3>
+            <p className="mt-0.5 text-sm text-text-secondary">{tTerm('newAssociate.section.person.description')}</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
           <FormField label={tTerm('newAssociate.field.name')}>
             <AppInput
               id="new-associate-name"
@@ -198,6 +192,17 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
               placeholder={tTerm('newAssociate.placeholder.name')}
               required
             />
+          </FormField>
+
+          <FormField label={tTerm('newAssociate.field.status')}>
+            <OperationalSelect
+              id="new-associate-status"
+              value={formData.status}
+              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
+            >
+              <option value="active">{tTerm('common.status.active')}</option>
+              <option value="inactive">{tTerm('common.status.inactive')}</option>
+            </OperationalSelect>
           </FormField>
 
           <FormField label={tTerm('newAssociate.field.email')}>
@@ -226,24 +231,17 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
               required
             />
           </FormField>
-
-          <FormField label={tTerm('newAssociate.field.status')}>
-            <OperationalSelect
-              id="new-associate-status"
-              value={formData.status}
-              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
-            >
-              <option value="active">{tTerm('common.status.active')}</option>
-              <option value="inactive">{tTerm('common.status.inactive')}</option>
-            </OperationalSelect>
-          </FormField>
-
-          <div className="border-l-4 border-brand-primary pl-4 text-sm">
-            <p className="font-bold text-text-primary">{tTerm('newAssociate.cdt.title')}</p>
-            <p className="mt-1 max-w-2xl leading-5 text-text-secondary">{tTerm('newAssociate.cdt.description')}</p>
           </div>
 
-          <div className="grid gap-4 border-t border-border-subtle pt-4 sm:grid-cols-2">
+          <div className="border-t border-border-subtle pt-4">
+            <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-text-primary">{tTerm('newAssociate.section.deposit')}</h3>
+            <p className="mt-0.5 text-sm text-text-secondary">{tTerm('newAssociate.section.deposit.description')}</p>
+            <p className="mt-2 max-w-2xl border-l-4 border-brand-primary pl-3 text-sm leading-5 text-text-secondary">
+              {tTerm('newAssociate.cdt.description')}
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             {!isEditing && (
               <FormField
                 label={tTerm('newAssociate.field.initialCapital')}
@@ -311,40 +309,36 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, interestPaymentDay: value }))}
               />
             </FormField>
-
-            <FormField label={tTerm('newAssociate.field.interestStartDate')} helper={tTerm('newAssociate.helper.interestStartDate')}>
-              <AppInput
-                id="new-associate-interest-start-date"
-                variant="date"
-                value={formData.interestStartDate}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, interestStartDate: value }))}
-              />
-            </FormField>
           </div>
 
-          <details className="border-t border-border-subtle pt-3">
-            <summary className="cursor-pointer text-sm font-bold text-text-primary marker:text-brand-primary">
-              {tTerm('newAssociate.advancedParticipation.summary')}
-            </summary>
-            <p className="mt-2 max-w-2xl text-sm leading-5 text-text-secondary">
-              {tTerm('newAssociate.advancedParticipation.description')}
-            </p>
-            <FormField
-              label={tTerm('newAssociate.field.participation')}
-              helper={tTerm('newAssociate.helper.participation')}
-              className="mt-3"
-            >
-              <AppInput
-                id="new-associate-participation"
-                variant="percent"
-                allowZero
-                maxDecimals={4}
-                value={formData.participationPercentage}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, participationPercentage: value }))}
-                placeholder={tTerm('newAssociate.placeholder.participation')}
-              />
-            </FormField>
-          </details>
+          {!isEditing && (
+            <div className="rounded-xl border border-border-subtle bg-bg-base p-4" data-tour="new-associate-preview">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+                {tTerm('newAssociate.preview.title')}
+              </p>
+              {estimatedInterest > 0 ? (
+                <>
+                  <p className="mt-1 text-xl font-bold text-text-primary">
+                    {formatCurrency(estimatedInterest)}
+                    <span className="ml-2 text-sm font-medium text-text-secondary">
+                      {formData.interestType === 'annual'
+                        ? tTerm('newAssociate.preview.annual')
+                        : tTerm('newAssociate.preview.monthly')}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    {tTerm('newAssociate.preview.formula', {
+                      capital: formatCurrency(capitalValue),
+                      rate: String(rateValue),
+                      interest: formatCurrency(estimatedInterest),
+                    })}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-text-secondary">{tTerm('newAssociate.preview.empty')}</p>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <ActionButton type="button" onClick={onBack} fullWidth>

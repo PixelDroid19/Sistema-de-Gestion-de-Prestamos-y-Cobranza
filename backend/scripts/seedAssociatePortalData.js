@@ -89,7 +89,7 @@ const ensureSeedAdmin = async ({ email, name }) => {
 };
 
 const selectAssociate = async () => {
-  const activeAssociates = await associateRepository.listActiveAssociatesWithParticipation();
+  const activeAssociates = await associateRepository.listActiveAssociates();
   if (!activeAssociates.length) {
     throw new Error('No active associates found. Create at least one active associate before seeding.');
   }
@@ -199,14 +199,14 @@ const main = async () => {
     });
   }
 
-  const [financialDetailsResponse, profitabilityResponse, calendarResponse] = await Promise.all([
+  const [financialDetailsResponse, financialSummaryResponse, calendarResponse] = await Promise.all([
     fetch(`${apiBaseUrl}/api/associates/${associate.id}/financial-details`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
-    fetch(`${apiBaseUrl}/api/reports/associates/profitability/${associate.id}`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
+    fetch(`${apiBaseUrl}/api/associates/${associate.id}/financial-summary`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
     fetch(`${apiBaseUrl}/api/loans/${seededLoan.id}/calendar`, { headers: createJsonHeaders(adminToken) }).then(ensureOk),
   ]);
 
   const financialDetails = financialDetailsResponse?.data?.details || financialDetailsResponse?.data?.financialDetails || {};
-  const report = profitabilityResponse?.data?.report || {};
+  const report = financialSummaryResponse?.data?.report || {};
   const reportData = report.data || {};
   const calendar = calendarResponse?.data?.calendar || {};
 
@@ -215,7 +215,6 @@ const main = async () => {
       id: associate.id,
       name: associate.name,
       status: associate.status,
-      participationPercentage: associate.participationPercentage,
     },
     adminUser: {
       id: adminUser.id,

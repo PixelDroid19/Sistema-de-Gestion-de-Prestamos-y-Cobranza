@@ -13,13 +13,14 @@ import {
   CheckCircle,
   CircleDollarSign,
   Clock,
+  Download,
   History,
   MoreHorizontal,
   RefreshCw,
   Wallet,
 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
-import { ActionButton, IconActionButton, ToolbarSurface } from '../shared/Surfaces';
+import { ActionButton, ToolbarSurface } from '../shared/Surfaces';
 
 type AssociateMoneyActionType = 'distribution' | 'capitalReturn' | 'reinvestment';
 
@@ -34,13 +35,15 @@ type AssociateDetailToolbarProps = {
   canManageMovements: boolean;
   onOpenContributionHistory: () => void;
   onOpenInterestSchedule: () => void;
+  onExportFinancialSummary: () => void;
+  isExportingFinancialSummary?: boolean;
   onOpenCapitalContribution: () => void;
   onOpenInterestPayments: () => void;
   onOpenMoneyAction: (action: AssociateMoneyActionType) => void;
 };
 
-const detailConsultationButtonClass = 'min-h-[2.75rem] justify-start px-3 py-2.5 text-left whitespace-normal leading-5';
-const detailMovementButtonClass = 'min-h-[2.75rem] justify-center px-3 py-2.5 whitespace-normal leading-5';
+const detailSupportButtonClass = 'min-h-[2.75rem] justify-start px-3 py-2.5 text-left whitespace-normal leading-5';
+const detailPrimaryButtonClass = 'min-h-[2.75rem] justify-center px-3 py-2.5 whitespace-normal leading-5';
 
 function MovementOverflowMenu({ items }: { items: OverflowMenuItem[] }) {
   const [open, setOpen] = useState(false);
@@ -116,16 +119,19 @@ function MovementOverflowMenu({ items }: { items: OverflowMenuItem[] }) {
   return (
     <div ref={rootRef} className="relative shrink-0">
       <div ref={triggerRef}>
-        <IconActionButton
+        <ActionButton
           onClick={() => setOpen((current) => !current)}
           icon={<MoreHorizontal size={16} />}
-          label={menuLabel}
           variant="secondary"
-          className={`h-[2.75rem] w-[2.75rem] rounded-xl ${open ? 'bg-hover-bg' : ''}`}
+          className={`min-h-[2.75rem] w-full justify-center px-3 py-2.5 whitespace-normal leading-5 sm:h-[2.75rem] sm:w-[2.75rem] sm:!min-h-0 sm:!p-0 ${open ? 'bg-hover-bg' : ''}`}
           aria-expanded={open}
           aria-controls={menuId}
           aria-haspopup="menu"
-        />
+          aria-label={menuLabel}
+          title={menuLabel}
+        >
+          <span className="sm:hidden">{menuLabel}</span>
+        </ActionButton>
       </div>
       {open && typeof document !== 'undefined' && document.body && createPortal(
         <div
@@ -165,6 +171,8 @@ export function AssociateDetailToolbar({
   canManageMovements,
   onOpenContributionHistory,
   onOpenInterestSchedule,
+  onExportFinancialSummary,
+  isExportingFinancialSummary = false,
   onOpenCapitalContribution,
   onOpenInterestPayments,
   onOpenMoneyAction,
@@ -193,66 +201,62 @@ export function AssociateDetailToolbar({
   return (
     <ToolbarSurface className="associate-detail-action-panel" data-tour="associate-details-actions">
       <div className="associate-detail-actions-grid">
-        <div className="associate-detail-action-group associate-detail-action-group--consultation space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-            {tTerm('associateDetails.toolbar.consultationGroup')}
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <ActionButton
-              onClick={onOpenContributionHistory}
-              icon={<History size={16} />}
-              className={detailConsultationButtonClass}
-              fullWidth
-            >
-              {tTerm('associateDetails.cta.viewInterestHistory')}
-            </ActionButton>
-            <ActionButton
-              onClick={onOpenInterestSchedule}
-              icon={<Clock size={16} />}
-              className={detailConsultationButtonClass}
-              fullWidth
-            >
-              {tTerm('associateDetails.cta.viewInterestSchedule')}
-            </ActionButton>
-          </div>
+        <div className="associate-detail-action-cluster associate-detail-action-cluster--support">
+          <ActionButton
+            onClick={onOpenContributionHistory}
+            icon={<History size={16} />}
+            className={detailSupportButtonClass}
+            fullWidth
+          >
+            {tTerm('associateDetails.cta.viewInterestHistory')}
+          </ActionButton>
+          <ActionButton
+            onClick={onOpenInterestSchedule}
+            icon={<Clock size={16} />}
+            className={detailSupportButtonClass}
+            fullWidth
+          >
+            {tTerm('associateDetails.cta.viewInterestSchedule')}
+          </ActionButton>
+          <ActionButton
+            onClick={onExportFinancialSummary}
+            icon={<Download size={16} />}
+            className={detailSupportButtonClass}
+            fullWidth
+            disabled={isExportingFinancialSummary}
+            isLoading={isExportingFinancialSummary}
+            loadingLabel={tTerm('associateDetails.cta.exportFinancialSummary.loading')}
+          >
+            {tTerm('associateDetails.cta.exportFinancialSummary')}
+          </ActionButton>
         </div>
 
         {canManageMovements ? (
-          <div className="associate-detail-action-group associate-detail-action-group--movement space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-              {tTerm('associateDetails.toolbar.movementGroup')}
-            </p>
-            <div className="associate-detail-movement-actions">
-              <ActionButton
-                onClick={onOpenCapitalContribution}
-                icon={<Wallet size={16} />}
-                variant="primary"
-                className={detailMovementButtonClass}
-                fullWidth
-              >
-                {tTerm('associateDetails.cta.registerCapitalContribution')}
-              </ActionButton>
-              <ActionButton
-                onClick={onOpenInterestPayments}
-                icon={<CheckCircle size={16} />}
-                variant="secondary"
-                className={detailMovementButtonClass}
-                fullWidth
-              >
-                {tTerm('associateDetails.cta.registerInterestPayment')}
-              </ActionButton>
-              <MovementOverflowMenu items={overflowItems} />
-            </div>
+          <div className="associate-detail-action-cluster associate-detail-action-cluster--primary">
+            <ActionButton
+              onClick={onOpenCapitalContribution}
+              icon={<Wallet size={16} />}
+              variant="primary"
+              className={detailPrimaryButtonClass}
+              fullWidth
+            >
+              {tTerm('associateDetails.cta.registerCapitalContribution')}
+            </ActionButton>
+            <ActionButton
+              onClick={onOpenInterestPayments}
+              icon={<CheckCircle size={16} />}
+              variant="secondary"
+              className={detailPrimaryButtonClass}
+              fullWidth
+            >
+              {tTerm('associateDetails.cta.registerInterestPayment')}
+            </ActionButton>
+            <MovementOverflowMenu items={overflowItems} />
           </div>
         ) : (
-          <div className="associate-detail-action-group associate-detail-action-group--read-only space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-              {tTerm('associateDetails.toolbar.movementGroup')}
-            </p>
-            <p className="text-sm leading-6 text-text-secondary">
-              {tTerm('associateDetails.toolbar.readOnlySummary')}
-            </p>
-          </div>
+          <p className="associate-detail-action-note">
+            {tTerm('associateDetails.toolbar.readOnlySummary')}
+          </p>
         )}
       </div>
     </ToolbarSurface>

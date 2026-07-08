@@ -1,5 +1,5 @@
 import type React from 'react';
-import { ArrowLeft, Edit2, FileSpreadsheet, FileText, GitBranch, Percent, Table } from 'lucide-react';
+import { ArrowLeft, Edit2, FileSpreadsheet, FileText, Percent, Table } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { QuickGuideButton } from '../shared/HelpSupport';
 import { IconActionButton, StatusChip } from '../shared/Surfaces';
@@ -20,7 +20,6 @@ type CreditDetailHeaderProps = {
   statusInfo: CreditStatusPresentation;
   subtitle: string;
   customerLabel: string;
-  calculationProfileSummary: string;
   canAccessBackofficeActions: boolean;
   canExportCreditExcel: boolean;
   isExportingCreditExcel: boolean;
@@ -89,7 +88,6 @@ export function CreditDetailHeader({
   statusInfo,
   subtitle,
   customerLabel,
-  calculationProfileSummary,
   canAccessBackofficeActions,
   canExportCreditExcel,
   isExportingCreditExcel,
@@ -205,8 +203,6 @@ export function CreditDetailHeader({
 
       <div className="credit-detail-header-meta">
         <HeaderMetaBlock icon={FileText} label={tTerm('creditDetails.header.customer')} value={customerLabel} />
-        <span className="credit-detail-header-meta__divider" aria-hidden="true" />
-        <HeaderMetaBlock icon={GitBranch} label={tTerm('creditDetails.header.profile')} value={calculationProfileSummary} />
       </div>
     </section>
   );

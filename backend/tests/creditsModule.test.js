@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { extractPdfText } = require('./helpers/pdfText');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
@@ -1931,14 +1932,12 @@ test('createDownloadPromiseToPay generates an operational Spanish PDF', async ()
     promiseId: 4,
   });
 
-  const pdfText = download.buffer.toString('utf8');
+  const pdfText = extractPdfText(download.buffer);
   assert.equal(download.contentType, 'application/pdf');
-  assert.match(pdfText, /COMPROBANTE DE PROMESA DE PAGO/);
-  assert.match(pdfText, /ID del documento: 4/);
-  assert.match(pdfText, /Fecha prometida: 2026-03-25/);
-  assert.match(pdfText, /Cliente: Ana Cliente/);
-  assert.match(pdfText, /Monto prometido: \$300000\.00/);
-  assert.match(pdfText, /Estado: Pendiente/);
+  assert.match(pdfText, /Comprobante de promesa de pago/);
+  assert.match(pdfText, /2026-03-25/);
+  assert.match(pdfText, /Ana Cliente/);
+  assert.match(pdfText, /Pendiente/);
   assert.doesNotMatch(pdfText, /PROMISE TO PAY RECEIPT|Customer Email|The customer agrees/);
 });
 

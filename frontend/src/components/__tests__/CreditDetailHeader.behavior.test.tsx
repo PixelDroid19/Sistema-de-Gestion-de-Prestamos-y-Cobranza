@@ -12,7 +12,6 @@ describe('CreditDetailHeader behavior', () => {
         statusInfo={{ label: 'Activo', className: 'text-green-700' }}
         subtitle="Cliente QA"
         customerLabel="Cliente QA"
-        calculationProfileSummary="Regla vigente"
         canAccessBackofficeActions
         canExportCreditExcel
         isExportingCreditExcel={false}

@@ -36,6 +36,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   };
   const buildAssociateExportFilters = (query = {}) => ({
     associateId: parseOptionalQueryId(query.associateId, 'associateId'),
+    search: query.search,
     fromDate: query.fromDate || query.startDate,
     toDate: query.toDate || query.endDate,
     status: query.status,
@@ -57,19 +58,6 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
 
     return [];
   };
-  const resolveIdempotencyKey = (req) => {
-    const headerValue = req.headers['idempotency-key'];
-    if (typeof headerValue === 'string' && headerValue.trim()) {
-      return headerValue.trim();
-    }
-
-    if (typeof req.body?.idempotencyKey === 'string' && req.body.idempotencyKey.trim()) {
-      return req.body.idempotencyKey.trim();
-    }
-
-    return null;
-  };
-
   router.get('/', requirePermission('SOCIOS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     const filters = {
       search: req.query.search,
@@ -147,11 +135,13 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     });
   }));
 
-  router.get('/:id/profitability', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
+  const sendAssociateFinancialSummary = async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
     const report = await useCases.getAssociateProfitabilityReport({ actor: req.user, associateId });
     res.json({ success: true, data: { report } });
-  }));
+  };
+
+  router.get('/:id/financial-summary', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(sendAssociateFinancialSummary));
 
   router.get('/:id/export', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
@@ -197,7 +187,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   router.post('/:id/distributions', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
     const distribution = await useCases.createProfitDistribution({ actor: req.user, associateId, payload: req.body });
-    res.status(201).json({ success: true, message: 'Distribución de utilidad registrada correctamente', data: { distribution } });
+    res.status(201).json({ success: true, message: 'Pago manual de rentabilidad registrado correctamente', data: { distribution } });
   }));
 
   router.post('/:id/capital-returns', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
@@ -210,22 +200,6 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
     const result = await useCases.createAssociateReinvestment({ actor: req.user, associateId, payload: req.body });
     res.status(201).json({ success: true, message: 'Reinversión del socio registrada correctamente', data: result });
-  }));
-
-  router.post('/distributions/proportional', requirePermission('SOCIOS_UPDATE'), associateValidation.proportionalDistribution, asyncHandler(async (req, res) => {
-    const distribution = await useCases.createProportionalProfitDistribution({
-      actor: req.user,
-      idempotencyKey: resolveIdempotencyKey(req),
-      payload: req.body,
-    });
-    const isReplay = distribution.idempotencyStatus === 'replayed';
-    res.status(isReplay ? 200 : 201).json({
-      success: true,
-      message: isReplay
-        ? 'Distribución proporcional de utilidad reutilizada correctamente'
-        : 'Distribución proporcional de utilidad registrada correctamente',
-      data: { distribution },
-    });
   }));
 
   router.get('/:id/installments', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {

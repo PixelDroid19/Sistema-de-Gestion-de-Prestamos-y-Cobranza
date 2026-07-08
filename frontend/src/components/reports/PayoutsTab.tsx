@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react';
-import { AlertCircle, DollarSign, TrendingUp, Wallet } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
   formatDate as formatDateValue,
@@ -9,15 +8,17 @@ import { tTerm } from '../../i18n/terminology';
 import { getPaymentMethodLabel, getPaymentTypeLabel } from '../../constants/paymentTypes';
 import { getChipClassName } from '../../constants/uiChips';
 import {
-  ActionButton,
   AppInput,
   FormField,
   OperationalSelect,
   UserSearchSelect,
 } from '../shared/Surfaces';
+import { TableStatusPill } from '../shared/tables';
+import { ReportCollapsibleFilters } from './ReportCollapsibleFilters';
 import { ReportDataTableSection } from './ReportDataTableSection';
-import { ReportMetricsSection } from './ReportMetricsSection';
+import ReportSummaryGrid from './ReportSummaryGrid';
 import { ReportTabPanel } from './ReportTabPanel';
+import ReportValueStack from './ReportValueStack';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -40,12 +41,72 @@ type PayoutsTabProps = {
 
 const getPayoutCreatorLabel = (payout: any) => {
   const creator = payout?.createdBy || payout?.CreatedBy;
-  return creator?.name || creator?.email || tTerm('common.notAvailable');
+  return (
+    creator?.name
+    || creator?.email
+    || payout?.createdByName
+    || payout?.createdByUserName
+    || payout?.registeredByName
+    || tTerm('common.notAvailable')
+  );
 };
 
-const getLatestCollectionBucket = (buckets: any[] | undefined) => (
-  Array.isArray(buckets) && buckets.length > 0 ? buckets[0] : null
+const getPayoutCustomerLabel = (payout: any) => (
+  payout?.customerName
+  || payout?.customer
+  || payout?.customerLabel
+  || payout?.Customer?.name
+  || payout?.customer?.name
+  || payout?.Loan?.Customer?.name
+  || payout?.loan?.Customer?.name
+  || payout?.loan?.customer?.name
+  || tTerm('common.notAvailable')
 );
+
+const getPayoutLoanId = (payout: any) => (
+  payout?.loanId
+  ?? payout?.creditId
+  ?? payout?.Loan?.id
+  ?? payout?.loan?.id
+  ?? null
+);
+
+const getPayoutLoanReference = (payout: any) => {
+  const loanId = getPayoutLoanId(payout);
+  return loanId
+    ? tTerm('reports.payouts.table.loanReference', { id: String(loanId) })
+    : '';
+};
+
+const getPayoutTypeValue = (payout: any) => payout?.paymentType ?? payout?.type ?? '';
+
+const getPayoutStatusLabel = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) {
+    return tTerm('common.notAvailable');
+  }
+  if (normalized === 'completed' || normalized === 'completado') {
+    return tTerm('common.status.completed');
+  }
+  if (normalized === 'annulled' || normalized === 'anulado') {
+    return tTerm('reports.payouts.status.annulled');
+  }
+  if (normalized === 'reversed' || normalized === 'reversado') {
+    return tTerm('reports.payouts.status.reversed');
+  }
+  return tTerm('common.status.unknown');
+};
+
+const getPayoutStatusTone = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'completed' || normalized === 'completado') {
+    return 'success' as const;
+  }
+  if (normalized === 'annulled' || normalized === 'anulado' || normalized === 'reversed' || normalized === 'reversado') {
+    return 'danger' as const;
+  }
+  return 'warning' as const;
+};
 
 export default function PayoutsTab({
   payoutFilters,
@@ -62,14 +123,7 @@ export default function PayoutsTab({
   exportActions,
 }: PayoutsTabProps) {
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
-  const latestDailyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.daily);
-  const latestWeeklyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.weekly);
-  const latestMonthlyCollection = getLatestCollectionBucket(payoutSummary?.collectionBreakdown?.monthly);
-  const collectionRows = [
-    { id: 'daily', label: tTerm('reports.payouts.collections.daily'), bucket: latestDailyCollection },
-    { id: 'weekly', label: tTerm('reports.payouts.collections.weekly'), bucket: latestWeeklyCollection },
-    { id: 'monthly', label: tTerm('reports.payouts.collections.monthly'), bucket: latestMonthlyCollection },
-  ];
+  const advancedFilterCount = payoutFilters.employeeId ? 1 : 0;
 
   const updateFilters = (patch: PayoutFilters) => {
     const candidateFilters = { ...payoutFilters, ...patch };
@@ -93,9 +147,7 @@ export default function PayoutsTab({
   return (
     <div className="report-tab-layout">
       <ReportTabPanel
-        title={tTerm('reports.payouts.panel.title')}
-        subtitle={tTerm('reports.payouts.panel.subtitle')}
-        filterColumns={5}
+        filterColumns={4}
         headerActions={exportActions}
         filters={(
           <>
@@ -103,14 +155,14 @@ export default function PayoutsTab({
               <AppInput
                 variant="date"
                 value={payoutFilters.fromDate || ''}
-                onValueChange={(v, _d, e) => updateFilters({ fromDate: v })}
+                onValueChange={(v) => updateFilters({ fromDate: v })}
               />
             </FormField>
             <FormField label={tTerm('reports.payouts.filter.to')}>
               <AppInput
                 variant="date"
                 value={payoutFilters.toDate || ''}
-                onValueChange={(v, _d, e) => updateFilters({ toDate: v })}
+                onValueChange={(v) => updateFilters({ toDate: v })}
               />
             </FormField>
             <FormField label={tTerm('reports.payouts.filter.paymentType')}>
@@ -130,133 +182,62 @@ export default function PayoutsTab({
                 value={payoutFilters.status || ''}
                 onChange={(event) => updateFilters({ status: event.target.value })}
               >
-                <option value="">{tTerm('common.status.completed')}</option>
+                <option value="">{tTerm('credits.filter.all')}</option>
+                <option value="completed">{tTerm('common.status.completed')}</option>
                 <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
-              </OperationalSelect>
-            </FormField>
-            {canFilterByEmployee && (
-              <FormField label={tTerm('reports.payouts.filter.employee')}>
-                <UserSearchSelect
-                  id="reports-payout-employee"
-                  selectedUserId={payoutFilters.employeeId || ''}
-                  searchValue={employeeSearchQuery}
-                  onSearchValueChange={setEmployeeSearchQuery}
-                  onSelectedUserIdChange={(value) => updateFilters({ employeeId: value })}
-                  placeholder={tTerm('userSearch.placeholder')}
-                  listboxLabel={tTerm('reports.payouts.filter.employee')}
-                  role="administrative"
-                />
-              </FormField>
-            )}
-            <FormField label={tTerm('reports.payouts.table.rows')}>
-              <OperationalSelect
-                value={payoutPageSize}
-                onChange={(event) => {
-                  onPayoutPageSizeChange(Number(event.target.value));
-                  onPayoutPageChange(1);
-                }}
-              >
-                {[10, 20, 50, 100].map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
               </OperationalSelect>
             </FormField>
           </>
         )}
+        secondaryFilters={canFilterByEmployee ? (
+          <ReportCollapsibleFilters
+            activeCount={advancedFilterCount}
+            defaultOpen={advancedFilterCount > 0}
+            filterColumns={2}
+          >
+            <FormField label={tTerm('reports.payouts.filter.employee')}>
+              <UserSearchSelect
+                id="reports-payout-employee"
+                selectedUserId={payoutFilters.employeeId || ''}
+                searchValue={employeeSearchQuery}
+                onSearchValueChange={setEmployeeSearchQuery}
+                onSelectedUserIdChange={(value) => updateFilters({ employeeId: value })}
+                placeholder={tTerm('userSearch.placeholder')}
+                listboxLabel={tTerm('reports.payouts.filter.employee')}
+                role="administrative"
+              />
+            </FormField>
+          </ReportCollapsibleFilters>
+        ) : undefined}
       />
 
-      {payoutSummary && (
-        <ReportMetricsSection
-          primaryAriaLabel={tTerm('reports.payouts.summary.aria')}
-          secondaryAriaLabel={tTerm('reports.payouts.summary.aria')}
-          primaryItems={[
-            {
-              id: 'payouts-count',
-              label: tTerm('reports.payouts.summary.count.label'),
-              value: formatNumberValue(payoutSummary.totalPayouts || 0),
-              helper: tTerm('reports.payouts.summary.count.helper'),
-              icon: <Wallet size={18} />,
-              accent: 'blue',
-            },
-            {
-              id: 'payouts-amount',
-              label: tTerm('reports.payouts.summary.amount.label'),
-              value: formatMoney(payoutSummary.totalAmount),
-              helper: tTerm('reports.payouts.summary.amount.helper'),
-              icon: <DollarSign size={18} />,
-              accent: 'emerald',
-            },
-            {
-              id: 'payouts-principal',
-              label: tTerm('reports.payouts.summary.principal.label'),
-              value: formatMoney(payoutSummary.totalPrincipal),
-              helper: tTerm('reports.payouts.summary.principal.helper'),
-              icon: <DollarSign size={18} />,
-              accent: 'slate',
-            },
-          ]}
-          secondaryItems={[
-            {
-              id: 'payouts-interest',
-              label: tTerm('reports.payouts.summary.interest.label'),
-              value: formatMoney(payoutSummary.totalInterest),
-              helper: tTerm('reports.payouts.summary.interest.helper'),
-              icon: <TrendingUp size={18} />,
-              accent: 'emerald',
-            },
-            {
-              id: 'payouts-penalties',
-              label: tTerm('reports.payouts.summary.penalties.label'),
-              value: formatMoney(payoutSummary.totalPenalties),
-              helper: tTerm('reports.payouts.summary.penalties.helper'),
-              icon: <AlertCircle size={18} />,
-              accent: 'amber',
-            },
-          ]}
-        />
-      )}
-
-      <ReportDataTableSection
-        title={tTerm('reports.payouts.collections.title')}
-        subtitle={tTerm('reports.payouts.collections.subtitle')}
-        statePresentation="inline"
-        recordsLabel={tTerm('reports.payouts.collections.recordsLabel')}
-      >
-        <thead>
-          <tr>
-            <th>{tTerm('reports.payouts.collections.periodType')}</th>
-            <th>{tTerm('reports.payouts.collections.period')}</th>
-            <th>{tTerm('reports.payouts.collections.installments')}</th>
-            <th>{tTerm('reports.payouts.collections.amount')}</th>
-            <th>{tTerm('reports.payouts.summary.interest.label')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {isPayoutsLoading ? (
-            <tr>
-              <td colSpan={5} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
-            </tr>
-          ) : collectionRows.every((row) => !row.bucket) ? (
-            <tr>
-              <td colSpan={5} className="table-empty-state">{tTerm('reports.payouts.collections.empty')}</td>
-            </tr>
-          ) : (
-            collectionRows.map((row) => (
-              <tr key={`payout-collection-${row.id}`}>
-                <td className="font-medium">{row.label}</td>
-                <td className="text-text-secondary">{row.bucket?.label || tTerm('common.notAvailable')}</td>
-                <td>{formatNumberValue(row.bucket?.installmentCount || 0)}</td>
-                <td className="font-medium">{formatMoney(row.bucket?.totalAmount || 0)}</td>
-                <td className="text-emerald-600">{formatMoney(row.bucket?.totalInterest || 0)}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </ReportDataTableSection>
+      <ReportSummaryGrid
+        columns={3}
+        items={[
+          {
+            label: tTerm('reports.payouts.summary.count.label'),
+            value: formatNumberValue(payoutSummary?.totalPayouts || payouts.length || 0),
+          },
+          {
+            label: tTerm('reports.payouts.summary.amount.label'),
+            value: formatMoney(payoutSummary?.totalAmount),
+          },
+          {
+            label: tTerm('reports.payouts.summary.principal.label'),
+            value: formatMoney(payoutSummary?.totalPrincipal),
+          },
+        ]}
+      />
 
       <ReportDataTableSection
         title={tTerm('reports.payouts.table.title')}
-        statePresentation="inline"
+        subtitle={tTerm('reports.payouts.panel.subtitle')}
+        recordsLabel={tTerm('payouts.recordsLabel')}
+        isLoading={isPayoutsLoading}
+        hasData={payouts.length > 0}
+        loadingContent={<div className="table-empty-state">{tTerm('reports.payouts.table.loading')}</div>}
+        emptyContent={<div className="table-empty-state">{tTerm('reports.payouts.table.empty')}</div>}
+        minWidthClassName="min-w-[820px]"
         pagination={
           payoutPagination && payoutPagination.totalPages > 1
             ? {
@@ -270,48 +251,59 @@ export default function PayoutsTab({
             }
             : undefined
         }
-        recordsLabel={tTerm('payouts.recordsLabel')}
       >
-            <thead>
-              <tr>
-                <th>{tTerm('payouts.table.date')}</th>
-                <th>{tTerm('payouts.table.amount')}</th>
-                <th>{tTerm('reports.payouts.summary.principal.label')}</th>
-                <th>{tTerm('reports.payouts.summary.interest.label')}</th>
-                <th>{tTerm('reports.payouts.summary.penalties.label')}</th>
-                <th>{tTerm('payouts.form.paymentType')}</th>
-                <th>{tTerm('payouts.table.method')}</th>
-                <th>{tTerm('reports.payouts.table.createdBy')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isPayoutsLoading ? (
-                <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
-                </tr>
-              ) : payouts.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="table-empty-state">{tTerm('reports.payouts.table.empty')}</td>
-                </tr>
-              ) : (
-                payouts.map((payout: any, i: number) => (
-                  <tr key={`report-payout-${payout.id ?? 'no-id'}-${payout.loanId ?? 'loan'}-${payout.paymentDate ?? i}`}>
-                    <td>{formatDateValue(payout.paymentDate) || tTerm('common.notAvailable')}</td>
-                    <td className="font-medium">{formatMoney(payout.amount)}</td>
-                    <td className="text-text-secondary">{formatMoney(payout.principalApplied)}</td>
-                    <td className="text-emerald-600">{formatMoney(payout.interestApplied)}</td>
-                    <td className="text-amber-600">{formatMoney(payout.penaltyApplied)}</td>
-                    <td>
-                      <span className={`px-2 py-1 rounded text-xs ${getChipClassName('info')}`}>
-                        {getPaymentTypeLabel(payout.paymentType)}
+        <thead>
+          <tr>
+            <th>{tTerm('reports.creditHistory.collectionHistory.paymentDate')}</th>
+            <th>{tTerm('reports.payouts.table.customer')}</th>
+            <th>{tTerm('reports.payouts.table.paymentType')}</th>
+            <th>{tTerm('payouts.table.amount')}</th>
+            <th>{tTerm('reports.payouts.table.registration')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {payouts.map((payout: any, index: number) => {
+            const loanReference = getPayoutLoanReference(payout);
+            return (
+              <tr key={`report-payout-${payout.id ?? 'no-id'}-${getPayoutLoanId(payout) ?? 'loan'}-${payout.paymentDate ?? index}`}>
+                <td>{formatDateValue(payout.paymentDate) || tTerm('common.notAvailable')}</td>
+                <td>
+                  <div className="report-record-stack">
+                    <p className="report-record-stack__title">{getPayoutCustomerLabel(payout)}</p>
+                    {loanReference ? <p className="report-record-stack__meta">{loanReference}</p> : null}
+                  </div>
+                </td>
+                <td>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TableStatusPill className={getChipClassName('info')}>
+                      {getPaymentTypeLabel(getPayoutTypeValue(payout))}
+                    </TableStatusPill>
+                    <TableStatusPill className={getChipClassName(getPayoutStatusTone(payout?.status))}>
+                      {getPayoutStatusLabel(payout?.status)}
+                    </TableStatusPill>
+                  </div>
+                </td>
+                <td>
+                  <ReportValueStack
+                    value={formatMoney(payout.amount)}
+                    strong
+                    meta={(
+                      <span>
+                        {tTerm('reports.payouts.table.allocation')}: {formatMoney(payout.principalApplied)}
                       </span>
-                    </td>
-                    <td className="text-text-secondary">{getPaymentMethodLabel(payout.paymentMethod)}</td>
-                    <td className="text-text-secondary">{getPayoutCreatorLabel(payout)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
+                    )}
+                  />
+                </td>
+                <td>
+                  <div className="report-record-stack">
+                    <p className="report-record-stack__title">{getPaymentMethodLabel(payout.paymentMethod)}</p>
+                    <p className="report-record-stack__meta">{getPayoutCreatorLabel(payout)}</p>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
       </ReportDataTableSection>
     </div>
   );

@@ -1,4 +1,5 @@
 const { test, afterEach } = require('node:test');
+const { extractPdfText } = require('./helpers/pdfText');
 const assert = require('node:assert/strict');
 const express = require('express');
 const ExcelJS = require('exceljs');
@@ -17,7 +18,6 @@ let activeServer;
 const associateValidation = {
   create(_req, _res, next) { next(); },
   update(_req, _res, next) { next(); },
-  proportionalDistribution(_req, _res, next) { next(); },
 };
 
 afterEach(async () => {
@@ -75,10 +75,10 @@ test('shared workbook builder preserves operational day for date-only UTC-midnig
   assert.equal(row.getCell(2).value, '31/05/2026 7:00 p. m.');
 });
 
-test('report labels use operational fallbacks instead of raw enum-like values', () => {
-  assert.equal(formatOperationalStatus('manual_hold'), 'Estado no clasificado');
-  assert.equal(formatPaymentType('adjustment_fee'), 'Tipo de pago no clasificado');
-  assert.equal(formatPaymentMethod('wallet_mobile'), 'Método no clasificado');
+test('report labels preserve recorded values when they are not catalog values', () => {
+  assert.equal(formatOperationalStatus('manual_hold'), 'manual_hold');
+  assert.equal(formatPaymentType('adjustment_fee'), 'adjustment_fee');
+  assert.equal(formatPaymentMethod('wallet_mobile'), 'wallet_mobile');
 });
 
 test('export associates use case builds approved operational sheet structure', async () => {
@@ -86,7 +86,6 @@ test('export associates use case builds approved operational sheet structure', a
     id: 4,
     name: 'Socio Excel QA',
     status: 'active',
-    participationPercentage: 25,
     interestType: 'monthly',
     interestRate: '2.5000',
   };
@@ -134,18 +133,23 @@ test('export associates use case builds approved operational sheet structure', a
   assert.equal(result.success, true);
   assert.deepEqual(result.data.sheets.map((sheet) => sheet.name), [
     'Resumen General',
-    'Distribución por Estado',
-    'Creación por Mes',
+    'Movimientos por Estado',
+    'Movimientos por Tipo',
     'Detalle de Socios',
-    'Análisis de Rentabilidad',
-    'Rangos de Inversión',
+    'Control financiero',
+    'Resumen de movimientos',
   ]);
   assert.equal(result.data.sheets[0].columns.some((column) => column.header === 'Unidad'), false);
   assert.equal(result.data.sheets[4].columns.some((column) => column.header === 'Unidad'), false);
-  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'ID Socio'));
-  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Participación %'));
-  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tipo de Interés'));
-  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Deuda con Socio'));
+  assert.deepEqual(result.data.sheets[3].columns.slice(0, 7).map((column) => column.header), [
+    'ID Socio',
+    'Socio',
+    'Tipo de Interés',
+    'Tasa Pactada %',
+    'Deuda con Socio',
+    'Interés Pagado',
+    'Próximo Pago',
+  ]);
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Rentabilidad del Aporte'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tasa Histórica del Aporte %'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pagado'));
@@ -153,8 +157,9 @@ test('export associates use case builds approved operational sheet structure', a
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente' && row.status === 'Vencido'));
   assert.ok(result.data.rows.some((row) => row.section === 'Aporte'));
   assert.ok(result.data.rows.some((row) => row.section === 'Aporte' && row.contributionInterestType === 'Mensual' && row.contributionInterestRate === '2.5000'));
-  assert.ok(result.data.rows.some((row) => row.section === 'Distribución'));
-  assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
+  assert.ok(result.data.rows.some((row) => row.section === 'Pago manual de rentabilidad'));
+  assert.equal(result.data.rows[0].date, '');
+  assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments|N\/A/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
 });
 
 test('export associates PDF summarizes associate payments, pending interest, and schedule', async () => {
@@ -162,7 +167,6 @@ test('export associates PDF summarizes associate payments, pending interest, and
     id: 4,
     name: 'Socio PDF QA',
     status: 'active',
-    participationPercentage: 25,
     interestType: 'monthly',
     interestRate: '2.5000',
   };
@@ -192,14 +196,14 @@ test('export associates PDF summarizes associate payments, pending interest, and
   });
 
   const result = await useCase({ actor: { role: 'admin' } });
-  const pdfText = result.buffer.toString('utf8');
+  const pdfText = extractPdfText(result.buffer);
 
-  assert.equal(result.fileName, 'associates-export.pdf');
+  assert.equal(result.fileName, 'reporte-socios.pdf');
   assert.equal(result.contentType, 'application/pdf');
-  assert.match(pdfText, /REPORTE DE SOCIOS INVERSIONISTAS/);
-  assert.match(pdfText, /Pagos realizados a socios: COP 25\.000,00/);
-  assert.match(pdfText, /Intereses pendientes de socios: COP 25\.000,00/);
-  assert.match(pdfText, /Cronograma de pagos de socios: 1 cuota/);
+  assert.match(pdfText, /Socios inversionistas/);
+  assert.match(pdfText, /Intereses pagados/);
+  assert.match(pdfText, /Intereses pendientes/);
+  assert.match(pdfText, /COP 25.000,00/);
   assert.match(pdfText, /Socio PDF QA/);
 });
 
@@ -208,7 +212,6 @@ test('export associates use case filters the operational report by associate id'
     id: 8,
     name: 'Socio Filtrado QA',
     status: 'active',
-    participationPercentage: 40,
     interestType: 'annual',
     interestRate: '12.0000',
   };
@@ -251,7 +254,6 @@ test('export associates use case filters the operational report by associate sta
       id: 8,
       name: 'Socio Activo QA',
       status: 'active',
-      participationPercentage: 40,
       interestType: 'monthly',
       interestRate: '2.5000',
     },
@@ -259,7 +261,6 @@ test('export associates use case filters the operational report by associate sta
       id: 9,
       name: 'Socio Inactivo QA',
       status: 'inactive',
-      participationPercentage: 10,
       interestType: 'annual',
       interestRate: '12.0000',
     },
@@ -296,12 +297,64 @@ test('export associates use case filters the operational report by associate sta
   assert.equal(result.data.rows[0].associateName, 'Socio Inactivo QA');
 });
 
+test('export associates use case filters the operational report by visible search terms', async () => {
+  const associates = [
+    {
+      id: 11,
+      name: 'Socio Exportable QA',
+      email: 'exportable@test.local',
+      phone: '3001112233',
+      status: 'active',
+      interestType: 'monthly',
+      interestRate: '2.5000',
+    },
+    {
+      id: 12,
+      name: 'Socio Oculto QA',
+      email: 'oculto@test.local',
+      phone: '3009998877',
+      status: 'active',
+      interestType: 'annual',
+      interestRate: '12.0000',
+    },
+  ];
+  const queriedAssociateIds = [];
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        return associates;
+      },
+      async findById(id) {
+        return associates.find((associate) => Number(associate.id) === Number(id));
+      },
+      async listContributionsByAssociate(id) {
+        queriedAssociateIds.push(Number(id));
+        return [{ id: 91, amount: 1200000, contributionDate: '2026-04-01', status: 'completed' }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { role: 'admin' }, filters: { search: 'exportable' } });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(queriedAssociateIds, [11]);
+  assert.equal(new Set(result.data.rows.map((row) => row.associateId)).size, 1);
+  assert.equal(result.data.rows[0].associateId, 11);
+  assert.equal(result.data.rows[0].associateName, 'Socio Exportable QA');
+});
+
 test('export associates use case filters movements by operational date range', async () => {
   const associate = {
     id: 8,
     name: 'Socio Fecha QA',
     status: 'active',
-    participationPercentage: 40,
     interestType: 'monthly',
     interestRate: '2.5000',
   };
@@ -367,12 +420,11 @@ test('export associates use case rejects inverted date ranges before reading ass
   assert.equal(repositoryCalled, false);
 });
 
-test('export associates use case uses operational fallbacks for unknown movement labels', async () => {
+test('export associates use case preserves recorded values for unknown movement labels', async () => {
   const associate = {
     id: 4,
     name: 'Socio Excel QA',
     status: 'manual_hold',
-    participationPercentage: 25,
     interestType: 'monthly',
     interestRate: '2.5000',
   };
@@ -403,9 +455,9 @@ test('export associates use case uses operational fallbacks for unknown movement
   const result = await useCase({ actor: { role: 'admin' } });
   const serializedRows = JSON.stringify(result.data.rows);
 
-  assert.match(serializedRows, /Estado no clasificado/);
-  assert.match(serializedRows, /Tipo de distribución no clasificado/);
-  assert.doesNotMatch(serializedRows, /manual_hold|manual_adjustment|manual hold|manual adjustment/);
+  assert.match(serializedRows, /manual_hold/);
+  assert.match(serializedRows, /manual_adjustment/);
+  assert.doesNotMatch(serializedRows, /Estado no clasificado|Tipo de distribución no clasificado/);
 });
 
 test('export associates use case allows permissioned employees to export the administrative associates report', async () => {
@@ -413,7 +465,6 @@ test('export associates use case allows permissioned employees to export the adm
     id: 4,
     name: 'Socio Excel QA',
     status: 'active',
-    participationPercentage: 25,
     interestType: 'monthly',
     interestRate: '2.5000',
   };
@@ -885,9 +936,6 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
           },
         };
       },
-      async exportRecoveryReport() {
-        return { fileName: 'recovery-report.csv', contentType: 'text/csv', buffer: Buffer.from('test') };
-      },
     },
   });
 
@@ -920,7 +968,7 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
   assert.equal(detailHeaders.includes('calculationMethod'), false);
 });
 
-test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
+test('GET /reports/payouts/export returns xlsx file for admin', async () => {
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
     useCases: {
@@ -973,7 +1021,7 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/payouts/excel?customerId=10&startDate=2026-02-01&endDate=2026-02-28`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/payouts/export?format=xlsx&customerId=10&startDate=2026-02-01&endDate=2026-02-28`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -1166,9 +1214,10 @@ test('export operating expenses report builds operational Excel and PDF artifact
   });
 
   assert.equal(pdf.contentType, 'application/pdf');
-  assert.match(pdf.buffer.toString('utf8'), /Gastos operativos/);
-  assert.match(pdf.buffer.toString('utf8'), /Total reportado: COP 950\.000,00/);
-  assert.match(pdf.buffer.toString('utf8'), /Anulado/);
+  const expensePdfText = extractPdfText(pdf.buffer);
+  assert.match(expensePdfText, /Gastos del negocio/);
+  assert.match(expensePdfText, /COP 950.000,00/);
+  assert.match(expensePdfText, /Anulado/);
 });
 
 test('export operating expenses report rejects inverted date ranges before querying repository', async () => {
@@ -1310,133 +1359,6 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
   assert.equal(calls.map((call) => call.format).join(','), 'xlsx,pdf');
 });
 
-test('GET /reports/dashboard exports xlsx and pdf files for admin', async () => {
-  const router = createReportsRouter({
-    authMiddleware: roleAwareAuth,
-    useCases: {
-      async getDashboardSummary(input) {
-        assert.equal(input.actor.role, 'admin');
-        return {
-          success: true,
-          data: {
-            summary: {
-              totalLoans: 4,
-              activeLoans: 3,
-              delinquentLoans: 2,
-              defaultedLoans: 1,
-              recoveredLoans: 2,
-              totalPortfolioAmount: '400000.00',
-              totalInterestGenerated: '98000.00',
-              totalInterestPaid: '62000.00',
-              totalAssociatePayments: '12000.00',
-              totalRecoveredAmount: '210000.00',
-              totalOutstandingAmount: '190000.00',
-            },
-            collections: {
-              overdueAlerts: 1,
-              pendingPromises: 2,
-              unreadNotifications: 3,
-            },
-            monthlyPerformance: [
-              { month: '2026-03', disbursed: 100000, recovered: 80000 },
-            ],
-            recentActivity: {
-              loans: [{
-                loanId: 4,
-                customerName: 'QA Cliente',
-                status: 'active',
-                Customer: { name: 'QA Cliente' },
-                rowVersion: BigInt(2),
-              }],
-              payments: [{
-                paymentId: 10,
-                loanId: 4,
-                customerName: 'QA Cliente',
-                amount: '50000.00',
-                paymentType: 'installment',
-                status: 'completed',
-                metadata: { paymentMethod: 'cash' },
-                circular: null,
-              }],
-              alerts: [],
-              promises: [],
-              notifications: [],
-            },
-          },
-        };
-      },
-    },
-  });
-
-  const app = express();
-  app.use(express.json());
-  app.use(router);
-  activeServer = await listen(app);
-
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/dashboard/excel`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-  });
-
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  assert.match(response.headers.get('content-disposition') || '', /dashboard-report-/);
-
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
-  const headers = workbook.getWorksheet('Resumen General').getRow(2).values;
-  assert.ok(headers.includes('Indicador'));
-  assert.ok(headers.includes('Valor'));
-  assert.equal(headers.includes('totalLoans'), false);
-  const summaryRows = Array.from(workbook.getWorksheet('Resumen General').getSheetValues())
-    .map((row) => Array.isArray(row) ? row : [])
-    .map((row) => [row[1], row[2]]);
-  assert.deepEqual(
-    summaryRows.find(([label]) => label === 'Créditos recuperados'),
-    ['Créditos recuperados', 2],
-  );
-  assert.deepEqual(
-    summaryRows.find(([label]) => label === 'Pagos a socios'),
-    ['Pagos a socios', 'COP 12.000,00'],
-  );
-
-  let pagosSociosCell = null;
-  workbook.getWorksheet('Resumen General').eachRow((row) => {
-    if (row.getCell(1).value === 'Pagos a socios') {
-      pagosSociosCell = row.getCell(2);
-    }
-  });
-  assert.ok(pagosSociosCell);
-  assert.equal(pagosSociosCell.value, 'COP 12.000,00');
-  assert.match(pagosSociosCell.numFmt, /COP/);
-
-  const loanHeaders = workbook.getWorksheet('Préstamos recientes').getRow(2).values;
-  assert.ok(loanHeaders.includes('Crédito'));
-  assert.equal(loanHeaders.includes('ID Crédito'), false);
-  assert.equal(workbook.getWorksheet('Préstamos recientes').getRow(3).getCell(4).value, 'Activo');
-
-  const paymentHeaders = workbook.getWorksheet('Pagos recientes').getRow(2).values;
-  assert.ok(paymentHeaders.includes('Pago'));
-  assert.ok(paymentHeaders.includes('Crédito'));
-  assert.equal(paymentHeaders.includes('ID Pago'), false);
-  assert.equal(paymentHeaders.includes('ID Crédito'), false);
-  assert.equal(workbook.getWorksheet('Pagos recientes').getRow(3).getCell(5).value, 'Cuota');
-  assert.equal(workbook.getWorksheet('Pagos recientes').getRow(3).getCell(6).value, 'Completado');
-
-  const pdfResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/dashboard/pdf`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-  });
-
-  assert.equal(pdfResponse.status, 200);
-  assert.equal(pdfResponse.headers.get('content-type'), 'application/pdf');
-  assert.match(pdfResponse.headers.get('content-disposition') || '', /dashboard-report-/);
-
-  const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-  assert.equal(pdfBuffer.subarray(0, 4).toString('utf8'), '%PDF');
-  const pdfText = pdfBuffer.toString('utf8');
-  assert.ok(pdfText.includes('REPORTE GENERAL DEL DASHBOARD'));
-  assert.ok(pdfText.includes('Créditos activos: 3'));
-});
-
 test('GET /reports/credits/excel rejects non-admin users', async () => {
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
@@ -1461,8 +1383,8 @@ test('GET /reports/credits/excel rejects non-admin users', async () => {
 
 test('GET /associates/export returns xlsx file for admin', async () => {
   const mockRows = [
-    { associateId: 1, associateName: 'Socio 1', section: 'summary', amount: '10000', date: 'Distributed: 500', status: 'active', participationPercentage: '25.0000' },
-    { associateId: 1, associateName: 'Socio 1', section: 'contribution', entryId: 1, amount: '5000', date: '2024-01-15', status: 'completed', participationPercentage: '25.0000' },
+    { associateId: 1, associateName: 'Socio 1', section: 'summary', amount: '10000', date: '', status: 'active' },
+    { associateId: 1, associateName: 'Socio 1', section: 'contribution', entryId: 1, amount: '5000', date: '2024-01-15', status: 'completed' },
   ];
 
   const router = createAssociatesRouter({
@@ -1483,14 +1405,12 @@ test('GET /associates/export returns xlsx file for admin', async () => {
                 { header: 'Socio', key: 'associateName' },
                 { header: 'Tipo de Interés', key: 'interestType' },
                 { header: 'Deuda con Socio', key: 'interestDebt', numFmt: MONEY_FORMAT },
-                { header: 'Participación %', key: 'participationPercentage', numFmt: '0.00"%"' },
               ],
               rows: [{
                 associateId: 1,
                 associateName: 'Socio 1',
                 interestType: 'Mensual',
                 interestDebt: '1000.00',
-                participationPercentage: '25.0000',
               }],
             }],
           },
@@ -1515,13 +1435,14 @@ test('GET /associates/export returns xlsx file for admin', async () => {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
   const headers = workbook.getWorksheet('Detalle de Socios').getRow(2).values;
-  assert.ok(headers.includes('ID Socio'));
-  assert.ok(headers.includes('Participación %'));
-  assert.ok(headers.includes('Tipo de Interés'));
-  assert.ok(headers.includes('Deuda con Socio'));
+  assert.deepEqual(headers.slice(1, 5), [
+    'ID Socio',
+    'Socio',
+    'Tipo de Interés',
+    'Deuda con Socio',
+  ]);
   assert.equal(headers.includes('associateId'), false);
   assert.equal(workbook.getWorksheet('Detalle de Socios').getRow(3).getCell(4).value, 'COP 1.000,00');
-  assert.equal(workbook.getWorksheet('Detalle de Socios').getRow(3).getCell(5).value, '25,00%');
 });
 
 test('GET /associates/export returns pdf file for admin', async () => {
@@ -1562,7 +1483,7 @@ test('GET /associates/export forwards associate filter to pdf export use case', 
     useCases: {
       async exportAssociatesPdf(input) {
         assert.equal(input.actor.role, 'admin');
-        assert.deepEqual(input.filters, { associateId: 8, fromDate: undefined, toDate: undefined, status: undefined });
+        assert.deepEqual(input.filters, { associateId: 8, search: undefined, fromDate: undefined, toDate: undefined, status: undefined });
         return {
           fileName: 'associates-export.pdf',
           contentType: 'application/pdf',
@@ -1594,6 +1515,7 @@ test('GET /associates/export forwards status filter to pdf export use case', asy
         assert.equal(input.actor.role, 'admin');
         assert.deepEqual(input.filters, {
           associateId: undefined,
+          search: undefined,
           fromDate: undefined,
           toDate: undefined,
           status: 'inactive',
@@ -1629,6 +1551,7 @@ test('GET /associates/export forwards date range filters to pdf export use case'
         assert.equal(input.actor.role, 'admin');
         assert.deepEqual(input.filters, {
           associateId: undefined,
+          search: undefined,
           fromDate: '2026-04-01',
           toDate: '2026-04-30',
           status: undefined,
@@ -1802,11 +1725,8 @@ test('credits export filters by status (active only excludes closed loans)', asy
   assert.equal(result.data.rows[0].creditId, 11);
 });
 
-test('credits Excel and PDF exports count delinquent loans consistently when status and recoveryStatus differ', async () => {
-  const {
-    createExportCreditsExcel,
-    createExportCreditsPdf,
-  } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
+test('credits Excel export counts delinquent loans consistently when status and recoveryStatus differ', async () => {
+  const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
 
   const loans = [
     {
@@ -1870,19 +1790,4 @@ test('credits Excel and PDF exports count delinquent loans consistently when sta
   const delinquentRow = excelResult.data.sheets[0].rows.find((row) => row.indicator === 'Créditos en Mora');
   assert.ok(delinquentRow, 'Excel summary should include delinquent credits row');
   assert.equal(delinquentRow.value, 2);
-
-  const pdfResult = await createExportCreditsPdf(fixtures)({ actor: { role: 'admin' }, filters: {} });
-  const pdfText = pdfResult.buffer.toString('utf8');
-  assert.match(pdfText, /Créditos vencidos: 2/);
-});
-
-test('credits PDF export returns a valid PDF buffer with summary headline', async () => {
-  const { createExportCreditsPdf } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
-  const fixtures = buildCreditFixtures();
-  const useCase = createExportCreditsPdf(fixtures);
-  const result = await useCase({ actor: { role: 'admin' }, filters: {} });
-  assert.ok(result.fileName.endsWith('.pdf'));
-  assert.equal(result.contentType, 'application/pdf');
-  const head = result.buffer.subarray(0, 4).toString('utf8');
-  assert.equal(head, '%PDF');
 });

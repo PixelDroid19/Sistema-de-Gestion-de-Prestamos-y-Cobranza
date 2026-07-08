@@ -88,6 +88,19 @@ describe('AppInput behavior', () => {
     expect(screen.getByLabelText('Monto decimal')).toHaveValue('120.554,50');
   });
 
+  it('uses the centralized COP prefix for currency inputs by default', () => {
+    render(
+      <CurrencyInput
+        aria-label="Monto COP"
+        value="1200000"
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('COP')).toBeInTheDocument();
+    expect(screen.getByLabelText('Monto COP')).toHaveValue('1.200.000');
+  });
+
   it('supports backspace at the end of grouped currency values (via change)', () => {
     function CurrencyHarness() {
       const [value, setValue] = useState('120554.50');

@@ -1,15 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, Eye, Edit, Download, DollarSign, TrendingUp, Users, History, CalendarClock, Power, PowerOff } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Download, History, CalendarClock, Power, PowerOff } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
+  formatDate as formatDateValue,
   formatNumber as formatNumberValue,
-  formatPercent as formatPercentValue,
 } from '../i18n/format';
 import { exportAssociatesExcel, useAssociates } from '../services/associateService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
 import { reportClientError } from '../lib/clientDiagnostics';
 import { tTerm } from '../i18n/terminology';
+import {
+  getAssociateInterestRateValue,
+  getAssociateInterestTypeValue,
+} from '../lib/associateInterest';
 import {
   AppTable,
   RowActionsWithOverflow,
@@ -21,13 +25,13 @@ import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import { useResolvedPermissionNames } from '../services/permissionsService';
-import { ActionButton, AppInput, FormField, InsightStrip, ModalShell, OperationalSelect, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
-import { HelpLabel } from './shared/HelpSupport';
+import { ActionButton, AppInput, FormField, ModalShell, OperationalSelect, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import NewAssociate from './NewAssociate';
+import AssociateModuleNavigation from './associates/AssociateModuleNavigation';
 
 const formatCurrency = (amount: number) => formatCurrencyValue(amount);
 
-const formatPercent = (value: number) => formatPercentValue(value, { maximumFractionDigits: 2 });
+const formatDate = (value: string) => formatDateValue(value);
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { user } = useSessionStore();
@@ -58,6 +62,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     try {
       setIsExporting(true);
       await exportAssociatesExcel({
+        search: searchTerm.trim() || undefined,
         status: statusFilter === 'all' ? undefined : statusFilter,
       });
       toast.success({ description: tTerm('associates.toast.export.success') });
@@ -94,6 +99,23 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       monthlyInterestEstimate,
     };
   }, [associates, pagination?.total, pagination?.totalItems, summary]);
+  const associateSummaryItems = [
+    {
+      label: tTerm('associates.summary.capital'),
+      value: formatCurrency(associateStripMetrics.totalContributed),
+      helper: tTerm('associates.summary.capitalHelper'),
+    },
+    {
+      label: tTerm('associates.summary.estimatedInterest'),
+      value: formatCurrency(associateStripMetrics.monthlyInterestEstimate),
+      helper: tTerm('associates.summary.estimatedInterestHelper'),
+    },
+    {
+      label: tTerm('associates.summary.active'),
+      value: `${associateStripMetrics.activeCount} / ${associateStripMetrics.totalCount}`,
+      helper: tTerm('associates.summary.activeHelper'),
+    },
+  ];
 
   const getAssociateName = (associate: any) => {
     if (typeof associate?.name === 'string' && associate.name.trim()) {
@@ -121,34 +143,68 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     : 'bg-slate-100 text-slate-600');
 
   const getInterestLabel = (associate: any) => {
-    const rate = Number(associate?.interestRate || 0);
-    const type = associate?.interestType === 'annual'
-      ? tTerm('common.interestType.annual')
-      : tTerm('common.interestType.monthly');
-    return `${formatNumberValue(rate, { maximumFractionDigits: 4 })}% ${type.toLowerCase()}`;
+    const rate = getAssociateInterestRateValue(associate);
+    const interestType = getAssociateInterestTypeValue(associate);
+
+    if (rate === null) {
+      return tTerm('common.notSpecified');
+    }
+
+    if (!interestType) {
+      return `${formatNumberValue(rate, { maximumFractionDigits: 4 })}%`;
+    }
+
+    const typeLabel = tTerm(
+      interestType === 'annual'
+        ? 'common.interestType.annual'
+        : 'common.interestType.monthly',
+    );
+
+    return `${formatNumberValue(rate, { maximumFractionDigits: 4 })}% ${typeLabel.toLowerCase()}`;
   };
 
   const getAssociateContactLine = (associate: any) => (
     [associate?.email, associate?.phone].filter((value) => typeof value === 'string' && value.trim().length > 0).join(' · ')
   );
 
-  const getParticipationText = (associate: any) => {
-    const participation = Number(associate?.participationPercentage || 0);
-    return participation > 0 ? formatPercent(participation) : tTerm('associates.table.participationMissing');
+  const getCurrentCapitalValue = (associate: any) => {
+    const currentCapital = Number(associate?.currentCapital ?? associate?.capitalContributed ?? associate?.totalContributed ?? 0);
+    return currentCapital > 0 ? currentCapital : Number(associate?.totalContributed ?? 0);
   };
 
-  const getParticipationHelper = (associate: any) => {
-    const participation = Number(associate?.participationPercentage || 0);
-    return participation > 0
-      ? tTerm('associates.table.participationConfigured')
-      : tTerm('associates.table.participationPending');
+  const getCapitalDetail = (associate: any) => {
+    const totalContributed = Number(associate?.totalContributed ?? associate?.capitalContributed ?? 0);
+    const totalReturned = Number(associate?.totalCapitalReturned ?? associate?.capitalReturned ?? 0);
+    const parts: string[] = [];
+
+    if (totalContributed > 0) {
+      parts.push(tTerm('associates.table.capitalContributed', {
+        amount: formatCurrency(totalContributed),
+      }));
+    }
+
+    if (totalReturned > 0) {
+      parts.push(tTerm('associates.table.capitalReturned', {
+        amount: formatCurrency(totalReturned),
+      }));
+    }
+
+    return parts.join(' · ') || tTerm('common.notAvailable');
   };
 
   const getInterestScheduleLabel = (associate: any) => {
-    const type = associate?.interestType === 'annual'
-      ? tTerm('common.interestType.annual').toLowerCase()
-      : tTerm('common.interestType.monthly').toLowerCase();
+    const interestType = getAssociateInterestTypeValue(associate);
     const paymentDay = Number(associate?.interestPaymentDay || 0);
+
+    if (!interestType) {
+      return tTerm('associates.table.interestPending');
+    }
+
+    const type = tTerm(
+      interestType === 'annual'
+        ? 'common.interestType.annual'
+        : 'common.interestType.monthly',
+    ).toLowerCase();
 
     if (paymentDay > 0) {
       return tTerm('associates.table.interestScheduleWithDay', {
@@ -158,6 +214,18 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     }
 
     return tTerm('associates.table.interestSchedule', { periodicity: type });
+  };
+
+  const getNextPaymentLabel = (associate: any) => {
+    const nextPaymentDate = String(associate?.nextPaymentDate || associate?.nextInterestPaymentDate || '').trim();
+
+    if (nextPaymentDate) {
+      return tTerm('associates.table.nextPaymentWithDate', {
+        date: formatDate(nextPaymentDate) || nextPaymentDate,
+      });
+    }
+
+    return getInterestScheduleLabel(associate);
   };
 
   const handleToggleStatus = async (associate: any) => {
@@ -267,7 +335,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       <PageHeader
         title={tTerm('associates.module.title')}
         subtitle={tTerm('associates.module.subtitle')}
-        guideKey="associates"
         tourId="associates-header"
         actions={(canExportAssociates || canCreateAssociates) ? (
         <>
@@ -290,40 +357,25 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
         ) : undefined}
       />
 
+      <AssociateModuleNavigation
+        activeSection="registry"
+        setCurrentView={setCurrentView}
+      />
+
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         {(associateStripMetrics.totalCount > 0 || associateStripMetrics.totalContributed > 0) && (
-          <InsightStrip
-            aria-label={tTerm('associates.summary.aria')}
-            items={[
-              {
-                id: 'associate-capital',
-                label: tTerm('associates.summary.capital'),
-                value: formatCurrency(associateStripMetrics.totalContributed),
-                helper: tTerm('associates.summary.capitalHelper'),
-                icon: <DollarSign size={18} />,
-                accent: 'blue',
-              },
-              {
-                id: 'associate-interest',
-                label: tTerm('associates.summary.estimatedInterest'),
-                value: formatCurrency(associateStripMetrics.monthlyInterestEstimate),
-                helper: tTerm('associates.summary.estimatedInterestHelper'),
-                icon: <TrendingUp size={18} />,
-                accent: 'emerald',
-              },
-              {
-                id: 'associate-active',
-                label: tTerm('associates.summary.active'),
-                value: `${associateStripMetrics.activeCount} / ${associateStripMetrics.totalCount}`,
-                helper: tTerm('associates.summary.activeHelper'),
-                icon: <Users size={18} />,
-                accent: 'slate',
-              },
-            ]}
-          />
+          <dl className="associates-summary-grid" aria-label={tTerm('associates.summary.aria')}>
+            {associateSummaryItems.map((item) => (
+              <div key={item.label} className="associates-summary-grid__item">
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+                <p>{item.helper}</p>
+              </div>
+            ))}
+          </dl>
         )}
 
-        <ToolbarSurface data-tour="associates-search">
+        <ToolbarSurface className="associates-toolbar" data-tour="associates-search">
           <div className="grid items-start gap-3 lg:grid-cols-[minmax(18rem,26rem)_14rem]">
             <FormField label={tTerm('associates.search.label')}>
               <AppInput
@@ -355,7 +407,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
         <AppTable variant="operational"
           data-tour="associates-table"
-          minWidthClassName="min-w-[820px]"
+          minWidthClassName="min-w-[780px]"
           isLoading={isLoading}
           isError={isError}
           hasData={associates.length > 0}
@@ -380,15 +432,9 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
             <thead>
               <tr>
                 <th className="pb-3 font-medium">{tTerm('associates.table.name')}</th>
-                <th className="pb-3 font-medium">
-                  <HelpLabel label={tTerm('associates.table.status')} text={tTerm('associates.table.statusHelp')} />
-                </th>
-                <th className="pb-3 font-medium">
-                  <HelpLabel label={tTerm('associates.table.participation')} text={tTerm('associates.table.participationHelp')} />
-                </th>
-                <th className="pb-3 font-medium">
-                  <HelpLabel label={tTerm('associates.table.interest')} text={tTerm('associates.table.interestHelp')} />
-                </th>
+                <th className="pb-3 font-medium">{tTerm('associates.table.capital')}</th>
+                <th className="pb-3 font-medium">{tTerm('associates.table.termsAndNextPayment')}</th>
+                <th className="pb-3 font-medium">{tTerm('associates.table.status')}</th>
                 <TableActionsHeader className="pb-3 font-medium">{tTerm('associates.table.actions')}</TableActionsHeader>
               </tr>
             </thead>
@@ -409,17 +455,19 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                     </div>
                   </td>
                   <td className="py-4">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(associate.status)}`}>
-                      {getStatusLabel(associate.status)}
-                    </span>
-                  </td>
-                  <td className="py-4">
-                    <p className="font-medium text-text-primary">{getParticipationText(associate)}</p>
-                    <p className="mt-1 text-sm text-text-secondary">{getParticipationHelper(associate)}</p>
+                    <p className="font-medium text-text-primary">{formatCurrency(getCurrentCapitalValue(associate))}</p>
+                    <p className="mt-1 text-sm text-text-secondary">{getCapitalDetail(associate)}</p>
                   </td>
                   <td className="py-4">
                     <p className="font-medium text-text-primary">{getInterestLabel(associate)}</p>
-                    <p className="mt-1 text-sm text-text-secondary">{getInterestScheduleLabel(associate)}</p>
+                    <p className="mt-1 text-sm text-text-secondary">{getNextPaymentLabel(associate)}</p>
+                  </td>
+                  <td className="py-4">
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(associate.status)}`}>
+                        {getStatusLabel(associate.status)}
+                      </span>
+                    </div>
                   </td>
                   <TableActionsCell className="py-4">
                     <RowActionsWithOverflow

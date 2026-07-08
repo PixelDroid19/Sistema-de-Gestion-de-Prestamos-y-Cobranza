@@ -1,8 +1,8 @@
 const {
   ensureAdmin,
   formatDisplayMoney,
-  buildPdfBuffer,
 } = require('@/modules/reports/application/reportHelpers');
+const { buildReportPdf } = require('@/modules/shared/pdfReport');
 const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const {
@@ -451,18 +451,6 @@ const createGetCreditHistoryAuditReport = ({ reportRepository }) => async ({ act
   };
 };
 
-const createListCreditHistoryFinancialProducts = ({ reportRepository }) => async ({ actor }) => {
-  ensureAdmin(actor);
-  const financialProducts = await reportRepository.listCreditHistoryFinancialProducts();
-
-  return {
-    success: true,
-    data: {
-      financialProducts,
-    },
-  };
-};
-
 const createExportCreditHistoryAuditExcel = ({ reportRepository }) => async ({ actor, filters = {} }) => {
   const response = await createGetCreditHistoryAuditReport({ reportRepository })({ actor, filters });
   const report = response.data;
@@ -514,32 +502,59 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
     toDateOnlyOrNull(report.filters.startDate) || 'inicio',
     toDateOnlyOrNull(report.filters.endDate) || 'hoy',
   ].join(' a ');
-  const monthlyDetailLines = report.months.flatMap((month, index) => [
-    ...(index === 0 ? ['Detalle mensual'] : []),
-    `${month.month} - prestado ${formatDisplayMoney(month.createdPrincipal)} - recibido ${formatDisplayMoney(month.paymentsReceived)} - gastos ${formatDisplayMoney(month.operatingExpenses)} - caja ${formatDisplayMoney(month.availableCash)}`,
-  ]);
-
   return {
     fileName: `creditos-periodo-${toDateOnlyOrNull(report.filters.startDate) || 'inicio'}-${toDateOnlyOrNull(report.filters.endDate) || 'hoy'}.pdf`,
     contentType: 'application/pdf',
-    buffer: buildPdfBuffer({
-      title: 'Historial de créditos',
-      lines: [
-        `Periodo: ${range}`,
-        `Créditos creados: ${report.summary.creditsCreated}`,
-        `Cuotas recibidas: ${report.summary.installmentsReceived}`,
-        `Capital prestado: ${formatDisplayMoney(report.summary.totalPrincipalCreated)}`,
-        `Total recibido: ${formatDisplayMoney(report.summary.totalPaymentsReceived)}`,
-        `Gastos operativos: ${formatDisplayMoney(report.summary.totalOperatingExpenses)}`,
-        `Capital recuperado: ${formatDisplayMoney(report.summary.totalCapitalRecovered)}`,
-        `Capital vivo: ${formatDisplayMoney(report.summary.totalPrincipalOutstanding)}`,
-        `Intereses cobrados: ${formatDisplayMoney(report.summary.totalInterestCollected)}`,
-        `Mora cobrada: ${formatDisplayMoney(report.summary.totalPenaltiesCollected)}`,
-        `Créditos vencidos: ${report.summary.overdueCredits}`,
-        `Pérdidas/Riesgo: ${formatDisplayMoney(report.summary.lossesAtRisk)}`,
-        `Interés y mora: ${formatDisplayMoney(report.summary.gains)}`,
-        `Caja disponible: ${formatDisplayMoney(report.summary.availableCash)}`,
-        ...monthlyDetailLines,
+    buffer: await buildReportPdf({
+      title: 'Créditos del período',
+      subtitle: `Periodo: ${range}`,
+      summary: [
+        { label: 'Créditos creados', value: report.summary.creditsCreated },
+        { label: 'Capital prestado', value: formatDisplayMoney(report.summary.totalPrincipalCreated) },
+        { label: 'Total recibido', value: formatDisplayMoney(report.summary.totalPaymentsReceived) },
+        { label: 'Interés y mora cobrados', value: formatDisplayMoney(report.summary.gains) },
+        { label: 'Saldo de capital', value: formatDisplayMoney(report.summary.totalPrincipalOutstanding) },
+        { label: 'Caja disponible', value: formatDisplayMoney(report.summary.availableCash) },
+      ],
+      sections: [
+        {
+          heading: 'Detalle de créditos',
+          table: {
+            columns: [
+              { header: 'Crédito', key: 'creditId', width: 55 },
+              { header: 'Cliente', key: 'customerName' },
+              { header: 'Estado', key: 'status', width: 70 },
+              { header: 'Fecha', key: 'creditDate', width: 70 },
+              { header: 'Monto', key: 'amount', width: 95, align: 'right', bold: true },
+            ],
+            rows: (report.credits || []).map((credit) => ({
+              creditId: `#${credit.creditId}`,
+              customerName: credit.customerName || 'Sin cliente',
+              status: formatOperationalStatus(credit.status),
+              creditDate: toDateOnlyOrNull(credit.creditDate) || '',
+              amount: formatDisplayMoney(credit.amount),
+            })),
+          },
+        },
+        {
+          heading: 'Detalle mensual',
+          table: {
+            columns: [
+              { header: 'Mes', key: 'month', width: 65 },
+              { header: 'Prestado', key: 'lent', align: 'right' },
+              { header: 'Recibido', key: 'received', align: 'right' },
+              { header: 'Gastos', key: 'expenses', align: 'right' },
+              { header: 'Caja', key: 'cash', align: 'right', bold: true },
+            ],
+            rows: report.months.map((month) => ({
+              month: month.month,
+              lent: formatDisplayMoney(month.createdPrincipal),
+              received: formatDisplayMoney(month.paymentsReceived),
+              expenses: formatDisplayMoney(month.operatingExpenses),
+              cash: formatDisplayMoney(month.availableCash),
+            })),
+          },
+        },
       ],
     }),
   };
@@ -549,7 +564,6 @@ module.exports = {
   buildCreditHistoryAuditReport,
   normalizeCreditHistoryFilters,
   createGetCreditHistoryAuditReport,
-  createListCreditHistoryFinancialProducts,
   createExportCreditHistoryAuditExcel,
   createExportCreditHistoryAuditPdf,
 };
