@@ -192,10 +192,10 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   }
 
   const form = (
-    <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form" className={embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}>
+    <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form" className={`associate-form ${embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}`}>
         <div className="space-y-5">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-text-primary">{tTerm('newAssociate.section.person')}</h3>
+            <h3 className="text-base font-semibold text-text-primary">{tTerm('newAssociate.section.person')}</h3>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -252,7 +252,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
           </div>
 
           <div className="border-t border-border-subtle pt-4">
-            <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-text-primary">{tTerm('newAssociate.section.deposit')}</h3>
+            <h3 className="text-base font-semibold text-text-primary">{tTerm('newAssociate.section.deposit')}</h3>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -341,11 +341,10 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   }
 
   return (
-    <PageShell className="mx-auto w-full max-w-3xl" data-tour="new-associate-page">
+    <PageShell className="associate-module-page associate-new-page mx-auto w-full max-w-3xl" data-tour="new-associate-page">
       <PageHeader
         title={title}
         subtitle={subtitle}
-        guideKey="new-associate"
         tourId="new-associate-header"
         actions={(
           <ActionButton onClick={onBack} icon={<ArrowLeft size={16} />}>

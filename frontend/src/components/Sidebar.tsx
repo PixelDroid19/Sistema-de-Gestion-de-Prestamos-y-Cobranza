@@ -40,6 +40,10 @@ export default function Sidebar({
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
   const isCreditsView = currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator';
   const isAssociatesView = currentView.startsWith('associate');
+  const isAssociateManagementView = (
+    currentView === 'associates'
+    || (currentView.startsWith('associates/') && currentView !== 'associates/tracking')
+  );
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     clientes: isCustomersView,
     creditos: isCreditsView,
@@ -312,7 +316,7 @@ export default function Sidebar({
             {openMenus['socios'] && !isCollapsed && (
               <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
                 <SubNavItem
-                  active={currentView === 'associates' || currentView.startsWith('associates/')}
+                  active={isAssociateManagementView}
                   onClick={() => setCurrentView('associates')}
                   title={tTerm('sidebar.associates.management')}
                 />

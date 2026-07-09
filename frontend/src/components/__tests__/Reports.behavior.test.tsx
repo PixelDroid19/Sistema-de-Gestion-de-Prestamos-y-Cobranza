@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import Reports from '../Reports';
 
@@ -543,11 +543,14 @@ describe('Reports operational module', () => {
 
     expect(screen.getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
     expect(screen.getAllByText('Entradas por cuotas').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Pagos a socios')).not.toBeInTheDocument();
+    const cashFlowTable = screen.getByRole('table');
+    expect(within(cashFlowTable).getByRole('columnheader', { name: 'Salidas registradas' })).toBeInTheDocument();
+    expect(within(cashFlowTable).getAllByText('Socios').length).toBeGreaterThan(0);
+    expect(within(cashFlowTable).getAllByText('Gastos').length).toBeGreaterThan(0);
     expect(screen.getByText('Cierre mensual')).toBeInTheDocument();
-    expect(screen.getAllByText('Salidas por préstamos').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Caja disponible').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Cartera por cobrar').length).toBeGreaterThan(0);
+    expect(within(cashFlowTable).getAllByText('Préstamos').length).toBeGreaterThan(0);
+    expect(within(cashFlowTable).getByRole('columnheader', { name: 'Caja disponible' })).toBeInTheDocument();
+    expect(within(cashFlowTable).queryByRole('columnheader', { name: 'Cartera por cobrar' })).not.toBeInTheDocument();
     expect(screen.queryByText('Recaudo y préstamos')).not.toBeInTheDocument();
     expect(screen.queryByText('Salidas operativas')).not.toBeInTheDocument();
     expect(screen.queryByText('Caja y cartera')).not.toBeInTheDocument();
@@ -561,6 +564,14 @@ describe('Reports operational module', () => {
       );
       expect(mockToastSuccess).toHaveBeenCalled();
     });
+  });
+
+  it('keeps expense management outside the report selector', () => {
+    renderReports();
+
+    const reportSelector = screen.getByRole('region', { name: 'Secciones de reportes' });
+    expect(within(reportSelector).queryByRole('button', { name: 'Gastos operativos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gastos operativos' })).toBeInTheDocument();
   });
 
   it('keeps non-zero cashflow table values when rows arrive with total-prefixed fields', () => {
@@ -611,7 +622,8 @@ describe('Reports operational module', () => {
 
     expect(screen.getAllByText('COP 50.000.000').length).toBeGreaterThan(0);
     expect(screen.getAllByText('COP 40.000.000').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('COP 12.500.000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('COP 45.000.000').length).toBeGreaterThan(0);
+    expect(screen.queryByText('COP 12.500.000')).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Total' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Más indicadores/ })).not.toBeInTheDocument();
   });
@@ -697,6 +709,22 @@ describe('Reports operational module', () => {
 
     expect(screen.getByText('No se pudo cargar este reporte. Los demás informes siguen disponibles.')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Créditos del período' })).toBeInTheDocument();
+  });
+
+  it('describes an empty receivable portfolio without implying that only overdue loans are included', () => {
+    reportsState = {
+      ...reportsState,
+      overdueLoans: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+
+    renderReports();
+    openReportView('Cartera por cobrar');
+
+    expect(screen.getByText('No hay créditos con saldo por cobrar.')).toBeInTheDocument();
+    expect(screen.queryByText('No hay créditos en mora.')).not.toBeInTheDocument();
   });
 
   it('summarizes the receivable portfolio before the overdue table', () => {

@@ -305,6 +305,26 @@ describe('Sidebar canonical terminology parity', () => {
     expect(screen.queryByRole('button', { name: 'Pagos e intereses' })).not.toBeInTheDocument();
   });
 
+  it('marks only payments and interest tracking as active on its route', () => {
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    render(
+      <Sidebar
+        currentView="associates/tracking"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Gestión de socios' })).toHaveAttribute('data-active', 'false');
+    expect(screen.getByRole('button', { name: 'Pagos e intereses' })).toHaveAttribute('data-active', 'true');
+  });
+
   it('clears the local session and redirects immediately on logout', async () => {
     const setCurrentView = vi.fn();
     const setIsCollapsed = vi.fn();

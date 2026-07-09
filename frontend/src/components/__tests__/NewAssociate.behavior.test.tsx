@@ -98,6 +98,7 @@ describe('NewAssociate behavior', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     expect(container.querySelector('[data-tour="new-associate-preview"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Guía rápida' })).not.toBeInTheDocument();
   });
 
   it('submits only the associate creation fields supported by the current contract', () => {

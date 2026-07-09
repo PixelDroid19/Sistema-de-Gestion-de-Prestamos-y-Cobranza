@@ -311,15 +311,25 @@ export default function Reports() {
       .find((leaf) => leaf.id === activeTab),
     [activeTab, reportGroups],
   );
+  const operatingExpensesAction = canViewOperatingExpensesTab ? (
+    <ActionButton
+      variant={activeTab === 'expenses' ? 'primary' : 'secondary'}
+      aria-pressed={activeTab === 'expenses'}
+      onClick={() => setActiveTab('expenses')}
+    >
+      {tTerm('reports.tab.expenses')}
+    </ActionButton>
+  ) : null;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <PageShell data-tour="reports-page">
+    <PageShell className="reports-module-page" data-tour="reports-page">
       <PageHeader
         title={tTerm('reports.module.title')}
         subtitle={tTerm('reports.module.subtitle')}
         tourId="reports-header"
+        actions={operatingExpensesAction}
       />
 
       <ReportsNavigation
@@ -328,15 +338,6 @@ export default function Reports() {
         onChange={handleReportsTabChange}
         groups={reportGroups}
         primaryAriaLabel={tTerm('reports.tabs.aria')}
-        tools={canViewOperatingExpensesTab ? (
-          <ActionButton
-            variant={activeTab === 'expenses' ? 'primary' : 'ghost'}
-            aria-pressed={activeTab === 'expenses'}
-            onClick={() => setActiveTab('expenses')}
-          >
-            {tTerm('reports.tab.expenses')}
-          </ActionButton>
-        ) : null}
       />
 
       {activeReport && activeTab !== 'outstanding' ? (

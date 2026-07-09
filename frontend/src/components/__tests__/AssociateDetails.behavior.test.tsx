@@ -174,7 +174,7 @@ const getTableRowFromCellText = (text: string) => {
 };
 
 const selectAssociateDetailView = (view: 'overview' | 'installments' | 'calendar') => {
-  fireEvent.change(screen.getByLabelText('Consulta'), { target: { value: view } });
+  fireEvent.change(screen.getByLabelText('Ver'), { target: { value: view } });
 };
 
 describe('AssociateDetails behavior', () => {
@@ -209,6 +209,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByRole('button', { name: 'Registrar aporte de capital' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ver pagos de intereses' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Más movimientos' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Guía rápida' })).not.toBeInTheDocument();
 
     openAssociateMoreMovementsMenu();
 
@@ -262,7 +263,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.queryByRole('button', { name: 'Registrar aporte de capital' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ver pagos de intereses' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Más movimientos' })).not.toBeInTheDocument();
-    expect(screen.getByText(/los movimientos financieros se siguen registrando desde la mesa operativa/i)).toBeInTheDocument();
+    expect(screen.getByText(/los movimientos financieros se registran desde la mesa operativa/i)).toBeInTheDocument();
 
     selectAssociateDetailView('installments');
 
@@ -541,7 +542,7 @@ describe('AssociateDetails behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Ver pagos de intereses' }));
 
-    expect(screen.getByLabelText('Consulta')).toHaveValue('installments');
+    expect(screen.getByLabelText('Ver')).toHaveValue('installments');
     expect(screen.queryByRole('tab', { name: 'Pagos de intereses' })).not.toBeInTheDocument();
     expect(screen.getByText('Pagos de intereses programados')).toBeInTheDocument();
   });

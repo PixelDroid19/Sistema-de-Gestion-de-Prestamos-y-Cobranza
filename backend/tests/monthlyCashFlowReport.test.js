@@ -260,7 +260,7 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   const headers = history.getRow(2).values;
   assert.ok(headers.includes('Entradas por Cuotas'));
   assert.ok(headers.includes('Salidas por Préstamos'));
-  assert.ok(headers.includes('Salidas Financieras'));
+  assert.ok(headers.includes('Pagos a Socios'));
   assert.ok(headers.includes('Gastos Operativos'));
   assert.ok(headers.includes('Caja Disponible'));
   assert.equal(history.getRow(3).getCell(2).value, 'COP 50.000.000,00');
@@ -276,6 +276,8 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   assert.match(pdfText, /pagos a socios/i);
   assert.match(pdfText, /COP 3.000.000,00/);
   assert.match(pdfText, /gastos del negocio/i);
+  assert.match(pdfText, /Socios/);
+  assert.match(pdfText, /Gastos/);
 });
 
 test('reports router exposes monthly cash flow JSON, Excel and PDF routes with date filters', async () => {

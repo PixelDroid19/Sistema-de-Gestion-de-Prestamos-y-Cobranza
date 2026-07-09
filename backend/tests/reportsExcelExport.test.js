@@ -200,7 +200,11 @@ test('export associates PDF summarizes associate payments, pending interest, and
         return [{ id: 1, amount: 1000000, contributionDate: '2026-01-10', status: 'completed', interestTypeSnapshot: 'monthly', interestRateSnapshot: '2.5000' }];
       },
       async listProfitDistributionsByAssociate() {
-        return [];
+        return [
+          { id: 5, amount: 10000, distributionDate: '2026-02-20', status: 'completed', basis: { type: 'manual-interest' } },
+          { id: 6, amount: 12000, distributionDate: '2026-02-21', status: 'completed', basis: { type: 'reinvestment' } },
+          { id: 7, amount: 15000, distributionDate: '2026-02-22', status: 'completed', basis: { type: 'capital-return' } },
+        ];
       },
       async findInstallmentsByAssociateId() {
         return [
@@ -222,6 +226,43 @@ test('export associates PDF summarizes associate payments, pending interest, and
   assert.match(pdfText, /Intereses pendientes/);
   assert.match(pdfText, /COP 25.000,00/);
   assert.match(pdfText, /Socio PDF QA/);
+  assert.match(pdfText, /Pagos manuales de rentabilidad/);
+  assert.match(pdfText, /PAGOS MANUALES DE RENTABILIDAD/);
+  assert.match(pdfText, /Reinversiones/);
+  assert.match(pdfText, /Devoluciones de capital/);
+  assert.match(pdfText, /10\/01\/2026/);
+  assert.doesNotMatch(pdfText, /GMT|Standard Time|\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/);
+  assert.equal(
+    (result.buffer.toString('latin1').match(/\/Type \/Page\b/g) || []).length,
+    1,
+    'the footer must not create extra blank pages',
+  );
+});
+
+test('export associates PDF omits optional movement sections when no records exist', async () => {
+  const associate = {
+    id: 9,
+    name: 'Socio Sin Movimientos',
+    status: 'active',
+    interestType: 'monthly',
+    interestRate: '2.0000',
+  };
+  const useCase = createExportAssociatesPdf({
+    associateRepository: {
+      async list() { return [associate]; },
+      async findById() { return associate; },
+      async listContributionsByAssociate() { return []; },
+      async listProfitDistributionsByAssociate() { return []; },
+      async findInstallmentsByAssociateId() { return []; },
+    },
+  });
+
+  const result = await useCase({ actor: { role: 'admin' } });
+  const pdfText = extractPdfText(result.buffer);
+
+  assert.doesNotMatch(pdfText, /Pagos manuales de rentabilidad/);
+  assert.doesNotMatch(pdfText, /Reinversiones/);
+  assert.doesNotMatch(pdfText, /Devoluciones de capital/);
 });
 
 test('export associates use case filters the operational report by associate id', async () => {

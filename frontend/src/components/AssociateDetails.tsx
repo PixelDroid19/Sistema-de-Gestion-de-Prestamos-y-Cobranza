@@ -1035,7 +1035,7 @@ export default function AssociateDetails() {
   ] satisfies Array<{ id: TabType; label: string; count?: number }>;
 
   return (
-    <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
+    <PageShell className="associate-module-page associate-details-page mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
       <PageHeader
         title={tTerm('associateDetails.header.title')}
         subtitle={tTerm('associateDetails.header.subtitle', {
@@ -1043,7 +1043,6 @@ export default function AssociateDetails() {
           debtStatus,
           interestRate: interestRateLabel,
         })}
-        guideKey="associate-details"
         tourId="associate-details-header"
         actions={(
           <ActionButton

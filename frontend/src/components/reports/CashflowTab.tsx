@@ -8,9 +8,13 @@ import {
 } from '../shared/Surfaces';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportTabPanel } from './ReportTabPanel';
-import ReportValueStack from './ReportValueStack';
+import ReportValueStack, { ReportMetaPairs } from './ReportValueStack';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+const sumCashflowAmounts = (...values: unknown[]) => values.reduce<number>(
+  (total, value) => total + (Number(value) || 0),
+  0,
+);
 
 type CashflowRowLike = Record<string, unknown> & {
   month?: string;
@@ -181,26 +185,24 @@ export default function CashflowTab({
       <ReportDataTableSection
         title={tTerm('reports.cashflow.table.title')}
         subtitle={tTerm('reports.cashflow.table.subtitle')}
-        minWidthClassName="min-w-[840px]"
       >
             <thead>
               <tr>
                 <th>{tTerm('reports.cashflow.table.month')}</th>
                 <th>{tTerm('reports.cashflow.table.inflows')}</th>
-                <th>{tTerm('reports.cashflow.table.outflows')}</th>
+                <th>{tTerm('reports.cashflow.table.registeredOutflows')}</th>
                 <th>{tTerm('reports.cashflow.table.result')}</th>
                 <th>{tTerm('reports.cashflow.table.available')}</th>
-                <th>{tTerm('reports.cashflow.table.portfolioReceivable')}</th>
               </tr>
             </thead>
             <tbody>
               {isCashFlowLoading ? (
                 <tr>
-                  <td colSpan={6} className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.loading')}</td>
+                  <td colSpan={5} className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.loading')}</td>
                 </tr>
               ) : displayedMonthlyRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.empty')}</td>
+                  <td colSpan={5} className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.empty')}</td>
                 </tr>
               ) : (
                 displayedMonthlyRows.map((month: CashflowRowLike) => (
@@ -214,7 +216,16 @@ export default function CashflowTab({
                     </td>
                     <td>
                       <ReportValueStack
-                        value={formatMoney(month.outflows)}
+                        value={formatMoney(sumCashflowAmounts(month.outflows, month.associatePayments, month.operatingExpenses))}
+                        meta={(
+                          <ReportMetaPairs
+                            pairs={[
+                              { label: tTerm('reports.cashflow.table.outflowsShort'), value: formatMoney(month.outflows) },
+                              { label: tTerm('reports.cashflow.table.associatePaymentsShort'), value: formatMoney(month.associatePayments) },
+                              { label: tTerm('reports.cashflow.table.operatingExpensesShort'), value: formatMoney(month.operatingExpenses) },
+                            ]}
+                          />
+                        )}
                       />
                     </td>
                     <td>
@@ -231,9 +242,6 @@ export default function CashflowTab({
                         strong
                       />
                     </td>
-                    <td>
-                      <ReportValueStack value={formatMoney(month.portfolioReceivable)} />
-                    </td>
                   </tr>
                 ))
               )}
@@ -243,7 +251,20 @@ export default function CashflowTab({
                 <tr>
                   <th>{tTerm('reports.cashflow.table.total')}</th>
                   <td><ReportValueStack value={formatMoney(summary.totalInflows)} strong /></td>
-                  <td><ReportValueStack value={formatMoney(summary.totalOutflows)} /></td>
+                  <td>
+                    <ReportValueStack
+                      value={formatMoney(sumCashflowAmounts(summary.totalOutflows, summary.totalAssociatePayments, summary.totalOperatingExpenses))}
+                      meta={(
+                        <ReportMetaPairs
+                          pairs={[
+                            { label: tTerm('reports.cashflow.table.outflowsShort'), value: formatMoney(summary.totalOutflows) },
+                            { label: tTerm('reports.cashflow.table.associatePaymentsShort'), value: formatMoney(summary.totalAssociatePayments) },
+                            { label: tTerm('reports.cashflow.table.operatingExpensesShort'), value: formatMoney(summary.totalOperatingExpenses) },
+                          ]}
+                        />
+                      )}
+                    />
+                  </td>
                   <td>
                     <ReportValueStack
                       value={formatMoney(summary.netProfitIndicator)}
@@ -258,7 +279,6 @@ export default function CashflowTab({
                       strong
                     />
                   </td>
-                  <td><ReportValueStack value={formatMoney(summary.portfolioReceivable)} /></td>
                 </tr>
               </tfoot>
             ) : null}

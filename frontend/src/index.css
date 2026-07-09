@@ -1483,10 +1483,6 @@
   }
 
   .reports-module-nav {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
     width: 100%;
     border: none;
     border-radius: 0;
@@ -1496,13 +1492,52 @@
   }
 
   .reports-module-nav__tabs {
+    display: grid;
+    width: 100%;
     min-width: 0;
+    min-height: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
   }
 
-  .reports-module-nav__tools {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  .reports-module-nav__tabs .view-tab {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    padding: 0.45rem 0.65rem;
+    text-align: center;
+    white-space: normal;
+  }
+
+  @media (min-width: 768px) {
+    .reports-module-nav__tabs {
+      display: flex;
+      width: fit-content;
+      min-height: 3.25rem;
+      overflow-x: auto;
+    }
+
+    .reports-module-nav__tabs .view-tab {
+      width: auto;
+      flex: 0 0 auto;
+      padding: 0 0.9rem;
+      white-space: nowrap;
+    }
+  }
+
+  .reports-module-page :is(h1, h2, h3) {
+    font-family: var(--font-body);
+    letter-spacing: -0.02em;
+  }
+
+  .reports-module-page .app-page-header {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .reports-module-page .app-page-header h2 {
+    font-size: clamp(1.55rem, 2.4vw, 2.1rem);
+    font-weight: 700;
   }
 
   .report-detail-tabs {
@@ -2130,12 +2165,23 @@
     gap: 0.25rem 0.65rem;
   }
 
+  .report-tab-layout .report-value-stack__meta-pairs {
+    display: grid;
+    gap: 0.2rem;
+  }
+
   .report-value-stack__meta-pair {
     display: inline-flex;
     flex-wrap: nowrap;
     align-items: baseline;
     gap: 0.25rem;
     min-width: 0;
+  }
+
+  .report-tab-layout .report-value-stack__meta-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
   }
 
   .report-value-stack__meta-label {
@@ -4018,4 +4064,70 @@
   font-size: 0.78rem;
   line-height: 1.45;
   color: var(--text-secondary);
+}
+
+/* Associate workspace: a restrained operational surface for investor work. */
+.associate-module-page :is(h1, h2, h3) {
+  font-family: var(--font-body);
+  letter-spacing: -0.02em;
+}
+
+.associate-module-page .app-page-header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.associate-module-page .app-page-header h1 {
+  font-size: clamp(1.55rem, 2.4vw, 2.1rem);
+  font-weight: 700;
+}
+
+.associate-module-page .toolbar-surface,
+.associate-module-page .data-table-surface,
+.associate-module-page .section-surface {
+  border-color: var(--border-subtle);
+}
+
+.associate-module-page .toolbar-surface {
+  background: var(--bg-surface);
+  box-shadow: none;
+}
+
+.associate-module-page .associates-summary-grid,
+.associate-module-page .associate-tracking-summary-grid {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.875rem;
+  background: var(--bg-surface);
+  padding: 0.9rem 1rem;
+}
+
+.associate-module-page .associates-summary-grid__item + .associates-summary-grid__item,
+.associate-module-page .associate-tracking-summary-grid__item + .associate-tracking-summary-grid__item {
+  border-inline-start: 1px solid var(--border-subtle);
+  padding-inline-start: 1.25rem;
+}
+
+.associate-module-page .associates-summary-grid__item dd,
+.associate-module-page .associate-tracking-summary-grid__item dd {
+  letter-spacing: -0.02em;
+}
+
+.associate-module-page .associate-form > div > div + div {
+  border-block-start: 1px solid var(--border-subtle);
+  padding-block-start: 1.15rem;
+}
+
+@media (max-width: 640px) {
+  .associate-module-page .associates-summary-grid,
+  .associate-module-page .associate-tracking-summary-grid {
+    padding: 0.85rem;
+  }
+
+  .associate-module-page .associates-summary-grid__item + .associates-summary-grid__item,
+  .associate-module-page .associate-tracking-summary-grid__item + .associate-tracking-summary-grid__item {
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--border-subtle);
+    padding-block-start: 0.75rem;
+    padding-inline-start: 0;
+  }
 }

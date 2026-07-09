@@ -239,15 +239,18 @@ const drawPageNumbers = (doc) => {
   const range = doc.bufferedPageRange();
   for (let index = range.start; index < range.start + range.count; index += 1) {
     doc.switchToPage(index);
+    const originalBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
     doc
       .font('Helvetica')
       .fontSize(8)
       .fillColor(COLORS.faint)
-      .text(`Página ${index + 1} de ${range.count}`, PAGE.left, 778, {
+      .text(`Página ${index + 1} de ${range.count}`, PAGE.left, 772, {
         width: PAGE.width,
         align: 'right',
         lineBreak: false,
       });
+    doc.page.margins.bottom = originalBottomMargin;
   }
 };
 

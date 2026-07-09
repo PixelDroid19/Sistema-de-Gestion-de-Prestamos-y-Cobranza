@@ -708,7 +708,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
   ];
   const obligationsHeaderSubtitle = `${tTerm('associateTracking.obligations.subtitle')} · ${tTerm('associateTracking.metrics.overdueShort')} ${formatNumber(overdueObligationsCount, { maximumFractionDigits: 0 })} · ${tTerm('associateTracking.metrics.upcomingShort')} ${formatNumber(pendingObligationsCount, { maximumFractionDigits: 0 })}`;
   return (
-    <PageShell data-tour="associate-tracking-page">
+    <PageShell className="associate-module-page associate-tracking-page" data-tour="associate-tracking-page">
       <PageHeader
         className="associate-tracking-header"
         title={tTerm('associateTracking.title')}

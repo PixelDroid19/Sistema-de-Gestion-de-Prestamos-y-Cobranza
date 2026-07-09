@@ -320,7 +320,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   };
 
   return (
-    <PageShell className="h-full" data-tour="associates-page">
+    <PageShell className="associate-module-page associates-page h-full" data-tour="associates-page">
       <PageHeader
         title={tTerm('associates.module.title')}
         subtitle={tTerm('associates.module.subtitle')}

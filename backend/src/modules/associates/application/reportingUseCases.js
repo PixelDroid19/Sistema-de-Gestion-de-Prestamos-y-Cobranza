@@ -20,6 +20,7 @@ const {
   indicatorRow,
   roundMoney,
   toExcelDate,
+  formatExcelDisplayValue,
 } = require('@/modules/reports/application/excelExportFormats');
 const {
   normalizeAssociateRecord,
@@ -548,9 +549,15 @@ const createExportAssociatesPdf = ({ associateRepository }) => async ({ actor, f
   const rows = exportData.data?.rows || [];
   const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
   const contributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.contribution);
+  const manualProfitabilityRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution);
+  const reinvestmentRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.reinvestment);
+  const capitalReturnRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.capitalReturn);
   const interestPaidRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.interestPaid);
   const interestDueRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.interestDue);
   const totalContributed = contributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalManualProfitability = manualProfitabilityRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalReinvested = reinvestmentRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalCapitalReturned = capitalReturnRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestPaid = interestPaidRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestDue = interestDueRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const movementColumns = [
@@ -560,7 +567,7 @@ const createExportAssociatesPdf = ({ associateRepository }) => async ({ actor, f
   ];
   const toMovementRows = (sectionRows) => sectionRows.map((row) => ({
     associateName: row.associateName || 'Socio sin nombre',
-    date: row.date || 'Sin fecha',
+    date: formatExcelDisplayValue(row.date, 'dd/mm/yyyy').value || 'Sin fecha',
     amount: formatPdfMoney(row.amount),
   }));
 
@@ -569,15 +576,33 @@ const createExportAssociatesPdf = ({ associateRepository }) => async ({ actor, f
     contentType: 'application/pdf',
     buffer: await buildReportPdf({
       title: 'Socios inversionistas',
-      subtitle: 'Capital aportado, intereses pagados y pendientes por socio.',
+      subtitle: 'Capital, rentabilidad y movimientos registrados por socio.',
       summary: [
         { label: 'Socios incluidos', value: associateIds.size },
         { label: 'Capital aportado', value: formatPdfMoney(totalContributed) },
+        ...(manualProfitabilityRows.length > 0
+          ? [{ label: 'Pagos manuales de rentabilidad', value: formatPdfMoney(totalManualProfitability) }]
+          : []),
+        ...(reinvestmentRows.length > 0
+          ? [{ label: 'Reinversiones', value: formatPdfMoney(totalReinvested) }]
+          : []),
+        ...(capitalReturnRows.length > 0
+          ? [{ label: 'Capital devuelto', value: formatPdfMoney(totalCapitalReturned) }]
+          : []),
         { label: 'Intereses pagados', value: formatPdfMoney(totalInterestPaid) },
         { label: 'Intereses pendientes', value: formatPdfMoney(totalInterestDue) },
       ],
       sections: [
         { heading: 'Aportes de capital', table: { columns: movementColumns, rows: toMovementRows(contributionRows) } },
+        ...(manualProfitabilityRows.length > 0
+          ? [{ heading: 'Pagos manuales de rentabilidad', table: { columns: movementColumns, rows: toMovementRows(manualProfitabilityRows) } }]
+          : []),
+        ...(reinvestmentRows.length > 0
+          ? [{ heading: 'Reinversiones', table: { columns: movementColumns, rows: toMovementRows(reinvestmentRows) } }]
+          : []),
+        ...(capitalReturnRows.length > 0
+          ? [{ heading: 'Devoluciones de capital', table: { columns: movementColumns, rows: toMovementRows(capitalReturnRows) } }]
+          : []),
         { heading: 'Intereses pagados', table: { columns: movementColumns, rows: toMovementRows(interestPaidRows) } },
         { heading: 'Intereses pendientes', table: { columns: movementColumns, rows: toMovementRows(interestDueRows) } },
       ],
