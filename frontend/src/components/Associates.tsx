@@ -74,24 +74,14 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     }
   };
 
-  const associates = Array.isArray(associatesData?.data?.associates)
-    ? associatesData.data.associates
-    : Array.isArray(associatesData?.data)
-      ? associatesData.data
-      : [];
-  const pagination = associatesData?.data?.pagination ?? associatesData?.pagination ?? associatesData?.meta;
-  const summary = associatesData?.data?.summary;
+  const associates = Array.isArray(associatesData?.data?.associates) ? associatesData.data.associates : [];
+  const pagination = associatesData?.data?.pagination;
+  const summary = associatesData?.data?.summary ?? {};
   const associateStripMetrics = useMemo(() => {
-    const visibleTotal = pagination?.totalItems ?? pagination?.total ?? associates.length;
-    const activeCount = summary?.activeAssociates ?? associates.filter((associate: any) => associate.status === 'active').length;
-    const totalContributed = Number(summary?.totalContributed ?? associates.reduce((total: number, associate: any) => (
-      total + Number(associate.totalContributed || associate.capitalContributed || 0)
-    ), 0));
-    const monthlyInterestEstimate = Number(summary?.monthlyInterestEstimate ?? associates.reduce((total: number, associate: any) => {
-      const capital = Number(associate.totalContributed || associate.capitalContributed || 0);
-      const rate = Number(associate.interestRate || 0) / 100;
-      return total + (associate.interestType === 'annual' ? (capital * rate) / 12 : capital * rate);
-    }, 0));
+    const visibleTotal = Number(pagination?.totalItems || 0);
+    const activeCount = Number(summary.activeAssociates || 0);
+    const totalContributed = Number(summary.totalContributed || 0);
+    const monthlyInterestEstimate = Number(summary.monthlyInterestEstimate || 0);
     return {
       activeCount,
       totalCount: Number(visibleTotal || 0),
@@ -168,13 +158,12 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   );
 
   const getCurrentCapitalValue = (associate: any) => {
-    const currentCapital = Number(associate?.currentCapital ?? associate?.capitalContributed ?? associate?.totalContributed ?? 0);
-    return currentCapital > 0 ? currentCapital : Number(associate?.totalContributed ?? 0);
+    return Number(associate?.currentCapital || 0);
   };
 
   const getCapitalDetail = (associate: any) => {
-    const totalContributed = Number(associate?.totalContributed ?? associate?.capitalContributed ?? 0);
-    const totalReturned = Number(associate?.totalCapitalReturned ?? associate?.capitalReturned ?? 0);
+    const totalContributed = Number(associate?.totalContributed || 0);
+    const totalReturned = Number(associate?.totalCapitalReturned || 0);
     const parts: string[] = [];
 
     if (totalContributed > 0) {

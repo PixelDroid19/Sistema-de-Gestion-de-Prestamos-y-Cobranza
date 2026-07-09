@@ -124,7 +124,12 @@ const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestR
     errors.push({ field: 'interestPaymentMonth', message: 'El mes de pago de intereses debe ser un entero entre 1 y 12' });
   }
 
-  if (initialCapital !== undefined && (!validateAmount(Number(initialCapital)) || !validateCurrencyPrecision(initialCapital))) {
+  if (
+    initialCapital !== undefined
+    && initialCapital !== null
+    && String(initialCapital).trim() !== ''
+    && (!validateAmount(Number(initialCapital)) || !validateCurrencyPrecision(initialCapital))
+  ) {
     errors.push({ field: 'initialCapital', message: 'El capital inicial debe ser un número positivo con máximo 2 decimales' });
   }
 

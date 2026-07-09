@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
-import { formatCurrency } from '../i18n/format';
 import { useAssociateById, useAssociates } from '../services/associateService';
 import { parsePercentageWithPrecisionInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
@@ -16,6 +15,7 @@ import {
   OperationalSelect,
   PageHeader,
   PageShell,
+  PercentInput,
   SectionSurface,
 } from './shared/Surfaces';
 
@@ -44,7 +44,7 @@ const EMPTY_FORM: AssociateFormData = {
   status: 'active',
   initialCapital: '',
   interestType: 'monthly',
-  interestRate: '0',
+  interestRate: '',
   interestPaymentDay: '1',
   interestPaymentMonth: '1',
 };
@@ -64,6 +64,8 @@ const MONTH_TERM_KEYS = [
   'common.month.12',
 ] as const;
 
+const INTEREST_PAYMENT_DAY_OPTIONS = Array.from({ length: 28 }, (_, index) => String(index + 1));
+
 export default function NewAssociate({ onBack, associateIdOverride, embedded = false }: NewAssociateProps) {
   const { id } = useParams<{ id: string }>();
   const associateId = Number(associateIdOverride ?? id);
@@ -71,7 +73,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
   const { createAssociate, updateAssociate } = useAssociates(undefined, { enabled: false });
   const { data: associateResponse, isLoading: isLoadingAssociate, isError: isAssociateLoadError } = useAssociateById(associateId);
-  const existingAssociate = associateResponse?.data?.associate || associateResponse?.data || null;
+  const existingAssociate = associateResponse?.data?.associate || null;
   const [formData, setFormData] = useState<AssociateFormData>(EMPTY_FORM);
   const monthOptions = MONTH_TERM_KEYS.map((key, index) => ({
     value: String(index + 1),
@@ -90,14 +92,16 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       status: existingAssociate.status || 'active',
       initialCapital: '',
       interestType: existingAssociate.interestType || 'monthly',
-      interestRate: existingAssociate.interestRate || '0',
+      interestRate: existingAssociate.interestRate != null && existingAssociate.interestRate !== ''
+        ? String(Number(existingAssociate.interestRate))
+        : '',
       interestPaymentDay: String(existingAssociate.interestPaymentDay || 1),
       interestPaymentMonth: String(existingAssociate.interestPaymentMonth || 1),
     });
   }, [existingAssociate, isEditing]);
 
   const { isSubmitting, run } = useCreateEntitySubmit({
-    mutate: (payload: AssociateFormData) => {
+    mutate: (payload: Partial<AssociateFormData>) => {
       if (isEditing) {
         return updateAssociate.mutateAsync({ id: associateId, ...payload });
       }
@@ -129,7 +133,9 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       return;
     }
 
-    const interestRate = parsePercentageWithPrecisionInput(formData.interestRate, 4);
+    const interestRate = formData.interestRate.trim() === ''
+      ? 0
+      : parsePercentageWithPrecisionInput(formData.interestRate, 4);
     if (interestRate === null) {
       toast.error({ title: tTerm('newAssociate.validation.rateRange') });
       return;
@@ -141,7 +147,24 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       return;
     }
 
-    await run(formData);
+    const payload: Partial<AssociateFormData> = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      status: formData.status,
+      interestType: formData.interestType,
+      interestRate: String(interestRate),
+      interestPaymentDay: String(paymentDay),
+      interestPaymentMonth: formData.interestType === 'annual' ? formData.interestPaymentMonth : '1',
+    };
+
+    // Empty initial capital is not part of the create contract; omit it instead of
+    // sending "" which the API rejects as an invalid positive amount.
+    if (!isEditing && formData.initialCapital.trim()) {
+      payload.initialCapital = formData.initialCapital;
+    }
+
+    await run(payload);
   };
 
   if (isEditing && isLoadingAssociate) {
@@ -168,16 +191,11 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
     );
   }
 
-  const capitalValue = parsePositiveMoneyInput(formData.initialCapital) ?? 0;
-  const rateValue = parsePercentageWithPrecisionInput(formData.interestRate, 4) ?? 0;
-  const estimatedInterest = capitalValue > 0 && rateValue > 0 ? (capitalValue * rateValue) / 100 : 0;
-
   const form = (
     <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form" className={embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}>
         <div className="space-y-5">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-text-primary">{tTerm('newAssociate.section.person')}</h3>
-            <p className="mt-0.5 text-sm text-text-secondary">{tTerm('newAssociate.section.person.description')}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -235,18 +253,11 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
           <div className="border-t border-border-subtle pt-4">
             <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-text-primary">{tTerm('newAssociate.section.deposit')}</h3>
-            <p className="mt-0.5 text-sm text-text-secondary">{tTerm('newAssociate.section.deposit.description')}</p>
-            <p className="mt-2 max-w-2xl border-l-4 border-brand-primary pl-3 text-sm leading-5 text-text-secondary">
-              {tTerm('newAssociate.cdt.description')}
-            </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             {!isEditing && (
-              <FormField
-                label={tTerm('newAssociate.field.initialCapital')}
-                helper={tTerm('newAssociate.helper.initialCapital')}
-              >
+              <FormField label={tTerm('newAssociate.field.initialCapital')} className="sm:col-span-2">
                 <CurrencyInput
                   id="new-associate-initial-capital"
                   value={formData.initialCapital}
@@ -256,10 +267,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
               </FormField>
             )}
 
-            <FormField
-              label={tTerm('newAssociate.field.interestType')}
-              helper={tTerm('newAssociate.helper.interestType')}
-            >
+            <FormField label={tTerm('newAssociate.field.interestType')}>
               <OperationalSelect
                 id="new-associate-interest-type"
                 value={formData.interestType}
@@ -272,11 +280,9 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
             <FormField
               label={formData.interestType === 'annual' ? tTerm('newAssociate.field.interestRate.annual') : tTerm('newAssociate.field.interestRate.monthly')}
-              helper={tTerm('newAssociate.helper.interestRate')}
             >
-              <AppInput
+              <PercentInput
                 id="new-associate-interest-rate"
-                variant="percent"
                 allowZero
                 maxDecimals={4}
                 value={formData.interestRate}
@@ -286,7 +292,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
             </FormField>
 
             {formData.interestType === 'annual' && (
-              <FormField label={tTerm('newAssociate.field.interestMonth')} helper={tTerm('newAssociate.helper.interestMonth')}>
+              <FormField label={tTerm('newAssociate.field.interestMonth')}>
                 <OperationalSelect
                   id="new-associate-interest-month"
                   value={formData.interestPaymentMonth}
@@ -299,46 +305,18 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
               </FormField>
             )}
 
-            <FormField label={tTerm('newAssociate.field.interestDay')} helper={tTerm('newAssociate.helper.interestDay')}>
-              <AppInput
+            <FormField label={tTerm('newAssociate.field.interestDay')}>
+              <OperationalSelect
                 id="new-associate-interest-day"
-                variant="integer"
-                minValue={1}
-                maxValue={28}
                 value={formData.interestPaymentDay}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, interestPaymentDay: value }))}
-              />
+                onChange={(e) => setFormData((prev) => ({ ...prev, interestPaymentDay: e.target.value }))}
+              >
+                {INTEREST_PAYMENT_DAY_OPTIONS.map((day) => (
+                  <option key={day} value={day}>{day}</option>
+                ))}
+              </OperationalSelect>
             </FormField>
           </div>
-
-          {!isEditing && (
-            <div className="rounded-xl border border-border-subtle bg-bg-base p-4" data-tour="new-associate-preview">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-                {tTerm('newAssociate.preview.title')}
-              </p>
-              {estimatedInterest > 0 ? (
-                <>
-                  <p className="mt-1 text-xl font-bold text-text-primary">
-                    {formatCurrency(estimatedInterest)}
-                    <span className="ml-2 text-sm font-medium text-text-secondary">
-                      {formData.interestType === 'annual'
-                        ? tTerm('newAssociate.preview.annual')
-                        : tTerm('newAssociate.preview.monthly')}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {tTerm('newAssociate.preview.formula', {
-                      capital: formatCurrency(capitalValue),
-                      rate: String(rateValue),
-                      interest: formatCurrency(estimatedInterest),
-                    })}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-text-secondary">{tTerm('newAssociate.preview.empty')}</p>
-              )}
-            </div>
-          )}
 
           <div className="flex gap-3 pt-4">
             <ActionButton type="button" onClick={onBack} fullWidth>

@@ -5,9 +5,8 @@ import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
 export type AssociateInstallmentPaymentPayload = {
   installmentNumber: number;
-  paymentDate?: string;
-  paymentMethod?: string;
-  notes?: string;
+  paymentDate: string;
+  paymentMethod: string;
 };
 
 const downloadAssociateExport = async ({
@@ -168,9 +167,9 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     },
   });
 
-  const createDistribution = useMutation({
+  const createManualProfitabilityPayment = useMutation({
     mutationFn: async (distributionData: any) => {
-      const { data } = await apiClient.post(`/associates/${associateId}/distributions`, distributionData);
+      const { data } = await apiClient.post(`/associates/${associateId}/manual-profitability-payments`, distributionData);
       return data;
     },
     onSuccess: () => {
@@ -210,22 +209,24 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
   });
 
   const payInstallment = useMutation({
-    mutationFn: async (payment: number | AssociateInstallmentPaymentPayload) => {
-      const paymentPayload = typeof payment === 'number'
-        ? { installmentNumber: payment }
-        : payment;
-      const {
-        installmentNumber,
-        paymentDate,
-        paymentMethod,
-        notes,
-      } = paymentPayload;
+    mutationFn: async (payment: AssociateInstallmentPaymentPayload) => {
+      const installmentNumber = Number(payment.installmentNumber);
+      const paymentDate = String(payment.paymentDate || '').trim();
+      const paymentMethod = String(payment.paymentMethod || '').trim();
+      if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
+        throw new Error('installmentNumber is required');
+      }
+      if (!paymentDate) {
+        throw new Error('paymentDate is required');
+      }
+      if (!paymentMethod) {
+        throw new Error('paymentMethod is required');
+      }
       const { data } = await apiClient.post(
         `/associates/${associateId}/installments/${installmentNumber}/pay`,
         {
-          ...(paymentDate ? { paymentDate } : {}),
-          ...(paymentMethod ? { paymentMethod } : {}),
-          ...(notes ? { notes } : {}),
+          paymentDate,
+          paymentMethod,
         },
       );
       return data;
@@ -240,20 +241,18 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
   });
 
   const financialDetailsPayload = getFinancialDetails.data?.data;
-  const details = financialDetailsPayload?.details ?? financialDetailsPayload;
+  const details = financialDetailsPayload?.details;
   const installmentsPayload = getInstallments.data?.data;
   const calendarPayload = getCalendar.data?.data;
 
   return {
     details,
-    installments: Array.isArray(installmentsPayload)
-      ? installmentsPayload
-      : (Array.isArray(installmentsPayload?.installments) ? installmentsPayload : installmentsPayload?.installments),
+    installments: installmentsPayload?.installments,
     contributions: details?.contributions,
-    calendar: calendarPayload?.calendar ?? calendarPayload,
+    calendar: calendarPayload?.calendar,
     isLoading: getFinancialDetails.isLoading || getInstallments.isLoading || getCalendar.isLoading,
     createContribution,
-    createDistribution,
+    createManualProfitabilityPayment,
     createCapitalReturn,
     createReinvestment,
     payInstallment,

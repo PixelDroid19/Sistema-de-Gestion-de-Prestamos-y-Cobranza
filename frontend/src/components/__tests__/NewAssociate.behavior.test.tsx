@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import NewAssociate from '../NewAssociate';
@@ -94,6 +94,12 @@ describe('NewAssociate behavior', () => {
     expect(container.querySelector('#new-associate-participation')).toBeNull();
   });
 
+  it('keeps creation focused on data entry without an estimated-interest preview', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+
+    expect(container.querySelector('[data-tour="new-associate-preview"]')).toBeNull();
+  });
+
   it('submits only the associate creation fields supported by the current contract', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
@@ -116,38 +122,70 @@ describe('NewAssociate behavior', () => {
       'phone',
       'status',
     ]);
+    expect(submittedPayload).not.toHaveProperty('participationPercentage');
+    expect(submittedPayload).not.toHaveProperty('interestStartDate');
+    expect(submittedPayload).not.toHaveProperty('interestStartsAt');
+  });
+
+  it('omits empty initial capital from the create payload', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+
+    fillRequiredFields(container);
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+
+    const submittedPayload = runSubmitMock.mock.calls.at(-1)?.[0];
+    expect(submittedPayload).not.toHaveProperty('initialCapital');
+    expect(Object.keys(submittedPayload).sort()).toEqual([
+      'email',
+      'interestPaymentDay',
+      'interestPaymentMonth',
+      'interestRate',
+      'interestType',
+      'name',
+      'phone',
+      'status',
+    ]);
   });
 
   it('normalizes decimal interest rates and rejects exponent-like values', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     fillRequiredFields(container);
-    fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
+    const rateInput = container.querySelector('#new-associate-interest-rate') as HTMLInputElement;
+    expect(rateInput).toHaveAttribute('inputmode', 'decimal');
+    expect(rateInput.closest('.operational-control')?.textContent).toContain('%');
+
+    fireEvent.change(rateInput, {
       target: { value: '2,5' },
     });
-    expect(container.querySelector('#new-associate-interest-rate')).toHaveValue('2.5');
+    expect(rateInput).toHaveValue('2.5');
 
-    fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
+    fireEvent.change(rateInput, {
       target: { value: '1e2' },
     });
 
-    expect(container.querySelector('#new-associate-interest-rate')).toHaveValue('2.5');
+    expect(rateInput).toHaveValue('2.5');
   });
 
-  it('normalizes bounded interest payment days and rejects exponent-like values', () => {
+  it('starts with an empty rate field instead of a prefilled zero', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+    expect(container.querySelector('#new-associate-interest-rate')).toHaveValue('');
+  });
+
+  it('uses a discrete day selector for interest payment day instead of free text', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
+    const daySelect = container.querySelector('#new-associate-interest-day') as HTMLSelectElement;
+    expect(daySelect.tagName).toBe('SELECT');
+    expect(within(daySelect).getAllByRole('option')).toHaveLength(28);
+
     fillRequiredFields(container);
-    fireEvent.change(container.querySelector('#new-associate-interest-day') as HTMLInputElement, {
-      target: { value: '08' },
-    });
-    expect(container.querySelector('#new-associate-interest-day')).toHaveValue('8');
+    fireEvent.change(daySelect, { target: { value: '15' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
 
-    fireEvent.change(container.querySelector('#new-associate-interest-day') as HTMLInputElement, {
-      target: { value: '1e1' },
-    });
-
-    expect(container.querySelector('#new-associate-interest-day')).toHaveValue('8');
+    expect(runSubmitMock).toHaveBeenCalledWith(expect.objectContaining({
+      interestPaymentDay: '15',
+    }));
   });
 
   it('shows annual payment month only when annual interest is selected', () => {

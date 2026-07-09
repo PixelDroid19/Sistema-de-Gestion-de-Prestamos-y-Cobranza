@@ -14,6 +14,15 @@ vi.mock('../../services/associateService', () => ({
   useAssociateTracking: (filters: unknown) => useAssociateTrackingSpy(filters),
 }));
 
+vi.mock('../../services/configService', () => ({
+  useActivePaymentMethods: () => ({
+    paymentMethods: [
+      { key: 'transfer', label: 'Transferencia', isActive: true },
+      { key: 'cash', label: 'Efectivo', isActive: true },
+    ],
+  }),
+}));
+
 vi.mock('../../services/permissionsService', () => ({
   useResolvedPermissionNames: () => ['*'],
 }));
@@ -212,115 +221,6 @@ describe('AssociateTracking behavior', () => {
     expect(screen.getByText('Devolución de capital')).toBeInTheDocument();
     expect(screen.getByText('Aporte de capital')).toBeInTheDocument();
   });
-
-  it('accepts tracking payloads returned directly under data for resilient rendering', () => {
-    useAssociateTrackingSpy.mockReturnValue({
-      data: {
-        data: {
-          summary: {
-            totalCapital: 5500000,
-            pendingInterest: 110000,
-            paidInterest: 10000,
-            activeAssociates: 1,
-            totalAssociates: 1,
-          },
-          associates: [buildAssociateTrackingRow(1)],
-          obligations: [buildAssociateObligationRow(1)],
-          recentPayments: [],
-          recentContributions: [],
-          recentCapitalReturns: [],
-        },
-      },
-      isLoading: false,
-      isError: false,
-    });
-
-    render(<AssociateTracking setCurrentView={vi.fn()} />);
-
-    expect(screen.getByText('Capital vigente')).toBeInTheDocument();
-    expect(screen.getByText('COP 5.500.000')).toBeInTheDocument();
-    expect(screen.getByText('Pendiente por pagar')).toBeInTheDocument();
-    expect(screen.getByText('COP 130.000')).toBeInTheDocument();
-    expect(screen.getAllByText('COP 10.000').length).toBeGreaterThan(0);
-    expect(screen.getByText('Socio Obligacion 1')).toBeInTheDocument();
-  });
-
-  it('renders recent activity when the API already returns a consolidated activity list', async () => {
-    const user = userEvent.setup();
-    useAssociateTrackingSpy.mockReturnValue(buildTrackingResponse({
-      associates: [buildAssociateTrackingRow(1)],
-      obligations: [buildAssociateObligationRow(1)],
-      recentActivity: [
-        {
-          id: 'activity-1',
-          type: 'payment',
-          label: 'Pago de interés',
-          detail: 'Pago registrado',
-          associateId: 1,
-          associateName: 'Socio Paginado 1',
-          date: '2026-06-12',
-          amount: 10000,
-          responsible: 'QA Admin',
-        },
-      ],
-    }));
-
-    render(<AssociateTracking setCurrentView={vi.fn()} />);
-
-    selectTrackingView('activity');
-    expect(screen.getByRole('heading', { name: 'Actividad reciente' })).toBeInTheDocument();
-    expect(screen.getByText('Pago de interés')).toBeInTheDocument();
-    expect(screen.getByText('Pago registrado')).toBeInTheDocument();
-    expect(screen.getByText('QA Admin')).toBeInTheDocument();
-  });
-
-  it('renders flat associate rows and applies their rate to obligations', async () => {
-    const user = userEvent.setup();
-    useAssociateTrackingSpy.mockReturnValue({
-      data: {
-        data: {
-          summary: {
-            totalCapital: 100000000,
-            pendingInterest: 2000000,
-            paidInterest: 1000000,
-          },
-          associates: [{
-            id: 1,
-            name: 'Socio Capital Norte',
-            email: 'capital.norte@test.local',
-            currentCapital: 100000000,
-            totalContributed: 100000000,
-            pendingInterest: 2000000,
-            paidInterest: 1000000,
-            interestRate: 2,
-            interestType: 'monthly',
-            nextPaymentDate: '2026-07-01',
-          }],
-          obligations: [{
-            id: 11,
-            associateId: 1,
-            associateName: 'Socio Capital Norte',
-            installmentNumber: 1,
-            dueDate: '2026-07-01',
-            amount: 2000000,
-            status: 'pending',
-          }],
-          recentPayments: [],
-          recentContributions: [],
-          recentCapitalReturns: [],
-        },
-      },
-      isLoading: false,
-      isError: false,
-    });
-
-    render(<AssociateTracking setCurrentView={vi.fn()} />);
-
-    expect(screen.getByText('2% mensual')).toBeInTheDocument();
-    expect(screen.getAllByText('Socio Capital Norte').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('1/07/2026').length).toBeGreaterThan(0);
-  });
-
 
   it('exports associate tracking with the visible search and status filters', async () => {
     const user = userEvent.setup();
@@ -526,9 +426,11 @@ describe('AssociateTracking behavior', () => {
 
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
     expect(screen.getByRole('dialog', { name: 'Registrar pago de interés' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Método de pago').tagName).toBe('SELECT');
+    expect(screen.queryByPlaceholderText(/Ejemplo: transferencia/i)).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Fecha real de pago'), { target: { value: '2026-06-15' } });
-    fireEvent.change(screen.getByLabelText('Método de pago'), { target: { value: 'transferencia' } });
+    fireEvent.change(screen.getByLabelText('Método de pago'), { target: { value: 'cash' } });
     await user.click(screen.getByRole('button', { name: 'Confirmar pago' }));
 
     await waitFor(() => {
@@ -536,7 +438,7 @@ describe('AssociateTracking behavior', () => {
       expect(payInstallment).toHaveBeenCalledWith({
         installmentNumber: 1,
         paymentDate: '2026-06-15',
-        paymentMethod: 'transferencia',
+        paymentMethod: 'cash',
       });
     });
   });

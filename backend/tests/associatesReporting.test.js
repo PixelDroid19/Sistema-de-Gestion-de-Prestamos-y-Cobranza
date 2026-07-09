@@ -4,12 +4,12 @@ const ExcelJS = require('exceljs');
 
 const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const {
-  createGetAssociateProfitabilityReport,
-  createExportAssociateProfitabilityReport,
+  createGetAssociateFinancialSummary,
+  createExportAssociateFinancialSummary,
 } = require('@/modules/associates/application/reportingUseCases');
 
-test('createGetAssociateProfitabilityReport rejects socio records as report users', async () => {
-  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
+test('createGetAssociateFinancialSummary rejects socio records as report users', async () => {
+  const getAssociateFinancialSummary = createGetAssociateFinancialSummary({
     associateRepository: {
       async findById(id) {
         throw new Error(`findById should not be called for socio records: ${id}`);
@@ -26,7 +26,7 @@ test('createGetAssociateProfitabilityReport rejects socio records as report user
     },
   });
 
-  await assert.rejects(() => getAssociateProfitabilityReport({
+  await assert.rejects(() => getAssociateFinancialSummary({
     actor: { id: 9, role: 'socio', associateId: 12 },
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
@@ -35,8 +35,8 @@ test('createGetAssociateProfitabilityReport rejects socio records as report user
   });
 });
 
-test('createGetAssociateProfitabilityReport rejects socio records before associate lookup', async () => {
-  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
+test('createGetAssociateFinancialSummary rejects socio records before associate lookup', async () => {
+  const getAssociateFinancialSummary = createGetAssociateFinancialSummary({
     associateRepository: {
       async findById(id) {
         throw new Error(`findById should not be called for socio records: ${id}`);
@@ -53,7 +53,7 @@ test('createGetAssociateProfitabilityReport rejects socio records before associa
     },
   });
 
-  await assert.rejects(() => getAssociateProfitabilityReport({
+  await assert.rejects(() => getAssociateFinancialSummary({
     actor: { id: 9, role: 'socio', associateId: 12 },
     associateId: 99,
   }), (error) => {
@@ -63,8 +63,8 @@ test('createGetAssociateProfitabilityReport rejects socio records before associa
   });
 });
 
-test('createGetAssociateProfitabilityReport rejects missing associate access with an operator message', async () => {
-  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
+test('createGetAssociateFinancialSummary rejects missing associate access with an operator message', async () => {
+  const getAssociateFinancialSummary = createGetAssociateFinancialSummary({
     associateRepository: {
       async findById(id) {
         assert.equal(id, 12);
@@ -79,7 +79,7 @@ test('createGetAssociateProfitabilityReport rejects missing associate access wit
     },
   });
 
-  await assert.rejects(() => getAssociateProfitabilityReport({
+  await assert.rejects(() => getAssociateFinancialSummary({
     actor: { id: 1, role: 'admin' },
     associateId: 12,
   }), (error) => {
@@ -89,10 +89,10 @@ test('createGetAssociateProfitabilityReport rejects missing associate access wit
   });
 });
 
-test('createExportAssociateProfitabilityReport returns xlsx workbook for associate datasets', async () => {
+test('createExportAssociateFinancialSummary returns xlsx workbook for associate datasets', async () => {
   let contributionReads = 0;
   let distributionReads = 0;
-  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
+  const exportAssociateFinancialSummary = createExportAssociateFinancialSummary({
     reportRepository: {
       async getAssociateExportDataset() {
         return {
@@ -113,7 +113,7 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
       },
       async listProfitDistributionsByAssociate() {
         distributionReads += 1;
-        return [{ id: 2, amount: 150 }];
+        return [{ id: 2, amount: 150, distributionType: 'manual' }];
       },
       async findInstallmentsByAssociateId() {
         return [
@@ -142,7 +142,7 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
     },
   });
 
-  const exportFile = await exportAssociateProfitabilityReport({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'xlsx' });
+  const exportFile = await exportAssociateFinancialSummary({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'xlsx' });
 
   assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
@@ -150,7 +150,10 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(exportFile.buffer);
   const serializedWorkbookValues = JSON.stringify(workbook.worksheets.map((sheet) => sheet.getSheetValues()));
-  assert.match(serializedWorkbookValues, /Manual/);
+  assert.match(serializedWorkbookValues, /Pago manual de rentabilidad/);
+  assert.equal(/proportional|Participaci[oó]n|Monto Asignado|Total Proporcional/i.test(serializedWorkbookValues), false);
+  const manualPaymentsSheet = workbook.getWorksheet('Pagos manuales');
+  assert.equal(manualPaymentsSheet.getRow(3).getCell(5).value, 'Pago manual de rentabilidad');
   const summarySheet = workbook.getWorksheet('Resumen General');
   const summaryHeaders = summarySheet.getRow(2).values;
   assert.equal(summaryHeaders.includes('Unidad'), false);
@@ -171,8 +174,8 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
   assert.equal(distributionReads, 1);
 });
 
-test('createExportAssociateProfitabilityReport rejects socio export requests', async () => {
-  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
+test('createExportAssociateFinancialSummary rejects socio export requests', async () => {
+  const exportAssociateFinancialSummary = createExportAssociateFinancialSummary({
     reportRepository: {
       async getAssociateExportDataset() {
         throw new Error('getAssociateExportDataset should not be called');
@@ -194,7 +197,7 @@ test('createExportAssociateProfitabilityReport rejects socio export requests', a
     },
   });
 
-  await assert.rejects(() => exportAssociateProfitabilityReport({
+  await assert.rejects(() => exportAssociateFinancialSummary({
     actor: { id: 9, role: 'socio', associateId: 12 },
     associateId: 99,
     format: 'xlsx',
@@ -205,8 +208,8 @@ test('createExportAssociateProfitabilityReport rejects socio export requests', a
   });
 });
 
-test('createExportAssociateProfitabilityReport keeps csv exports focused on recorded associate movements', async () => {
-  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
+test('createExportAssociateFinancialSummary keeps csv exports focused on recorded associate movements', async () => {
+  const exportAssociateFinancialSummary = createExportAssociateFinancialSummary({
     reportRepository: {
       async getAssociateExportDataset() {
         return {
@@ -252,12 +255,12 @@ test('createExportAssociateProfitabilityReport keeps csv exports focused on reco
     },
   });
 
-  const exportFile = await exportAssociateProfitabilityReport({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'csv' });
+  const exportFile = await exportAssociateFinancialSummary({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'csv' });
 
   assert.equal(exportFile.fileName, 'associate-12-financial-summary.csv');
   assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
   assert.match(exportFile.buffer.toString('utf8'), /Sección,ID,Referencia,Monto,Fecha,Estado,Tipo de Movimiento,Notas/);
-  assert.match(exportFile.buffer.toString('utf8'), /Pago manual de rentabilidad,2,,150,,,Manual,/);
+  assert.match(exportFile.buffer.toString('utf8'), /Pago manual de rentabilidad,2,,150,,,Pago manual de rentabilidad,/);
   assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,1,,200,2026-03-02,Pagado/);
   assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,2,,250,2026-04-01,Vencido/);
   assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,2,,250,2026-04-01,Vencido/);

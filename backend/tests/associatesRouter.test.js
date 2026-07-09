@@ -92,12 +92,12 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
         calls.push(['createAssociateReinvestment', input]);
         return { contribution: { id: 13 }, distribution: { id: 14 } };
       },
-      async getAssociateProfitabilityReport(input) {
-        calls.push(['getAssociateProfitabilityReport', input]);
+      async getAssociateFinancialSummary(input) {
+        calls.push(['getAssociateFinancialSummary', input]);
         return { associate: { id: Number(input.associateId) }, summary: { totalContributed: '500.00' } };
       },
-      async exportAssociateProfitabilityReport(input) {
-        calls.push(['exportAssociateProfitabilityReport', input]);
+      async exportAssociateFinancialSummary(input) {
+        calls.push(['exportAssociateFinancialSummary', input]);
         return {
           fileName: 'associate-5-financial-summary.xlsx',
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -155,7 +155,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   });
   const distributionResponse = await requestJson(activeServer, {
     method: 'POST',
-    path: '/5/distributions',
+    path: '/5/manual-profitability-payments',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { amount: 200 },
   });
@@ -245,8 +245,8 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.deepEqual(calls[6], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
   assert.deepEqual(calls[7], ['createAssociateCapitalReturn', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 120 } }]);
   assert.deepEqual(calls[8], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
-  assert.deepEqual(calls[9], ['getAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
-  assert.deepEqual(calls[10], ['exportAssociateProfitabilityReport', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, format: 'xlsx' }]);
+  assert.deepEqual(calls[9], ['getAssociateFinancialSummary', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
+  assert.deepEqual(calls[10], ['exportAssociateFinancialSummary', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, format: 'xlsx' }]);
 });
 
 test('createAssociatesRouter serves investor tracking before id routes', async () => {
@@ -301,11 +301,13 @@ test('createAssociatesRouter exports associates from the associates module befor
       async exportAssociatesExcel(input) {
         calls.push(input);
         return {
-          sheets: [{
+          data: {
+            sheets: [{
             name: 'Socios',
             columns: [{ header: 'Socio', key: 'name' }],
             rows: [{ name: 'Socio QA' }],
-          }],
+            }],
+          },
         };
       },
       async getAssociateById() {
@@ -340,6 +342,14 @@ test('createAssociatesRouter exports associates from the associates module befor
       status: 'inactive',
     },
   });
+
+  const legacyRouteResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/5/distributions',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { amount: 200 },
+  });
+  assert.equal(legacyRouteResponse.statusCode, 404);
 });
 
 test('createAssociatesRouter rejects malformed route identifiers before executing associate operations', async () => {
@@ -414,7 +424,7 @@ test('createAssociatesRouter rejects malformed route identifiers before executin
     { method: 'GET', path: '/abc/financial-summary', field: /número del socio/i },
     { method: 'GET', path: '/abc/export', field: /número del socio/i },
     { method: 'POST', path: '/abc/contributions', field: /número del socio/i, body: { amount: 100 } },
-    { method: 'POST', path: '/abc/distributions', field: /número del socio/i, body: { amount: 100 } },
+    { method: 'POST', path: '/abc/manual-profitability-payments', field: /número del socio/i, body: { amount: 100 } },
     { method: 'POST', path: '/abc/capital-returns', field: /número del socio/i, body: { amount: 100 } },
     { method: 'POST', path: '/abc/reinvestments', field: /número del socio/i, body: { amount: 100 } },
     { method: 'GET', path: '/abc/installments', field: /número del socio/i },
@@ -613,14 +623,14 @@ test('createAssociatesRouter POST /:id/installments/:installmentNumber/pay marks
     method: 'POST',
     path: '/12/installments/2/pay',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    body: { paymentDate: '2026-02-15' },
+    body: { paymentDate: '2026-02-15', paymentMethod: 'transferencia' },
   });
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.success, true);
   assert.equal(response.body.message, 'Cuota del socio marcada como pagada');
   assert.equal(response.body.data.installment.installment.status, 'paid');
-  assert.deepEqual(calls[0], ['payAssociateInstallment', { id: 1, role: 'admin', name: 'Admin Test' }, 12, 2, { paymentDate: '2026-02-15' }]);
+  assert.deepEqual(calls[0], ['payAssociateInstallment', { id: 1, role: 'admin', name: 'Admin Test' }, 12, 2, { paymentDate: '2026-02-15', paymentMethod: 'transferencia' }]);
 });
 
 test('createAssociatesRouter GET /:id/calendar-events returns calendar data', async () => {

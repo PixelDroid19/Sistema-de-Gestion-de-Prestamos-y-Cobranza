@@ -152,7 +152,7 @@ describe('Associates behavior', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Pagos e intereses' }));
 
-    expect(setCurrentView).toHaveBeenCalledWith('associates-tracking');
+    expect(setCurrentView).toHaveBeenCalledWith('associates/tracking');
   });
 
   it('opens the edit action in a modal without leaving the associates table', () => {

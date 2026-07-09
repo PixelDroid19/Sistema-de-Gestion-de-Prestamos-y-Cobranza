@@ -154,23 +154,6 @@ const validateIntegerRange = (value, min, max) => {
 };
 
 /**
- * Validate a participation percentage (0-100, up to 4 decimals, optional).
- * @param {number|string|null|undefined} value
- * @returns {boolean}
- */
-const validateParticipationPercentage = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return true;
-  }
-  const { hasDecimalPrecision } = require('@/modules/shared/money');
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue)
-    && numericValue >= 0
-    && numericValue <= 100
-    && hasDecimalPrecision(value, 4);
-};
-
-/**
  * Validate an associate interest rate (0-100, up to 4 decimals, optional).
  * @param {number|string|null|undefined} value
  * @returns {boolean}
@@ -198,6 +181,5 @@ module.exports = {
   validateOptionalDateInput,
   validateIdempotencyKey,
   validateIntegerRange,
-  validateParticipationPercentage,
   validateAssociateInterestRate,
 };

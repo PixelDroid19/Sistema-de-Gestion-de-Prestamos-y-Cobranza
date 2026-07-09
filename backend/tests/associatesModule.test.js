@@ -865,6 +865,26 @@ test('createCreateAssociateCapitalReturn reduces current capital and reprojectio
   assert.equal(calls[1][2].amount, 16);
 });
 
+test('createCreateAssociateCapitalReturn rejects the retired distribution date alias', async () => {
+  const createCapitalReturn = createCreateAssociateCapitalReturn({
+    associateRepository: {
+      async findById() {
+        return { id: 12, status: 'active' };
+      },
+    },
+  });
+
+  await assert.rejects(() => createCapitalReturn({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 100, distributionDate: '2026-07-09' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /contrato de socios/i);
+    return true;
+  });
+});
+
 test('createListAssociateFinancialDetails rejects socio records before associate lookup', async () => {
   const listAssociateFinancialDetails = createListAssociateFinancialDetails({
     associateRepository: {
@@ -1228,6 +1248,57 @@ test('createCreateProfitDistribution rejects non-admin actors', async () => {
   });
 });
 
+test('createCreateProfitDistribution rejects caller-controlled movement bases', async () => {
+  const createProfitDistribution = createCreateProfitDistribution({
+    associateRepository: {
+      async findById() {
+        return { id: 12, status: 'active' };
+      },
+      async createProfitDistribution() {
+        throw new Error('createProfitDistribution should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => createProfitDistribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 500, basis: { type: 'proportional' } },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /contrato de socios/i);
+    return true;
+  });
+});
+
+test('associate movement use cases reject retired associate fields instead of ignoring them', async () => {
+  const repository = {
+    async findById() {
+      return { id: 12, status: 'active' };
+    },
+    async createContribution() {
+      throw new Error('createContribution should not be called');
+    },
+    async createProfitDistribution() {
+      throw new Error('createProfitDistribution should not be called');
+    },
+  };
+  const createAssociateContribution = createCreateAssociateContribution({ associateRepository: repository });
+  const createProfitDistribution = createCreateProfitDistribution({ associateRepository: repository });
+
+  for (const useCase of [createAssociateContribution, createProfitDistribution]) {
+    await assert.rejects(() => useCase({
+      actor: { id: 1, role: 'admin' },
+      associateId: 12,
+      payload: { amount: 500, interestStartDate: '2026-01-01' },
+    }), (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.match(error.message, /campos de participación/i);
+      return true;
+    });
+  }
+});
+
 test('createCreateAssociateReinvestment records paired distribution and contribution entries', async () => {
   const calls = [];
   const createAssociateReinvestment = createCreateAssociateReinvestment({
@@ -1367,7 +1438,7 @@ test('createGetAssociateInstallments rejects socio records before associate look
   }), AuthorizationError);
 });
 
-test('createPayAssociateInstallment marks installment as paid', async () => {
+test('createPayAssociateInstallment marks installment as paid with date and method only', async () => {
   const calls = [];
   const payInstallment = createPayAssociateInstallment({
     associateRepository: {
@@ -1376,12 +1447,16 @@ test('createPayAssociateInstallment marks installment as paid', async () => {
           { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-15'), status: 'pending', toJSON: () => ({ id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-15'), status: 'pending' }) },
         ];
       },
-      async updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy) {
-        calls.push(['updateInstallmentStatus', { associateId, installmentNumber, status, paidAt, paidBy }]);
+      async updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy, paymentMethod, notes) {
+        calls.push(['updateInstallmentStatus', {
+          associateId, installmentNumber, status, paidAt, paidBy, paymentMethod, notes,
+        }]);
         assert.equal(associateId, 12);
         assert.equal(installmentNumber, 2);
         assert.equal(status, 'paid');
         assert.equal(paidBy, 1);
+        assert.equal(paymentMethod, 'transferencia');
+        assert.equal(notes, null);
         return 1;
       },
       async findById() {
@@ -1401,15 +1476,75 @@ test('createPayAssociateInstallment marks installment as paid', async () => {
     actor: { id: 1, role: 'admin' },
     associateId: 12,
     installmentNumber: 2,
-    payload: {},
+    payload: {
+      paymentDate: '2026-02-16',
+      paymentMethod: 'transferencia',
+    },
   });
 
   assert.equal(result.success, true);
   assert.equal(result.installment.status, 'paid');
+  assert.equal(result.installment.paymentMethod, 'transferencia');
+  assert.equal(calls[0][0], 'updateInstallmentStatus');
+  assert.equal(calls[0][1].notes, null);
   assert.equal(calls[1][0], 'createInstallment');
   assert.equal(calls[1][1].installmentNumber, 3);
   assert.equal(calls[1][1].amount, 20);
   assert.equal(calls[1][1].dueDate.toISOString().slice(0, 10), '2026-03-15');
+});
+
+test('createPayAssociateInstallment rejects notes and missing payment method', async () => {
+  const payInstallment = createPayAssociateInstallment({
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        return [
+          {
+            id: 2,
+            installmentNumber: 2,
+            amount: 100,
+            dueDate: new Date('2026-02-15'),
+            status: 'pending',
+            toJSON: () => ({ id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-15'), status: 'pending' }),
+          },
+        ];
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+      async updateInstallmentStatus() {
+        throw new Error('should not persist installment payment');
+      },
+    },
+  });
+
+  await assert.rejects(() => payInstallment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    installmentNumber: 2,
+    payload: {
+      paymentDate: '2026-02-16',
+      paymentMethod: 'transferencia',
+      notes: 'legacy note',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /fecha real de pago y método de pago/i);
+    return true;
+  });
+
+  await assert.rejects(() => payInstallment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    installmentNumber: 2,
+    payload: {
+      paymentDate: '2026-02-16',
+      paymentMethod: '   ',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /método de pago/i);
+    return true;
+  });
 });
 
 test('createPayAssociateInstallment rejects already paid installment', async () => {

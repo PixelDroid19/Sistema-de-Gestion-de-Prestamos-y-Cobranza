@@ -179,6 +179,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       },
       AssociateInput: {
         type: 'object',
+        additionalProperties: false,
         required: ['name', 'email', 'phone'],
         properties: {
           name: { type: 'string', minLength: 2 },
@@ -198,9 +199,51 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       },
       AssociateInstallmentPaymentInput: {
         type: 'object',
+        required: ['paymentDate', 'paymentMethod'],
+        additionalProperties: false,
         properties: {
-          paymentDate: { type: 'string', format: 'date-time' },
-          paymentMethod: { type: 'string' },
+          paymentDate: { type: 'string', format: 'date-time', description: 'Fecha real en que se pagó el interés programado al socio.' },
+          paymentMethod: { type: 'string', minLength: 1, description: 'Método de pago usado para registrar el interés (por ejemplo, transferencia).' },
+        },
+      },
+      AssociateContributionInput: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['amount'],
+        properties: {
+          amount: { type: 'number', minimum: 0.01 },
+          contributionDate: { type: 'string', format: 'date' },
+          status: { type: 'string', enum: ['pending', 'completed', 'annulled', 'manual_hold'] },
+          notes: { type: 'string' },
+        },
+      },
+      AssociateManualProfitabilityPaymentInput: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['amount'],
+        properties: {
+          amount: { type: 'number', minimum: 0.01 },
+          distributionDate: { type: 'string', format: 'date' },
+          notes: { type: 'string' },
+        },
+      },
+      AssociateCapitalReturnInput: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['amount'],
+        properties: {
+          amount: { type: 'number', minimum: 0.01 },
+          capitalReturnDate: { type: 'string', format: 'date' },
+          notes: { type: 'string' },
+        },
+      },
+      AssociateReinvestmentInput: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['amount'],
+        properties: {
+          amount: { type: 'number', minimum: 0.01 },
+          reinvestmentDate: { type: 'string', format: 'date' },
           notes: { type: 'string' },
         },
       },
@@ -346,7 +389,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: {
         tags: ['Associates'],
         summary: 'Listar socios',
-        description: 'Lista personas que aportan capital, con términos de interés pactados y participación operativa.',
+        description: 'Lista inversionistas con capital aportado, términos de interés pactados y obligaciones de pago.',
         responses: { 200: { description: 'Socios visibles para el rol' } },
       },
       post: {
@@ -372,7 +415,47 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         tags: ['Associates'],
         summary: 'Registrar aporte de capital del socio',
         parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateContributionInput' } } },
+        },
         responses: { 201: { description: 'Aporte registrado y siguiente interés agendado cuando no hay cuota pendiente' } },
+      },
+    },
+    '/associates/{associateId}/manual-profitability-payments': {
+      post: {
+        tags: ['Associates'],
+        summary: 'Registrar pago manual de rentabilidad',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateManualProfitabilityPaymentInput' } } },
+        },
+        responses: { 201: { description: 'Pago manual de rentabilidad registrado' } },
+      },
+    },
+    '/associates/{associateId}/capital-returns': {
+      post: {
+        tags: ['Associates'],
+        summary: 'Registrar devolución de capital',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateCapitalReturnInput' } } },
+        },
+        responses: { 201: { description: 'Devolución de capital registrada' } },
+      },
+    },
+    '/associates/{associateId}/reinvestments': {
+      post: {
+        tags: ['Associates'],
+        summary: 'Registrar reinversión de capital',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateReinvestmentInput' } } },
+        },
+        responses: { 201: { description: 'Reinversión registrada como nuevo capital' } },
       },
     },
     '/associates/{associateId}/installments': {
@@ -392,7 +475,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'installmentNumber', in: 'path', required: true, schema: { type: 'integer' } },
         ],
         requestBody: {
-          required: false,
+          required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateInstallmentPaymentInput' } } },
         },
         responses: { 200: { description: 'Pago registrado y siguiente vencimiento de interés generado' } },

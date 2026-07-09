@@ -26,6 +26,15 @@ vi.mock('../../services/associateService', () => ({
   useAssociateDetails: (associateId: number, calendarFilters?: { startDate?: string; endDate?: string }) => useAssociateDetailsSpy(associateId, calendarFilters),
 }));
 
+vi.mock('../../services/configService', () => ({
+  useActivePaymentMethods: () => ({
+    paymentMethods: [
+      { key: 'transfer', label: 'Transferencia', isActive: true },
+      { key: 'cash', label: 'Efectivo', isActive: true },
+    ],
+  }),
+}));
+
 vi.mock('../../lib/toast', () => ({
   toast: {
     success: vi.fn(),
@@ -186,7 +195,7 @@ describe('AssociateDetails behavior', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Pagos e intereses' }));
 
-    expect(mockNavigate).toHaveBeenCalledWith('/associates-tracking');
+    expect(mockNavigate).toHaveBeenCalledWith('/associates/tracking');
   });
 
   it('shows admin controls only to admin users', () => {
@@ -292,10 +301,14 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.getByText(/Con intereses pendientes/i)).toBeInTheDocument();
-    expect(screen.getByText(/Capital vigente: COP/)).toBeInTheDocument();
-    expect(screen.getByText(/Rentabilidad pagada: COP/)).toBeInTheDocument();
-    expect(screen.getByText(/Interés por pagar: COP/)).toBeInTheDocument();
-    expect(screen.getByText(/Próximo pago:/)).toBeInTheDocument();
+    expect(screen.getByText('Capital vigente')).toBeInTheDocument();
+    expect(screen.getByText('Aportes')).toBeInTheDocument();
+    expect(screen.getByText('Intereses pagados')).toBeInTheDocument();
+    expect(screen.getAllByText('Intereses pendientes').length).toBeGreaterThan(0);
+    expect(screen.getByText('Capital devuelto')).toBeInTheDocument();
+    expect(screen.getByText('Próximo pago')).toBeInTheDocument();
+    expect(screen.getAllByText(/COP\s*2\.350\.000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/COP\s*62\.500/).length).toBeGreaterThan(0);
     expect(screen.queryByText('Historial de pagos al socio')).not.toBeInTheDocument();
 
     selectAssociateDetailView('installments');
@@ -310,51 +323,25 @@ describe('AssociateDetails behavior', () => {
     expect(screen.queryByText('transfer')).not.toBeInTheDocument();
   });
 
-  it('uses financial detail fallbacks when summary fields use backend aliases', () => {
+  it('renders the canonical financial summary contract', () => {
     mockUseSessionStore.mockReturnValue({
       user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
     });
-    const detailsResponse = buildDetailsResponse();
-    useAssociateDetailsSpy.mockReturnValue({
-      ...detailsResponse,
-      details: {
-        associate: {
-          id: 1,
-          name: 'Socio Uno',
-          interestType: 'monthly',
-          interestRate: '2.5000',
-        },
-        financials: {
-          totalContributed: 2500000,
-          currentCapital: 2350000,
-          pendingInterest: 62500,
-          paidInterest: 275000,
-          nextPaymentDate: '2026-06-15T00:00:00.000Z',
-        },
-        paymentHistory: [
-          {
-            id: 70,
-            type: 'interest_payment',
-            amount: 125000,
-            date: '2026-05-16T00:00:00.000Z',
-            paymentMethod: 'transfer',
-            paidBy: 'Admin QA',
-          },
-        ],
-      },
-    });
+    useAssociateDetailsSpy.mockReturnValue(buildDetailsResponse());
 
     render(<AssociateDetails />);
 
-    expect(screen.getByText(/Interés por pagar: COP 62\.500/)).toBeInTheDocument();
-    expect(screen.getByText(/Próximo pago: 15\/06\/2026/)).toBeInTheDocument();
+    expect(screen.getAllByText('Intereses pendientes').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/COP\s*62\.500/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Próximo pago')).toBeInTheDocument();
+    expect(screen.getByText('15/06/2026')).toBeInTheDocument();
     selectAssociateDetailView('installments');
-    expect(screen.getByText('Pago de interés')).toBeInTheDocument();
-    expect(getTableRowFromCellText('Pago de interés')).toHaveTextContent('Admin QA');
+    expect(screen.getByText('Cuota #1')).toBeInTheDocument();
+    expect(getTableRowFromCellText('Cuota #1')).toHaveTextContent('Admin QA');
     expect(screen.queryByText('N/A')).not.toBeInTheDocument();
   });
 
-  it('normalizes aliased payment rows and skips malformed alerts', () => {
+  it('renders canonical payment rows and explicit alerts', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-12T00:00:00.000Z'));
 
@@ -371,19 +358,17 @@ describe('AssociateDetails behavior', () => {
           summary: {
             totalContributed: 2500000,
             currentCapital: 2350000,
-            interestPending: 40000,
-            interestOverdue: 25000,
-            interestPaid: 300000,
-            nextPaymentDate: '2026-05-14T00:00:00.000Z',
+            interestDebt: 65000,
+            totalInterestPaid: 300000,
+            nextInterestPaymentDate: '2026-05-14T00:00:00.000Z',
           },
           paymentHistory: [
             {
               id: 81,
-              displayType: 'Pago manual de rentabilidad',
-              type: 'manual',
+              paymentType: 'manual',
               amount: 150000,
-              distributionDate: '2026-05-20T00:00:00.000Z',
-              createdBy: { name: 'Tesorería QA' },
+              paidAt: '2026-05-20T00:00:00.000Z',
+              paidByUser: { name: 'Tesorería QA' },
             },
           ],
         },
@@ -410,17 +395,18 @@ describe('AssociateDetails behavior', () => {
             totalOverdue: 175000,
           },
           alerts: [
-            { type: 'overdue', installmentNumber: 3 },
-            { type: 'upcoming', installmentNumber: 4 },
-            { type: 'overdue', installmentNumber: null, amount: 0, dueDate: null },
+            { type: 'overdue', installmentNumber: 3, amount: 175000, dueDate: '2026-05-10T00:00:00.000Z', daysOverdue: 2 },
+            { type: 'upcoming', installmentNumber: 4, amount: 180000, dueDate: '2026-05-14T00:00:00.000Z', daysUntilDue: 2 },
           ],
         },
       });
 
       render(<AssociateDetails />);
 
-      expect(screen.getByText(/Capital vigente: COP 2\.350\.000/)).toBeInTheDocument();
-      expect(screen.getByText(/Interés por pagar: COP 65\.000/)).toBeInTheDocument();
+      expect(screen.getByText('Capital vigente')).toBeInTheDocument();
+      expect(screen.getAllByText(/COP\s*2\.350\.000/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Intereses pendientes').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/COP\s*65\.000/).length).toBeGreaterThan(0);
       expect(screen.getByText('Pago #3 vencido hace 2 días')).toBeInTheDocument();
       expect(screen.getByText('Pago #4 vence en 2 días')).toBeInTheDocument();
       expect(screen.queryByText('Pago #N/A vencido hace 0 días')).not.toBeInTheDocument();
@@ -445,7 +431,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Pago #2 vence en 5 días')).toBeInTheDocument();
   });
 
-  it('does not create fallback overdue alerts for paid installments', () => {
+  it('uses only alerts returned by the installment contract', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-12T00:00:00.000Z'));
 
@@ -480,7 +466,9 @@ describe('AssociateDetails behavior', () => {
             totalPaid: 150000,
             totalOverdue: 0,
           },
-          alerts: [],
+          alerts: [
+            { type: 'upcoming', installmentNumber: 8, amount: 175000, dueDate: '2026-05-15T00:00:00.000Z', daysUntilDue: 3 },
+          ],
         },
       });
 
@@ -501,11 +489,11 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     selectAssociateDetailView('calendar');
-    fireEvent.change(screen.getByLabelText('Desde calendario'), { target: { value: '2026-07-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta calendario'), { target: { value: '2026-06-30' } });
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-07-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-06-30' } });
 
-    expect(screen.getByLabelText('Desde calendario')).toHaveValue('2026-07-01');
-    expect(screen.getByLabelText('Hasta calendario')).toHaveValue('');
+    expect(screen.getByLabelText('Desde')).toHaveValue('2026-07-01');
+    expect(screen.getByLabelText('Hasta')).toHaveValue('');
     expect(useAssociateDetailsSpy).toHaveBeenLastCalledWith(1, {
       startDate: '2026-07-01',
       endDate: '',
@@ -575,7 +563,7 @@ describe('AssociateDetails behavior', () => {
     });
   });
 
-  it('renders when associate installments and calendar arrive as flat arrays', () => {
+  it('renders canonical installment and calendar payloads', () => {
     mockUseSessionStore.mockReturnValue({
       user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
     });
@@ -584,42 +572,47 @@ describe('AssociateDetails behavior', () => {
       ...detailsResponse,
       details: {
         ...detailsResponse.details,
-        paymentHistory: undefined,
-        payments: [
+        paymentHistory: [
           {
             id: 70,
             paymentType: 'manual',
-            distributionType: 'interest',
             amount: 200000,
             paidAt: '2026-06-05T00:00:00.000Z',
           },
         ],
       },
-      installments: [
+      installments: {
+        installments: [
         {
           id: 11,
           installmentNumber: 1,
           amount: 350000,
           dueDate: '2026-05-10T00:00:00.000Z',
           status: 'pending',
-        },
-      ],
-      calendar: [
+          },
+        ],
+        totals: { totalPending: 350000, totalPaid: 0, totalOverdue: 0 },
+        alerts: [],
+      },
+      calendar: {
+        events: [
         {
           id: 'contribution-1',
           type: 'contribution',
           amount: 2500000,
           date: '2026-05-01T00:00:00.000Z',
           status: 'completed',
-        },
+          },
         {
           id: 'interest-1',
-          type: 'interest_payment',
+          type: 'installment',
           amount: 350000,
           date: '2026-05-10T00:00:00.000Z',
           status: 'pending',
-        },
-      ],
+          },
+        ],
+        summary: { contributionCount: 1, distributionCount: 0, installmentCount: 1, pendingInstallments: 1 },
+      },
     });
 
     render(<AssociateDetails />);
@@ -628,8 +621,9 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Pago manual de rentabilidad')).toBeInTheDocument();
     expect(screen.getAllByText(/COP\s*350[,.]000/).length).toBeGreaterThan(0);
     selectAssociateDetailView('calendar');
-    expect(screen.getByText('Aporte')).toBeInTheDocument();
-    expect(screen.getByText('Pago de interés')).toBeInTheDocument();
+    expect(screen.getByTestId('associate-detail-calendar')).toBeInTheDocument();
+    expect(screen.getAllByText('Aporte').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Pago de interés').length).toBeGreaterThan(0);
     expect(screen.queryByText('No disponible')).not.toBeInTheDocument();
   });
 
@@ -665,17 +659,17 @@ describe('AssociateDetails behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
 
     expect(screen.getByRole('heading', { name: 'Registrar pago de interés' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Notas')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Método de pago').tagName).toBe('SELECT');
     fireEvent.change(screen.getByLabelText('Fecha real de pago'), { target: { value: '2026-05-16' } });
-    fireEvent.change(screen.getByLabelText('Método de pago'), { target: { value: 'transferencia' } });
-    fireEvent.change(screen.getByLabelText('Notas'), { target: { value: 'Pago confirmado por banco' } });
+    fireEvent.change(screen.getByLabelText('Método de pago'), { target: { value: 'transfer' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar pago' }));
 
     await waitFor(() => {
       expect(detailsResponse.payInstallment.mutateAsync).toHaveBeenCalledWith({
         installmentNumber: 1,
         paymentDate: '2026-05-16',
-        paymentMethod: 'transferencia',
-        notes: 'Pago confirmado por banco',
+        paymentMethod: 'transfer',
       });
     });
   });

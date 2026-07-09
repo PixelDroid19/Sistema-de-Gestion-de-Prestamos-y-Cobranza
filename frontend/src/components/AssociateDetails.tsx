@@ -5,6 +5,7 @@ import { useTranslation } from '../i18n';
 import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { exportAssociateFinancialSummary, useAssociateDetails } from '../services/associateService';
+import { useActivePaymentMethods } from '../services/configService';
 import {
   getAssociateInterestRateValue,
   getAssociateInterestTypeValue,
@@ -19,6 +20,7 @@ import AssociateModuleNavigation from './associates/AssociateModuleNavigation';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import { useResolvedPermissionNames } from '../services/permissionsService';
+import AppCalendar, { toCalendarDayKey, type CalendarEvent, type CalendarEventTone } from './shared/AppCalendar';
 import {
   ActionButton,
   DataTableSurface,
@@ -52,7 +54,7 @@ const formatSignedCurrency = (value: unknown, type?: string, status?: string) =>
   const numericValue = Number(value || 0);
   const prefix = type === 'contribution'
     ? '+'
-    : (['distribution', 'capitalReturn', 'installment', 'interest_payment'].includes(String(type)) ? '-' : (status === 'paid' ? '✓ ' : ''));
+    : (['distribution', 'capitalReturn', 'installment'].includes(String(type)) ? '-' : (status === 'paid' ? '✓ ' : ''));
   return `${prefix}${formatAssociateCurrency(numericValue)}`;
 };
 
@@ -98,26 +100,14 @@ const getDebtStatusLabel = (status?: string) => {
 
 const getPaymentHistoryLabel = (entry: any) => {
   const paymentType = String(entry?.paymentType || '').toLowerCase();
-  if (paymentType === 'capital_return' || entry?.distributionType === 'capital_return') {
+  if (paymentType === 'capital_return') {
     return tTerm('associateDetails.paymentHistory.capitalReturn');
   }
   if (paymentType === 'manual') {
     return tTerm('associateDetails.paymentHistory.manualProfitability');
   }
-  if (entry?.installmentNumber) {
+  if (paymentType === 'scheduled' && entry?.installmentNumber) {
     return tTerm('associateDetails.paymentHistory.installmentLabel', { number: entry.installmentNumber });
-  }
-  if (entry?.type === 'interest_payment' || entry?.paymentType === 'interest_payment') {
-    return tTerm('associateDetails.calendar.eventType.installment');
-  }
-  if (entry?.type === 'distribution') {
-    return tTerm('associateDetails.calendar.eventType.distribution');
-  }
-  if (entry?.type === 'contribution') {
-    return tTerm('associateDetails.calendar.eventType.contribution');
-  }
-  if (typeof entry?.displayType === 'string' && entry.displayType.trim()) {
-    return entry.displayType.trim();
   }
   return tTerm('common.notAvailable');
 };
@@ -126,7 +116,7 @@ const getCalendarEventBadgeClass = (event: any) => {
   if (event?.type === 'contribution') {
     return 'bg-emerald-100 text-emerald-700';
   }
-  if (event?.type === 'installment' || event?.type === 'interest_payment') {
+  if (event?.type === 'installment') {
     return 'bg-amber-100 text-amber-700';
   }
   if (event?.type === 'distribution') {
@@ -143,9 +133,44 @@ const getCalendarEventBadgeClass = (event: any) => {
 
 const getCalendarEventTypeLabel = (event: any) => {
   if (event?.type === 'contribution') return tTerm('associateDetails.calendar.eventType.contribution');
-  if (event?.type === 'distribution') return tTerm('associateDetails.calendar.eventType.distribution');
-  if (event?.type === 'installment' || event?.type === 'interest_payment') return tTerm('associateDetails.calendar.eventType.installment');
+  if (event?.type === 'distribution') {
+    if (event?.distributionKind === 'capital-return') {
+      return tTerm('associateDetails.paymentHistory.capitalReturn');
+    }
+    if (event?.distributionKind === 'reinvestment') {
+      return tTerm('associateDetails.calendar.eventType.reinvestment');
+    }
+    return tTerm('associateDetails.calendar.eventType.distribution');
+  }
+  if (event?.type === 'installment') return tTerm('associateDetails.calendar.eventType.installment');
   return tTerm('common.notAvailable');
+};
+
+const getCalendarEventTone = (event: any): CalendarEventTone => {
+  if (event?.type === 'contribution') return 'success';
+  if (event?.type === 'installment') {
+    const status = String(event?.status || '').toLowerCase();
+    if (status === 'paid') return 'success';
+    if (status === 'overdue') return 'danger';
+    return 'warning';
+  }
+  if (event?.type === 'distribution') {
+    if (event?.distributionKind === 'capital-return') {
+      return 'info';
+    }
+    if (event?.distributionKind === 'reinvestment') {
+      return 'neutral';
+    }
+    return 'info';
+  }
+  return 'neutral';
+};
+
+const parseAssociateCalendarDate = (value: unknown): Date | null => {
+  if (!value) return null;
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
 };
 
 const formatAlertDayCount = (value: unknown) => {
@@ -160,89 +185,17 @@ const buildCompactOperationalSummary = (items: Array<{ label: string; value: str
     .join(' · ')
 );
 
-const normalizeNumericValue = (value: unknown) => {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : null;
-};
-
-const resolveMoneyFallback = (...values: unknown[]) => {
-  for (const value of values) {
-    const numericValue = normalizeNumericValue(value);
-    if (numericValue !== null) {
-      return numericValue;
-    }
-  }
-
-  return 0;
-};
-
-const resolveUserLabel = (...values: unknown[]) => {
-  for (const value of values) {
-    if (!value) {
-      continue;
-    }
-
-    if (typeof value === 'string') {
-      const normalized = value.trim();
-      if (normalized) {
-        return normalized;
-      }
-      continue;
-    }
-
-    if (typeof value === 'object') {
-      const userValue = value as { name?: string; email?: string };
-      const candidate = userValue.name || userValue.email;
-      if (typeof candidate === 'string' && candidate.trim()) {
-        return candidate.trim();
-      }
+const resolveUserLabel = (value: unknown) => {
+  if (value && typeof value === 'object') {
+    const userValue = value as { name?: string; email?: string };
+    const candidate = userValue.name || userValue.email;
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
     }
   }
 
   return '-';
 };
-
-const toUtcDateOnly = (value: unknown) => {
-  if (!value) {
-    return null;
-  }
-
-  const parsedDate = new Date(String(value));
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
-  }
-
-  return Date.UTC(
-    parsedDate.getUTCFullYear(),
-    parsedDate.getUTCMonth(),
-    parsedDate.getUTCDate(),
-  );
-};
-
-const diffCalendarDaysUtc = (left: unknown, right: unknown) => {
-  const leftUtc = toUtcDateOnly(left);
-  const rightUtc = toUtcDateOnly(right);
-  if (leftUtc === null || rightUtc === null) {
-    return null;
-  }
-
-  return Math.round((leftUtc - rightUtc) / (24 * 60 * 60 * 1000));
-};
-
-const normalizeAssociatePaymentHistoryEntry = (entry: any) => ({
-  ...entry,
-  paymentType: entry?.paymentType ?? entry?.type ?? null,
-  distributionType: entry?.distributionType ?? entry?.movementType ?? null,
-  displayType: entry?.displayType ?? entry?.label ?? null,
-  installmentNumber: entry?.installmentNumber ?? null,
-  amount: resolveMoneyFallback(entry?.amount, entry?.value, entry?.totalAmount),
-  dueDate: entry?.dueDate ?? entry?.scheduledDate ?? null,
-  paidAt: entry?.paidAt ?? entry?.distributionDate ?? entry?.paymentDate ?? entry?.date ?? null,
-  paymentMethod: entry?.paymentMethod ?? entry?.method ?? null,
-  paidByUser: entry?.paidByUser ?? entry?.createdBy ?? null,
-  paidBy: entry?.paidBy ?? entry?.responsible ?? null,
-  responsibleUser: entry?.responsibleUser ?? entry?.createdBy ?? entry?.paidBy ?? null,
-});
 
 const getAssociatePaymentMethodLabel = (value: unknown) => {
   const rawValue = String(value || '').trim();
@@ -254,156 +207,28 @@ const getAssociatePaymentMethodLabel = (value: unknown) => {
   return catalogLabel === tTerm('payment.method.unknown') ? rawValue : catalogLabel;
 };
 
-const normalizeAssociateAlertEntry = (alert: any, installmentsByNumber: Map<number, any>, asOfDate: Date) => {
-  const normalizedType = String(alert?.type || '').toLowerCase();
-  if (!['overdue', 'upcoming'].includes(normalizedType)) {
-    return null;
-  }
-
-  const installmentNumber = normalizeNumericValue(alert?.installmentNumber);
-  const relatedInstallment = installmentNumber !== null
-    ? installmentsByNumber.get(installmentNumber)
-    : null;
-  const dueDate = alert?.dueDate ?? relatedInstallment?.dueDate ?? null;
-  const amount = resolveMoneyFallback(alert?.amount, relatedInstallment?.amount);
-  const dayDelta = diffCalendarDaysUtc(dueDate, asOfDate);
-
-  if (!dueDate || dayDelta === null) {
-    return null;
-  }
-
-  if (normalizedType === 'overdue') {
-    const explicitDaysOverdue = normalizeNumericValue(alert?.daysOverdue);
-    if (explicitDaysOverdue === null && dayDelta > 0) {
-      return null;
-    }
-
-    return {
-      ...alert,
-      type: 'overdue',
-      installmentNumber,
-      amount,
-      dueDate,
-      daysUntilDue: null,
-      daysOverdue: explicitDaysOverdue ?? Math.abs(dayDelta),
-    };
-  }
-
-  const explicitDaysUntilDue = normalizeNumericValue(alert?.daysUntilDue);
-  if (explicitDaysUntilDue === null && dayDelta < 0) {
-    return null;
-  }
-
-  return {
-    ...alert,
-    type: 'upcoming',
-    installmentNumber,
-    amount,
-    dueDate,
-    daysUntilDue: explicitDaysUntilDue ?? Math.max(dayDelta, 0),
-    daysOverdue: null,
-  };
-};
-
-const buildFallbackAssociateAlerts = (installments: any[], asOfDate: Date) => installments
-  .map((installment) => {
-    const dueDate = installment?.dueDate;
-    const dayDelta = diffCalendarDaysUtc(dueDate, asOfDate);
-    if (!dueDate || dayDelta === null) {
-      return null;
-    }
-
-    const normalizedStatus = String(installment?.status || '').toLowerCase();
-    if (['paid', 'completed'].includes(normalizedStatus)) {
-      return null;
-    }
-
-    if (normalizedStatus === 'overdue' || dayDelta < 0) {
-      return {
-        type: 'overdue',
-        installmentNumber: normalizeNumericValue(installment?.installmentNumber),
-        amount: resolveMoneyFallback(installment?.amount),
-        dueDate,
-        daysUntilDue: null,
-        daysOverdue: Math.abs(dayDelta),
-      };
-    }
-
-    if (normalizedStatus === 'pending') {
-      return {
-        type: 'upcoming',
-        installmentNumber: normalizeNumericValue(installment?.installmentNumber),
-        amount: resolveMoneyFallback(installment?.amount),
-        dueDate,
-        daysUntilDue: Math.max(dayDelta, 0),
-        daysOverdue: null,
-      };
-    }
-
-    return null;
-  })
-  .filter(Boolean);
-
-const resolveInterestDebtValue = (detailsSummary: any, associate: any) => {
-  if (detailsSummary?.interestDebt !== undefined && detailsSummary?.interestDebt !== null) {
-    return resolveMoneyFallback(detailsSummary.interestDebt);
-  }
-
-  if (detailsSummary?.pendingInterest !== undefined && detailsSummary?.pendingInterest !== null) {
-    return resolveMoneyFallback(detailsSummary.pendingInterest);
-  }
-
-  if (detailsSummary?.interestPending !== undefined || detailsSummary?.interestOverdue !== undefined) {
-    return resolveMoneyFallback(detailsSummary?.interestPending) + resolveMoneyFallback(detailsSummary?.interestOverdue);
-  }
-
-  if (associate?.pendingInterest !== undefined || associate?.interestPending !== undefined || associate?.interestOverdue !== undefined) {
-    return resolveMoneyFallback(associate?.pendingInterest, associate?.interestPending) + resolveMoneyFallback(associate?.interestOverdue);
-  }
-
-  return 0;
-};
-
-const sumInstallmentAmountsByStatus = (rows: any[], statuses: string[]) => rows.reduce((total, row) => {
-  const normalizedStatus = String(row?.status || '').toLowerCase();
-  if (!statuses.includes(normalizedStatus)) return total;
-  return total + Number(row?.amount || 0);
-}, 0);
-
 const normalizeAssociateInstallmentsData = (value: any) => {
-  const rows = Array.isArray(value)
-    ? value
-    : (Array.isArray(value?.installments) ? value.installments : []);
-  const totals = value && !Array.isArray(value) && value.totals
-    ? value.totals
-    : {};
-
   return {
-    installments: rows,
+    installments: Array.isArray(value?.installments) ? value.installments : [],
     totals: {
-      totalPending: totals.totalPending ?? sumInstallmentAmountsByStatus(rows, ['pending']),
-      totalPaid: totals.totalPaid ?? sumInstallmentAmountsByStatus(rows, ['paid']),
-      totalOverdue: totals.totalOverdue ?? sumInstallmentAmountsByStatus(rows, ['overdue']),
+      totalPending: Number(value?.totals?.totalPending || 0),
+      totalPaid: Number(value?.totals?.totalPaid || 0),
+      totalOverdue: Number(value?.totals?.totalOverdue || 0),
     },
     alerts: Array.isArray(value?.alerts) ? value.alerts : [],
   };
 };
 
 const normalizeAssociateCalendarData = (value: any) => {
-  const events = Array.isArray(value)
-    ? value
-    : (Array.isArray(value?.events) ? value.events : []);
-  const summary = value && !Array.isArray(value) && value.summary
-    ? value.summary
-    : {};
+  const events = Array.isArray(value?.events) ? value.events : [];
 
   return {
     events,
     summary: {
-      contributionCount: summary.contributionCount ?? events.filter((event: any) => event?.type === 'contribution').length,
-      distributionCount: summary.distributionCount ?? events.filter((event: any) => event?.type === 'distribution').length,
-      installmentCount: summary.installmentCount ?? events.filter((event: any) => event?.type === 'installment' || event?.type === 'interest_payment').length,
-      pendingInstallments: summary.pendingInstallments ?? events.filter((event: any) => String(event?.status || '').toLowerCase() === 'pending').length,
+      contributionCount: Number(value?.summary?.contributionCount || 0),
+      distributionCount: Number(value?.summary?.distributionCount || 0),
+      installmentCount: Number(value?.summary?.installmentCount || 0),
+      pendingInstallments: Number(value?.summary?.pendingInstallments || 0),
     },
   };
 };
@@ -426,8 +251,22 @@ export default function AssociateDetails() {
     user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission)
   );
   const canManageAssociateMovements = hasPermission(PERMISSION.SOCIOS_UPDATE);
+  const isBackofficeUser = user?.role === 'admin' || user?.role === 'employee';
+  const { paymentMethods: configuredPaymentMethods } = useActivePaymentMethods({ enabled: isBackofficeUser });
+  const paymentMethodOptions = useMemo(() => {
+    const active = configuredPaymentMethods
+      .filter((method: any) => method?.isActive !== false)
+      .map((method: any) => ({
+        value: String(method?.key ?? method?.type ?? '').trim().toLowerCase(),
+        label: String(method?.label ?? method?.name ?? '').trim() || tTerm('settings.paymentMethods.methodUnnamed'),
+      }))
+      .filter((method) => method.value);
+    return active;
+  }, [configuredPaymentMethods]);
+  const defaultPaymentMethod = paymentMethodOptions[0]?.value || '';
 
   const [calendarFilters, setCalendarFilters] = useState({ startDate: '', endDate: '' });
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
   const updateCalendarFilter = (key: 'startDate' | 'endDate', value: string) => {
     setCalendarFilters((current) => {
       const next = { ...current, [key]: value };
@@ -445,7 +284,7 @@ export default function AssociateDetails() {
     calendar,
     isLoading,
     createContribution,
-    createDistribution,
+    createManualProfitabilityPayment,
     createCapitalReturn,
     createReinvestment,
     payInstallment,
@@ -460,7 +299,6 @@ export default function AssociateDetails() {
   const [installmentPaymentForm, setInstallmentPaymentForm] = useState({
     paymentDate: getTodayDateInputValue(),
     paymentMethod: '',
-    notes: '',
   });
   const [actionAmounts, setActionAmounts] = useState<Record<AssociateMoneyActionType, string>>({
     distribution: '',
@@ -484,6 +322,7 @@ export default function AssociateDetails() {
   });
   const [installmentPaymentErrors, setInstallmentPaymentErrors] = useState({
     paymentDate: '',
+    paymentMethod: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExportingFinancialSummary, setIsExportingFinancialSummary] = useState(false);
@@ -504,19 +343,40 @@ export default function AssociateDetails() {
     }
   }, [associateId]);
 
-  const detailsSummary = {
-    ...(details?.financials ?? {}),
-    ...(details?.summary ?? {}),
-  };
-  const paymentHistory = (Array.isArray(details?.paymentHistory)
-    ? details.paymentHistory
-    : (Array.isArray(details?.payments)
-      ? details.payments
-      : (Array.isArray(details?.distributions) ? details.distributions : [])))
-    .map(normalizeAssociatePaymentHistoryEntry);
+  const detailsSummary = details?.summary ?? {};
+  const paymentHistory = Array.isArray(details?.paymentHistory) ? details.paymentHistory : [];
   const installmentsData = normalizeAssociateInstallmentsData(installments);
   const calendarData = normalizeAssociateCalendarData(calendar);
   const calendarEvents = calendarData.events;
+  const appCalendarEvents = useMemo<CalendarEvent[]>(() => (
+    calendarEvents
+      .map((event: any, index: number) => {
+        const date = parseAssociateCalendarDate(event?.date);
+        if (!date) return null;
+        const amount = Number(event?.amount || 0);
+        return {
+          id: String(event?.id ?? `${event?.type || 'event'}-${index}-${event?.date}`),
+          date,
+          title: getCalendarEventTypeLabel(event),
+          meta: amount > 0 ? formatAssociateCurrency(amount) : undefined,
+          tone: getCalendarEventTone(event),
+        } satisfies CalendarEvent;
+      })
+      .filter(Boolean) as CalendarEvent[]
+  ), [calendarEvents]);
+  const calendarInitialDate = useMemo(() => {
+    const firstEventDate = appCalendarEvents[0]?.date;
+    return firstEventDate ?? new Date();
+  }, [appCalendarEvents]);
+  const visibleCalendarEvents = useMemo(() => {
+    if (!selectedCalendarDay) {
+      return calendarEvents;
+    }
+    return calendarEvents.filter((event: any) => {
+      const date = parseAssociateCalendarDate(event?.date);
+      return date ? toCalendarDayKey(date) === selectedCalendarDay : false;
+    });
+  }, [calendarEvents, selectedCalendarDay]);
 
   const paymentHistoryTotalPages = Math.max(1, Math.ceil(paymentHistory.length / paymentHistoryPageSize));
   const currentPaymentHistoryPage = Math.min(paymentHistoryPage, paymentHistoryTotalPages);
@@ -562,17 +422,17 @@ export default function AssociateDetails() {
     }
     : undefined;
 
-  const calendarTotalPages = Math.max(1, Math.ceil(calendarEvents.length / calendarPageSize));
+  const calendarTotalPages = Math.max(1, Math.ceil(visibleCalendarEvents.length / calendarPageSize));
   const currentCalendarPage = Math.min(calendarPage, calendarTotalPages);
   const paginatedCalendarEvents = useMemo(() => {
     const startIndex = (currentCalendarPage - 1) * calendarPageSize;
-    return calendarEvents.slice(startIndex, startIndex + calendarPageSize);
-  }, [calendarEvents, calendarPageSize, currentCalendarPage]);
-  const calendarPagination = calendarEvents.length > 0
+    return visibleCalendarEvents.slice(startIndex, startIndex + calendarPageSize);
+  }, [visibleCalendarEvents, calendarPageSize, currentCalendarPage]);
+  const calendarPagination = visibleCalendarEvents.length > 0
     ? {
       page: currentCalendarPage,
       pageSize: calendarPageSize,
-      totalItems: calendarEvents.length,
+      totalItems: visibleCalendarEvents.length,
       totalPages: calendarTotalPages,
       onPrev: () => setCalendarPage((page) => Math.max(1, page - 1)),
       onNext: () => setCalendarPage((page) => Math.min(calendarTotalPages, page + 1)),
@@ -612,18 +472,12 @@ export default function AssociateDetails() {
     ? associate.name.trim()
     : [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || tTerm('associateDetails.fallback.name');
 
-  const totalContributions = resolveMoneyFallback(detailsSummary?.totalContributed, details?.totalContributions, associate?.totalContributed);
-  const currentCapital = resolveMoneyFallback(detailsSummary?.currentCapital, associate?.currentCapital, totalContributions);
-  const totalCapitalReturned = resolveMoneyFallback(detailsSummary?.totalCapitalReturned, detailsSummary?.capitalReturned, associate?.totalCapitalReturned);
-  const totalInterestPaid = resolveMoneyFallback(
-    detailsSummary?.totalInterestPaid,
-    detailsSummary?.paidInterest,
-    detailsSummary?.interestPaid,
-    associate?.paidInterest,
-    associate?.interestPaid,
-  );
-  const interestDebt = resolveInterestDebtValue(detailsSummary, associate);
-  const nextInterestPaymentDate = detailsSummary?.nextInterestPaymentDate ?? detailsSummary?.nextPaymentDate ?? associate?.nextPaymentDate ?? null;
+  const totalContributions = Number(detailsSummary.totalContributed || 0);
+  const currentCapital = Number(detailsSummary.currentCapital || 0);
+  const totalCapitalReturned = Number(detailsSummary.totalCapitalReturned || 0);
+  const totalInterestPaid = Number(detailsSummary.totalInterestPaid || 0);
+  const interestDebt = Number(detailsSummary.interestDebt || 0);
+  const nextInterestPaymentDate = detailsSummary.nextInterestPaymentDate || null;
   const debtStatus = getDebtStatusLabel(detailsSummary?.debtStatus);
   const interestRate = getAssociateInterestRateValue(associate);
   const interestType = getAssociateInterestTypeValue(associate);
@@ -637,18 +491,7 @@ export default function AssociateDetails() {
     })
     : tTerm('common.notSpecified');
 
-  const asOfDate = new Date();
-  const installmentsByNumber = new Map<number, any>(
-    installmentsData.installments
-      .map((installment: any) => [normalizeNumericValue(installment?.installmentNumber), installment] as const)
-      .filter((entry: readonly [number | null, any]): entry is readonly [number, any] => entry[0] !== null),
-  );
-  const normalizedAssociateAlerts = (Array.isArray(installmentsData.alerts) ? installmentsData.alerts : [])
-    .map((alert: any) => normalizeAssociateAlertEntry(alert, installmentsByNumber, asOfDate))
-    .filter(Boolean);
-  const associatePaymentAlerts = normalizedAssociateAlerts.length > 0
-    ? normalizedAssociateAlerts
-    : buildFallbackAssociateAlerts(installmentsData.installments, asOfDate);
+  const associatePaymentAlerts = installmentsData.alerts;
 
   const getAssociatePaymentAlertTitle = (alert: any) => {
     if (!Number.isFinite(Number(alert?.installmentNumber))) {
@@ -698,7 +541,7 @@ export default function AssociateDetails() {
     setIsSubmitting(true);
     try {
       if (showModal === 'distribution') {
-        await createDistribution.mutateAsync({
+        await createManualProfitabilityPayment.mutateAsync({
           amount: parsedAmount,
           distributionDate: actionDates.distribution,
           notes: actionNotes.distribution.trim() || undefined,
@@ -768,11 +611,11 @@ export default function AssociateDetails() {
     setPayingInstallmentNumber(installmentNumber);
     setInstallmentPaymentErrors({
       paymentDate: '',
+      paymentMethod: '',
     });
     setInstallmentPaymentForm({
       paymentDate: getTodayDateInputValue(),
-      paymentMethod: '',
-      notes: '',
+      paymentMethod: defaultPaymentMethod,
     });
   };
 
@@ -780,11 +623,11 @@ export default function AssociateDetails() {
     setPayingInstallmentNumber(null);
     setInstallmentPaymentErrors({
       paymentDate: '',
+      paymentMethod: '',
     });
     setInstallmentPaymentForm({
       paymentDate: getTodayDateInputValue(),
-      paymentMethod: '',
-      notes: '',
+      paymentMethod: defaultPaymentMethod,
     });
   };
 
@@ -795,23 +638,23 @@ export default function AssociateDetails() {
       return;
     }
 
-    if (!installmentPaymentForm.paymentDate) {
-      setInstallmentPaymentErrors({
-        paymentDate: tTerm('associateDetails.installmentPayment.validation.paymentDateRequired'),
-      });
-      return;
-    }
+    const paymentDate = installmentPaymentForm.paymentDate.trim();
+    const paymentMethod = installmentPaymentForm.paymentMethod.trim();
+    const nextErrors = {
+      paymentDate: paymentDate ? '' : tTerm('associateDetails.installmentPayment.validation.paymentDateRequired'),
+      paymentMethod: paymentMethod ? '' : tTerm('associateTracking.payment.validation.paymentMethodRequired'),
+    };
 
-    if (payingInstallmentNumber === null) {
+    setInstallmentPaymentErrors(nextErrors);
+    if (nextErrors.paymentDate || nextErrors.paymentMethod || payingInstallmentNumber === null) {
       return;
     }
 
     try {
       await payInstallment.mutateAsync({
         installmentNumber: payingInstallmentNumber,
-        paymentDate: installmentPaymentForm.paymentDate,
-        paymentMethod: installmentPaymentForm.paymentMethod.trim(),
-        notes: installmentPaymentForm.notes.trim(),
+        paymentDate,
+        paymentMethod,
       });
       handleClosePayInstallmentModal();
       toast.success({ title: tTerm('associateDetails.toast.installmentPaid') });
@@ -822,34 +665,58 @@ export default function AssociateDetails() {
 
   const renderOverviewTab = () => (
     <div className="space-y-6">
-      <p className="associate-detail-summary-line" aria-label={tTerm('associateDetails.overview.ariaLabel')}>
-        {buildCompactOperationalSummary([
+      <InsightStrip
+        className="associate-detail-summary-strip"
+        aria-label={tTerm('associateDetails.overview.ariaLabel')}
+        items={[
           {
+            id: 'current-capital',
             label: tTerm('associateDetails.overview.metric.currentCapital'),
             value: formatAssociateCurrency(currentCapital),
             helper: tTerm('associateDetails.overview.metric.currentCapitalHelper', {
               contributed: formatAssociateCurrency(totalContributions),
               returned: formatAssociateCurrency(totalCapitalReturned),
             }),
+            accent: 'teal',
           },
           {
+            id: 'contributions',
+            label: tTerm('associateDetails.overview.metric.contributions'),
+            value: formatAssociateCurrency(totalContributions),
+            accent: 'blue',
+          },
+          {
+            id: 'interest-paid',
             label: tTerm('associateDetails.overview.metric.interestPaid'),
             value: formatAssociateCurrency(totalInterestPaid),
+            accent: 'emerald',
           },
           {
+            id: 'interest-pending',
             label: tTerm('associateDetails.overview.metric.debt'),
             value: formatAssociateCurrency(interestDebt),
             helper: interestDebt > 0
               ? tTerm('associateDetails.overview.metric.debtHelper.pending')
               : tTerm('associateDetails.overview.metric.debtHelper.none'),
+            accent: interestDebt > 0 ? 'amber' : 'slate',
           },
           {
-            label: tTerm('associateDetails.overview.metric.nextPayment'),
-            value: nextInterestPaymentDate ? formatAssociateDate(nextInterestPaymentDate) : tTerm('associateDetails.overview.metric.nextPayment.none'),
-            helper: tTerm('associateDetails.overview.metric.nextPaymentHelper'),
+            id: 'capital-returned',
+            label: tTerm('associateDetails.overview.metric.capitalReturned'),
+            value: formatAssociateCurrency(totalCapitalReturned),
+            accent: 'rose',
           },
-        ])}
-      </p>
+          {
+            id: 'next-payment',
+            label: tTerm('associateDetails.overview.metric.nextPayment'),
+            value: nextInterestPaymentDate
+              ? formatAssociateDate(nextInterestPaymentDate)
+              : tTerm('associateDetails.overview.metric.nextPayment.none'),
+            helper: tTerm('associateDetails.overview.metric.nextPaymentHelper'),
+            accent: 'slate',
+          },
+        ]}
+      />
 
       {associatePaymentAlerts.length > 0 && (
         <SectionSurface
@@ -1010,14 +877,14 @@ export default function AssociateDetails() {
                     </p>
                   </td>
                   <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
-                  <td>{formatAssociateDate(entry.dueDate ?? entry.paymentDate ?? entry.date)}</td>
+                  <td>{formatAssociateDate(entry.dueDate)}</td>
                   <td>
                     <div className="report-record-stack">
-                      <p className="report-record-stack__title">{formatAssociateDate(entry.paidAt ?? entry.paymentDate ?? entry.date)}</p>
+                      <p className="report-record-stack__title">{formatAssociateDate(entry.paidAt)}</p>
                       <p className="report-record-stack__meta">
                         {[
                           getAssociatePaymentMethodLabel(entry.paymentMethod),
-                          resolveUserLabel(entry.paidByUser, entry.paidBy, entry.responsibleUser, entry.createdBy),
+                          resolveUserLabel(entry.paidByUser),
                         ].filter((value) => value && value !== '-' && value !== tTerm('common.notAvailable')).join(' · ') || tTerm('common.notAvailable')}
                       </p>
                     </div>
@@ -1032,56 +899,89 @@ export default function AssociateDetails() {
 
   const renderCalendarTab = () => (
     <div className="space-y-4">
+      <SectionSurface
+        title={tTerm('associateDetails.calendar.title')}
+        subtitle={tTerm('associateDetails.calendar.description')}
+        bodyClassName="space-y-4"
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FormField label={tTerm('associateDetails.calendar.filter.from')} htmlFor="associate-calendar-start-date">
+            <AppInput
+              id="associate-calendar-start-date"
+              variant="date"
+              value={calendarFilters.startDate}
+              onValueChange={(v) => updateCalendarFilter('startDate', v)}
+            />
+          </FormField>
+          <FormField label={tTerm('associateDetails.calendar.filter.to')} htmlFor="associate-calendar-end-date">
+            <AppInput
+              id="associate-calendar-end-date"
+              variant="date"
+              value={calendarFilters.endDate}
+              onValueChange={(v) => updateCalendarFilter('endDate', v)}
+            />
+          </FormField>
+        </div>
+
+        <p className="text-xs leading-5 text-text-secondary">
+          {buildCompactOperationalSummary([
+            {
+              label: tTerm('associateDetails.calendar.metric.contributions'),
+              value: formatNumber(calendarData.summary.contributionCount),
+            },
+            {
+              label: tTerm('associateDetails.calendar.metric.distributions'),
+              value: formatNumber(calendarData.summary.distributionCount),
+            },
+            {
+              label: tTerm('associateDetails.calendar.metric.installments'),
+              value: formatNumber(calendarData.summary.installmentCount),
+            },
+            {
+              label: tTerm('associateDetails.calendar.metric.pending'),
+              value: formatNumber(calendarData.summary.pendingInstallments),
+            },
+          ])}
+        </p>
+
+        <div className="associate-detail-calendar-grid" data-testid="associate-detail-calendar">
+          <AppCalendar
+            events={appCalendarEvents}
+            initialDate={calendarInitialDate}
+            selectedDate={selectedCalendarDay}
+            onSelectDate={(dayKey) => {
+              setSelectedCalendarDay((current) => (current === dayKey ? null : dayKey));
+              setCalendarPage(1);
+            }}
+            maxVisiblePerDay={2}
+            className="associate-detail-calendar-month"
+          />
+        </div>
+      </SectionSurface>
+
       <DataTableSurface>
         <TableSectionIntro
           embedded
-          title={tTerm('associateDetails.calendar.title')}
-          description={tTerm('associateDetails.calendar.description')}
-          aside={(
-            <p className="max-w-[28rem] text-xs leading-5 text-text-secondary">
-              {buildCompactOperationalSummary([
-                {
-                  label: tTerm('associateDetails.calendar.metric.contributions'),
-                  value: formatNumber(calendarData.summary.contributionCount),
-                },
-                {
-                  label: tTerm('associateDetails.calendar.metric.distributions'),
-                  value: formatNumber(calendarData.summary.distributionCount),
-                },
-                {
-                  label: tTerm('associateDetails.calendar.metric.installments'),
-                  value: formatNumber(calendarData.summary.installmentCount),
-                },
-                {
-                  label: tTerm('associateDetails.calendar.metric.pending'),
-                  value: formatNumber(calendarData.summary.pendingInstallments),
-                },
-              ])}
-            </p>
-          )}
+          title={selectedCalendarDay
+            ? tTerm('associateDetails.calendar.dayEvents.title', { date: formatAssociateDate(selectedCalendarDay) })
+            : tTerm('associateDetails.calendar.listTitle')}
+          description={selectedCalendarDay
+            ? tTerm('associateDetails.calendar.dayEvents.description')
+            : tTerm('associateDetails.calendar.listDescription')}
+          aside={selectedCalendarDay ? (
+            <ActionButton
+              variant="ghost"
+              onClick={() => {
+                setSelectedCalendarDay(null);
+                setCalendarPage(1);
+              }}
+            >
+              {tTerm('associateDetails.calendar.clearDay')}
+            </ActionButton>
+          ) : undefined}
         />
-        <div className="border-b border-border-subtle px-4 py-4 sm:px-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label={tTerm('associateDetails.calendar.filter.from')} htmlFor="associate-calendar-start-date">
-              <AppInput
-                id="associate-calendar-start-date"
-                variant="date"
-                value={calendarFilters.startDate}
-                onValueChange={(v, _d, e) => updateCalendarFilter('startDate', v)}
-              />
-            </FormField>
-            <FormField label={tTerm('associateDetails.calendar.filter.to')} htmlFor="associate-calendar-end-date">
-              <AppInput
-                id="associate-calendar-end-date"
-                variant="date"
-                value={calendarFilters.endDate}
-                onValueChange={(v, _d, e) => updateCalendarFilter('endDate', v)}
-              />
-            </FormField>
-          </div>
-        </div>
         <AppTable variant="operational"
-          hasData={calendarEvents.length > 0}
+          hasData={visibleCalendarEvents.length > 0}
           emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.calendar.empty')}</div>}
           recordsLabel={tTerm('associateDetails.calendar.recordsLabel')}
           pagination={calendarPagination}
@@ -1098,7 +998,7 @@ export default function AssociateDetails() {
             </thead>
             <tbody>
               {paginatedCalendarEvents.map((event: any) => (
-                <tr key={`${event.type}-${event.id ?? 'no-id'}-${event.date}-${event.displayAmount ?? event.amount}-${event.notes ?? ''}`}>
+                <tr key={`${event.type}-${event.id ?? 'no-id'}-${event.date}-${event.amount}-${event.notes ?? ''}`}>
                   <td>{formatAssociateDate(event.date)}</td>
                   <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${getCalendarEventBadgeClass(event)}`}>
@@ -1295,32 +1195,34 @@ export default function AssociateDetails() {
               <AppInput
                 variant="date"
                 value={installmentPaymentForm.paymentDate}
-                onValueChange={(v, _d, e) => {
+                invalid={Boolean(installmentPaymentErrors.paymentDate)}
+                onValueChange={(v) => {
                   setInstallmentPaymentForm((prev) => ({ ...prev, paymentDate: v }));
                   if (installmentPaymentErrors.paymentDate) {
-                    setInstallmentPaymentErrors({ paymentDate: '' });
+                    setInstallmentPaymentErrors((prev) => ({ ...prev, paymentDate: '' }));
                   }
                 }}
               />
             </FormField>
-            <FormField label={tTerm('associateDetails.installmentPayment.field.paymentMethod')}>
-              <AppInput
-                variant="text"
+            <FormField
+              label={tTerm('associateDetails.installmentPayment.field.paymentMethod')}
+              error={installmentPaymentErrors.paymentMethod}
+            >
+              <OperationalSelect
+                id="associate-detail-payment-method"
                 value={installmentPaymentForm.paymentMethod}
-                onValueChange={(v, _d, e) => setInstallmentPaymentForm((prev) => ({ ...prev, paymentMethod: v }))}
-                placeholder={tTerm('associateDetails.installmentPayment.placeholder.paymentMethod')}
-              />
-            </FormField>
-            <FormField label={tTerm('associateDetails.installmentPayment.field.notes')}>
-              <div className="operational-control operational-control--textarea">
-                <textarea
-                  value={installmentPaymentForm.notes}
-                  onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
-                  placeholder={tTerm('associateDetails.installmentPayment.placeholder.notes')}
-                  rows={3}
-                  className="operational-control-textarea"
-                />
-              </div>
+                aria-invalid={Boolean(installmentPaymentErrors.paymentMethod)}
+                onChange={(event) => {
+                  setInstallmentPaymentForm((prev) => ({ ...prev, paymentMethod: event.target.value }));
+                  if (installmentPaymentErrors.paymentMethod) {
+                    setInstallmentPaymentErrors((prev) => ({ ...prev, paymentMethod: '' }));
+                  }
+                }}
+              >
+                {paymentMethodOptions.map((method) => (
+                  <option key={method.value} value={method.value}>{method.label}</option>
+                ))}
+              </OperationalSelect>
             </FormField>
             <div className="flex gap-3 pt-2">
               <ActionButton

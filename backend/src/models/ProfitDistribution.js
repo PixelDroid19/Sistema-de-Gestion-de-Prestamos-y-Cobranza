@@ -10,7 +10,7 @@ const ProfitDistribution = sequelize.define('ProfitDistribution', {
   distributionDate: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   createdByUserId: { type: DataTypes.INTEGER, allowNull: true },
   notes: { type: DataTypes.TEXT, allowNull: true },
-  // Proportional batches reuse basis JSONB with type=proportional-participation and MAY include idempotencyKey.
+  // Movement basis (e.g. capital-return, reinvestment, manual profitability).
   basis: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
 }, {
   timestamps: true,

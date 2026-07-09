@@ -317,8 +317,8 @@ export default function Sidebar({
                   title={tTerm('sidebar.associates.management')}
                 />
                 <SubNavItem
-                  active={currentView === 'associates-tracking'}
-                  onClick={() => setCurrentView('associates-tracking')}
+                  active={currentView === 'associates/tracking'}
+                  onClick={() => setCurrentView('associates/tracking')}
                   title={tTerm('sidebar.associates.tracking')}
                 />
               </div>

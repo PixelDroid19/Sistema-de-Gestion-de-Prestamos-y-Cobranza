@@ -112,7 +112,10 @@ test('export associates use case builds approved operational sheet structure', a
       },
       async listProfitDistributionsByAssociate(id) {
         assert.equal(Number(id), 4);
-        return [{ id: 2, loanId: 9, amount: 150000, distributionDate: '2026-02-10', status: 'completed', distributionType: 'proportional' }];
+        return [
+          { id: 2, loanId: 9, amount: 150000, distributionDate: '2026-02-10', status: 'completed', distributionType: 'manual' },
+          { id: 5, loanId: null, amount: 50000, distributionDate: '2026-02-20', status: 'completed', basis: { type: 'reinvestment' } },
+        ];
       },
       async findInstallmentsByAssociateId(id) {
         assert.equal(Number(id), 4);
@@ -158,6 +161,20 @@ test('export associates use case builds approved operational sheet structure', a
   assert.ok(result.data.rows.some((row) => row.section === 'Aporte'));
   assert.ok(result.data.rows.some((row) => row.section === 'Aporte' && row.contributionInterestType === 'Mensual' && row.contributionInterestRate === '2.5000'));
   assert.ok(result.data.rows.some((row) => row.section === 'Pago manual de rentabilidad'));
+  const manualProfitabilityRow = result.data.rows.find((row) => (
+    row.section === 'Pago manual de rentabilidad' && Number(row.entryId) === 2
+  ));
+  assert.ok(manualProfitabilityRow, 'manual profitability distribution should export in its own operational section');
+  assert.equal(manualProfitabilityRow.distributionType, 'Pago manual de rentabilidad');
+  const reinvestmentRow = result.data.rows.find((row) => (
+    row.section === 'Reinversión' && Number(row.entryId) === 5
+  ));
+  assert.ok(reinvestmentRow, 'reinvestments should export in their own operational section');
+  assert.equal(reinvestmentRow.distributionType, 'Reinversión');
+  assert.equal(
+    result.data.rows.some((row) => Object.values(row).some((value) => /proportional|Participaci[oó]n|Monto Asignado|Total Proporcional/i.test(String(value ?? '')))),
+    false,
+  );
   assert.equal(result.data.rows[0].date, '');
   assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments|N\/A/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
 });
@@ -420,7 +437,7 @@ test('export associates use case rejects inverted date ranges before reading ass
   assert.equal(repositoryCalled, false);
 });
 
-test('export associates use case preserves recorded values for unknown movement labels', async () => {
+test('export associates use case exports manual movements with the canonical label', async () => {
   const associate = {
     id: 4,
     name: 'Socio Excel QA',
@@ -440,7 +457,7 @@ test('export associates use case preserves recorded values for unknown movement 
         return [{ id: 1, amount: 1000000, contributionDate: '2026-01-10', status: 'manual_hold', notes: 'Aporte inicial' }];
       },
       async listProfitDistributionsByAssociate() {
-        return [{ id: 2, loanId: 9, amount: 150000, distributionDate: '2026-02-10', status: 'manual_hold', distributionType: 'manual_adjustment' }];
+        return [{ id: 2, loanId: 9, amount: 150000, distributionDate: '2026-02-10', status: 'manual_hold', basis: { type: 'manual' } }];
       },
       async findInstallmentsByAssociateId() {
         return [];
@@ -456,7 +473,7 @@ test('export associates use case preserves recorded values for unknown movement 
   const serializedRows = JSON.stringify(result.data.rows);
 
   assert.match(serializedRows, /manual_hold/);
-  assert.match(serializedRows, /manual_adjustment/);
+  assert.match(serializedRows, /Pago manual de rentabilidad/);
   assert.doesNotMatch(serializedRows, /Estado no clasificado|Tipo de distribución no clasificado/);
 });
 

@@ -33,15 +33,33 @@ const NON_PROFIT_DISTRIBUTION_TYPES = new Set(['capital_return', 'reinvestment']
 const isDistributedProfit = (distribution) => !NON_PROFIT_DISTRIBUTION_TYPES.has(distribution.distributionType);
 
 const ASSOCIATE_DISTRIBUTION_TYPE_LABELS = {
-  manual: 'Manual',
+  manual: 'Pago manual de rentabilidad',
   reinvestment: 'Reinversión',
   capital_return: 'Devolución de capital',
+};
+
+const normalizeAssociateDistributionTypeKey = (value) => {
+  const normalizedValue = String(value || '').trim().toLowerCase();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  if (normalizedValue === 'capital_return') {
+    return 'capital_return';
+  }
+
+  if (normalizedValue === 'reinvestment') {
+    return 'reinvestment';
+  }
+
+  return normalizedValue;
 };
 
 const ASSOCIATE_EXPORT_SECTIONS = {
   summary: 'Resumen',
   contribution: 'Aporte',
   distribution: 'Pago manual de rentabilidad',
+  reinvestment: 'Reinversión',
   capitalReturn: 'Devolución de capital',
   interestPaid: 'Interés pagado',
   interestDue: 'Interés pendiente',
@@ -86,7 +104,7 @@ const SECTION_COLUMNS = [
   moneyColumn('Monto Total', 'amount'),
 ];
 
-const ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS = [
+const ASSOCIATE_FINANCIAL_SUMMARY_COLUMNS = [
   { header: 'Indicador', key: 'indicator', width: 34 },
   { header: 'Valor', key: 'value', width: 22 },
 ];
@@ -127,7 +145,7 @@ const normalizeReportingDistributionRecord = (distribution) => {
     ? 'capital_return'
     : (basis.type === 'reinvestment'
       ? 'reinvestment'
-      : (serializedDistribution?.distributionType || 'manual'));
+      : 'manual');
   return {
     ...serializedDistribution,
     distributionType,
@@ -186,8 +204,8 @@ const normalizeDateFilter = (value) => {
 
 const buildDateRangeFilter = (filters = {}) => {
   const range = {
-    fromDate: normalizeDateFilter(filters.fromDate || filters.startDate),
-    toDate: normalizeDateFilter(filters.toDate || filters.endDate),
+    fromDate: normalizeDateFilter(filters.fromDate),
+    toDate: normalizeDateFilter(filters.toDate),
   };
   assertDateRangeOrder(range);
   return range;
@@ -212,14 +230,21 @@ const isWithinDateRange = (value, range) => {
 
 const formatDistributionType = (value) => {
   if (!value) return 'No aplica';
-  const rawValue = String(value).trim();
-  return ASSOCIATE_DISTRIBUTION_TYPE_LABELS[rawValue.toLowerCase()] || rawValue;
+  const typeKey = normalizeAssociateDistributionTypeKey(value);
+  if (ASSOCIATE_DISTRIBUTION_TYPE_LABELS[typeKey]) {
+    return ASSOCIATE_DISTRIBUTION_TYPE_LABELS[typeKey];
+  }
+  // Preserve operator-recorded movement labels; never surface unclassified placeholders.
+  return String(value).trim();
 };
 
 const formatAssociateDistributionType = (value) => {
   if (!value) return '';
-  const rawValue = String(value).trim();
-  return ASSOCIATE_DISTRIBUTION_TYPE_LABELS[rawValue.toLowerCase()] || rawValue;
+  const typeKey = normalizeAssociateDistributionTypeKey(value);
+  if (ASSOCIATE_DISTRIBUTION_TYPE_LABELS[typeKey]) {
+    return ASSOCIATE_DISTRIBUTION_TYPE_LABELS[typeKey];
+  }
+  return String(value).trim();
 };
 
 const formatInterestType = (value) => (value === 'annual' ? 'Anual' : 'Mensual');
@@ -257,10 +282,12 @@ const buildAssociateSheets = (rows) => {
   const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
   const contributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.contribution);
   const distributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution);
+  const reinvestmentRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.reinvestment);
   const capitalReturnRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.capitalReturn);
   const interestRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.interestPaid || row.section === ASSOCIATE_EXPORT_SECTIONS.interestDue);
   const totalContributed = contributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalDistributed = distributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalReinvested = reinvestmentRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalCapitalReturned = capitalReturnRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestPaid = interestRows.filter((row) => row.status === 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestDebt = interestRows.filter((row) => row.status !== 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
@@ -300,6 +327,7 @@ const buildAssociateSheets = (rows) => {
         { ...indicatorRow('Total de Socios', associateIds.size, '#,##0'), description: 'Número total de socios incluidos en el reporte' },
         { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), description: 'Suma de aportes registrados' },
         { ...indicatorRow('Pagos manuales de rentabilidad', roundMoney(totalDistributed), MONEY_FORMAT), description: 'Pagos de rentabilidad registrados fuera del cronograma' },
+        { ...indicatorRow('Reinversiones', roundMoney(totalReinvested), MONEY_FORMAT), description: 'Rentabilidad reinvertida como nuevo capital' },
         { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), description: 'Capital reintegrado al socio' },
         { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), description: 'Intereses pagados a socios' },
         { ...indicatorRow('Deuda con Socios', roundMoney(totalInterestDebt), MONEY_FORMAT), description: 'Intereses programados pendientes de pago' },
@@ -339,17 +367,10 @@ const buildAssociateSheets = (rows) => {
       rows: [
         { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), description: 'Capital aportado por socios' },
         { ...indicatorRow('Pagos manuales de rentabilidad', roundMoney(totalDistributed), MONEY_FORMAT), description: 'Rentabilidad reconocida fuera del cronograma' },
+        { ...indicatorRow('Reinversiones', roundMoney(totalReinvested), MONEY_FORMAT), description: 'Rentabilidad reinvertida como nuevo capital' },
         { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), description: 'Capital reintegrado a socios' },
         { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), description: 'Pagos de intereses ejecutados' },
         { ...indicatorRow('Interés Pendiente', roundMoney(totalInterestDebt), MONEY_FORMAT), description: 'Estado de deuda con socios' },
-        {
-          ...indicatorRow(
-            'Rentabilidad pagada sobre aportes',
-            totalContributed > 0 ? totalDistributed / totalContributed : 0,
-            PERCENT_FORMAT,
-          ),
-          description: 'Pagos manuales sobre aportes',
-        },
       ],
       autoFilter: false,
     },
@@ -362,6 +383,7 @@ const buildAssociateSheets = (rows) => {
       rows: [
         { section: 'Aportes', count: contributionRows.length, amount: roundMoney(totalContributed) },
         { section: 'Pagos manuales de rentabilidad', count: distributionRows.length, amount: roundMoney(totalDistributed) },
+        { section: 'Reinversiones', count: reinvestmentRows.length, amount: roundMoney(totalReinvested) },
         { section: 'Devoluciones de capital', count: capitalReturnRows.length, amount: roundMoney(totalCapitalReturned) },
         { section: 'Intereses pagados', count: interestRows.filter((row) => row.status === 'Pagado').length, amount: roundMoney(totalInterestPaid) },
         { section: 'Intereses pendientes', count: interestRows.filter((row) => row.status !== 'Pagado').length, amount: roundMoney(totalInterestDebt) },
@@ -451,7 +473,9 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
       const distributionRows = normalizedDistributions.map((distribution) => {
         const section = distribution.distributionType === 'capital_return'
           ? ASSOCIATE_EXPORT_SECTIONS.capitalReturn
-          : ASSOCIATE_EXPORT_SECTIONS.distribution;
+          : (distribution.distributionType === 'reinvestment'
+            ? ASSOCIATE_EXPORT_SECTIONS.reinvestment
+            : ASSOCIATE_EXPORT_SECTIONS.distribution);
         return {
           associateId: associate.id,
           associateName: associate.name,
@@ -501,7 +525,7 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
         contributionInterestType: '',
         contributionInterestRate: '',
         distributionType: '',
-        notes: `Aportes: ${filteredContributions.length}, Pagos manuales: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution).length}, Devoluciones: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.capitalReturn).length}, Cuotas de interés: ${filteredInstallments.length}. Pagado manualmente: ${formatDisplayMoney(totalDistributed)}. Capital devuelto: ${formatDisplayMoney(totalCapitalReturned)}`,
+        notes: `Aportes: ${filteredContributions.length}, Pagos manuales: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution).length}, Reinversiones: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.reinvestment).length}, Devoluciones: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.capitalReturn).length}, Cuotas de interés: ${filteredInstallments.length}. Pagado manualmente: ${formatDisplayMoney(totalDistributed)}. Capital devuelto: ${formatDisplayMoney(totalCapitalReturned)}`,
       };
 
       return [summaryRow, ...contributionRows, ...distributionRows, ...interestRows];
@@ -561,7 +585,7 @@ const createExportAssociatesPdf = ({ associateRepository }) => async ({ actor, f
   };
 };
 
-const createGetAssociateProfitabilityReport = ({ associateRepository }) => async ({ actor, associateId = null }) => {
+const createGetAssociateFinancialSummary = ({ associateRepository }) => async ({ actor, associateId = null }) => {
   ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al resumen financiero de socios.');
 
   const associate = await associateRepository.findById(associateId);
@@ -620,8 +644,8 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
   };
 };
 
-const createExportAssociateProfitabilityReport = ({ associateRepository }) => async ({ actor, associateId, format = 'xlsx' }) => {
-  const report = await createGetAssociateProfitabilityReport({ associateRepository })({ actor, associateId });
+const createExportAssociateFinancialSummary = ({ associateRepository }) => async ({ actor, associateId, format = 'xlsx' }) => {
+  const report = await createGetAssociateFinancialSummary({ associateRepository })({ actor, associateId });
   const contributions = Array.isArray(report.data?.contributions) ? report.data.contributions : [];
   const distributions = Array.isArray(report.data?.distributions) ? report.data.distributions : [];
   const installments = Array.isArray(report.data?.installments) ? report.data.installments : [];
@@ -644,6 +668,9 @@ const createExportAssociateProfitabilityReport = ({ associateRepository }) => as
       notes: entry.notes || '',
     };
   });
+  const manualProfitabilityRows = distributionRows.filter((row) => row.distributionType === 'Pago manual de rentabilidad');
+  const capitalReturnRows = distributionRows.filter((row) => row.distributionType === 'Devolución de capital');
+  const reinvestmentRows = distributionRows.filter((row) => row.distributionType === 'Reinversión');
   const installmentRows = (installments || []).map((entry) => {
     const operationalStatus = resolveInterestInstallmentExportStatus(entry);
     return {
@@ -664,7 +691,7 @@ const createExportAssociateProfitabilityReport = ({ associateRepository }) => as
       rows: [
         ...contributionRows.map((row) => ['Aporte', row.contributionId, '', row.amount, row.contributionDate, '', '', row.notes]),
         ...distributionRows.map((row) => [
-          'Pago manual de rentabilidad',
+          row.distributionType,
           row.distributionId,
           row.creditId || '',
           row.amount,
@@ -702,7 +729,7 @@ const createExportAssociateProfitabilityReport = ({ associateRepository }) => as
         title: `CONTROL FINANCIERO DEL SOCIO - ${report.associate.name}`,
         tabColor: STYLE_COLORS.blue,
         headerFill: STYLE_COLORS.green,
-        columns: ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS,
+        columns: ASSOCIATE_FINANCIAL_SUMMARY_COLUMNS,
         rows: [
           { indicator: 'Socio', value: report.associate.name },
           { indicator: 'ID Socio', value: report.associate.id },
@@ -734,7 +761,23 @@ const createExportAssociateProfitabilityReport = ({ associateRepository }) => as
         tabColor: STYLE_COLORS.yellow,
         headerFill: STYLE_COLORS.headerBlue,
         columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
-        rows: distributionRows,
+        rows: manualProfitabilityRows,
+      },
+      {
+        name: 'Devoluciones de capital',
+        title: 'DEVOLUCIONES DE CAPITAL DEL SOCIO',
+        tabColor: STYLE_COLORS.blue,
+        headerFill: STYLE_COLORS.headerBlue,
+        columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
+        rows: capitalReturnRows,
+      },
+      {
+        name: 'Reinversiones',
+        title: 'REINVERSIONES DEL SOCIO',
+        tabColor: STYLE_COLORS.purple,
+        headerFill: STYLE_COLORS.headerBlue,
+        columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
+        rows: reinvestmentRows,
       },
       {
         name: 'Cronograma',
@@ -751,6 +794,6 @@ const createExportAssociateProfitabilityReport = ({ associateRepository }) => as
 module.exports = {
   createExportAssociatesExcel,
   createExportAssociatesPdf,
-  createGetAssociateProfitabilityReport,
-  createExportAssociateProfitabilityReport,
+  createGetAssociateFinancialSummary,
+  createExportAssociateFinancialSummary,
 };

@@ -10,7 +10,7 @@ const {
 const { validateOptionalDateInput } = require('@/modules/shared/validators');
 
 test('date utilities reject malformed and out-of-range operational years', () => {
-  assert.equal(normalizeOptionalDateOnlyString('2026-02-14', 'interestStartDate'), '2026-02-14');
+  assert.equal(normalizeOptionalDateOnlyString('2026-02-14', 'paymentDate'), '2026-02-14');
   assert.equal(normalizeDateOnly('2026-02-14T18:30:00.000Z', 'dueDate').toISOString(), '2026-02-14T00:00:00.000Z');
   assert.equal(normalizeOperationalDate('2026-02-14T18:30:00.000Z', 'paymentDate').toISOString(), '2026-02-14T18:30:00.000Z');
 

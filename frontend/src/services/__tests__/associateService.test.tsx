@@ -68,14 +68,16 @@ describe('associateService', () => {
     expect('portal' in result.current).toBe(false);
   });
 
-  it('accepts associate detail payloads returned directly under data', async () => {
+  it('returns only the canonical associate detail payloads', async () => {
     mockGet.mockImplementation(async (url) => {
       if (url === '/associates/12/financial-details') {
         return jsonResponse({
           data: {
-            associate: { id: 12, name: 'Socio QA' },
-            summary: { totalContributed: 1000000 },
-            payments: [{ id: 1, amount: 50000 }],
+            details: {
+              associate: { id: 12, name: 'Socio QA' },
+              summary: { totalContributed: 1000000 },
+              paymentHistory: [{ id: 1, amount: 50000 }],
+            },
           },
         });
       }
@@ -83,8 +85,11 @@ describe('associateService', () => {
       if (url === '/associates/12/installments') {
         return jsonResponse({
           data: {
-            installments: [{ installmentNumber: 1, amount: 50000 }],
-            summary: { totalPending: 50000 },
+            installments: {
+              installments: [{ installmentNumber: 1, amount: 50000 }],
+              totals: { totalPending: 50000, totalPaid: 0, totalOverdue: 0 },
+              alerts: [],
+            },
           },
         });
       }
@@ -92,8 +97,10 @@ describe('associateService', () => {
       if (url === '/associates/12/calendar-events') {
         return jsonResponse({
           data: {
-            events: [{ id: 'interest-1', eventType: 'interest_payment', amount: 50000 }],
-            summary: { installmentCount: 1 },
+            calendar: {
+              events: [{ id: 'installment-1', type: 'installment', amount: 50000 }],
+              summary: { contributionCount: 0, distributionCount: 0, installmentCount: 1, pendingInstallments: 1 },
+            },
           },
         });
       }
@@ -107,7 +114,7 @@ describe('associateService', () => {
       expect(result.current.details?.associate?.name).toBe('Socio QA');
     });
 
-    expect(result.current.details?.payments).toHaveLength(1);
+    expect(result.current.details?.paymentHistory).toHaveLength(1);
     expect(result.current.installments?.installments).toHaveLength(1);
     expect(result.current.calendar?.events).toHaveLength(1);
   });
@@ -219,15 +226,31 @@ describe('associateService', () => {
       installmentNumber: 3,
       paymentDate: '2026-05-16',
       paymentMethod: 'transferencia',
-      notes: 'Pago confirmado',
     });
 
     await waitFor(() => {
       expect(mockPost).toHaveBeenCalledWith('/associates/12/installments/3/pay', {
         paymentDate: '2026-05-16',
         paymentMethod: 'transferencia',
-        notes: 'Pago confirmado',
       });
     });
+  });
+
+  it('requires payment date and method on the associate installment pay path', async () => {
+    const { result } = renderHook(() => useAssociateDetails(12), { wrapper });
+
+    await expect(result.current.payInstallment.mutateAsync({
+      installmentNumber: 3,
+      paymentDate: '',
+      paymentMethod: 'transferencia',
+    } as any)).rejects.toThrow(/paymentDate is required/i);
+
+    await expect(result.current.payInstallment.mutateAsync({
+      installmentNumber: 3,
+      paymentDate: '2026-05-16',
+      paymentMethod: '   ',
+    } as any)).rejects.toThrow(/paymentMethod is required/i);
+
+    expect(mockPost).not.toHaveBeenCalled();
   });
 });

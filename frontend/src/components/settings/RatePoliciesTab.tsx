@@ -212,6 +212,7 @@ export default function RatePoliciesTab({
             onValueChange={(value) => setNewRatePolicy((prev) => ({ ...prev, annualEffectiveRate: value }))}
             placeholder="60"
             maxDecimals={2}
+            suffix="%"
           />
         </FormField>
       </div>

@@ -38,6 +38,13 @@ const REMOVED_ASSOCIATE_FIELDS = new Set([
   'interestStartDate',
   'interestStartsAt',
 ]);
+
+const assertNoRemovedAssociateFields = (payload = {}) => {
+  const removedField = Object.keys(payload).find((field) => REMOVED_ASSOCIATE_FIELDS.has(field));
+  if (removedField) {
+    throw new ValidationError('El contrato de socios ya no acepta campos de participación ni fechas opcionales de inicio de intereses.');
+  }
+};
 const ASSOCIATE_FINANCIAL_DETAILS_REQUIRED_MESSAGE = 'Selecciona un socio para consultar su información financiera.';
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
@@ -182,11 +189,7 @@ const mapValidDatedRows = (rows, getDate, mapRow) => rows
 
 const normalizeAssociatePayload = (payload) => {
   const normalizedPayload = { ...payload };
-  const removedField = Object.keys(normalizedPayload).find((field) => REMOVED_ASSOCIATE_FIELDS.has(field));
-
-  if (removedField) {
-    throw new ValidationError('El contrato de socios ya no acepta campos de participación ni fechas opcionales de inicio de intereses.');
-  }
+  assertNoRemovedAssociateFields(normalizedPayload);
 
   if (hasOwn(payload, 'interestType')) {
     normalizedPayload.interestType = normalizeInterestType(payload.interestType);
@@ -1203,7 +1206,7 @@ const mapTrackingObligation = (installment, associate) => ({
 });
 
 const getInterestPaymentDisplayType = (payment) => {
-  if (payment?.paymentType === 'capital_return' || payment?.distributionType === 'capital_return') {
+  if (payment?.paymentType === 'capital_return') {
     return 'Devolución de capital';
   }
 
@@ -1230,10 +1233,8 @@ const mapAssociateInterestPayment = ({ payment, associate, paymentType }) => {
       dueDate: null,
       paidAt: payment.distributionDate,
       paidByUser: payment.createdBy || null,
-      responsibleUser: payment.createdBy || null,
       paymentMethod: null,
       notes: payment.notes || null,
-      distributionType: payment.distributionType,
     };
   }
 
@@ -1245,17 +1246,14 @@ const mapAssociateInterestPayment = ({ payment, associate, paymentType }) => {
     displayType: getInterestPaymentDisplayType({
       paymentType,
       installmentNumber: payment.installmentNumber,
-      distributionType: null,
     }),
     paymentType,
     amount: roundCurrency(payment.amount),
     dueDate: payment.dueDate,
     paidAt: payment.paidAt,
     paidByUser: payment.paidByUser || null,
-    responsibleUser: payment.paidByUser || null,
     paymentMethod: payment.paymentMethod || null,
     notes: payment.notes || null,
-    distributionType: null,
   };
 };
 
@@ -1425,6 +1423,7 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
 
 const createCreateAssociateContribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
+    assertNoRemovedAssociateFields(payload);
     if (!['admin', 'employee'].includes(actor.role)) {
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar aportes de socios.');
     }
@@ -1476,6 +1475,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
 
 const createCreateProfitDistribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
+    assertNoRemovedAssociateFields(payload);
     if (!['admin', 'employee'].includes(actor.role)) {
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar distribuciones de utilidades.');
     }
@@ -1485,6 +1485,10 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
       throw new NotFoundError('Associate');
     }
     ensureAssociateAcceptsFinancialOperations(associate);
+
+    if (hasOwn(payload || {}, 'basis')) {
+      throw new ValidationError('El contrato de socios no acepta tipos de movimiento definidos por el cliente.');
+    }
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
@@ -1498,7 +1502,7 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
       distributionDate: normalizeOptionalOperationDate(payload.distributionDate, 'distributionDate'),
       createdByUserId: actor.id,
       notes: payload.notes ? String(payload.notes).trim() : null,
-      basis: payload.basis && typeof payload.basis === 'object' ? payload.basis : {},
+      basis: { type: 'manual' },
     });
   };
 
@@ -1510,6 +1514,7 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
 
 const createCreateAssociateCapitalReturn = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
+    assertNoRemovedAssociateFields(payload);
     if (!['admin', 'employee'].includes(actor.role)) {
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar devoluciones de capital.');
     }
@@ -1520,15 +1525,16 @@ const createCreateAssociateCapitalReturn = ({ associateRepository, auditService 
     }
     ensureAssociateAcceptsFinancialOperations(associate);
 
+    if (hasOwn(payload || {}, 'distributionDate')) {
+      throw new ValidationError('El contrato de socios no acepta distributionDate para devoluciones de capital.');
+    }
+
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
       throw new ValidationError('El monto de la devolución de capital debe ser mayor a 0');
     }
 
-    const operationDate = normalizeOptionalOperationDate(
-      payload.capitalReturnDate ?? payload.distributionDate,
-      'capitalReturnDate',
-    );
+    const operationDate = normalizeOptionalOperationDate(payload.capitalReturnDate, 'capitalReturnDate');
     const notes = payload.notes ? String(payload.notes).trim() : null;
 
     return associateRepository.runInTransaction(async (transaction) => {
@@ -1589,6 +1595,7 @@ const createCreateAssociateCapitalReturn = ({ associateRepository, auditService 
 
 const createCreateAssociateReinvestment = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
+    assertNoRemovedAssociateFields(payload);
     if (!['admin', 'employee'].includes(actor.role)) {
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar reinversiones de socios.');
     }
@@ -1714,6 +1721,7 @@ const createGetAssociateInstallments = ({ associateRepository, clock = () => new
  */
 const createPayAssociateInstallment = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, installmentNumber, payload }) => {
+    assertNoRemovedAssociateFields(payload);
     const associate = await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
     ensureAssociateAcceptsFinancialOperations(associate);
 
@@ -1730,7 +1738,22 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       throw new ValidationError('La cuota del socio ya fue pagada');
     }
 
-    const paymentDate = normalizeOptionalOperationDate(payload?.paymentDate, 'paymentDate');
+    if (payload && hasOwn(payload, 'notes')) {
+      throw new ValidationError('El pago de interés programado solo acepta fecha real de pago y método de pago.');
+    }
+
+    if (payload?.paymentDate === undefined || payload?.paymentDate === null || payload?.paymentDate === '') {
+      throw new ValidationError('La fecha real de pago es obligatoria');
+    }
+
+    const paymentDate = normalizeOptionalOperationDate(payload.paymentDate, 'paymentDate');
+    const paymentMethod = payload?.paymentMethod === undefined || payload?.paymentMethod === null
+      ? ''
+      : String(payload.paymentMethod).trim();
+    if (!paymentMethod) {
+      throw new ValidationError('El método de pago es obligatorio');
+    }
+
     const paidBy = actor.id;
 
     await associateRepository.updateInstallmentStatus(
@@ -1739,8 +1762,8 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       'paid',
       paymentDate,
       paidBy,
-      payload?.paymentMethod || null,
-      payload?.notes ? String(payload.notes).trim() : null,
+      paymentMethod,
+      null,
     );
 
     await ensureNextInterestInstallment({
@@ -1755,7 +1778,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       status: 'paid',
       paidAt: paymentDate,
       paidBy,
-      paymentMethod: payload?.paymentMethod || null,
+      paymentMethod,
     };
 
     return {
@@ -1768,6 +1791,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
         status: updatedInstallment.status,
         paidAt: updatedInstallment.paidAt,
         paidBy: updatedInstallment.paidBy,
+        paymentMethod: updatedInstallment.paymentMethod,
       },
     };
   };

@@ -20,7 +20,6 @@ test('associateRepository.summarize counts only completed contributions for capi
   Associate.findAll = async () => [{
     id: 12,
     status: 'active',
-    participationPercentage: '50.0000',
     interestRate: '2.0000',
     interestType: 'monthly',
   }];

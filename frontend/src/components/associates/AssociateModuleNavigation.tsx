@@ -22,7 +22,7 @@ export default function AssociateModuleNavigation({
       activeTab={activeSection}
       onChange={(tabId) => {
         if (tabId === 'tracking') {
-          setCurrentView('associates-tracking');
+          setCurrentView('associates/tracking');
           return;
         }
 

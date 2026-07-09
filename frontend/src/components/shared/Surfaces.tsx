@@ -7,6 +7,8 @@ export { FormField } from './inputs/FormField';
 export type { FormFieldProps } from './inputs/FormField';
 export { CurrencyInput } from './inputs/CurrencyInput';
 export type { CurrencyInputProps } from './inputs/CurrencyInput';
+export { PercentInput } from './inputs/PercentInput';
+export type { PercentInputProps } from './inputs/PercentInput';
 export { AppInput } from './inputs/AppInput';
 export type { AppInputProps, AppInputVariant, AppInputChangeDetail } from './inputs/AppInput';
 export { OperationalSelect } from './inputs/OperationalSelect';

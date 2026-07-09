@@ -469,6 +469,10 @@ export function AppInput({
     onPaste?.(event);
   };
 
+  const resolvedSuffix = suffix !== undefined
+    ? suffix
+    : (variant === 'percent' ? '%' : undefined);
+
   return (
     <div
       className={[
@@ -498,15 +502,15 @@ export function AppInput({
         aria-invalid={invalid || ariaInvalid}
         {...rest}
       />
-      {suffix ? (
+      {resolvedSuffix ? (
         <span
           className={[
             'operational-control-suffix',
-            typeof suffix === 'string' ? '' : 'operational-control-suffix--interactive',
+            typeof resolvedSuffix === 'string' ? '' : 'operational-control-suffix--interactive',
           ].filter(Boolean).join(' ')}
-          aria-hidden={typeof suffix === 'string' ? true : undefined}
+          aria-hidden={typeof resolvedSuffix === 'string' ? true : undefined}
         >
-          {suffix}
+          {resolvedSuffix}
         </span>
       ) : null}
     </div>

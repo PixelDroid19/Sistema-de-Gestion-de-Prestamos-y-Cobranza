@@ -4,6 +4,7 @@ import { useSessionStore } from '../store/sessionStore';
 import { tTerm } from '../i18n/terminology';
 import { formatCurrency, formatDate, formatNumber } from '../i18n/format';
 import { exportAssociatesExcel, useAssociateDetails, useAssociateTracking } from '../services/associateService';
+import { useActivePaymentMethods } from '../services/configService';
 import { useResolvedPermissionNames } from '../services/permissionsService';
 import { PERMISSION } from '../constants/permissionNames';
 import { toast } from '../lib/toast';
@@ -181,7 +182,7 @@ const getContributionStatusLabel = (status: unknown) => {
 
 const getRecentPaymentDetail = (payment: any) => {
   const paymentType = String(payment?.paymentType || '').toLowerCase();
-  if (paymentType === 'capital_return' || payment?.distributionType === 'capital_return') {
+  if (paymentType === 'capital_return') {
     return tTerm('associateDetails.paymentHistory.capitalReturn');
   }
   if (paymentType === 'manual') {
@@ -206,26 +207,6 @@ const hasRenderableAssociateRow = (row: any) => {
   const associateId = Number(row?.associate?.id);
   const associateName = getAssociateName(row?.associate);
   return Number.isFinite(associateId) && Boolean(associateName);
-};
-
-const normalizeAssociateTrackingRow = (row: any) => {
-  if (row?.associate) {
-    return row;
-  }
-
-  return {
-    associate: row,
-    currentCapital: row?.currentCapital ?? row?.totalContributed ?? 0,
-    totalContributed: row?.totalContributed ?? row?.currentCapital ?? 0,
-    totalCapitalReturned: row?.totalCapitalReturned ?? row?.capitalReturned ?? 0,
-    interestPending: row?.interestPending ?? row?.pendingInterest ?? row?.interestDebt ?? 0,
-    interestOverdue: row?.interestOverdue ?? row?.overdueInterest ?? 0,
-    interestPaid: row?.interestPaid ?? row?.paidInterest ?? row?.totalInterestPaid ?? 0,
-    nextPaymentDate: row?.nextPaymentDate ?? row?.nextInterestPaymentDate ?? row?.nextDueDate ?? null,
-    debtStatus: row?.debtStatus ?? (Number(row?.interestPending ?? row?.pendingInterest ?? row?.interestDebt ?? 0) > 0 ? 'pending' : 'current'),
-    pendingInstallments: row?.pendingInstallments ?? 0,
-    overdueInstallments: row?.overdueInstallments ?? 0,
-  };
 };
 
 const hasRenderableObligationRow = (row: any) => {
@@ -262,66 +243,10 @@ const hasRenderableMoneyHistoryRow = (row: any, dateField: string) => {
   );
 };
 
-const hasRenderableRecentActivityRow = (row: any) => {
-  const associateId = Number(row?.associateId);
-  const amount = Number(row?.amount || 0);
-  const associateName = String(row?.associateName || '').trim();
-
-  return (
-    Number.isFinite(associateId)
-    && amount > 0
-    && associateName.length > 0
-    && hasValidDateValue(row?.date)
-  );
-};
-
 const getRecentActivityToneClassName = (type: 'payment' | 'contribution' | 'capital_return') => {
   if (type === 'payment') return 'bg-emerald-100 text-emerald-700';
   if (type === 'capital_return') return 'bg-amber-100 text-amber-700';
   return 'bg-blue-100 text-blue-700';
-};
-
-const normalizeRecentActivityItem = (activity: any) => {
-  const normalizedType = activity?.type === 'capital_return'
-    ? 'capital_return'
-    : activity?.type === 'contribution'
-      ? 'contribution'
-      : 'payment';
-
-  const label = typeof activity?.label === 'string' && activity.label.trim().length > 0
-    ? activity.label.trim()
-    : normalizedType === 'capital_return'
-      ? tTerm('associateTracking.activity.type.capitalReturn')
-      : normalizedType === 'contribution'
-        ? tTerm('associateTracking.activity.type.contribution')
-        : tTerm('associateTracking.activity.type.payment');
-
-  const detail = typeof activity?.detail === 'string' && activity.detail.trim().length > 0
-    ? activity.detail.trim()
-    : normalizedType === 'capital_return'
-      ? tTerm('associateTracking.activity.detail.capitalReturn')
-      : normalizedType === 'contribution'
-        ? getContributionStatusLabel(activity?.status)
-        : getRecentPaymentDetail(activity);
-
-  return {
-    id: String(activity?.id ?? `${normalizedType}-${activity?.associateId ?? 'unknown'}`),
-    type: normalizedType as 'payment' | 'contribution' | 'capital_return',
-    label,
-    detail,
-    associateId: Number(activity?.associateId),
-    associateName: String(activity?.associateName || '').trim() || tTerm('associates.fallback.name'),
-    date: activity?.date ?? activity?.paidAt ?? activity?.contributionDate ?? activity?.distributionDate ?? null,
-    amount: Number(activity?.amount || 0),
-    responsible: String(
-      activity?.responsible
-      || activity?.paidByUser?.name
-      || activity?.paidByUser?.email
-      || activity?.createdBy?.name
-      || activity?.createdBy?.email
-      || tTerm('common.notAvailable'),
-    ),
-  };
 };
 
 const getCurrentCapitalDetail = (row: any) => {
@@ -392,12 +317,6 @@ const toSummaryNumber = (value: unknown) => {
   return Number.isFinite(number) ? number : 0;
 };
 
-const resolveSummaryMetric = (summaryValue: unknown, fallbackValue: unknown) => {
-  const primary = toSummaryNumber(summaryValue);
-  const fallback = toSummaryNumber(fallbackValue);
-  return primary === 0 && fallback > 0 ? fallback : primary;
-};
-
 const normalizeSearchValue = (value: unknown) => String(value || '').trim().toLowerCase();
 
 const normalizeStatusValue = (value: unknown) => String(value || '').trim().toLowerCase();
@@ -442,6 +361,19 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
   const canExportAssociates = user?.role === 'admin'
     || permissionSet.has('*')
     || permissionSet.has(PERMISSION.SOCIOS_VIEW_ALL);
+  const isBackofficeUser = user?.role === 'admin' || user?.role === 'employee';
+  const { paymentMethods: configuredPaymentMethods } = useActivePaymentMethods({ enabled: isBackofficeUser });
+  const paymentMethodOptions = useMemo(() => {
+    const active = configuredPaymentMethods
+      .filter((method: any) => method?.isActive !== false)
+      .map((method: any) => ({
+        value: String(method?.key ?? method?.type ?? '').trim().toLowerCase(),
+        label: String(method?.label ?? method?.name ?? '').trim() || tTerm('settings.paymentMethods.methodUnnamed'),
+      }))
+      .filter((method) => method.value);
+    return active;
+  }, [configuredPaymentMethods]);
+  const defaultPaymentMethod = paymentMethodOptions[0]?.value || '';
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isExporting, setIsExporting] = useState(false);
@@ -467,11 +399,10 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
   const { data, isLoading, isError } = useAssociateTracking(trackingFilters);
   const selectedPaymentAssociateId = Number(paymentObligation?.associateId ?? 0);
   const { payInstallment } = useAssociateDetails(Number.isFinite(selectedPaymentAssociateId) ? selectedPaymentAssociateId : 0);
-  const tracking = data?.data?.tracking ?? data?.data ?? data?.tracking ?? {};
+  const tracking = data?.data?.tracking ?? {};
   const summary = tracking.summary ?? {};
   const normalizedSearchTerm = normalizeSearchValue(searchTerm);
   const allAssociates = (Array.isArray(tracking.associates) ? tracking.associates : [])
-    .map(normalizeAssociateTrackingRow)
     .filter(hasRenderableAssociateRow);
   const associates = useMemo(() => allAssociates.filter((row: any) => {
     const associate = row?.associate ?? {};
@@ -484,50 +415,14 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
       associate?.phone,
     ]);
   }), [allAssociates, normalizedSearchTerm, statusFilter]);
-  const derivedSummary = useMemo(() => associates.reduce((
-    totals: {
-      totalCapital: number;
-      totalCapitalReturned: number;
-      interestPending: number;
-      interestOverdue: number;
-      interestPaid: number;
-    },
-    row: any,
-  ) => {
-    totals.totalCapital += toSummaryNumber(row?.currentCapital ?? row?.totalContributed);
-    totals.totalCapitalReturned += toSummaryNumber(row?.totalCapitalReturned ?? row?.capitalReturned);
-    totals.interestPending += toSummaryNumber(row?.interestPending ?? row?.pendingInterest);
-    totals.interestOverdue += toSummaryNumber(row?.interestOverdue ?? row?.overdueInterest);
-    totals.interestPaid += toSummaryNumber(row?.interestPaid ?? row?.paidInterest ?? row?.totalInterestPaid);
-    return totals;
-  }, {
-    totalCapital: 0,
-    totalCapitalReturned: 0,
-    interestPending: 0,
-    interestOverdue: 0,
-    interestPaid: 0,
-  }), [associates]);
-  const summaryTotalCapital = resolveSummaryMetric(summary.totalCapital ?? summary.totalContributed, derivedSummary.totalCapital);
-  const summaryReturnedCapital = resolveSummaryMetric(summary.totalCapitalReturned, derivedSummary.totalCapitalReturned);
-  const summaryInterestPending = resolveSummaryMetric(summary.interestPending ?? summary.pendingInterest, derivedSummary.interestPending);
-  const summaryInterestOverdue = resolveSummaryMetric(summary.interestOverdue ?? summary.overdueInterest, derivedSummary.interestOverdue);
-  const summaryTotalPayable = resolveSummaryMetric(
-    summary.totalPayable ?? (summaryInterestPending + summaryInterestOverdue),
-    derivedSummary.interestPending + derivedSummary.interestOverdue,
-  );
-  const summaryInterestPaid = resolveSummaryMetric(summary.interestPaid ?? summary.paidInterest, derivedSummary.interestPaid);
+  const summaryTotalCapital = toSummaryNumber(summary.totalCapital);
+  const summaryReturnedCapital = toSummaryNumber(summary.totalCapitalReturned);
+  const summaryInterestPending = toSummaryNumber(summary.interestPending);
+  const summaryInterestOverdue = toSummaryNumber(summary.interestOverdue);
+  const summaryTotalPayable = toSummaryNumber(summary.totalPayable);
+  const summaryInterestPaid = toSummaryNumber(summary.interestPaid);
   const associateRowsById = new Map<number, any>(allAssociates.map((row: any) => [Number(row?.associate?.id), row]));
   const allObligations = (Array.isArray(tracking.obligations) ? tracking.obligations : [])
-    .map((obligation: any) => {
-      const associateRow = associateRowsById.get(Number(obligation?.associateId));
-      const associate = associateRow?.associate;
-      return {
-        ...obligation,
-        associateName: obligation?.associateName || (associate ? getAssociateName(associate) : ''),
-        interestRate: obligation?.interestRate ?? associate?.interestRate,
-        interestType: obligation?.interestType ?? associate?.interestType,
-      };
-    })
     .filter(hasRenderableObligationRow);
   const obligations = useMemo(() => allObligations.filter((obligation: any) => {
     const associateStatus = associateRowsById.get(Number(obligation?.associateId))?.associate?.status;
@@ -538,15 +433,12 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
     ]);
   }), [allObligations, associateRowsById, normalizedSearchTerm, statusFilter]);
   const recentPayments = (Array.isArray(tracking.recentPayments) ? tracking.recentPayments : [])
-    .filter((payment: any) => payment?.paymentType !== 'capital_return' && payment?.distributionType !== 'capital_return')
+    .filter((payment: any) => payment?.paymentType !== 'capital_return')
     .filter((payment: any) => hasRenderableMoneyHistoryRow(payment, 'paidAt'));
   const recentContributions = (Array.isArray(tracking.recentContributions) ? tracking.recentContributions : [])
     .filter((contribution: any) => hasRenderableMoneyHistoryRow(contribution, 'contributionDate'));
   const recentCapitalReturns = (Array.isArray(tracking.recentCapitalReturns) ? tracking.recentCapitalReturns : [])
     .filter((capitalReturn: any) => hasRenderableMoneyHistoryRow(capitalReturn, 'distributionDate'));
-  const recentActivityFromApi = (Array.isArray(tracking.recentActivity) ? tracking.recentActivity : [])
-    .map(normalizeRecentActivityItem)
-    .filter(hasRenderableRecentActivityRow);
   const derivedOverdueObligationsCount = associates.reduce(
     (total: number, row: any) => total + toSummaryNumber(row?.overdueInstallments),
     0,
@@ -563,9 +455,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
     : derivedPendingObligationsCount;
   const nextObligation = obligations.find((obligation: any) => obligation.status !== 'paid') ?? null;
   const allRecentActivity = useMemo(() => (
-    recentActivityFromApi.length > 0
-      ? recentActivityFromApi
-      : [
+    [
         ...recentPayments.map((payment: any) => ({
           id: `payment-${payment.id}`,
           type: 'payment' as const,
@@ -599,9 +489,8 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
           amount: Number(contribution.amount || 0),
           responsible: contribution.createdBy?.name || contribution.createdBy?.email || tTerm('common.notAvailable'),
         })),
-      ]
-        .sort((left, right) => new Date(String(right.date)).getTime() - new Date(String(left.date)).getTime())
-  ), [recentActivityFromApi, recentCapitalReturns, recentContributions, recentPayments]);
+    ].sort((left, right) => new Date(String(right.date)).getTime() - new Date(String(left.date)).getTime())
+  ), [recentCapitalReturns, recentContributions, recentPayments]);
   const recentActivity = useMemo(() => allRecentActivity.filter((activity: any) => {
     const associateStatus = associateRowsById.get(Number(activity?.associateId))?.associate?.status;
     return matchesAssociateStatusFilter(statusFilter, [associateStatus]) && includesSearchTerm(normalizedSearchTerm, [
@@ -613,7 +502,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
   }), [allRecentActivity, associateRowsById, normalizedSearchTerm, statusFilter]);
   const recentActivityCount = recentActivity.length;
   const hasRecentActivity = recentActivity.length > 0;
-  const nextDueDate = useMemo(() => {
+  const nextScheduledInterestPaymentDate = useMemo(() => {
     const dates = [
       ...(nextObligation?.dueDate ? [nextObligation.dueDate] : []),
       ...associates.map((row: any) => row.nextPaymentDate),
@@ -758,7 +647,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
     setPaymentObligation(obligation);
     setPaymentForm({
       paymentDate: getLocalDateInputValue(),
-      paymentMethod: '',
+      paymentMethod: defaultPaymentMethod,
     });
     setPaymentErrors({
       paymentDate: '',
@@ -770,7 +659,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
     setPaymentObligation(null);
     setPaymentForm({
       paymentDate: getLocalDateInputValue(),
-      paymentMethod: '',
+      paymentMethod: defaultPaymentMethod,
     });
     setPaymentErrors({
       paymentDate: '',
@@ -862,7 +751,7 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
           </div>
           <div className="associate-tracking-summary-grid__item">
             <dt>{tTerm('associateTracking.summary.nextDue')}</dt>
-            <dd>{nextDueDate ? formatDate(nextDueDate) : tTerm('associateTracking.summary.nextDueEmpty')}</dd>
+            <dd>{nextScheduledInterestPaymentDate ? formatDate(nextScheduledInterestPaymentDate) : tTerm('associateTracking.summary.nextDueEmpty')}</dd>
           </div>
         </dl>
       )}
@@ -1208,18 +1097,21 @@ export default function AssociateTracking({ setCurrentView }: AssociateTrackingP
               label={tTerm('associateDetails.installmentPayment.field.paymentMethod')}
               error={paymentErrors.paymentMethod}
             >
-              <AppInput
+              <OperationalSelect
                 id="associate-tracking-payment-method"
                 value={paymentForm.paymentMethod}
-                invalid={Boolean(paymentErrors.paymentMethod)}
-                placeholder={tTerm('associateDetails.installmentPayment.placeholder.paymentMethod')}
-                onValueChange={(value) => {
-                  setPaymentForm((current) => ({ ...current, paymentMethod: value }));
+                aria-invalid={Boolean(paymentErrors.paymentMethod)}
+                onChange={(event) => {
+                  setPaymentForm((current) => ({ ...current, paymentMethod: event.target.value }));
                   if (paymentErrors.paymentMethod) {
                     setPaymentErrors((current) => ({ ...current, paymentMethod: '' }));
                   }
                 }}
-              />
+              >
+                {paymentMethodOptions.map((method) => (
+                  <option key={method.value} value={method.value}>{method.label}</option>
+                ))}
+              </OperationalSelect>
             </FormField>
           </div>
         </ModalShell>

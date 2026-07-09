@@ -37,26 +37,16 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   const buildAssociateExportFilters = (query = {}) => ({
     associateId: parseOptionalQueryId(query.associateId, 'associateId'),
     search: query.search,
-    fromDate: query.fromDate || query.startDate,
-    toDate: query.toDate || query.endDate,
+    fromDate: query.fromDate,
+    toDate: query.toDate,
     status: query.status,
   });
-  const requireWorkbookSheets = (exportData, fallbackLabel) => {
-    const sheets = exportData?.data?.sheets ?? exportData?.sheets;
-    if (Array.isArray(sheets)) {
-      return sheets;
+  const requireWorkbookSheets = (exportData) => {
+    const sheets = exportData?.data?.sheets;
+    if (!Array.isArray(sheets)) {
+      throw new ValidationError('La exportación de socios no contiene hojas operativas válidas.');
     }
-
-    const rows = exportData?.data?.rows ?? exportData?.rows;
-    if (Array.isArray(rows)) {
-      return [{
-        name: fallbackLabel,
-        columns: exportData?.data?.columns || exportData?.columns || [],
-        rows,
-      }];
-    }
-
-    return [];
+    return sheets;
   };
   router.get('/', requirePermission('SOCIOS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     const filters = {
@@ -126,7 +116,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     }
 
     const exportData = await useCases.exportAssociatesExcel({ actor: req.user, filters });
-    const workbookSheets = requireWorkbookSheets(exportData, 'La exportación de socios');
+    const workbookSheets = requireWorkbookSheets(exportData);
     const buffer = await buildWorkbookBuffer(workbookSheets);
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -137,7 +127,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
 
   const sendAssociateFinancialSummary = async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
-    const report = await useCases.getAssociateProfitabilityReport({ actor: req.user, associateId });
+    const report = await useCases.getAssociateFinancialSummary({ actor: req.user, associateId });
     res.json({ success: true, data: { report } });
   };
 
@@ -146,7 +136,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   router.get('/:id/export', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
     const format = String(req.query.format || 'xlsx').toLowerCase();
-    const exportFile = await useCases.exportAssociateProfitabilityReport({
+    const exportFile = await useCases.exportAssociateFinancialSummary({
       actor: req.user,
       associateId,
       format,
@@ -184,7 +174,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.status(201).json({ success: true, message: 'Aporte del socio registrado correctamente', data: { contribution } });
   }));
 
-  router.post('/:id/distributions', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
+  router.post('/:id/manual-profitability-payments', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
     const distribution = await useCases.createProfitDistribution({ actor: req.user, associateId, payload: req.body });
     res.status(201).json({ success: true, message: 'Pago manual de rentabilidad registrado correctamente', data: { distribution } });
