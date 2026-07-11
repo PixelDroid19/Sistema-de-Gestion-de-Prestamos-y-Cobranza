@@ -571,6 +571,7 @@ describe('Reports operational module', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
     await waitFor(() => expect(mockExportAssociatesExcel).toHaveBeenCalledWith({ format: 'xlsx' }));
+    expect(mockToastSuccess).toHaveBeenCalled();
   });
 
   it('uses cashflow data as the default accounting close report and exports it', async () => {

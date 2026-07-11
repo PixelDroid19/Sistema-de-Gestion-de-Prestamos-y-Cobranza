@@ -223,6 +223,32 @@ test('associate movements report exposes the same filtered movement dataset used
   assert.equal(result.summary.profitabilityPaid, 25000);
 });
 
+test('associate movements report preserves an external contribution that matches a linked reinvestment', async () => {
+  const associate = { id: 4, name: 'Socio Coincidencia', status: 'active', interestType: 'monthly', interestRate: '2.5' };
+  const report = createGetAssociateMovementsReport({
+    associateRepository: {
+      async list() { return [associate]; },
+      async findById() { return associate; },
+      async listContributionsByAssociate() {
+        return [
+          { id: 6, amount: 50000, contributionDate: '2026-07-05', status: 'completed' },
+          { id: 7, amount: 50000, contributionDate: '2026-07-05', status: 'completed' },
+        ];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [{ id: 2, amount: 50000, distributionDate: '2026-07-05', basis: { type: 'reinvestment', contributionId: 7 } }];
+      },
+      async findInstallmentsByAssociateId() { return []; },
+    },
+  });
+
+  const result = await report({ actor: { role: 'admin' } });
+
+  assert.deepEqual(result.rows.filter((row) => row.movementType === 'contribution').map((row) => row.id), [6]);
+  assert.equal(result.summary.contributions, 50000);
+  assert.equal(result.summary.reinvestments, 50000);
+});
+
 test('export associates PDF summarizes associate payments, pending interest, and schedule', async () => {
   const associate = {
     id: 4,

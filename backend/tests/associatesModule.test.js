@@ -1330,6 +1330,7 @@ test('createCreateAssociateReinvestment records paired distribution and contribu
 
   assert.equal(result.distribution.id, 41);
   assert.equal(result.contribution.id, 42);
+  assert.equal(calls.find(([type]) => type === 'distribution')[1].basis.contributionId, 42);
   assert.equal(calls.length, 2);
 });
 

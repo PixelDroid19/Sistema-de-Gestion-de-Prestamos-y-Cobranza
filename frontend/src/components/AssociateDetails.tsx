@@ -58,7 +58,7 @@ const formatSignedCurrency = (value: unknown, type?: string, status?: string) =>
   return `${prefix}${formatAssociateCurrency(numericValue)}`;
 };
 
-const formatAssociateDate = (value: unknown) => formatLocaleDate(value) || '-';
+const formatAssociateDate = (value: unknown) => formatLocaleDate(value) || '';
 
 const getInstallmentStatusPresentation = (installment: any) => {
   const normalizedStatus = String(installment?.status || '').toLowerCase();
@@ -109,7 +109,7 @@ const getPaymentHistoryLabel = (entry: any) => {
   if (paymentType === 'scheduled' && entry?.installmentNumber) {
     return tTerm('associateDetails.paymentHistory.installmentLabel', { number: entry.installmentNumber });
   }
-  return tTerm('common.notAvailable');
+  return '';
 };
 
 const getCalendarEventBadgeClass = (event: any) => {
@@ -194,7 +194,7 @@ const resolveUserLabel = (value: unknown) => {
     }
   }
 
-  return '-';
+  return tTerm('common.notAvailable');
 };
 
 const getAssociatePaymentMethodLabel = (value: unknown) => {
@@ -761,9 +761,20 @@ export default function AssociateDetails() {
   );
 
   const reinvestments = ((details as any)?.distributions || []).filter((entry: any) => entry.distributionType === 'reinvestment');
-  const reinvestmentContributionKeys = new Set(reinvestments.map((entry: any) => `${String(entry.distributionDate || '').slice(0, 10)}:${Number(entry.amount || 0)}`));
+  const linkedReinvestmentContributionIds = new Set(reinvestments
+    .map((entry: any) => Number(entry.basis?.contributionId))
+    .filter((contributionId: number) => Number.isFinite(contributionId) && contributionId > 0));
+  const reinvestmentContributionKeys = new Set(reinvestments
+    .filter((entry: any) => {
+      const contributionId = Number(entry.basis?.contributionId);
+      return !Number.isFinite(contributionId) || contributionId <= 0;
+    })
+    .map((entry: any) => `${String(entry.distributionDate || '').slice(0, 10)}:${Number(entry.amount || 0)}`));
   const capitalMovements = [
-    ...(contributions || []).filter((entry: any) => !reinvestmentContributionKeys.has(`${String(entry.contributionDate || '').slice(0, 10)}:${Number(entry.amount || 0)}`)).map((entry: any) => ({
+    ...(contributions || []).filter((entry: any) => (
+      !linkedReinvestmentContributionIds.has(Number(entry.id))
+      && !reinvestmentContributionKeys.has(`${String(entry.contributionDate || '').slice(0, 10)}:${Number(entry.amount || 0)}`)
+    )).map((entry: any) => ({
       ...entry,
       movementType: 'contribution',
       date: entry.contributionDate,
@@ -927,7 +938,7 @@ export default function AssociateDetails() {
                         {[
                           getAssociatePaymentMethodLabel(entry.paymentMethod),
                           resolveUserLabel(entry.paidByUser),
-                        ].filter((value) => value && value !== '-' && value !== tTerm('common.notAvailable')).join(' · ') || tTerm('common.notAvailable')}
+                        ].filter(Boolean).join(' · ')}
                       </p>
                     </div>
                   </td>
@@ -1050,7 +1061,7 @@ export default function AssociateDetails() {
                   <td className="font-medium">
                     {formatSignedCurrency(event.amount, event.type, event.status)}
                   </td>
-                  <td className="text-text-secondary">{event.notes || '-'}</td>
+                  <td className="text-text-secondary">{event.notes || ''}</td>
                 </tr>
               ))}
             </tbody>

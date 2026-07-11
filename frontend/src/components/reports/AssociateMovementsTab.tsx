@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { exportAssociatesExcel, useAssociateMovements } from '../../services/associateService';
 import { formatCurrency, formatDate, formatNumber } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
+import { reportClientError } from '../../lib/clientDiagnostics';
+import { toast } from '../../lib/toast';
 import { ActionButton, AppInput, DataTableSurface, EmptyState, FormField, InsightStrip, OperationalSelect, SectionSurface } from '../shared/Surfaces';
 import { AppTable, TABLE_EMBEDDED_SHELL_CLASS, TableSectionIntro } from '../shared/tables';
 
@@ -47,6 +49,10 @@ export default function AssociateMovementsTab() {
     setExporting(format);
     try {
       await exportAssociatesExcel({ ...queryFilters, format });
+      toast.success({ description: tTerm('reports.associates.toast.export.success') });
+    } catch (error) {
+      toast.error({ description: tTerm('reports.associates.toast.export.error') });
+      reportClientError('associateMovements.export', error);
     } finally {
       setExporting(null);
     }

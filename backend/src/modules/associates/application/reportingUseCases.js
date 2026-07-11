@@ -235,8 +235,16 @@ const movementPairKey = (date, amount) => {
 };
 
 const excludePairedReinvestmentContributions = (contributions, distributions) => {
-  const reinvestmentCounts = distributions
-    .filter((distribution) => distribution.distributionType === 'reinvestment')
+  const reinvestments = distributions
+    .filter((distribution) => distribution.distributionType === 'reinvestment');
+  const linkedContributionIds = new Set(reinvestments
+    .map((distribution) => Number(distribution.basis?.contributionId))
+    .filter((contributionId) => Number.isFinite(contributionId) && contributionId > 0));
+  const reinvestmentCounts = reinvestments
+    .filter((distribution) => {
+      const contributionId = Number(distribution.basis?.contributionId);
+      return !Number.isFinite(contributionId) || contributionId <= 0;
+    })
     .reduce((counts, distribution) => {
       const key = movementPairKey(distribution.distributionDate, distribution.amount);
       counts.set(key, (counts.get(key) || 0) + 1);
@@ -244,6 +252,10 @@ const excludePairedReinvestmentContributions = (contributions, distributions) =>
     }, new Map());
 
   return contributions.filter((contribution) => {
+    if (linkedContributionIds.has(Number(contribution.id))) {
+      return false;
+    }
+
     const key = movementPairKey(contribution.contributionDate, contribution.amount);
     const remaining = reinvestmentCounts.get(key) || 0;
     if (remaining <= 0) return true;

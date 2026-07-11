@@ -1626,6 +1626,15 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
 
     return associateRepository.runInTransaction(async (transaction) => {
       const note = payload.notes ? String(payload.notes).trim() : null;
+      const contribution = await associateRepository.createContribution({
+        associateId: associate.id,
+        amount,
+        contributionDate: operationDate,
+        ...buildContributionTermsSnapshot(associate),
+        createdByUserId: actor.id,
+        notes: note,
+      }, { transaction });
+
       const distribution = await associateRepository.createProfitDistribution({
         associateId: associate.id,
         loanId: null,
@@ -1637,16 +1646,8 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
           type: 'reinvestment',
           reinvestment: true,
           direction: 'distribution',
+          contributionId: contribution.id,
         },
-      }, { transaction });
-
-      const contribution = await associateRepository.createContribution({
-        associateId: associate.id,
-        amount,
-        contributionDate: operationDate,
-        ...buildContributionTermsSnapshot(associate),
-        createdByUserId: actor.id,
-        notes: note,
       }, { transaction });
 
       await ensureNextInterestInstallment({
