@@ -8,6 +8,7 @@ const mockExportOutstandingReport = vi.fn().mockResolvedValue(undefined);
 const mockExportMonthlyCashFlowExcel = vi.fn().mockResolvedValue(undefined);
 const mockExportMonthlyCashFlowPdf = vi.fn().mockResolvedValue(undefined);
 const mockExportOperatingExpensesReport = vi.fn().mockResolvedValue(undefined);
+const mockExportAssociatesExcel = vi.fn().mockResolvedValue(undefined);
 const mockCreateOperatingExpense = vi.fn().mockResolvedValue({});
 const mockAnnulOperatingExpense = vi.fn().mockResolvedValue({});
 const mockUseMonthlyCashFlow = vi.fn();
@@ -92,6 +93,22 @@ let operatingExpensesState = {
   ] as Array<Record<string, unknown>>,
   pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
   isLoading: false,
+};
+
+let associateMovementsState = {
+  data: {
+    data: {
+      report: {
+        summary: { totalMovements: 2, contributions: 1000000, reinvestments: 0, profitabilityPaid: 25000, profitabilityPending: 0 },
+        rows: [
+          { id: 1, associateId: 4, associateName: 'Socio Reporte', movementType: 'contribution', amount: 1000000, date: '2026-07-01', reference: '' },
+          { id: 2, associateId: 4, associateName: 'Socio Reporte', movementType: 'scheduled_profitability_paid', amount: 25000, date: '2026-07-10', reference: 1 },
+        ],
+      },
+    },
+  },
+  isLoading: false,
+  isError: false,
 };
 
 const createDefaultPaymentCalendarOverviewState = () => ({
@@ -362,6 +379,11 @@ vi.mock('../../services/reportService', () => ({
   exportOperatingExpensesReport: (...args: unknown[]) => mockExportOperatingExpensesReport(...args),
 }));
 
+vi.mock('../../services/associateService', () => ({
+  useAssociateMovements: () => associateMovementsState,
+  exportAssociatesExcel: (...args: unknown[]) => mockExportAssociatesExcel(...args),
+}));
+
 vi.mock('../../services/loanService', () => ({
   useLoans: () => ({
     data: {
@@ -538,14 +560,29 @@ describe('Reports operational module', () => {
     expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
   });
 
+  it('shows filtered associate movements as operational rows and exports that report', async () => {
+    renderReports();
+    fireEvent.click(screen.getByRole('tab', { name: 'Movimientos de socios' }));
+
+    expect(screen.getByRole('heading', { name: 'Estado financiero de socios' })).toBeInTheDocument();
+    expect(screen.getAllByText('Socio Reporte')).toHaveLength(2);
+    expect(screen.getByText('Aporte de capital')).toBeInTheDocument();
+    expect(screen.getByText('Interés programado pagado')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
+    await waitFor(() => expect(mockExportAssociatesExcel).toHaveBeenCalledWith({ format: 'xlsx' }));
+  });
+
   it('uses cashflow data as the default accounting close report and exports it', async () => {
     renderReports();
 
     expect(screen.getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
-    expect(screen.getAllByText('Entradas por cuotas').length).toBeGreaterThan(0);
+    expect(screen.getByRole('columnheader', { name: 'Entradas registradas' })).toBeInTheDocument();
     const cashFlowTable = screen.getByRole('table');
     expect(within(cashFlowTable).getByRole('columnheader', { name: 'Salidas registradas' })).toBeInTheDocument();
     expect(within(cashFlowTable).getAllByText('Socios').length).toBeGreaterThan(0);
+    expect(within(cashFlowTable).getAllByText('Aportes').length).toBeGreaterThan(0);
+    expect(within(cashFlowTable).getAllByText('Capital devuelto').length).toBeGreaterThan(0);
     expect(within(cashFlowTable).getAllByText('Gastos').length).toBeGreaterThan(0);
     expect(screen.getByText('Cierre mensual')).toBeInTheDocument();
     expect(within(cashFlowTable).getAllByText('Préstamos').length).toBeGreaterThan(0);

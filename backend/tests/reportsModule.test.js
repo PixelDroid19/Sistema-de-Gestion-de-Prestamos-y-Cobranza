@@ -233,10 +233,11 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
           alerts: [{ id: 3, loanId: 1, status: 'active' }],
           promises: [{ id: 4, status: 'pending' }],
           notifications: [{ id: 5, isRead: false }],
-          operatingExpenses: [{ id: 6, amount: 15, status: 'completed' }],
-          associatePayments: [{ id: 7, amount: 30, status: 'paid' }],
-          associateContributions: [{ id: 8, amount: 500, status: 'completed' }],
-          associateCapitalReturns: [{ id: 9, amount: 100, basis: { type: 'capital-return' } }],
+          operatingExpenses: [{ id: 6, amount: 15, status: 'completed', expenseDate: '2024-02-15T00:00:00.000Z' }],
+          associatePayments: [{ id: 7, amount: 30, status: 'paid', paidAt: '2024-02-12T00:00:00.000Z' }],
+          associateContributions: [{ id: 8, amount: 500, status: 'completed', contributionDate: '2024-01-05T00:00:00.000Z' }],
+          associateCapitalReturns: [{ id: 9, amount: 100, distributionDate: '2024-02-18T00:00:00.000Z', basis: { type: 'capital-return' } }],
+          associateReinvestments: [],
           associateObligations: [{ id: 10, amount: 45, status: 'pending', dueDate: '2024-01-05T00:00:00.000Z' }],
         };
       },
@@ -266,17 +267,19 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
   const summary = await getDashboardSummary({ actor: { id: 1, role: 'admin' } });
 
   assert.deepEqual(summary.data.position, {
-    availableCash: '-1145.00',
+    availableCash: '-745.00',
     receivables: '1100.00',
     capitalPlaced: '1040.00',
     associateCapital: '400.00',
     associateLiabilities: '45.00',
   });
   assert.equal(summary.data.period.collections, '100.00');
+  assert.equal(summary.data.period.associateContributions, '500.00');
   assert.equal(summary.data.period.disbursements, '1200.00');
   assert.equal(summary.data.period.operatingExpenses, '15.00');
   assert.equal(summary.data.period.associatePayments, '30.00');
-  assert.equal(summary.data.period.netResult, '-1145.00');
+  assert.equal(summary.data.period.capitalReturns, '100.00');
+  assert.equal(summary.data.period.netResult, '-745.00');
   assert.equal(summary.data.risk.delinquentLoans, 1);
   assert.equal(summary.data.risk.capitalAtRisk, '1040.00');
   assert.equal(summary.data.risk.overdueAssociateObligations, 1);
@@ -288,6 +291,12 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
   assert.ok(summary.data.trend.length >= 12);
   assert.equal(summary.data.trend.some((entry) => entry.month === '2024-01'), true);
   assert.equal(summary.data.trend.some((entry) => entry.month === '2024-02'), true);
+  assert.deepEqual(summary.data.trend.find((entry) => entry.month === '2024-01'), {
+    month: '2024-01', inflows: 500, outflows: 1200, netCashFlow: -700,
+  });
+  assert.deepEqual(summary.data.trend.find((entry) => entry.month === '2024-02'), {
+    month: '2024-02', inflows: 100, outflows: 145, netCashFlow: -45,
+  });
 
   const degradedGetDashboardSummary = createGetDashboardSummary({
     reportRepository: {

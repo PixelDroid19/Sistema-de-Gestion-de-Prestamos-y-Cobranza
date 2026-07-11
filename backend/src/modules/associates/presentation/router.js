@@ -105,6 +105,12 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.json({ success: true, data: { tracking: result } });
   }));
 
+  router.get('/movements', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const filters = buildAssociateExportFilters(req.query);
+    const report = await useCases.getAssociateMovementsReport({ actor: req.user, filters });
+    res.json({ success: true, count: report.rows.length, data: { report } });
+  }));
+
   router.get('/export', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'xlsx').toLowerCase();
     const filters = buildAssociateExportFilters(req.query);

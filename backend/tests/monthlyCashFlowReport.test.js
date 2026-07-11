@@ -155,6 +155,31 @@ test('buildMonthlyCashFlowReport subtracts paid associate movements from availab
   assert.equal(report.months[1].availableCash, '6000000.00');
 });
 
+test('buildMonthlyCashFlowReport reconciles cash contributions, reinvestments, and capital returns separately', () => {
+  const report = buildMonthlyCashFlowReport({
+    year: 2026,
+    associateContributions: [
+      { id: 1, amount: 10000000, contributionDate: '2026-01-05' },
+      { id: 2, amount: 1000000, contributionDate: '2026-01-20' },
+    ],
+    associateReinvestments: [
+      { id: 3, amount: 1000000, distributionDate: '2026-01-20' },
+    ],
+    associateCapitalReturns: [
+      { id: 4, amount: 2000000, distributionDate: '2026-02-10' },
+    ],
+  });
+
+  assert.equal(report.summary.totalAssociateContributions, '10000000.00');
+  assert.equal(report.summary.totalCapitalReturns, '2000000.00');
+  assert.equal(report.summary.availableCash, '8000000.00');
+  assert.equal(report.months[0].associateContributions, '10000000.00');
+  assert.equal(report.months[0].availableCash, '10000000.00');
+  assert.equal(report.months[1].capitalReturns, '2000000.00');
+  assert.equal(report.months[1].availableCash, '8000000.00');
+  assert.equal(report.summary.netProfitIndicator, '0.00');
+});
+
 test('buildMonthlyCashFlowReport subtracts completed operating expenses from available cash', () => {
   const report = buildMonthlyCashFlowReport({
     year: 2026,
@@ -259,13 +284,17 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   const history = workbook.getWorksheet('Créditos y Pagos');
   const headers = history.getRow(2).values;
   assert.ok(headers.includes('Entradas por Cuotas'));
+  assert.ok(headers.includes('Aportes de Socios'));
   assert.ok(headers.includes('Salidas por Préstamos'));
   assert.ok(headers.includes('Pagos a Socios'));
+  assert.ok(headers.includes('Devoluciones de Capital'));
   assert.ok(headers.includes('Gastos Operativos'));
   assert.ok(headers.includes('Caja Disponible'));
   assert.equal(history.getRow(3).getCell(2).value, 'COP 50.000.000,00');
-  assert.equal(history.getRow(3).getCell(3).value, 'COP 40.000.000,00');
-  assert.equal(history.getRow(3).getCell(4).value, 'COP 3.000.000,00');
+  assert.equal(history.getRow(3).getCell(3).value, 'COP 0,00');
+  assert.equal(history.getRow(3).getCell(4).value, 'COP 40.000.000,00');
+  assert.equal(history.getRow(3).getCell(5).value, 'COP 3.000.000,00');
+  assert.equal(history.getRow(3).getCell(6).value, 'COP 0,00');
   assert.equal(workbook.getWorksheet('Resumen Financiero').getRow(3).getCell(2).value, 'COP 50.000.000,00');
 
   const pdf = await pdfUseCase({ actor: { role: 'admin' }, year: 2026 });

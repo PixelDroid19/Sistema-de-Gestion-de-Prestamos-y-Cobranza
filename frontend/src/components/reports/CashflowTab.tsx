@@ -20,8 +20,10 @@ type CashflowRowLike = Record<string, unknown> & {
   month?: string;
   year?: string;
   inflows: unknown;
+  associateContributions: unknown;
   outflows: unknown;
   associatePayments: unknown;
+  capitalReturns: unknown;
   operatingExpenses: unknown;
   collectedProfit: unknown;
   principalRecovered: unknown;
@@ -45,7 +47,9 @@ const resolveCashflowField = (entry: Record<string, unknown>, candidates: string
 const normalizeCashflowRow = (entry: Record<string, unknown>): CashflowRowLike => {
   const inflows = resolveCashflowField(entry, ['inflows', 'totalInflows', 'collections', 'totalCollections']);
   const outflows = resolveCashflowField(entry, ['outflows', 'totalOutflows', 'totalDisbursements', 'disbursements']);
+  const associateContributions = resolveCashflowField(entry, ['associateContributions', 'totalAssociateContributions']);
   const associatePayments = resolveCashflowField(entry, ['associatePayments', 'totalAssociatePayments', 'financialOutflows']);
+  const capitalReturns = resolveCashflowField(entry, ['capitalReturns', 'totalCapitalReturns']);
   const operatingExpenses = resolveCashflowField(entry, ['operatingExpenses', 'totalOperatingExpenses']);
   const collectedProfit = resolveCashflowField(entry, ['collectedProfit', 'totalCollectedProfit', 'profit']);
   const principalRecovered = resolveCashflowField(entry, ['principalRecovered', 'totalPrincipalRecovered']);
@@ -57,8 +61,10 @@ const normalizeCashflowRow = (entry: Record<string, unknown>): CashflowRowLike =
   return {
     ...entry,
     inflows,
+    associateContributions,
     outflows,
     associatePayments,
+    capitalReturns,
     operatingExpenses,
     collectedProfit,
     principalRecovered,
@@ -67,8 +73,10 @@ const normalizeCashflowRow = (entry: Record<string, unknown>): CashflowRowLike =
     lossesAtRisk,
     netCashFlow: netCashFlow || (
       Number(inflows || 0)
+      + Number(associateContributions || 0)
       - Number(outflows || 0)
       - Number(associatePayments || 0)
+      - Number(capitalReturns || 0)
       - Number(operatingExpenses || 0)
     ),
   };
@@ -76,8 +84,10 @@ const normalizeCashflowRow = (entry: Record<string, unknown>): CashflowRowLike =
 
 const hasOperationalCashflowMovement = (row: CashflowRowLike) => [
   row.inflows,
+  row.associateContributions,
   row.outflows,
   row.associatePayments,
+  row.capitalReturns,
   row.operatingExpenses,
   row.collectedProfit,
   row.principalRecovered,
@@ -210,18 +220,20 @@ export default function CashflowTab({
                     <td className="font-medium">{month.month}</td>
                     <td>
                       <ReportValueStack
-                        value={formatMoney(month.inflows)}
+                        value={formatMoney(sumCashflowAmounts(month.inflows, month.associateContributions))}
+                        meta={<ReportMetaPairs pairs={[{ label: tTerm('reports.cashflow.table.installmentsShort'), value: formatMoney(month.inflows) }, { label: tTerm('reports.cashflow.table.contributionsShort'), value: formatMoney(month.associateContributions) }]} />}
                         strong
                       />
                     </td>
                     <td>
                       <ReportValueStack
-                        value={formatMoney(sumCashflowAmounts(month.outflows, month.associatePayments, month.operatingExpenses))}
+                        value={formatMoney(sumCashflowAmounts(month.outflows, month.associatePayments, month.capitalReturns, month.operatingExpenses))}
                         meta={(
                           <ReportMetaPairs
                             pairs={[
                               { label: tTerm('reports.cashflow.table.outflowsShort'), value: formatMoney(month.outflows) },
                               { label: tTerm('reports.cashflow.table.associatePaymentsShort'), value: formatMoney(month.associatePayments) },
+                              { label: tTerm('reports.cashflow.table.capitalReturnsShort'), value: formatMoney(month.capitalReturns) },
                               { label: tTerm('reports.cashflow.table.operatingExpensesShort'), value: formatMoney(month.operatingExpenses) },
                             ]}
                           />
@@ -250,15 +262,16 @@ export default function CashflowTab({
               <tfoot>
                 <tr>
                   <th>{tTerm('reports.cashflow.table.total')}</th>
-                  <td><ReportValueStack value={formatMoney(summary.totalInflows)} strong /></td>
+                  <td><ReportValueStack value={formatMoney(sumCashflowAmounts(summary.totalInflows, summary.totalAssociateContributions))} meta={<ReportMetaPairs pairs={[{ label: tTerm('reports.cashflow.table.installmentsShort'), value: formatMoney(summary.totalInflows) }, { label: tTerm('reports.cashflow.table.contributionsShort'), value: formatMoney(summary.totalAssociateContributions) }]} />} strong /></td>
                   <td>
                     <ReportValueStack
-                      value={formatMoney(sumCashflowAmounts(summary.totalOutflows, summary.totalAssociatePayments, summary.totalOperatingExpenses))}
+                      value={formatMoney(sumCashflowAmounts(summary.totalOutflows, summary.totalAssociatePayments, summary.totalCapitalReturns, summary.totalOperatingExpenses))}
                       meta={(
                         <ReportMetaPairs
                           pairs={[
                             { label: tTerm('reports.cashflow.table.outflowsShort'), value: formatMoney(summary.totalOutflows) },
                             { label: tTerm('reports.cashflow.table.associatePaymentsShort'), value: formatMoney(summary.totalAssociatePayments) },
+                            { label: tTerm('reports.cashflow.table.capitalReturnsShort'), value: formatMoney(summary.totalCapitalReturns) },
                             { label: tTerm('reports.cashflow.table.operatingExpensesShort'), value: formatMoney(summary.totalOperatingExpenses) },
                           ]}
                         />
@@ -267,8 +280,8 @@ export default function CashflowTab({
                   </td>
                   <td>
                     <ReportValueStack
-                      value={formatMoney(summary.netProfitIndicator)}
-                      tone={Number(summary.netProfitIndicator || 0) < 0 ? 'negative' : 'positive'}
+                      value={formatMoney(summary.netCashFlow ?? summary.availableCash)}
+                      tone={Number(summary.netCashFlow ?? summary.availableCash ?? 0) < 0 ? 'negative' : 'positive'}
                       strong
                     />
                   </td>

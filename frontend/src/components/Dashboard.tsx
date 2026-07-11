@@ -11,6 +11,8 @@ import { ActionButton, EmptyState, PageHeader, PageShell, SectionSurface, Status
 
 type DashboardMonthlyPerformanceLike = {
   month?: string;
+  inflows?: number | string;
+  outflows?: number | string;
   disbursed?: number | string;
   recovered?: number | string;
 };
@@ -34,8 +36,8 @@ export const buildDashboardMonthlyChartData = (
   return {
     name: formatDashboardMonth(monthKey, locale, { month: 'short', year: 'numeric' }),
     fullLabel: formatDashboardMonth(monthKey, locale, { month: 'long', year: 'numeric' }),
-    disbursed: Number(entry?.disbursed || 0),
-    recovered: Number(entry?.recovered || 0),
+    inflows: Number(entry?.inflows ?? entry?.recovered ?? 0),
+    outflows: Number(entry?.outflows ?? entry?.disbursed ?? 0),
   };
 });
 
@@ -89,12 +91,14 @@ export default function Dashboard() {
       </SectionSurface>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <SectionSurface title={tTerm('dashboard.period.title')} subtitle={tTerm('dashboard.period.subtitle')} bodyClassName="grid sm:grid-cols-2">
+        <SectionSurface title={tTerm('dashboard.period.title')} subtitle={tTerm('dashboard.period.subtitle')} bodyClassName="grid sm:grid-cols-2 xl:grid-cols-3">
           <OperationalMetric label={tTerm('dashboard.period.collections')} value={money(period.collections)} />
+          <OperationalMetric label={tTerm('dashboard.period.associateContributions')} value={money(period.associateContributions)} />
           <OperationalMetric label={tTerm('dashboard.period.disbursements')} value={money(period.disbursements)} />
           <OperationalMetric label={tTerm('dashboard.period.operatingExpenses')} value={money(period.operatingExpenses)} />
           <OperationalMetric label={tTerm('dashboard.period.associatePayments')} value={money(period.associatePayments)} />
-          <div className="border-t border-border-subtle px-4 py-4 sm:col-span-2">
+          <OperationalMetric label={tTerm('dashboard.period.capitalReturns')} value={money(period.capitalReturns)} />
+          <div className="border-t border-border-subtle px-4 py-4 sm:col-span-2 xl:col-span-3">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-secondary">{tTerm('dashboard.period.netResult')}</p>
@@ -122,8 +126,8 @@ export default function Dashboard() {
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'currentColor', fontSize: 11 }} />
                 <YAxis axisLine={false} tickLine={false} width={78} tick={{ fill: 'currentColor', fontSize: 10 }} tickFormatter={(value) => money(value)} />
                 <Tooltip formatter={(value) => money(value)} labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullLabel || ''} />
-                <Bar name={tTerm('dashboard.trend.collections')} dataKey="recovered" fill="#28766e" radius={[4, 4, 0, 0]} />
-                <Bar name={tTerm('dashboard.trend.disbursements')} dataKey="disbursed" fill="#87929d" radius={[4, 4, 0, 0]} />
+                <Bar name={tTerm('dashboard.trend.inflows')} dataKey="inflows" fill="#28766e" radius={[4, 4, 0, 0]} />
+                <Bar name={tTerm('dashboard.trend.outflows')} dataKey="outflows" fill="#87929d" radius={[4, 4, 0, 0]} />
               </BarChart>
             )}
           </MeasuredChart>

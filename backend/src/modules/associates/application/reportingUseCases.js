@@ -229,6 +229,29 @@ const isWithinDateRange = (value, range) => {
   return true;
 };
 
+const movementPairKey = (date, amount) => {
+  const operationalDate = toOperationalDateOrNull(date);
+  return `${operationalDate?.toISOString().slice(0, 10) || ''}:${Math.round(parseMoney(amount) * 100)}`;
+};
+
+const excludePairedReinvestmentContributions = (contributions, distributions) => {
+  const reinvestmentCounts = distributions
+    .filter((distribution) => distribution.distributionType === 'reinvestment')
+    .reduce((counts, distribution) => {
+      const key = movementPairKey(distribution.distributionDate, distribution.amount);
+      counts.set(key, (counts.get(key) || 0) + 1);
+      return counts;
+    }, new Map());
+
+  return contributions.filter((contribution) => {
+    const key = movementPairKey(contribution.contributionDate, contribution.amount);
+    const remaining = reinvestmentCounts.get(key) || 0;
+    if (remaining <= 0) return true;
+    reinvestmentCounts.set(key, remaining - 1);
+    return false;
+  });
+};
+
 const formatDistributionType = (value) => {
   if (!value) return 'No aplica';
   const typeKey = normalizeAssociateDistributionTypeKey(value);
@@ -427,9 +450,10 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
         isWithinDateRange(installment.status === 'paid' ? installment.paidAt : installment.dueDate, dateRange)
       ));
 
-      const totalContributed = filterCapitalBearingContributions(filteredContributions)
-        .reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0);
       const normalizedDistributions = filteredDistributions.map(normalizeReportingDistributionRecord);
+      const externalContributions = excludePairedReinvestmentContributions(filteredContributions, normalizedDistributions);
+      const totalContributed = filterCapitalBearingContributions(externalContributions)
+        .reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0);
       const totalDistributed = normalizedDistributions
         .filter(isDistributedProfit)
         .reduce((sum, distribution) => sum + Number(distribution.amount || 0), 0);
@@ -455,7 +479,7 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
         nextInterestPaymentDate: toExcelDate(nextInterestPayment?.dueDate),
       };
 
-      const contributionRows = filteredContributions.map((contribution) => ({
+      const contributionRows = externalContributions.map((contribution) => ({
         associateId: associate.id,
         associateName: associate.name,
         ...baseFields,
@@ -526,7 +550,7 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
         contributionInterestType: '',
         contributionInterestRate: '',
         distributionType: '',
-        notes: `Aportes: ${filteredContributions.length}, Pagos manuales: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution).length}, Reinversiones: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.reinvestment).length}, Devoluciones: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.capitalReturn).length}, Cuotas de interés: ${filteredInstallments.length}. Pagado manualmente: ${formatDisplayMoney(totalDistributed)}. Capital devuelto: ${formatDisplayMoney(totalCapitalReturned)}`,
+        notes: `Aportes: ${externalContributions.length}, Pagos manuales: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution).length}, Reinversiones: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.reinvestment).length}, Devoluciones: ${distributionRows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.capitalReturn).length}, Cuotas de interés: ${filteredInstallments.length}. Pagado manualmente: ${formatDisplayMoney(totalDistributed)}. Capital devuelto: ${formatDisplayMoney(totalCapitalReturned)}`,
       };
 
       return [summaryRow, ...contributionRows, ...distributionRows, ...interestRows];
@@ -606,6 +630,52 @@ const createExportAssociatesPdf = ({ associateRepository }) => async ({ actor, f
         { heading: 'Intereses pagados', table: { columns: movementColumns, rows: toMovementRows(interestPaidRows) } },
         { heading: 'Intereses pendientes', table: { columns: movementColumns, rows: toMovementRows(interestDueRows) } },
       ],
+    }),
+  };
+};
+
+const createGetAssociateMovementsReport = ({ associateRepository }) => async ({ actor, filters = {} }) => {
+  const exportData = await createExportAssociatesExcel({ associateRepository })({ actor, filters });
+  const movementTypeBySection = {
+    [ASSOCIATE_EXPORT_SECTIONS.contribution]: 'contribution',
+    [ASSOCIATE_EXPORT_SECTIONS.distribution]: 'manual_profitability',
+    [ASSOCIATE_EXPORT_SECTIONS.reinvestment]: 'reinvestment',
+    [ASSOCIATE_EXPORT_SECTIONS.capitalReturn]: 'capital_return',
+    [ASSOCIATE_EXPORT_SECTIONS.interestPaid]: 'scheduled_profitability_paid',
+    [ASSOCIATE_EXPORT_SECTIONS.interestDue]: 'scheduled_profitability_pending',
+  };
+  const rows = (exportData.data?.rows || [])
+    .filter((row) => row.section !== ASSOCIATE_EXPORT_SECTIONS.summary)
+    .map((row) => ({
+      id: row.entryId,
+      associateId: row.associateId,
+      associateName: row.associateName,
+      movementType: movementTypeBySection[row.section],
+      reference: row.reference,
+      amount: parseMoney(row.amount),
+      date: row.date,
+    }));
+
+  return {
+    rows,
+    summary: rows.reduce((result, row) => {
+      const amount = parseMoney(row.amount);
+      result.totalMovements += 1;
+      result.totalAmount += amount;
+      if (row.movementType === 'contribution') result.contributions += amount;
+      if (row.movementType === 'reinvestment') result.reinvestments += amount;
+      if (row.movementType === 'capital_return') result.capitalReturns += amount;
+      if (['scheduled_profitability_paid', 'manual_profitability'].includes(row.movementType)) result.profitabilityPaid += amount;
+      if (row.movementType === 'scheduled_profitability_pending') result.profitabilityPending += amount;
+      return result;
+    }, {
+      totalMovements: 0,
+      totalAmount: 0,
+      contributions: 0,
+      reinvestments: 0,
+      capitalReturns: 0,
+      profitabilityPaid: 0,
+      profitabilityPending: 0,
     }),
   };
 };
@@ -819,6 +889,7 @@ const createExportAssociateFinancialSummary = ({ associateRepository }) => async
 module.exports = {
   createExportAssociatesExcel,
   createExportAssociatesPdf,
+  createGetAssociateMovementsReport,
   createGetAssociateFinancialSummary,
   createExportAssociateFinancialSummary,
 };

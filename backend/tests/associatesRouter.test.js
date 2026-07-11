@@ -4,6 +4,7 @@ const express = require('express');
 
 const { NotFoundError, AuthorizationError, globalErrorHandler } = require('@/utils/errorHandler');
 const { createAssociatesRouter } = require('@/modules/associates/presentation/router');
+const { associateValidation: realAssociateValidation } = require('@/middleware/validation');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -290,6 +291,82 @@ test('createAssociatesRouter serves investor tracking before id routes', async (
     actor: { id: 1, role: 'admin', name: 'Admin Test' },
     filters: { search: 'Socio', status: 'active' },
   });
+});
+
+test('createAssociatesRouter serves the filtered movement report before id routes', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateMovementsReport(input) {
+        calls.push(input);
+        return { rows: [{ id: 1, movementType: 'contribution' }], summary: { totalMovements: 1 } };
+      },
+      async getAssociateById() {
+        throw new Error('movements should not be handled as an associate id');
+      },
+    },
+  });
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/movements?status=active&search=QA&fromDate=2026-07-01&toDate=2026-07-31',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.count, 1);
+  assert.deepEqual(calls[0], {
+    actor: { id: 1, role: 'admin', name: 'Admin Test' },
+    filters: { associateId: undefined, search: 'QA', fromDate: '2026-07-01', toDate: '2026-07-31', status: 'active' },
+  });
+});
+
+test('createAssociatesRouter returns HTTP 400 for retired associate contract fields', async () => {
+  const router = createAssociatesRouter({
+    associateValidation: realAssociateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async createAssociate() {
+        throw new Error('retired fields must be rejected before the use case');
+      },
+    },
+  });
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: {
+      name: 'Socio Contrato Retirado',
+      email: 'retirado@example.com',
+      phone: '+573001112299',
+      interestType: 'monthly',
+      interestRate: 2,
+      interestPaymentDay: 5,
+      participationPercentage: 10,
+      interestStartDate: '2026-01-01',
+      interestStartsAt: '2026-01-01',
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.body.error.validationErrors.map((item) => item.field).sort(), [
+    'interestStartDate',
+    'interestStartsAt',
+    'participationPercentage',
+  ]);
 });
 
 test('createAssociatesRouter exports associates from the associates module before id routes', async () => {

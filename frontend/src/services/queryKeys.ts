@@ -100,6 +100,11 @@ export type AssociateTrackingFilters = {
   status?: string;
 };
 
+export type AssociateMovementFilters = AssociateTrackingFilters & {
+  fromDate?: string;
+  toDate?: string;
+};
+
 export const queryKeys = {
   customers: {
     all: ['customers'] as const,
@@ -117,6 +122,7 @@ export const queryKeys = {
     detail: (associateId: number) => ['associates', 'detail', associateId] as const,
     financialDetails: (associateId: number) => ['associates', 'financial-details', associateId] as const,
     tracking: (filters?: AssociateTrackingFilters) => ['associates', 'tracking', filters ?? {}] as const,
+    movements: (filters?: AssociateMovementFilters) => ['associates', 'movements', filters ?? {}] as const,
     installments: (associateId: number) => ['associates', 'installments', associateId] as const,
     calendar: (associateId: number, filters?: AssociateCalendarFilters) =>
       ['associates', 'calendar', associateId, filters ?? {}] as const,

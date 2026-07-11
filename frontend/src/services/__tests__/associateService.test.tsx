@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../api/client';
-import { exportAssociateFinancialSummary, exportAssociatesExcel, useAssociateDetails, useAssociateTracking } from '../associateService';
+import { exportAssociateFinancialSummary, exportAssociatesExcel, useAssociateDetails, useAssociateMovements, useAssociateTracking } from '../associateService';
 
 vi.mock('../../api/client', () => ({
   apiClient: {
@@ -145,6 +145,26 @@ describe('associateService', () => {
     });
 
     expect(mockGet).not.toHaveBeenCalledWith('/reports/associates/export');
+  });
+
+  it('loads the visible associate movement report with the same export filters', async () => {
+    renderHook(() => useAssociateMovements({
+      status: 'active',
+      search: 'ana',
+      fromDate: '2026-07-01',
+      toDate: '2026-07-31',
+    }), { wrapper });
+
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith('/associates/movements', {
+        params: {
+          status: 'active',
+          search: 'ana',
+          fromDate: '2026-07-01',
+          toDate: '2026-07-31',
+        },
+      });
+    });
   });
 
   it('exports associates from the associates module instead of reports', async () => {

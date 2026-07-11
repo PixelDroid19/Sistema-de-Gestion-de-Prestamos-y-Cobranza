@@ -150,12 +150,13 @@ const reportRepository = {
         const row = toPlainRecord(distribution);
         return row?.basis?.type === 'capital-return';
       }),
+      associateReinvestments: associateDistributions.filter((distribution) => toPlainRecord(distribution)?.basis?.type === 'reinvestment'),
       associateObligations: associateInstallments.filter((installment) => ['pending', 'overdue'].includes(toPlainRecord(installment).status)),
       associatePayments: [
         ...associateInstallments.filter((installment) => toPlainRecord(installment).status === 'paid'),
         ...associateDistributions.filter((distribution) => {
           const serializedDistribution = typeof distribution?.toJSON === 'function' ? distribution.toJSON() : distribution;
-          return serializedDistribution?.basis?.type !== 'reinvestment';
+          return !['reinvestment', 'capital-return'].includes(serializedDistribution?.basis?.type);
         }),
       ],
     };
@@ -403,7 +404,7 @@ const reportRepository = {
     const startDate = fromDate || new Date(year, 0, 1);
     const endDate = toDate || new Date(year, 11, 31, 23, 59, 59, 999);
 
-    const [loans, payments, paidAssociateInstallments, associateDistributions, operatingExpenses] = await Promise.all([
+    const [loans, payments, paidAssociateInstallments, associateContributions, associateDistributions, operatingExpenses] = await Promise.all([
       Loan.findAll({
         where: {
           status: { [Op.in]: ['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] },
@@ -443,6 +444,13 @@ const reportRepository = {
         ],
         order: [['paidAt', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
       }),
+      AssociateContribution.findAll({
+        where: {
+          status: 'completed',
+          contributionDate: { [Op.gte]: startDate, [Op.lte]: endDate },
+        },
+        order: [['contributionDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
       ProfitDistribution.findAll({
         where: {
           distributionDate: { [Op.gte]: startDate, [Op.lte]: endDate },
@@ -475,11 +483,14 @@ const reportRepository = {
     return {
       loans,
       payments,
+      associateContributions,
+      associateReinvestments: associateDistributions.filter((distribution) => toPlainRecord(distribution)?.basis?.type === 'reinvestment'),
+      associateCapitalReturns: associateDistributions.filter((distribution) => toPlainRecord(distribution)?.basis?.type === 'capital-return'),
       associatePayments: [
         ...paidAssociateInstallments,
         ...associateDistributions.filter((distribution) => {
           const serializedDistribution = typeof distribution?.toJSON === 'function' ? distribution.toJSON() : distribution;
-          return serializedDistribution?.basis?.type !== 'reinvestment';
+          return !['reinvestment', 'capital-return'].includes(serializedDistribution?.basis?.type);
         }),
       ],
       operatingExpenses,

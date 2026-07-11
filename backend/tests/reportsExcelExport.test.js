@@ -8,7 +8,7 @@ const { createReportsRouter } = require('@/modules/reports/presentation/router')
 const { createAssociatesRouter } = require('@/modules/associates/presentation/router');
 const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
 const { createExportPayoutsExcel } = require('@/modules/reports/application/useCases/createExportPayoutsExcel');
-const { createExportAssociatesExcel, createExportAssociatesPdf } = require('@/modules/associates/application/reportingUseCases');
+const { createExportAssociatesExcel, createExportAssociatesPdf, createGetAssociateMovementsReport } = require('@/modules/associates/application/reportingUseCases');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookBuilder');
 const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
@@ -177,6 +177,50 @@ test('export associates use case builds approved operational sheet structure', a
   );
   assert.equal(result.data.rows[0].date, '');
   assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments|N\/A/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
+});
+
+test('associate movements report exposes the same filtered movement dataset used by exports', async () => {
+  const associate = { id: 4, name: 'Socio Movimientos', status: 'active', interestType: 'monthly', interestRate: '2.5' };
+  const report = createGetAssociateMovementsReport({
+    associateRepository: {
+      async list() { return [associate]; },
+      async findById() { return associate; },
+      async listContributionsByAssociate() {
+        return [
+          { id: 1, amount: 1000000, contributionDate: '2026-07-01', status: 'completed' },
+          { id: 6, amount: 50000, contributionDate: '2026-07-05', status: 'completed' },
+        ];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [
+          { id: 2, amount: 50000, distributionDate: '2026-07-05', basis: { type: 'reinvestment' } },
+          { id: 3, amount: 25000, distributionDate: '2026-06-20', basis: { type: 'capital-return' } },
+        ];
+      },
+      async findInstallmentsByAssociateId() {
+        return [
+          { id: 4, installmentNumber: 1, amount: 25000, dueDate: '2026-07-10', paidAt: '2026-07-10', status: 'paid' },
+          { id: 5, installmentNumber: 2, amount: 25000, dueDate: '2026-08-10', status: 'pending' },
+        ];
+      },
+    },
+  });
+
+  const result = await report({
+    actor: { role: 'admin' },
+    filters: { status: 'active', fromDate: '2026-07-01', toDate: '2026-07-31' },
+  });
+
+  assert.deepEqual(result.rows.map((row) => row.movementType), [
+    'contribution',
+    'reinvestment',
+    'scheduled_profitability_paid',
+  ]);
+  assert.equal(result.summary.totalMovements, 3);
+  assert.equal(result.summary.contributions, 1000000);
+  assert.equal(result.summary.reinvestments, 50000);
+  assert.equal(result.summary.capitalReturns, 0);
+  assert.equal(result.summary.profitabilityPaid, 25000);
 });
 
 test('export associates PDF summarizes associate payments, pending interest, and schedule', async () => {

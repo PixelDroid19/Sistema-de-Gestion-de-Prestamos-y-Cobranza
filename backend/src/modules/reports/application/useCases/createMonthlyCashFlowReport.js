@@ -19,8 +19,10 @@ const moneyColumn = (header, key, width = 20) => ({ header, key, width, numFmt: 
 const CASH_FLOW_COLUMNS = [
   { header: 'Mes', key: 'month', width: 14 },
   moneyColumn('Entradas por Cuotas', 'inflows'),
+  moneyColumn('Aportes de Socios', 'associateContributions', 20),
   moneyColumn('Salidas por Préstamos', 'outflows'),
   moneyColumn('Pagos a Socios', 'associatePayments', 20),
+  moneyColumn('Devoluciones de Capital', 'capitalReturns', 24),
   moneyColumn('Gastos Operativos', 'operatingExpenses', 22),
   moneyColumn('Flujo Neto', 'netCashFlow'),
   moneyColumn('Caja Disponible', 'availableCash'),
@@ -84,6 +86,8 @@ const createEmptyMonth = (month) => ({
   interestCollectedRaw: 0,
   penaltyCollectedRaw: 0,
   associatePaymentsRaw: 0,
+  associateContributionsRaw: 0,
+  capitalReturnsRaw: 0,
   operatingExpensesRaw: 0,
   portfolioReceivableRaw: 0,
   collectedProfitRaw: 0,
@@ -95,10 +99,12 @@ const createEmptyMonth = (month) => ({
 const formatMonth = (row, availableCash) => ({
   month: row.month,
   inflows: formatMoney(row.inflowsRaw),
+  associateContributions: formatMoney(Math.max(0, row.associateContributionsRaw)),
   outflows: formatMoney(row.outflowsRaw),
   associatePayments: formatMoney(row.associatePaymentsRaw),
+  capitalReturns: formatMoney(row.capitalReturnsRaw),
   operatingExpenses: formatMoney(row.operatingExpensesRaw),
-  netCashFlow: formatMoney(row.inflowsRaw - row.outflowsRaw - row.associatePaymentsRaw - row.operatingExpensesRaw),
+  netCashFlow: formatMoney(row.inflowsRaw + Math.max(0, row.associateContributionsRaw) - row.outflowsRaw - row.associatePaymentsRaw - row.capitalReturnsRaw - row.operatingExpensesRaw),
   availableCash: formatMoney(availableCash),
   portfolioReceivable: formatMoney(row.portfolioReceivableRaw),
   principalRecovered: formatMoney(row.principalRecoveredRaw),
@@ -118,11 +124,14 @@ const formatMonth = (row, availableCash) => ({
  * @param {number} input.year Calendar year to report.
  * @param {Array<object>} input.loans Canonical loan rows.
  * @param {Array<object>} input.payments Canonical payment rows.
- * @param {Array<object>} input.associatePayments Canonical paid associate cash outflow rows.
+ * @param {Array<object>} input.associateContributions Canonical capital contribution rows.
+ * @param {Array<object>} input.associateReinvestments Reinvestments paired with contributions and excluded from cash inflows.
+ * @param {Array<object>} input.associatePayments Canonical profitability payment cash outflow rows.
+ * @param {Array<object>} input.associateCapitalReturns Canonical capital return cash outflow rows.
  * @param {Array<object>} input.operatingExpenses Canonical completed operating expense rows.
  * @returns {{year:number, summary:object, months:Array<object>}}
  */
-const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associatePayments = [], operatingExpenses = [] }) => {
+const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associateContributions = [], associateReinvestments = [], associatePayments = [], associateCapitalReturns = [], operatingExpenses = [] }) => {
   const numericYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
   const monthsByKey = MONTHS.reduce((acc, month) => {
     const monthKey = `${numericYear}-${month}`;
@@ -152,6 +161,21 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
       monthsByKey[key].associatePaymentsRaw += toNumber(payment.amount);
     });
 
+  associateContributions.forEach((contribution) => {
+    const key = monthKeyFromDate(contribution.contributionDate || contribution.createdAt);
+    if (monthsByKey[key]) monthsByKey[key].associateContributionsRaw += toNumber(contribution.amount);
+  });
+
+  associateReinvestments.forEach((reinvestment) => {
+    const key = monthKeyFromDate(reinvestment.distributionDate || reinvestment.createdAt);
+    if (monthsByKey[key]) monthsByKey[key].associateContributionsRaw -= toNumber(reinvestment.amount);
+  });
+
+  associateCapitalReturns.forEach((capitalReturn) => {
+    const key = monthKeyFromDate(capitalReturn.distributionDate || capitalReturn.createdAt);
+    if (monthsByKey[key]) monthsByKey[key].capitalReturnsRaw += toNumber(capitalReturn.amount);
+  });
+
   operatingExpenses
     .filter((expense) => ['completed', 'paid', 'posted'].includes(String(expense?.status || '').toLowerCase()))
     .forEach((expense) => {
@@ -179,13 +203,15 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
   let availableCashRaw = 0;
   const rawMonths = Object.values(monthsByKey);
   const months = rawMonths.map((row) => {
-    availableCashRaw += row.inflowsRaw - row.outflowsRaw - row.associatePaymentsRaw - row.operatingExpensesRaw;
+    availableCashRaw += row.inflowsRaw + Math.max(0, row.associateContributionsRaw) - row.outflowsRaw - row.associatePaymentsRaw - row.capitalReturnsRaw - row.operatingExpensesRaw;
     return formatMonth(row, availableCashRaw);
   });
 
   const totalInflows = rawMonths.reduce((sum, row) => sum + row.inflowsRaw, 0);
   const totalOutflows = rawMonths.reduce((sum, row) => sum + row.outflowsRaw, 0);
   const totalAssociatePayments = rawMonths.reduce((sum, row) => sum + row.associatePaymentsRaw, 0);
+  const totalAssociateContributions = rawMonths.reduce((sum, row) => sum + Math.max(0, row.associateContributionsRaw), 0);
+  const totalCapitalReturns = rawMonths.reduce((sum, row) => sum + row.capitalReturnsRaw, 0);
   const totalOperatingExpenses = rawMonths.reduce((sum, row) => sum + row.operatingExpensesRaw, 0);
   const totalPrincipalRecovered = rawMonths.reduce((sum, row) => sum + row.principalRecoveredRaw, 0);
   const portfolioReceivable = rawMonths.reduce((sum, row) => sum + row.portfolioReceivableRaw, 0);
@@ -193,15 +219,19 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
   const totalPenaltyCollected = rawMonths.reduce((sum, row) => sum + row.penaltyCollectedRaw, 0);
   const totalCollectedProfit = totalInterestCollected + totalPenaltyCollected;
   const lossesAtRisk = rawMonths.reduce((sum, row) => sum + row.lossesAtRiskRaw, 0);
+  const netCashFlow = totalInflows + totalAssociateContributions - totalOutflows - totalAssociatePayments - totalCapitalReturns - totalOperatingExpenses;
 
   return {
     year: numericYear,
     summary: {
       totalInflows: formatMoney(totalInflows),
+      totalAssociateContributions: formatMoney(totalAssociateContributions),
       totalOutflows: formatMoney(totalOutflows),
       totalAssociatePayments: formatMoney(totalAssociatePayments),
+      totalCapitalReturns: formatMoney(totalCapitalReturns),
       totalOperatingExpenses: formatMoney(totalOperatingExpenses),
-      availableCash: formatMoney(totalInflows - totalOutflows - totalAssociatePayments - totalOperatingExpenses),
+      netCashFlow: formatMoney(netCashFlow),
+      availableCash: formatMoney(netCashFlow),
       portfolioReceivable: formatMoney(portfolioReceivable),
       totalPrincipalRecovered: formatMoney(totalPrincipalRecovered),
       totalInterestCollected: formatMoney(totalInterestCollected),
@@ -232,10 +262,12 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
 const buildCashFlowSheets = (report) => {
   const summaryRows = [
     { label: 'Entradas por cuotas', value: Number(report.summary.totalInflows), description: 'Dinero real recibido por pagos completados.' },
+    { label: 'Aportes de socios', value: Number(report.summary.totalAssociateContributions), description: 'Capital nuevo recibido de socios; excluye reinversiones contables.' },
     { label: 'Salidas por préstamos', value: Number(report.summary.totalOutflows), description: 'Capital entregado en préstamos desembolsados.' },
     { label: 'Pagos a socios', value: Number(report.summary.totalAssociatePayments), description: 'Pagos registrados a socios que reducen caja disponible.' },
+    { label: 'Devoluciones de capital', value: Number(report.summary.totalCapitalReturns), description: 'Capital efectivamente reintegrado a socios.' },
     { label: 'Gastos operativos', value: Number(report.summary.totalOperatingExpenses), description: 'Salidas administrativas y operativas completadas.' },
-    { label: 'Caja disponible', value: Number(report.summary.availableCash), description: 'Entradas menos préstamos, pagos a socios y gastos operativos.' },
+    { label: 'Caja disponible', value: Number(report.summary.availableCash), description: 'Recaudo y aportes menos préstamos, rentabilidad, devoluciones y gastos.' },
     { label: 'Cartera por cobrar', value: Number(report.summary.portfolioReceivable), description: 'Capital vigente que sigue adeudado en los créditos del período.' },
     { label: 'Capital recuperado', value: Number(report.summary.totalPrincipalRecovered), description: 'Parte de pagos que redujo capital vivo.' },
     { label: 'Interés cobrado', value: Number(report.summary.totalInterestCollected), description: 'Interés efectivamente pagado por clientes.' },
@@ -263,8 +295,10 @@ const buildCashFlowSheets = (report) => {
       rows: report.months.map((month) => ({
         ...month,
         inflows: Number(month.inflows),
+        associateContributions: Number(month.associateContributions),
         outflows: Number(month.outflows),
         associatePayments: Number(month.associatePayments),
+        capitalReturns: Number(month.capitalReturns),
         operatingExpenses: Number(month.operatingExpenses),
         netCashFlow: Number(month.netCashFlow),
         availableCash: Number(month.availableCash),
@@ -316,6 +350,9 @@ const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year,
     loans: dataset.loans || [],
     payments: dataset.payments || [],
     associatePayments: dataset.associatePayments || [],
+    associateContributions: dataset.associateContributions || [],
+    associateReinvestments: dataset.associateReinvestments || [],
+    associateCapitalReturns: dataset.associateCapitalReturns || [],
     operatingExpenses: dataset.operatingExpenses || [],
   });
   report.filters = {
@@ -345,11 +382,13 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
     contentType: 'application/pdf',
     buffer: await buildReportPdf({
       title: `Cierre contable ${report.year}`,
-      subtitle: 'Cuadre mensual de recaudo, pagos a socios, gastos y caja disponible.',
+      subtitle: 'Cuadre mensual de recaudo, aportes, préstamos, pagos, devoluciones, gastos y caja disponible.',
       summary: [
         { label: 'Entradas por cuotas', value: formatDisplayMoney(report.summary.totalInflows) },
+        { label: 'Aportes de socios', value: formatDisplayMoney(report.summary.totalAssociateContributions) },
         { label: 'Salidas por préstamos', value: formatDisplayMoney(report.summary.totalOutflows) },
         { label: 'Pagos a socios', value: formatDisplayMoney(report.summary.totalAssociatePayments) },
+        { label: 'Devoluciones de capital', value: formatDisplayMoney(report.summary.totalCapitalReturns) },
         { label: 'Gastos del negocio', value: formatDisplayMoney(report.summary.totalOperatingExpenses) },
         { label: 'Interés y mora cobrados', value: formatDisplayMoney(report.summary.totalCollectedProfit) },
         { label: 'Capital recuperado', value: formatDisplayMoney(report.summary.totalPrincipalRecovered) },
@@ -362,8 +401,10 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
           columns: [
             { header: 'Mes', key: 'month', width: 60 },
             { header: 'Entradas', key: 'inflows', align: 'right' },
+            { header: 'Aportes', key: 'contributions', align: 'right' },
             { header: 'Salidas', key: 'outflows', align: 'right' },
             { header: 'Socios', key: 'associatePayments', align: 'right' },
+            { header: 'Dev. capital', key: 'capitalReturns', align: 'right' },
             { header: 'Gastos', key: 'operatingExpenses', align: 'right' },
             { header: 'Resultado', key: 'net', align: 'right' },
             { header: 'Caja', key: 'cash', align: 'right', bold: true },
@@ -371,14 +412,16 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
           rows: report.months.map((month) => ({
             month: month.month,
             inflows: formatDisplayMoney(month.inflows),
+            contributions: formatDisplayMoney(month.associateContributions),
             outflows: formatDisplayMoney(month.outflows),
             associatePayments: formatDisplayMoney(month.associatePayments),
+            capitalReturns: formatDisplayMoney(month.capitalReturns),
             operatingExpenses: formatDisplayMoney(month.operatingExpenses),
             net: formatDisplayMoney(month.netCashFlow),
             cash: formatDisplayMoney(month.availableCash),
           })),
         },
-        tableOptions: { fontSize: 7 },
+        tableOptions: { fontSize: 6 },
       }],
     }),
   };

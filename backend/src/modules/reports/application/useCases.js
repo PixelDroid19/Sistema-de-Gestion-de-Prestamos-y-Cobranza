@@ -125,6 +125,43 @@ const countInstallmentsByStatus = ({ loans = [], activeAlerts = [], now = new Da
   return { pendingInstallments, overdueInstallments };
 };
 
+const getMonthKey = (value) => {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+    : null;
+};
+
+const buildDashboardCashTrend = ({ base = [], dashboard = {} }) => {
+  const rows = new Map(base.map((entry) => [entry.month, {
+    month: entry.month,
+    inflows: toFiniteNumber(entry.recovered),
+    outflows: toFiniteNumber(entry.disbursed),
+  }]));
+  const add = (date, field, amount) => {
+    const month = getMonthKey(date);
+    if (!month) return;
+    const row = rows.get(month) || { month, inflows: 0, outflows: 0 };
+    row[field] += toFiniteNumber(amount);
+    rows.set(month, row);
+  };
+
+  (dashboard.associateContributions || []).filter((row) => row.status === 'completed')
+    .forEach((row) => add(row.contributionDate || row.createdAt, 'inflows', row.amount));
+  (dashboard.associateReinvestments || [])
+    .forEach((row) => add(row.distributionDate || row.createdAt, 'inflows', -toFiniteNumber(row.amount)));
+  (dashboard.associatePayments || [])
+    .forEach((row) => add(row.paidAt || row.distributionDate || row.createdAt, 'outflows', row.amount));
+  (dashboard.associateCapitalReturns || [])
+    .forEach((row) => add(row.distributionDate || row.createdAt, 'outflows', row.amount));
+  (dashboard.operatingExpenses || [])
+    .forEach((row) => add(row.expenseDate || row.createdAt, 'outflows', row.amount));
+
+  return [...rows.values()]
+    .map((row) => ({ ...row, inflows: Math.max(0, row.inflows), netCashFlow: Math.max(0, row.inflows) - row.outflows }))
+    .sort((left, right) => left.month.localeCompare(right.month));
+};
+
 const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
   ensureAdmin(actor);
 
@@ -140,9 +177,11 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
       },
       period: {
         collections: '0.00',
+        associateContributions: '0.00',
         disbursements: '0.00',
         operatingExpenses: '0.00',
         associatePayments: '0.00',
+        capitalReturns: '0.00',
         netResult: '0.00',
       },
       risk: {
@@ -173,6 +212,7 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
       paymentRepository,
       loanViewService,
     });
+    const cashTrend = buildDashboardCashTrend({ base: monthlyPerformance, dashboard });
 
     const totalPortfolioAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.amount || 0), 0);
     const totalOutstandingAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.outstandingAmount || 0), 0);
@@ -191,6 +231,9 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     const totalAssociateContributions = (dashboard.associateContributions || [])
       .filter((contribution) => contribution.status === 'completed')
       .reduce((sum, contribution) => sum + toFiniteNumber(contribution.amount), 0);
+    const totalAssociateReinvestments = (dashboard.associateReinvestments || [])
+      .reduce((sum, distribution) => sum + toFiniteNumber(distribution.amount), 0);
+    const cashAssociateContributions = Math.max(0, totalAssociateContributions - totalAssociateReinvestments);
     const totalAssociateCapitalReturns = (dashboard.associateCapitalReturns || [])
       .reduce((sum, distribution) => sum + toFiniteNumber(distribution.amount), 0);
     const openAssociateObligations = (dashboard.associateObligations || [])
@@ -222,7 +265,12 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     const arrearsRate = totalOpenPortfolioLoans > 0
       ? (delinquentLoanCount / totalOpenPortfolioLoans) * 100
       : 0;
-    const availableCash = totalPaymentInflow - totalPortfolioAmount - totalAssociatePayments - totalOperatingExpenses;
+    const availableCash = totalPaymentInflow
+      + cashAssociateContributions
+      - totalPortfolioAmount
+      - totalAssociatePayments
+      - totalAssociateCapitalReturns
+      - totalOperatingExpenses;
     const capitalAtRisk = loansWithDetails
       .filter((loan) => loan.isOverdue)
       .reduce((sum, loan) => sum + Number(loan.outstandingPrincipalAmount || 0), 0);
@@ -239,9 +287,11 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
         },
         period: {
           collections: totalPaymentInflow.toFixed(2),
+          associateContributions: cashAssociateContributions.toFixed(2),
           disbursements: totalPortfolioAmount.toFixed(2),
           operatingExpenses: totalOperatingExpenses.toFixed(2),
           associatePayments: totalAssociatePayments.toFixed(2),
+          capitalReturns: totalAssociateCapitalReturns.toFixed(2),
           netResult: availableCash.toFixed(2),
         },
         risk: {
@@ -265,7 +315,7 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
           penaltyPaid: totalPenaltyPaid.toFixed(2),
           recoveryRate: recoveryRate.toFixed(2),
         },
-        trend: monthlyPerformance,
+        trend: cashTrend,
       },
     };
   } catch (error) {

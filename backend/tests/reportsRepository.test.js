@@ -101,9 +101,11 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   const toDate = new Date('2026-03-31T23:59:59.999Z');
   const expenseRows = [{ id: 7, amount: 125000, status: 'completed', expenseDate: fromDate }];
   const paidInstallmentRows = [{ id: 11, amount: 75000, status: 'paid', paidAt: fromDate }];
+  const contributionRows = [{ id: 12, amount: 200000, status: 'completed', contributionDate: fromDate }];
   const distributionRows = [
     { id: 20, amount: 50000, distributionDate: fromDate, basis: { type: 'manual' } },
     { id: 21, amount: 15000, distributionDate: fromDate, basis: { type: 'reinvestment' } },
+    { id: 22, amount: 30000, distributionDate: fromDate, basis: { type: 'capital-return' } },
   ];
   let capturedExpenseQuery = null;
   let capturedInstallmentQuery = null;
@@ -115,6 +117,7 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
     capturedInstallmentQuery = query;
     return paidInstallmentRows;
   };
+  AssociateContribution.findAll = async () => contributionRows;
   ProfitDistribution.findAll = async (query) => {
     capturedDistributionQuery = query;
     return distributionRows;
@@ -128,6 +131,9 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
 
   assert.equal(dataset.operatingExpenses, expenseRows);
   assert.deepEqual(dataset.associatePayments, [paidInstallmentRows[0], distributionRows[0]]);
+  assert.equal(dataset.associateContributions, contributionRows);
+  assert.deepEqual(dataset.associateReinvestments, [distributionRows[1]]);
+  assert.deepEqual(dataset.associateCapitalReturns, [distributionRows[2]]);
   assert.equal(capturedInstallmentQuery.where.status, 'paid');
   assert.equal(capturedInstallmentQuery.where.paidAt[Op.gte], fromDate);
   assert.equal(capturedInstallmentQuery.where.paidAt[Op.lte], toDate);
@@ -169,6 +175,7 @@ test('reportRepository getDashboardSummary includes paid associate movements and
   const distributionRows = [
     { id: 31, amount: 70000, basis: { type: 'manual' } },
     { id: 32, amount: 50000, basis: { type: 'reinvestment' } },
+    { id: 33, amount: 30000, basis: { type: 'capital-return' } },
   ];
   let capturedInstallmentQuery = null;
   let capturedDistributionQuery = null;
@@ -193,6 +200,8 @@ test('reportRepository getDashboardSummary includes paid associate movements and
   const dataset = await reportRepository.getDashboardSummary();
 
   assert.deepEqual(dataset.associatePayments, [paidInstallmentRows[0], distributionRows[0]]);
+  assert.deepEqual(dataset.associateReinvestments, [distributionRows[1]]);
+  assert.deepEqual(dataset.associateCapitalReturns, [distributionRows[2]]);
   assert.equal(capturedInstallmentQuery.where, undefined);
   assert.equal(capturedInstallmentQuery.limit, 5000);
   assert.equal(capturedDistributionQuery.limit, 5000);

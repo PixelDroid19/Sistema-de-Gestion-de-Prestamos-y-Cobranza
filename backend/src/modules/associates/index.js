@@ -19,6 +19,7 @@ const {
 const {
   createExportAssociatesExcel,
   createExportAssociatesPdf,
+  createGetAssociateMovementsReport,
   createGetAssociateFinancialSummary,
   createExportAssociateFinancialSummary,
 } = require('./application/reportingUseCases');
@@ -42,6 +43,7 @@ const createAssociatesModule = ({ sharedRuntime, auditService } = {}) => {
     getAssociateTracking: createGetAssociateTracking({ associateRepository }),
     exportAssociatesExcel: createExportAssociatesExcel({ associateRepository }),
     exportAssociatesPdf: createExportAssociatesPdf({ associateRepository }),
+    getAssociateMovementsReport: createGetAssociateMovementsReport({ associateRepository }),
     getAssociateFinancialSummary: createGetAssociateFinancialSummary({ associateRepository }),
     exportAssociateFinancialSummary: createExportAssociateFinancialSummary({ associateRepository }),
     createAssociateContribution: createCreateAssociateContribution({ associateRepository, auditService }),

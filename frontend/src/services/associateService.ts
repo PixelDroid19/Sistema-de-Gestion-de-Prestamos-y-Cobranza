@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { queryKeys, type AssociateCalendarFilters, type AssociateTrackingFilters } from './queryKeys';
+import { queryKeys, type AssociateCalendarFilters, type AssociateMovementFilters, type AssociateTrackingFilters } from './queryKeys';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
 export type AssociateInstallmentPaymentPayload = {
@@ -119,6 +119,15 @@ export const useAssociateTracking = (
   queryKey: queryKeys.associates.tracking(filters),
   queryFn: async () => {
     const { data } = await apiClient.get('/associates/tracking', { params: filters });
+    return data;
+  },
+  enabled: options?.enabled ?? true,
+});
+
+export const useAssociateMovements = (filters?: AssociateMovementFilters, options?: { enabled?: boolean }) => useQuery({
+  queryKey: queryKeys.associates.movements(filters),
+  queryFn: async () => {
+    const { data } = await apiClient.get('/associates/movements', { params: filters });
     return data;
   },
   enabled: options?.enabled ?? true,
