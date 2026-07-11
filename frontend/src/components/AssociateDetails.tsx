@@ -44,7 +44,7 @@ import {
   TABLE_EMBEDDED_SHELL_CLASS,
 } from './shared/tables';
 
-type TabType = 'overview' | 'installments' | 'calendar';
+type TabType = 'overview' | 'capital' | 'installments' | 'calendar';
 
 const DETAILS_PAGE_SIZE_OPTIONS: number[] = [10, 20, 50];
 
@@ -337,7 +337,7 @@ export default function AssociateDetails() {
     if (!Number.isFinite(associateId)) return;
     const storageKey = `associate-detail-initial-tab:${associateId}`;
     const requestedTab = sessionStorage.getItem(storageKey) as TabType | null;
-    if (requestedTab === 'overview' || requestedTab === 'installments' || requestedTab === 'calendar') {
+    if (requestedTab === 'overview' || requestedTab === 'capital' || requestedTab === 'installments' || requestedTab === 'calendar') {
       setActiveTab(requestedTab);
       sessionStorage.removeItem(storageKey);
     }
@@ -677,19 +677,19 @@ export default function AssociateDetails() {
               contributed: formatAssociateCurrency(totalContributions),
               returned: formatAssociateCurrency(totalCapitalReturned),
             }),
-            accent: 'teal',
+            accent: 'slate',
           },
           {
             id: 'contributions',
             label: tTerm('associateDetails.overview.metric.contributions'),
             value: formatAssociateCurrency(totalContributions),
-            accent: 'blue',
+            accent: 'slate',
           },
           {
             id: 'interest-paid',
             label: tTerm('associateDetails.overview.metric.interestPaid'),
             value: formatAssociateCurrency(totalInterestPaid),
-            accent: 'emerald',
+            accent: 'slate',
           },
           {
             id: 'interest-pending',
@@ -698,13 +698,13 @@ export default function AssociateDetails() {
             helper: interestDebt > 0
               ? tTerm('associateDetails.overview.metric.debtHelper.pending')
               : tTerm('associateDetails.overview.metric.debtHelper.none'),
-            accent: interestDebt > 0 ? 'amber' : 'slate',
+            accent: 'slate',
           },
           {
             id: 'capital-returned',
             label: tTerm('associateDetails.overview.metric.capitalReturned'),
             value: formatAssociateCurrency(totalCapitalReturned),
-            accent: 'rose',
+            accent: 'slate',
           },
           {
             id: 'next-payment',
@@ -758,6 +758,48 @@ export default function AssociateDetails() {
       )}
 
     </div>
+  );
+
+  const reinvestments = ((details as any)?.distributions || []).filter((entry: any) => entry.distributionType === 'reinvestment');
+  const reinvestmentContributionKeys = new Set(reinvestments.map((entry: any) => `${String(entry.distributionDate || '').slice(0, 10)}:${Number(entry.amount || 0)}`));
+  const capitalMovements = [
+    ...(contributions || []).filter((entry: any) => !reinvestmentContributionKeys.has(`${String(entry.contributionDate || '').slice(0, 10)}:${Number(entry.amount || 0)}`)).map((entry: any) => ({
+      ...entry,
+      movementType: 'contribution',
+      date: entry.contributionDate,
+    })),
+    ...reinvestments.map((entry: any) => ({ ...entry, movementType: 'reinvestment', date: entry.distributionDate })),
+    ...((details as any)?.capitalReturns || []).map((entry: any) => ({ ...entry, movementType: 'capital_return', date: entry.distributionDate })),
+  ].sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime());
+
+  const renderCapitalTab = () => (
+    <DataTableSurface>
+      <TableSectionIntro
+        embedded
+        title={tTerm('associateDetails.capital.title')}
+        description={tTerm('associateDetails.capital.description')}
+        aside={<p className="font-mono text-sm font-semibold tabular-nums text-text-primary">{formatAssociateCurrency(currentCapital)}</p>}
+      />
+      <AppTable
+        variant="operational"
+        hasData={capitalMovements.length > 0}
+        emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.capital.empty')}</div>}
+        recordsLabel={tTerm('associateDetails.capital.recordsLabel')}
+        className={TABLE_EMBEDDED_SHELL_CLASS}
+        surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
+      >
+        <thead><tr><th>{tTerm('associateDetails.capital.header.date')}</th><th>{tTerm('associateDetails.capital.header.type')}</th><th>{tTerm('associateDetails.capital.header.amount')}</th></tr></thead>
+        <tbody>
+          {capitalMovements.map((entry: any) => (
+            <tr key={`capital-${entry.movementType}-${entry.id}`}>
+              <td>{formatAssociateDate(entry.date)}</td>
+              <td>{entry.movementType === 'capital_return' ? tTerm('associateDetails.capital.type.return') : entry.movementType === 'reinvestment' ? tTerm('associateDetails.capital.type.reinvestment') : tTerm('associateDetails.capital.type.contribution')}</td>
+              <td className="font-mono font-semibold tabular-nums text-text-primary">{entry.movementType === 'capital_return' ? '−' : '+'}{formatAssociateCurrency(entry.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </AppTable>
+    </DataTableSurface>
   );
 
   const renderInstallmentsTab = () => (
@@ -1023,8 +1065,13 @@ export default function AssociateDetails() {
       label: tTerm('associateDetails.tab.overview'),
     },
     {
+      id: 'capital',
+      label: tTerm('associateDetails.tab.capital'),
+      count: capitalMovements.length,
+    },
+    {
       id: 'installments',
-      label: tTerm('associateDetails.tab.installments'),
+      label: tTerm('associateDetails.tab.profitability'),
       count: installmentsData.installments.length,
     },
     {
@@ -1094,6 +1141,7 @@ export default function AssociateDetails() {
       {/* Tab Content */}
       <div data-tour="associate-details-content">
         {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'capital' && renderCapitalTab()}
         {activeTab === 'installments' && renderInstallmentsTab()}
         {activeTab === 'calendar' && renderCalendarTab()}
       </div>

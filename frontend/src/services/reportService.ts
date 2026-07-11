@@ -370,55 +370,30 @@ export const useReports = () => {
 
 const normalizeDashboardData = (data: any) => {
   if (!data) return data;
-  if (data.metrics) {
-    return {
-      ...data,
-      metrics: {
-        ...data.metrics,
-        totalCustomers: toNumber(data.metrics.totalCustomers ?? data.summary?.totalCustomers),
-        totalFinalizedLoans: toNumber(data.metrics.totalFinalizedLoans ?? data.metrics.finalizedLoans ?? data.summary?.finalizedLoans ?? data.summary?.recoveredLoans),
-        totalOverdueLoans: toNumber(data.metrics.totalOverdueLoans ?? data.metrics.overdueLoans ?? data.summary?.overdueLoans ?? data.summary?.delinquentLoans),
-        totalPendingInstallments: toNumber(data.metrics.totalPendingInstallments ?? data.metrics.pendingInstallments ?? data.summary?.pendingInstallments),
-        totalOverdueInstallments: toNumber(data.metrics.totalOverdueInstallments ?? data.metrics.overdueInstallments ?? data.summary?.overdueInstallments),
-        totalInterestGenerated: toNumber(data.metrics.totalInterestGenerated ?? data.summary?.totalInterestGenerated),
-        totalInterestPaid: toNumber(data.metrics.totalInterestPaid ?? data.summary?.totalInterestPaid),
-        totalInterestPending: toNumber(data.metrics.totalInterestPending ?? data.summary?.totalInterestPending),
-        totalRecovered: toNumber(data.metrics.totalRecovered ?? data.summary?.totalRecoveredAmount),
-        totalCurrentLent: toNumber(data.metrics.totalCurrentLent ?? data.summary?.totalOutstandingPrincipal),
-        totalPendingCollection: toNumber(data.metrics.totalPendingCollection ?? data.summary?.totalOutstandingAmount),
-        recoveryRate: toNumber(data.metrics.recoveryRate ?? data.summary?.recoveryRate),
-        arrearsRate: toNumber(data.metrics.arrearsRate ?? data.summary?.arrearsRate),
-        totalAssociatePayments: toNumber(data.metrics.totalAssociatePayments ?? data.summary?.totalAssociatePayments),
-        availableCash: toNumber(data.metrics.availableCash ?? data.summary?.availableCash),
-        periodProfit: toNumber(data.metrics.periodProfit ?? data.summary?.periodProfit),
-        periodLoss: toNumber(data.metrics.periodLoss ?? data.summary?.periodLoss),
-      },
-    };
-  }
-
   return {
-    ...data,
-    metrics: {
-      totalCustomers: toNumber(data.summary?.totalCustomers),
-      totalActiveLoans: toNumber(data.summary?.activeLoans),
-      totalFinalizedLoans: toNumber(data.summary?.finalizedLoans ?? data.summary?.recoveredLoans),
-      totalOverdueLoans: toNumber(data.summary?.overdueLoans ?? data.summary?.delinquentLoans),
-      totalDisbursed: toNumber(data.summary?.totalPortfolioAmount),
-      totalRecovered: toNumber(data.summary?.totalRecoveredAmount),
-      totalCurrentLent: toNumber(data.summary?.totalOutstandingPrincipal),
-      totalPendingCollection: toNumber(data.summary?.totalOutstandingAmount),
-      totalInterestGenerated: toNumber(data.summary?.totalInterestGenerated),
-      totalInterestPaid: toNumber(data.summary?.totalInterestPaid),
-      totalInterestPending: toNumber(data.summary?.totalInterestPending),
-      totalAssociatePayments: toNumber(data.summary?.totalAssociatePayments),
-      totalPendingInstallments: toNumber(data.summary?.pendingInstallments),
-      totalOverdueInstallments: toNumber(data.summary?.overdueInstallments),
-      availableCash: toNumber(data.summary?.availableCash),
-      periodProfit: toNumber(data.summary?.periodProfit),
-      periodLoss: toNumber(data.summary?.periodLoss),
-      recoveryRate: toNumber(data.summary?.recoveryRate),
-      arrearsRate: toNumber(data.summary?.arrearsRate),
+    position: {
+      availableCash: toNumber(data.position?.availableCash),
+      receivables: toNumber(data.position?.receivables),
+      capitalPlaced: toNumber(data.position?.capitalPlaced),
+      associateCapital: toNumber(data.position?.associateCapital),
+      associateLiabilities: toNumber(data.position?.associateLiabilities),
     },
+    period: {
+      collections: toNumber(data.period?.collections),
+      disbursements: toNumber(data.period?.disbursements),
+      operatingExpenses: toNumber(data.period?.operatingExpenses),
+      associatePayments: toNumber(data.period?.associatePayments),
+      netResult: toNumber(data.period?.netResult),
+    },
+    risk: {
+      delinquentLoans: toNumber(data.risk?.delinquentLoans),
+      capitalAtRisk: toNumber(data.risk?.capitalAtRisk),
+      overdueAssociateObligations: toNumber(data.risk?.overdueAssociateObligations),
+      overdueAssociateAmount: toNumber(data.risk?.overdueAssociateAmount),
+      arrearsRate: toNumber(data.risk?.arrearsRate),
+    },
+    context: data.context || {},
+    trend: Array.isArray(data.trend) ? data.trend : [],
   };
 };
 

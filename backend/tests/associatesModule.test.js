@@ -311,6 +311,7 @@ test('createCreateAssociate rejects removed associate contract fields', async ()
 test('createCreateAssociate records initial capital and schedules the first monthly interest payment', async () => {
   const calls = [];
   const createAssociate = createCreateAssociate({
+    clock: () => new Date('2026-07-11T04:30:00.000Z'),
     associateRepository: {
       async findConflictingContact() {
         return null;
@@ -354,6 +355,7 @@ test('createCreateAssociate records initial capital and schedules the first mont
   assert.equal(calls[1][1].createdByUserId, 7);
   assert.equal(calls[1][1].interestTypeSnapshot, 'monthly');
   assert.equal(calls[1][1].interestRateSnapshot, '2.5000');
+  assert.equal(calls[1][1].contributionDate.toISOString().slice(0, 10), '2026-07-10');
   assert.equal(calls[2][0], 'createInstallment');
   assert.equal(calls[2][1].amount, 50000);
   assert.equal(calls[2][1].capitalBase, 2000000);

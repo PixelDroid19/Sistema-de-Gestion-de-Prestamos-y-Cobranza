@@ -4,35 +4,16 @@ import Dashboard, { buildDashboardMonthlyChartData } from '../Dashboard';
 
 let reportsState = {
   dashboardData: {
-    summary: {
-      totalOutstandingAmount: 950000,
-      totalLoans: 3,
-      activeLoans: 2,
-      delinquentLoans: 1,
-      defaultedLoans: 0,
-      totalRecoveredAmount: 240000,
-    },
-    collections: {
-      overdueAlerts: 4,
-      pendingPromises: 2,
-    },
-    monthlyPerformance: [
+    position: { availableCash: 120000, receivables: 950000, capitalPlaced: 800000, associateCapital: 500000, associateLiabilities: 35000 },
+    period: { collections: 240000, disbursements: 100000, operatingExpenses: 20000, associatePayments: 30000, netResult: 90000 },
+    risk: { delinquentLoans: 1, capitalAtRisk: 180000, overdueAssociateObligations: 2, overdueAssociateAmount: 25000, arrearsRate: 33.33 },
+    trend: [
       {
         month: '2026-05',
         disbursed: 100000,
         recovered: 45000,
       },
     ],
-    recentActivity: {
-      loans: [
-        {
-          id: 11,
-          amount: 100000,
-          totalPaid: 45000,
-          customerName: 'QA Diana',
-        },
-      ],
-    },
   },
   isLoading: false,
   isError: false,
@@ -89,35 +70,16 @@ describe('Dashboard behavior', () => {
     localStorage.clear();
     reportsState = {
       dashboardData: {
-        summary: {
-          totalOutstandingAmount: 950000,
-          totalLoans: 3,
-          activeLoans: 2,
-          delinquentLoans: 1,
-          defaultedLoans: 0,
-          totalRecoveredAmount: 240000,
-        },
-        collections: {
-          overdueAlerts: 4,
-          pendingPromises: 2,
-        },
-        monthlyPerformance: [
+        position: { availableCash: 120000, receivables: 950000, capitalPlaced: 800000, associateCapital: 500000, associateLiabilities: 35000 },
+        period: { collections: 240000, disbursements: 100000, operatingExpenses: 20000, associatePayments: 30000, netResult: 90000 },
+        risk: { delinquentLoans: 1, capitalAtRisk: 180000, overdueAssociateObligations: 2, overdueAssociateAmount: 25000, arrearsRate: 33.33 },
+        trend: [
           {
             month: '2026-05',
             disbursed: 100000,
             recovered: 45000,
           },
         ],
-        recentActivity: {
-          loans: [
-            {
-              id: 11,
-              amount: 100000,
-              totalPaid: 45000,
-              customerName: 'QA Diana',
-            },
-          ],
-        },
       },
       isLoading: false,
       isError: false,
@@ -163,39 +125,21 @@ describe('Dashboard behavior', () => {
     ]);
   });
 
-  it('uses terminology labels in dashboard widgets and chart legends', () => {
+  it('keeps every critical financial section visible and uses operational terminology', () => {
     renderDashboard();
 
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Resumen operativo de la cartera.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Bloques' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reordenar panel' })).toBeInTheDocument();
-    expect(screen.getByText('Balance total')).toBeInTheDocument();
-    expect(screen.getByText('Créditos activos')).toBeInTheDocument();
-    expect(screen.getAllByText('Recuperado vs desembolsado')).toHaveLength(2);
-    expect(screen.getByText('Desembolsado y recuperado por mes')).toBeInTheDocument();
-    expect(screen.getByLabelText('Resume por mes cuánto capital salió en desembolsos y cuánto dinero volvió por pagos registrados.')).toBeInTheDocument();
-    expect(screen.getByText('1 en mora')).toBeInTheDocument();
-    expect(screen.getByText('33%')).toBeInTheDocument();
-
-    const areaSeries = screen.getAllByTestId('area-series').map((node) => node.textContent);
+    expect(screen.getByText('Posición financiera, operación del periodo y riesgos que requieren atención.')).toBeInTheDocument();
+    expect(screen.getByText('Posición actual')).toBeInTheDocument();
+    expect(screen.getByText('Operación acumulada')).toBeInTheDocument();
+    expect(screen.getByText('Riesgo operativo')).toBeInTheDocument();
+    expect(screen.getByText('Capital de socios')).toBeInTheDocument();
+    expect(screen.getByText('Intereses por pagar a socios')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Bloques' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reordenar panel' })).not.toBeInTheDocument();
     const barSeries = screen.getAllByTestId('bar-series').map((node) => node.textContent);
-
-    expect(areaSeries).toContain('Desembolsado|disbursed');
-    expect(barSeries).toContain('Recuperado|recovered');
-    expect(barSeries).toContain('Desembolsado|disbursed');
-  });
-
-  it('uses translated tooltip copy in dashboard widgets', () => {
-    localStorage.setItem('app.locale', 'en');
-
-    renderDashboard();
-
-    expect(screen.getByLabelText('Total outstanding portfolio balance. Summarizes principal and amounts to recover across registered loans.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Loans that remain open and may require follow-up, collection, or operational review.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Percentage of overdue loans compared with total loans. Helps measure collection risk.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Summarizes by month how much principal went out in disbursements and how much money returned through recorded payments.')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Resume por mes cuánto capital salió en desembolsos y cuánto dinero volvió por pagos registrados.')).not.toBeInTheDocument();
+    expect(barSeries).toContain('Recaudo|recovered');
+    expect(barSeries).toContain('Desembolsos|disbursed');
   });
 
   it('shows explicit error state instead of silent zero metrics', () => {

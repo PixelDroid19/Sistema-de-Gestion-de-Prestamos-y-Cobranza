@@ -9,6 +9,7 @@ const {
   PromiseToPay,
   Notification,
   OperatingExpense,
+  AssociateContribution,
   AssociateInstallment,
   ProfitDistribution,
   User,
@@ -123,7 +124,7 @@ const reportRepository = {
     });
   },
   async getDashboardSummary() {
-    const [loans, payments, alerts, promises, recentNotifications, totalCustomers, operatingExpenses, paidAssociateInstallments, associateDistributions] = await Promise.all([
+    const [loans, payments, alerts, promises, recentNotifications, totalCustomers, operatingExpenses, associateInstallments, associateContributions, associateDistributions] = await Promise.all([
       Loan.findAll({ include: reportIncludes, order: [['updatedAt', 'DESC']] }),
       Payment.findAll({ order: [['paymentDate', 'DESC'], ['createdAt', 'DESC']] }),
       LoanAlert.findAll({ where: { status: 'active' }, order: [['dueDate', 'ASC'], ['createdAt', 'DESC']], limit: 10 }),
@@ -131,7 +132,8 @@ const reportRepository = {
       Notification.findAll({ include: [{ model: User, attributes: ['id', 'name', 'email', 'role'] }], order: [['createdAt', 'DESC']], limit: 10 }),
       Customer.count(),
       OperatingExpense.findAll({ where: { status: 'completed' }, order: [['expenseDate', 'DESC'], ['createdAt', 'DESC']], limit: 5000 }),
-      AssociateInstallment.findAll({ where: { status: 'paid' }, order: [['paidAt', 'DESC'], ['createdAt', 'DESC']], limit: 5000 }),
+      AssociateInstallment.findAll({ order: [['dueDate', 'DESC'], ['createdAt', 'DESC']], limit: 5000 }),
+      AssociateContribution.findAll({ order: [['contributionDate', 'DESC'], ['createdAt', 'DESC']], limit: 5000 }),
       ProfitDistribution.findAll({ order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']], limit: 5000 }),
     ]);
 
@@ -143,8 +145,14 @@ const reportRepository = {
       notifications: recentNotifications,
       totalCustomers,
       operatingExpenses,
+      associateContributions,
+      associateCapitalReturns: associateDistributions.filter((distribution) => {
+        const row = toPlainRecord(distribution);
+        return row?.basis?.type === 'capital-return';
+      }),
+      associateObligations: associateInstallments.filter((installment) => ['pending', 'overdue'].includes(toPlainRecord(installment).status)),
       associatePayments: [
-        ...paidAssociateInstallments,
+        ...associateInstallments.filter((installment) => toPlainRecord(installment).status === 'paid'),
         ...associateDistributions.filter((distribution) => {
           const serializedDistribution = typeof distribution?.toJSON === 'function' ? distribution.toJSON() : distribution;
           return serializedDistribution?.basis?.type !== 'reinvestment';

@@ -12,19 +12,28 @@ export type AssociateInstallmentPaymentPayload = {
 const downloadAssociateExport = async ({
   search,
   status,
-}: { search?: string; status?: string } = {}): Promise<void> => {
+  fromDate,
+  toDate,
+  format = 'xlsx',
+}: { search?: string; status?: string; fromDate?: string; toDate?: string; format?: 'xlsx' | 'pdf' } = {}): Promise<void> => {
   const response = await apiClient.get('/associates/export', {
     responseType: 'blob',
-    params: { search, status },
+    params: {
+      search,
+      status,
+      ...(fromDate ? { fromDate } : {}),
+      ...(toDate ? { toDate } : {}),
+      ...(format === 'pdf' ? { format } : {}),
+    },
   });
 
   const blob = new Blob([response.data], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    type: format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const objectUrl = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = objectUrl;
-  link.download = 'associates-export.xlsx';
+  link.download = `associate-movements.${format}`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

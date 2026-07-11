@@ -10,6 +10,7 @@ const {
   Customer,
   Payment,
   OperatingExpense,
+  AssociateContribution,
   AssociateInstallment,
   ProfitDistribution,
   LoanAlert,
@@ -84,6 +85,7 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   const originalPaymentFindAll = Payment.findAll;
   const originalOperatingExpenseFindAll = OperatingExpense.findAll;
   const originalAssociateInstallmentFindAll = AssociateInstallment.findAll;
+  const originalAssociateContributionFindAll = AssociateContribution.findAll;
   const originalProfitDistributionFindAll = ProfitDistribution.findAll;
 
   t.after(() => {
@@ -91,6 +93,7 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
     Payment.findAll = originalPaymentFindAll;
     OperatingExpense.findAll = originalOperatingExpenseFindAll;
     AssociateInstallment.findAll = originalAssociateInstallmentFindAll;
+    AssociateContribution.findAll = originalAssociateContributionFindAll;
     ProfitDistribution.findAll = originalProfitDistributionFindAll;
   });
 
@@ -177,6 +180,7 @@ test('reportRepository getDashboardSummary includes paid associate movements and
   Notification.findAll = async () => [];
   Customer.count = async () => 0;
   OperatingExpense.findAll = async () => [];
+  AssociateContribution.findAll = async () => [];
   AssociateInstallment.findAll = async (query) => {
     capturedInstallmentQuery = query;
     return paidInstallmentRows;
@@ -189,7 +193,7 @@ test('reportRepository getDashboardSummary includes paid associate movements and
   const dataset = await reportRepository.getDashboardSummary();
 
   assert.deepEqual(dataset.associatePayments, [paidInstallmentRows[0], distributionRows[0]]);
-  assert.equal(capturedInstallmentQuery.where.status, 'paid');
+  assert.equal(capturedInstallmentQuery.where, undefined);
   assert.equal(capturedInstallmentQuery.limit, 5000);
   assert.equal(capturedDistributionQuery.limit, 5000);
 });

@@ -38,13 +38,14 @@ import OutstandingTab from './reports/OutstandingTab';
 import OperatingExpensesTab from './reports/OperatingExpensesTab';
 import PayoutsTab from './reports/PayoutsTab';
 import ReportsTabContent from './reports/ReportsTabContent';
+import AssociateMovementsTab from './reports/AssociateMovementsTab';
 import {
   buildContextualExportParams,
   hasInvalidExportRange,
   parseOptionalPositiveId,
 } from './reports/reportsExportHelpers';
 
-const PRIMARY_REPORT_TAB_IDS = ['cashflow', 'creditHistory', 'payouts', 'outstanding', 'expenses'] as const;
+const PRIMARY_REPORT_TAB_IDS = ['cashflow', 'creditHistory', 'payouts', 'outstanding', 'associates', 'expenses'] as const;
 type PrimaryReportTab = typeof PRIMARY_REPORT_TAB_IDS[number];
 const isPrimaryReportTab = (tabId: string): tabId is PrimaryReportTab => (
   PRIMARY_REPORT_TAB_IDS.includes(tabId as PrimaryReportTab)
@@ -302,6 +303,7 @@ export default function Reports() {
         { id: 'creditHistory', label: tTerm('reports.tab.creditHistory'), title: tTerm('reports.tab.creditHistory.title') },
         { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
         { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
+        { id: 'associates', label: tTerm('reports.tab.associates'), title: tTerm('reports.tab.associates.title') },
       ],
     },
   ], []);
@@ -466,6 +468,8 @@ export default function Reports() {
           ) : null}
         />
       )}
+
+      {activeTab === 'associates' && <AssociateMovementsTab />}
 
       {canViewOperatingExpensesTab && activeTab === 'expenses' && (
         <OperatingExpensesTab

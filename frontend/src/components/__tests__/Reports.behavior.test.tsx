@@ -515,18 +515,18 @@ describe('Reports operational module', () => {
     paymentCalendarOverviewState = createDefaultPaymentCalendarOverviewState();
   });
 
-  it('renders a single operational catalog and keeps partner reporting out of credit reports', () => {
+  it('renders one operational catalog including the canonical associate report', () => {
     renderReports();
 
     expect(screen.getByRole('heading', { name: 'Reportes operativos' })).toBeInTheDocument();
     expect(screen.queryByText('Informes operativos')).not.toBeInTheDocument();
     expect(screen.queryByText('Elige el informe que necesitas')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('tab')).toHaveLength(4);
+    expect(screen.getAllByRole('tab')).toHaveLength(5);
     expect(screen.getByRole('tab', { name: 'Cierre contable' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Créditos del período' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Cartera por cobrar' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Socios inversionistas' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Movimientos de socios' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Desembolsos' })).not.toBeInTheDocument();

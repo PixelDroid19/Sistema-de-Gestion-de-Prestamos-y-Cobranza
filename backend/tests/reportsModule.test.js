@@ -235,6 +235,9 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
           notifications: [{ id: 5, isRead: false }],
           operatingExpenses: [{ id: 6, amount: 15, status: 'completed' }],
           associatePayments: [{ id: 7, amount: 30, status: 'paid' }],
+          associateContributions: [{ id: 8, amount: 500, status: 'completed' }],
+          associateCapitalReturns: [{ id: 9, amount: 100, basis: { type: 'capital-return' } }],
+          associateObligations: [{ id: 10, amount: 45, status: 'pending', dueDate: '2024-01-05T00:00:00.000Z' }],
         };
       },
     },
@@ -262,29 +265,29 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
 
   const summary = await getDashboardSummary({ actor: { id: 1, role: 'admin' } });
 
-  assert.equal(summary.data.summary.totalLoans, 1);
-  assert.equal(summary.data.summary.delinquentLoans, 1);
-  assert.equal(summary.data.summary.defaultedLoans, 0);
-  assert.equal(summary.data.summary.totalCustomers, 3);
-  assert.equal(summary.data.summary.finalizedLoans, 0);
-  assert.equal(summary.data.summary.pendingInstallments, 1);
-  assert.equal(summary.data.summary.overdueInstallments, 1);
-  assert.equal(summary.data.summary.totalRecoveredAmount, '60.00');
-  assert.equal(summary.data.summary.totalOutstandingPrincipal, '1040.00');
-  assert.equal(summary.data.summary.totalInterestGenerated, '180.00');
-  assert.equal(summary.data.summary.totalInterestPaid, '35.00');
-  assert.equal(summary.data.summary.totalInterestPending, '145.00');
-  assert.equal(summary.data.summary.recoveryRate, '5.00%');
-  assert.equal(summary.data.summary.arrearsRate, '100.00%');
-  assert.equal(summary.data.summary.totalAssociatePayments, '30.00');
-  assert.equal(summary.data.summary.availableCash, '-1145.00');
-  assert.equal(summary.data.summary.periodProfit, '-5.00');
-  assert.equal(summary.data.summary.periodLoss, '0.00');
-  assert.equal(summary.data.collections.overdueAlerts, 1);
-  assert.equal(summary.data.collections.unreadNotifications, 1);
-  assert.ok(summary.data.monthlyPerformance.length >= 12);
-  assert.equal(summary.data.monthlyPerformance.some((entry) => entry.month === '2024-01'), true);
-  assert.equal(summary.data.monthlyPerformance.some((entry) => entry.month === '2024-02'), true);
+  assert.deepEqual(summary.data.position, {
+    availableCash: '-1145.00',
+    receivables: '1100.00',
+    capitalPlaced: '1040.00',
+    associateCapital: '400.00',
+    associateLiabilities: '45.00',
+  });
+  assert.equal(summary.data.period.collections, '100.00');
+  assert.equal(summary.data.period.disbursements, '1200.00');
+  assert.equal(summary.data.period.operatingExpenses, '15.00');
+  assert.equal(summary.data.period.associatePayments, '30.00');
+  assert.equal(summary.data.period.netResult, '-1145.00');
+  assert.equal(summary.data.risk.delinquentLoans, 1);
+  assert.equal(summary.data.risk.capitalAtRisk, '1040.00');
+  assert.equal(summary.data.risk.overdueAssociateObligations, 1);
+  assert.equal(summary.data.risk.overdueAssociateAmount, '45.00');
+  assert.equal(summary.data.risk.arrearsRate, '100.00');
+  assert.equal(summary.data.context.totalCustomers, 3);
+  assert.equal(summary.data.context.pendingLoanInstallments, 1);
+  assert.equal(summary.data.context.overdueLoanInstallments, 1);
+  assert.ok(summary.data.trend.length >= 12);
+  assert.equal(summary.data.trend.some((entry) => entry.month === '2024-01'), true);
+  assert.equal(summary.data.trend.some((entry) => entry.month === '2024-02'), true);
 
   const degradedGetDashboardSummary = createGetDashboardSummary({
     reportRepository: {
@@ -309,8 +312,9 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
   });
 
   const degraded = await degradedGetDashboardSummary({ actor: { id: 1, role: 'admin' } });
-  assert.equal(degraded.data.summary.totalLoans, 0);
-  assert.deepEqual(degraded.data.recentActivity.loans, []);
+  assert.equal(degraded.data.position.availableCash, '0.00');
+  assert.equal(degraded.data.risk.delinquentLoans, 0);
+  assert.deepEqual(degraded.data.trend, []);
 });
 
 test('createGetCustomerHistory returns normalized chronological history segments', async () => {

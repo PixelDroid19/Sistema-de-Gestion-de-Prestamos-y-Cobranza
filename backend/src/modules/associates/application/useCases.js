@@ -26,6 +26,17 @@ const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const ASSOCIATE_CURRENCY_FIELD_LABELS = {
   initialCapital: 'El capital inicial',
 };
+
+const getCurrentLocalDateOnly = (now = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
+};
 const ASSOCIATE_DATE_FIELD_LABELS = {
   contributionDate: 'La fecha del aporte',
   distributionDate: 'La fecha de distribución',
@@ -903,7 +914,7 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination, f
  * @param {{ associateRepository: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createCreateAssociate = ({ associateRepository, auditService }) => {
+const createCreateAssociate = ({ associateRepository, auditService, clock = () => new Date() }) => {
   const useCase = async ({ actor, payload }) => {
     const normalizedPayload = normalizeAssociatePayload(payload);
     const initialCapital = parseCurrencyAmount(payload.initialCapital, 'initialCapital');
@@ -917,7 +928,7 @@ const createCreateAssociate = ({ associateRepository, auditService }) => {
     const createAssociateWithFinancialTrace = async (transaction) => {
       const associate = await associateRepository.create(normalizedPayload, { transaction });
       if (initialCapital !== null) {
-        const operationDate = new Date();
+        const operationDate = getCurrentLocalDateOnly(clock());
         await associateRepository.createContribution({
           associateId: associate.id,
           amount: initialCapital,

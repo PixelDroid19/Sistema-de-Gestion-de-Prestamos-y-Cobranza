@@ -130,44 +130,35 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
 
   const emptyResponse = {
     success: true,
-      data: {
-        summary: {
-          totalLoans: 0,
-          activeLoans: 0,
-          delinquentLoans: 0,
-          defaultedLoans: 0,
-          recoveredLoans: 0,
-          totalCustomers: 0,
-          finalizedLoans: 0,
-          overdueLoans: 0,
-          pendingInstallments: 0,
-          overdueInstallments: 0,
-        totalPortfolioAmount: '0.00',
-        totalRecoveredAmount: '0.00',
-        totalOutstandingAmount: '0.00',
-        totalOutstandingPrincipal: '0.00',
-        totalInterestGenerated: '0.00',
-        totalInterestPaid: '0.00',
-        totalInterestPending: '0.00',
-        recoveryRate: '0.00%',
-        arrearsRate: '0.00%',
-        totalAssociatePayments: '0.00',
+    data: {
+      position: {
         availableCash: '0.00',
-        periodProfit: '0.00',
-        periodLoss: '0.00',
+        receivables: '0.00',
+        capitalPlaced: '0.00',
+        associateCapital: '0.00',
+        associateLiabilities: '0.00',
       },
-      collections: {
-        overdueAlerts: 0,
-        pendingPromises: 0,
-        unreadNotifications: 0,
+      period: {
+        collections: '0.00',
+        disbursements: '0.00',
+        operatingExpenses: '0.00',
+        associatePayments: '0.00',
+        netResult: '0.00',
       },
-      recentActivity: {
-        loans: [],
-        payments: [],
-        alerts: [],
-        promises: [],
-        notifications: [],
+      risk: {
+        delinquentLoans: 0,
+        capitalAtRisk: '0.00',
+        overdueAssociateObligations: 0,
+        overdueAssociateAmount: '0.00',
+        arrearsRate: '0.00',
       },
+      context: {
+        totalCustomers: 0,
+        activeLoans: 0,
+        pendingLoanInstallments: 0,
+        overdueLoanInstallments: 0,
+      },
+      trend: [],
     },
   };
 
@@ -197,6 +188,21 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     const totalPenaltyPaid = completedPayments.reduce((sum, payment) => sum + toFiniteNumber(payment.penaltyApplied), 0);
     const totalOperatingExpenses = (dashboard.operatingExpenses || []).reduce((sum, expense) => sum + toFiniteNumber(expense.amount), 0);
     const totalAssociatePayments = (dashboard.associatePayments || []).reduce((sum, payment) => sum + toFiniteNumber(payment.amount), 0);
+    const totalAssociateContributions = (dashboard.associateContributions || [])
+      .filter((contribution) => contribution.status === 'completed')
+      .reduce((sum, contribution) => sum + toFiniteNumber(contribution.amount), 0);
+    const totalAssociateCapitalReturns = (dashboard.associateCapitalReturns || [])
+      .reduce((sum, distribution) => sum + toFiniteNumber(distribution.amount), 0);
+    const openAssociateObligations = (dashboard.associateObligations || [])
+      .filter((installment) => ['pending', 'overdue'].includes(installment.status));
+    const associateLiabilities = openAssociateObligations
+      .reduce((sum, installment) => sum + toFiniteNumber(installment.amount), 0);
+    const now = new Date();
+    const overdueAssociateObligations = openAssociateObligations.filter((installment) => {
+      if (installment.status === 'overdue') return true;
+      const dueDate = new Date(installment.dueDate);
+      return Number.isFinite(dueDate.getTime()) && dueDate < now;
+    });
     // Delinquency is derived live from the canonical schedule (consistent with the
     // credits list/calendar and profitability), not from stale active-alert rows.
     const delinquentLoanCount = loansWithDetails.filter((loan) => loan.isOverdue).length;
@@ -216,52 +222,50 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     const arrearsRate = totalOpenPortfolioLoans > 0
       ? (delinquentLoanCount / totalOpenPortfolioLoans) * 100
       : 0;
-    const periodProfit = totalInterestPaid + totalPenaltyPaid - totalAssociatePayments - totalOperatingExpenses;
-    const periodLoss = loansWithDetails
-      .filter((loan) => loan.status === 'defaulted')
-      .reduce((sum, loan) => sum + Number(loan.outstandingAmount || 0), 0);
+    const availableCash = totalPaymentInflow - totalPortfolioAmount - totalAssociatePayments - totalOperatingExpenses;
+    const capitalAtRisk = loansWithDetails
+      .filter((loan) => loan.isOverdue)
+      .reduce((sum, loan) => sum + Number(loan.outstandingPrincipalAmount || 0), 0);
 
     return {
       success: true,
       data: {
-        summary: {
-          totalLoans: loansWithDetails.length,
-          activeLoans: loansWithDetails.filter((loan) => ['approved', 'active'].includes(loan.status)).length,
+        position: {
+          availableCash: availableCash.toFixed(2),
+          receivables: totalOutstandingAmount.toFixed(2),
+          capitalPlaced: totalOutstandingPrincipal.toFixed(2),
+          associateCapital: Math.max(0, totalAssociateContributions - totalAssociateCapitalReturns).toFixed(2),
+          associateLiabilities: associateLiabilities.toFixed(2),
+        },
+        period: {
+          collections: totalPaymentInflow.toFixed(2),
+          disbursements: totalPortfolioAmount.toFixed(2),
+          operatingExpenses: totalOperatingExpenses.toFixed(2),
+          associatePayments: totalAssociatePayments.toFixed(2),
+          netResult: availableCash.toFixed(2),
+        },
+        risk: {
           delinquentLoans: delinquentLoanCount,
-          overdueLoans: delinquentLoanCount,
-          defaultedLoans: loansWithDetails.filter((loan) => loan.status === 'defaulted').length,
-          recoveredLoans: loansWithDetails.filter((loan) => loan.recoveryBucket === 'recovered').length,
-          finalizedLoans,
+          capitalAtRisk: capitalAtRisk.toFixed(2),
+          overdueAssociateObligations: overdueAssociateObligations.length,
+          overdueAssociateAmount: overdueAssociateObligations
+            .reduce((sum, installment) => sum + toFiniteNumber(installment.amount), 0)
+            .toFixed(2),
+          arrearsRate: arrearsRate.toFixed(2),
+        },
+        context: {
           totalCustomers: Number(dashboard.totalCustomers || 0),
-          pendingInstallments: installmentStatus.pendingInstallments,
-          overdueInstallments: installmentStatus.overdueInstallments,
-          totalPortfolioAmount: totalPortfolioAmount.toFixed(2),
-          totalRecoveredAmount: totalPrincipalRecovered.toFixed(2),
-          totalOutstandingAmount: totalOutstandingAmount.toFixed(2),
-          totalOutstandingPrincipal: totalOutstandingPrincipal.toFixed(2),
-          totalInterestGenerated: totalInterestGenerated.toFixed(2),
-          totalInterestPaid: totalInterestPaid.toFixed(2),
-          totalInterestPending: Math.max(0, totalInterestGenerated - totalInterestPaid).toFixed(2),
-          recoveryRate: `${recoveryRate.toFixed(2)}%`,
-          arrearsRate: `${arrearsRate.toFixed(2)}%`,
-          totalAssociatePayments: totalAssociatePayments.toFixed(2),
-          availableCash: (totalPaymentInflow - totalPortfolioAmount - totalAssociatePayments - totalOperatingExpenses).toFixed(2),
-          periodProfit: periodProfit.toFixed(2),
-          periodLoss: periodLoss.toFixed(2),
+          activeLoans: totalOpenPortfolioLoans,
+          finalizedLoans,
+          pendingLoanInstallments: installmentStatus.pendingInstallments,
+          overdueLoanInstallments: installmentStatus.overdueInstallments,
+          principalRecovered: totalPrincipalRecovered.toFixed(2),
+          interestGenerated: totalInterestGenerated.toFixed(2),
+          interestPaid: totalInterestPaid.toFixed(2),
+          penaltyPaid: totalPenaltyPaid.toFixed(2),
+          recoveryRate: recoveryRate.toFixed(2),
         },
-        monthlyPerformance,
-        collections: {
-          overdueAlerts: (dashboard.alerts || []).length,
-          pendingPromises: (dashboard.promises || []).filter((promise) => promise.status === 'pending').length,
-          unreadNotifications: (dashboard.notifications || []).filter((notification) => !notification.isRead).length,
-        },
-        recentActivity: {
-          loans: loansWithDetails.slice(0, 5),
-          payments: (dashboard.payments || []).slice(0, 5),
-          alerts: (dashboard.alerts || []).slice(0, 5),
-          promises: (dashboard.promises || []).slice(0, 5),
-          notifications: (dashboard.notifications || []).slice(0, 5),
-        },
+        trend: monthlyPerformance,
       },
     };
   } catch (error) {
