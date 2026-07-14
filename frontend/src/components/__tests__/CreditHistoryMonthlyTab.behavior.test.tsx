@@ -31,8 +31,6 @@ describe('CreditHistoryMonthlyTab behavior', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
-
     expect(screen.queryByPlaceholderText('ID cliente')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Número de cliente')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Clientes para filtrar' })).toBeInTheDocument();

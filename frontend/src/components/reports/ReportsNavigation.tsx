@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
-import { ViewTabs } from '../shared/Surfaces';
+import { useId, type ReactNode } from 'react';
+import { OperationalSelect } from '../shared/Surfaces';
+import { tTerm } from '../../i18n/terminology';
 
 export type ReportLeaf = {
   id: string;
@@ -32,17 +33,45 @@ export default function ReportsNavigation({
   tools,
   'data-tour': dataTour,
 }: ReportsNavigationProps) {
-  const reports = groups.flatMap((group) => group.leaves);
+  const selectId = useId();
+  const activeGroup = groups.find((group) => group.leaves.some((leaf) => leaf.id === activeTab)) || groups[0];
+
+  if (!activeGroup) {
+    return null;
+  }
 
   return (
     <section className="reports-module-nav" aria-label={primaryAriaLabel} data-tour={dataTour}>
-      <ViewTabs
-        className="reports-module-nav__tabs"
-        tabs={reports.map((leaf) => ({ id: leaf.id, label: leaf.label, title: leaf.title }))}
-        activeTab={activeTab}
-        onChange={onChange}
-        ariaLabel={primaryAriaLabel}
-      />
+      <div className="reports-module-nav__categories" role="radiogroup" aria-label={tTerm('reports.categories.aria')}>
+        {groups.map((group) => (
+          <label key={group.id} className="reports-module-nav__category">
+            <input
+              type="radio"
+              name="report-category"
+              value={group.id}
+              checked={group.id === activeGroup.id}
+              onChange={() => onChange(group.leaves[0].id)}
+            />
+            <span>{group.label}</span>
+          </label>
+        ))}
+      </div>
+      <div className="reports-module-nav__query">
+        <label className="reports-module-nav__select-label" htmlFor={selectId}>
+          {tTerm('reports.selector.label')}
+        </label>
+        <OperationalSelect
+          id={selectId}
+          value={activeTab}
+          onChange={(event) => onChange(event.target.value)}
+          className="reports-module-nav__select"
+        >
+          {activeGroup.leaves.map((leaf) => (
+            <option key={leaf.id} value={leaf.id}>{leaf.label}</option>
+          ))}
+        </OperationalSelect>
+        {activeGroup.title ? <p className="reports-module-nav__description">{activeGroup.title}</p> : null}
+      </div>
       {tools ? (
         <div className="reports-module-nav__tools">
           {tools}

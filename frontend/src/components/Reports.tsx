@@ -38,7 +38,7 @@ import OperatingExpensesTab from './reports/OperatingExpensesTab';
 import PayoutsTab from './reports/PayoutsTab';
 import ReportsTabContent from './reports/ReportsTabContent';
 import AssociateMovementsTab from './reports/AssociateMovementsTab';
-import { ReportDownloadControl } from './reports/ReportDownloadModal';
+import { ReportDownloadActions } from './reports/ReportDownloadModal';
 import {
   buildContextualExportParams,
   hasInvalidExportRange,
@@ -295,15 +295,29 @@ export default function Reports() {
 
   const reportGroups = useMemo<ReportGroup[]>(() => [
     {
-      id: 'operational',
-      label: tTerm('reports.group.operational'),
-      title: tTerm('reports.group.operational.title'),
+      id: 'commercial',
+      label: tTerm('reports.group.commercial'),
+      title: tTerm('reports.group.commercial.title'),
       leaves: [
-        { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
         { id: 'creditHistory', label: tTerm('reports.tab.creditHistory'), title: tTerm('reports.tab.creditHistory.title') },
         { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
         { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
+      ],
+    },
+    {
+      id: 'statistical',
+      label: tTerm('reports.group.statistical'),
+      title: tTerm('reports.group.statistical.title'),
+      leaves: [
         { id: 'associates', label: tTerm('reports.tab.associates'), title: tTerm('reports.tab.associates.title') },
+      ],
+    },
+    {
+      id: 'accounting',
+      label: tTerm('reports.group.accounting'),
+      title: tTerm('reports.group.accounting.title'),
+      leaves: [
+        { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
         ...(canViewOperatingExpensesTab
           ? [{ id: 'expenses', label: tTerm('reports.tab.expenses'), title: tTerm('reports.expenses.subtitle') }]
           : []),
@@ -350,9 +364,7 @@ export default function Reports() {
           data={creditHistoryData}
           isLoading={isCreditHistoryLoading}
           exportActions={reportExportGuard.visible ? (
-            <ReportDownloadControl
-              title={tTerm('reports.download.creditHistory.title')}
-              subtitle={tTerm('reports.download.creditHistory.subtitle')}
+            <ReportDownloadActions
               isExporting={isExporting}
               disabled={creditHistoryExportBlocked}
               disabledReason={hasInvalidExportRange(creditHistoryFilters.startDate, creditHistoryFilters.endDate)
@@ -370,9 +382,7 @@ export default function Reports() {
           isLoading={isOutstandingLoading}
           isError={isOutstandingError}
           exportActions={reportExportGuard.visible ? (
-            <ReportDownloadControl
-              title={tTerm('reports.download.outstanding.title')}
-              subtitle={tTerm('reports.download.outstanding.subtitle')}
+            <ReportDownloadActions
               isExporting={isOutstandingExporting !== null}
               disabled={!reportExportGuard.executable}
               disabledReason={reportExportGuard.reason || tTerm('credits.action.unavailable')}
@@ -396,9 +406,7 @@ export default function Reports() {
           isPayoutsLoading={isPayoutsLoading}
           canFilterByEmployee={canFilterExpensesByEmployee}
           exportActions={reportExportGuard.visible ? (
-            <ReportDownloadControl
-              title={tTerm('reports.download.payouts.title')}
-              subtitle={tTerm('reports.download.payouts.subtitle')}
+            <ReportDownloadActions
               isExporting={isExporting}
               disabled={payoutExportBlocked}
               disabledReason={hasInvalidExportRange(payoutFilters.fromDate || '', payoutFilters.toDate || '')

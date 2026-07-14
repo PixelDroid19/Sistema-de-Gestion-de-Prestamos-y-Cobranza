@@ -102,6 +102,7 @@ test('destructive support scripts require explicit operator confirmation', () =>
   const resetLocalDbSource = supportScript('scripts/resetLocalDb.js');
   const resetQaCredentialsSource = supportScript('scripts/resetQaCredentials.js');
   const resetProductionQaDatasetSource = supportScript('scripts/resetProductionQaDataset.js');
+  const resetProductionEmptyDatasetSource = supportScript('scripts/resetProductionEmptyDataset.js');
 
   assert.match(clearRateSource, /require\(['"]dotenv['"]\)\.config\(\{ quiet: true \}\)/);
   assert.match(clearRateSource, /CLEAR_AUTH_RATE_LIMIT_CONFIRM/);
@@ -135,6 +136,10 @@ test('destructive support scripts require explicit operator confirmation', () =>
   assert.match(resetQaCredentialsSource, /require\.main === module/);
   assert.match(resetProductionQaDatasetSource, /RESET_PRODUCTION_QA_DATASET_CONFIRM/);
   assert.match(resetProductionQaDatasetSource, /require\.main === module/);
+  assert.match(resetProductionEmptyDatasetSource, /RESET_PRODUCTION_EMPTY_DATASET_CONFIRM/);
+  assert.match(resetProductionEmptyDatasetSource, /DB_SCHEMA_RESET_ALLOWED/);
+  assert.match(resetProductionEmptyDatasetSource, /require\.main === module/);
+  assert.doesNotMatch(resetProductionEmptyDatasetSource, /Customer|Associate/);
 });
 
 test('permission catalog descriptions are Spanish operator-facing text', () => {

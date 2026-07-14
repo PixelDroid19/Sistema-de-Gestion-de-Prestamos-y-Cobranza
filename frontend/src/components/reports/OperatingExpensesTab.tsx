@@ -16,7 +16,7 @@ import {
   UserSearchSelect,
 } from '../shared/Surfaces';
 import OperatingExpenseCreateModal, { OperatingExpenseCreateTrigger } from './OperatingExpenseCreateModal';
-import { ReportDownloadControl } from './ReportDownloadModal';
+import { ReportDownloadActions } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { RowActionsWithOverflow, TableActionsCell, TableActionsHeader } from '../shared/tables';
 import { ReportTabPanel } from './ReportTabPanel';
@@ -149,9 +149,7 @@ export default function OperatingExpensesTab({
         headerActions={(
           <>
             {canCreate && <OperatingExpenseCreateTrigger onClick={() => setCreateOpen(true)} />}
-            <ReportDownloadControl
-              title={tTerm('reports.download.expenses.title')}
-              subtitle={tTerm('reports.download.expenses.subtitle')}
+            <ReportDownloadActions
               isExporting={exportingFormat !== null}
               onDownload={(format) => onExportExpenses(format === 'pdf' ? 'pdf' : 'xlsx')}
             />

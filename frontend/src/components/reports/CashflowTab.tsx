@@ -5,7 +5,7 @@ import {
   AppInput,
   FormField,
 } from '../shared/Surfaces';
-import { ReportDownloadControl } from './ReportDownloadModal';
+import { ReportDownloadActions } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportTabPanel } from './ReportTabPanel';
 import ReportSummaryGrid from './ReportSummaryGrid';
@@ -176,9 +176,7 @@ export default function CashflowTab({
           </>
         )}
         headerActions={reportExportGuard.visible ? (
-          <ReportDownloadControl
-            title={tTerm('reports.download.cashflow.title')}
-            subtitle={tTerm('reports.download.cashflow.subtitle')}
+          <ReportDownloadActions
             isExporting={isCashFlowExporting !== null}
             disabled={!reportExportGuard.executable}
             disabledReason={reportExportGuard.reason || tTerm('credits.action.unavailable')}

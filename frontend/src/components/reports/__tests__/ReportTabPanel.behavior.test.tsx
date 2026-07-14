@@ -1,10 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { ReportTabPanel } from '../ReportTabPanel';
 
 describe('ReportTabPanel', () => {
-  it('keeps optional filters out of the initial report surface', () => {
+  it('keeps report filters visible without requiring another click', () => {
     render(
       <ReportTabPanel
         title="Cierre contable"
@@ -17,17 +17,11 @@ describe('ReportTabPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
     expect(screen.getByText('Datos del cierre')).toBeVisible();
-    expect(screen.queryByLabelText('Año')).not.toBeInTheDocument();
-
-    const filtersButton = screen.getByRole('button', { name: 'Filtros' });
-    expect(filtersButton).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(filtersButton);
-
-    expect(filtersButton).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByLabelText('Año')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Filtros' })).not.toBeInTheDocument();
   });
 
-  it('opens active filters and includes their count in the accessible name', () => {
+  it('does not add a redundant filter toggle when filters are active', () => {
     render(
       <ReportTabPanel
         title="Pago de cuotas"
@@ -36,7 +30,7 @@ describe('ReportTabPanel', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Filtros (2)' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByLabelText('Estado')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Filtros (2)' })).not.toBeInTheDocument();
   });
 });

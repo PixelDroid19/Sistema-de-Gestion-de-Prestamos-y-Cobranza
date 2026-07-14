@@ -6,7 +6,7 @@ import { reportClientError } from '../../lib/clientDiagnostics';
 import { toast } from '../../lib/toast';
 import { AppInput, DataTableSurface, EmptyState, FormField, OperationalSelect } from '../shared/Surfaces';
 import { AppTable, TABLE_EMBEDDED_SHELL_CLASS } from '../shared/tables';
-import { ReportDownloadControl } from './ReportDownloadModal';
+import { ReportDownloadActions } from './ReportDownloadModal';
 import ReportSummaryGrid from './ReportSummaryGrid';
 import { ReportTabPanel } from './ReportTabPanel';
 
@@ -85,9 +85,7 @@ export default function AssociateMovementsTab() {
           </>
         )}
         headerActions={(
-          <ReportDownloadControl
-            title={tTerm('reports.download.associates.title')}
-            subtitle={tTerm('reports.download.associates.subtitle')}
+          <ReportDownloadActions
             isExporting={exporting !== null}
             disabled={invalidRange}
             disabledReason={invalidRange ? tTerm('reports.export.invalidRange') : undefined}

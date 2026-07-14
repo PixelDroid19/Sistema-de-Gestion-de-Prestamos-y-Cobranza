@@ -20,6 +20,11 @@ type ReportDownloadControlProps = Omit<ReportDownloadModalProps, 'onClose'> & {
   label?: string;
 };
 
+type ReportDownloadActionsProps = Pick<ReportDownloadModalProps, 'isExporting' | 'onDownload' | 'formats'> & {
+  disabled?: boolean;
+  disabledReason?: string;
+};
+
 const formatMeta: Record<ReportDownloadFormat, { label: string; icon: typeof FileSpreadsheet }> = {
   xlsx: { label: tTerm('reports.export.format.xlsx'), icon: FileSpreadsheet },
   excel: { label: tTerm('reports.cashflow.cta.excel'), icon: FileSpreadsheet },
@@ -74,6 +79,36 @@ export function ReportDownloadControl({
         />
       ) : null}
     </>
+  );
+}
+
+export function ReportDownloadActions({
+  isExporting,
+  onDownload,
+  formats = ['xlsx', 'pdf'],
+  disabled = false,
+  disabledReason,
+}: ReportDownloadActionsProps) {
+  return (
+    <div className="reports-download-actions" aria-label={tTerm('reports.export.actions.aria')}>
+      {formats.map((format) => {
+        const meta = formatMeta[format];
+        const Icon = meta.icon;
+        return (
+          <ActionButton
+            key={format}
+            type="button"
+            variant="secondary"
+            disabled={disabled || isExporting}
+            title={disabled ? disabledReason : undefined}
+            icon={<Icon size={16} />}
+            onClick={() => { void onDownload(format); }}
+          >
+            {isExporting ? tTerm('credits.cta.exporting') : meta.label}
+          </ActionButton>
+        );
+      })}
+    </div>
   );
 }
 
