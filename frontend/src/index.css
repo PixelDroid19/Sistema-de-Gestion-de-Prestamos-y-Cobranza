@@ -3523,11 +3523,11 @@
     border-top-right-radius: calc(1rem - 1px);
   }
 
-  .data-table-surface table tfoot tr td:first-child {
+  .data-table-surface table tfoot tr :is(th, td):first-child {
     border-bottom-left-radius: calc(1rem - 1px);
   }
 
-  .data-table-surface table tfoot tr td:last-child {
+  .data-table-surface table tfoot tr :is(th, td):last-child {
     border-bottom-right-radius: calc(1rem - 1px);
   }
 
@@ -3652,8 +3652,8 @@
     border-bottom: 0;
   }
 
-  .data-table-surface table tfoot td,
-  .app-table table tfoot td {
+  .data-table-surface table tfoot :is(th, td),
+  .app-table table tfoot :is(th, td) {
     padding: 0.9rem 1rem;
     vertical-align: middle;
     color: var(--text-primary);
