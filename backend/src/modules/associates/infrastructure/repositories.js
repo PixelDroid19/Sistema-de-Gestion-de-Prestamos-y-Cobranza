@@ -109,31 +109,53 @@ const associateRepository = {
     const associateIds = associates.map((associate) => associate.id);
 
     let contributionsByAssociate = new Map();
+    let capitalReturnsByAssociate = new Map();
     if (associateIds.length > 0) {
-      const contributionRows = await AssociateContribution.findAll({
-        attributes: [
-          'associateId',
-          [AssociateContribution.sequelize.fn('SUM', AssociateContribution.sequelize.col('amount')), 'totalContributed'],
-        ],
-        where: {
-          associateId: { [Op.in]: associateIds },
-          status: 'completed',
-        },
-        group: ['associateId'],
-        raw: true,
-      });
+      const [contributionRows, capitalReturnRows] = await Promise.all([
+        AssociateContribution.findAll({
+          attributes: [
+            'associateId',
+            [AssociateContribution.sequelize.fn('SUM', AssociateContribution.sequelize.col('amount')), 'totalContributed'],
+          ],
+          where: {
+            associateId: { [Op.in]: associateIds },
+            status: 'completed',
+          },
+          group: ['associateId'],
+          raw: true,
+        }),
+        ProfitDistribution.findAll({
+          attributes: [
+            'associateId',
+            [ProfitDistribution.sequelize.fn('SUM', ProfitDistribution.sequelize.col('amount')), 'totalCapitalReturned'],
+          ],
+          where: {
+            associateId: { [Op.in]: associateIds },
+            basis: { [Op.contains]: { type: 'capital-return' } },
+          },
+          group: ['associateId'],
+          raw: true,
+        }),
+      ]);
 
       contributionsByAssociate = new Map(
         contributionRows.map((row) => [Number(row.associateId), Number(row.totalContributed || 0)]),
+      );
+      capitalReturnsByAssociate = new Map(
+        capitalReturnRows.map((row) => [Number(row.associateId), Number(row.totalCapitalReturned || 0)]),
       );
     }
 
     return associates.reduce((summary, associate) => {
       const totalContributed = Number(contributionsByAssociate.get(Number(associate.id)) || 0);
+      const totalCapitalReturned = Number(capitalReturnsByAssociate.get(Number(associate.id)) || 0);
+      const currentCapital = Math.max(0, totalContributed - totalCapitalReturned);
       const interestRate = Number(associate.interestRate || 0);
-      const monthlyInterest = associate.interestType === 'annual'
-        ? (totalContributed * (interestRate / 100)) / 12
-        : totalContributed * (interestRate / 100);
+      const monthlyInterest = associate.status !== 'active'
+        ? 0
+        : (associate.interestType === 'annual'
+          ? (currentCapital * (interestRate / 100)) / 12
+          : currentCapital * (interestRate / 100));
 
       summary.totalAssociates += 1;
       summary.activeAssociates += associate.status === 'active' ? 1 : 0;

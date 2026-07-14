@@ -89,6 +89,42 @@ test('createGetAssociateFinancialSummary rejects missing associate access with a
   });
 });
 
+test('createGetAssociateFinancialSummary reports current capital after capital returns and reinvestments', async () => {
+  const getAssociateFinancialSummary = createGetAssociateFinancialSummary({
+    associateRepository: {
+      async findById(id) {
+        return { id, name: 'Socio Capital Vigente' };
+      },
+      async listContributionsByAssociate() {
+        return [
+          { id: 1, amount: 1000, status: 'completed' },
+          { id: 2, amount: 200, status: 'completed', notes: 'Reinversión' },
+          { id: 3, amount: 500, status: 'pending' },
+        ];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [
+          { id: 4, amount: 200, basis: { type: 'reinvestment', contributionId: 2 } },
+          { id: 5, amount: 300, basis: { type: 'capital-return' } },
+          { id: 6, amount: 50, basis: { type: 'manual-interest' } },
+        ];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+    },
+  });
+
+  const report = await getAssociateFinancialSummary({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+  });
+
+  assert.equal(report.summary.totalContributed, '1200.00');
+  assert.equal(report.summary.totalCapitalReturned, '300.00');
+  assert.equal(report.summary.currentCapital, '900.00');
+});
+
 test('createExportAssociateFinancialSummary returns xlsx workbook for associate datasets', async () => {
   let contributionReads = 0;
   let distributionReads = 0;
@@ -158,12 +194,22 @@ test('createExportAssociateFinancialSummary returns xlsx workbook for associate 
   const summaryHeaders = summarySheet.getRow(2).values;
   assert.equal(summaryHeaders.includes('Unidad'), false);
   let totalContributedRow = null;
+  let currentCapitalRow = null;
+  let nextPaymentRow = null;
   summarySheet.eachRow((row) => {
     if (row.getCell(1).value === 'Aportes Totales') {
       totalContributedRow = row;
     }
+    if (row.getCell(1).value === 'Capital Vigente') {
+      currentCapitalRow = row;
+    }
+    if (row.getCell(1).value === 'Próximo Pago') {
+      nextPaymentRow = row;
+    }
   });
   assert.equal(totalContributedRow?.getCell(2).value, 'COP 1.000,00');
+  assert.equal(currentCapitalRow?.getCell(2).value, 'COP 1.000,00');
+  assert.equal(nextPaymentRow?.getCell(2).value, '01/04/2026');
   assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, 'COP 1.000,00');
   assert.equal(workbook.getWorksheet('Pagos manuales').getRow(3).getCell(3).value, 'COP 150,00');
   assert.equal(workbook.getWorksheet('Cronograma').getRow(3).getCell(2).value, 'COP 200,00');

@@ -717,6 +717,7 @@ const createGetAssociateFinancialSummary = ({ associateRepository }) => async ({
   const totalCapitalReturned = normalizedDistributions
     .filter((item) => item.distributionType === 'capital_return')
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const currentCapital = Math.max(0, totalContributed - totalCapitalReturned);
   const normalizedInstallments = Array.isArray(installments) ? installments : [];
   const paidInstallments = normalizedInstallments.filter((installment) => installment.status === 'paid');
   const unpaidInstallments = normalizedInstallments.filter(isUnpaidInterestInstallment);
@@ -731,6 +732,7 @@ const createGetAssociateFinancialSummary = ({ associateRepository }) => async ({
     associate: normalizeAssociateRecord(associate),
     summary: {
       totalContributed: totalContributed.toFixed(2),
+      currentCapital: currentCapital.toFixed(2),
       totalDistributed: totalDistributed.toFixed(2),
       totalCapitalReturned: totalCapitalReturned.toFixed(2),
       totalInterestPaid: totalInterestPaid.toFixed(2),
@@ -841,11 +843,15 @@ const createExportAssociateFinancialSummary = ({ associateRepository }) => async
           { indicator: 'Socio', value: report.associate.name },
           { indicator: 'ID Socio', value: report.associate.id },
           { indicator: 'Aportes Totales', value: Number(report.summary.totalContributed || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+          { indicator: 'Capital Vigente', value: Number(report.summary.currentCapital || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Pagos manuales de rentabilidad', value: Number(report.summary.totalDistributed || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Capital Devuelto', value: Number(report.summary.totalCapitalReturned || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Interés Pagado', value: Number(report.summary.totalInterestPaid || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Interés Pendiente', value: Number(report.summary.interestDebt || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
-          { indicator: 'Próximo Pago', value: toExcelDate(report.summary.nextInterestPaymentDate) || '' },
+          {
+            indicator: 'Próximo Pago',
+            value: formatExcelDisplayValue(report.summary.nextInterestPaymentDate, 'dd/mm/yyyy').value || '',
+          },
           { indicator: 'Rentabilidad pagada', value: Number(report.summary.netProfit || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0 },
           { indicator: 'Cantidad de pagos manuales', value: report.summary.distributionCount || 0 },
