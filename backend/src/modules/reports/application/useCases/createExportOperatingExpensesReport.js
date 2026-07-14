@@ -5,7 +5,7 @@ const {
   parseDateRange,
   parseOptionalReportId,
 } = require('@/modules/reports/application/reportHelpers');
-const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
+const { formatOperationalStatus, formatPaymentMethod } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { buildDateRangeMessage } = require('@/modules/shared/dateUtils');
 const { ValidationError } = require('@/utils/errorHandler');
@@ -81,15 +81,15 @@ const normalizeExportFilters = (filters = {}) => {
   };
 };
 
-const pickUserName = (user) => user?.name || user?.email || 'N/A';
+const pickUserName = (user) => user?.name || user?.email || 'Registro histórico';
 
 const buildExpenseRows = (expenses = []) => expenses.map((expense) => ({
   expenseId: expense.id,
   expenseDate: toExcelDate(expense.expenseDate),
-  category: expense.category || 'N/A',
-  description: expense.description || 'N/A',
+  category: expense.category || 'Sin categoría',
+  description: expense.description || 'Sin descripción',
   amount: roundMoney(expense.amount),
-  paymentMethod: expense.paymentMethod || 'N/A',
+  paymentMethod: formatPaymentMethod(expense.paymentMethod),
   status: formatOperationalStatus(expense.status),
   reference: expense.reference || '',
   createdBy: pickUserName(expense.createdBy),

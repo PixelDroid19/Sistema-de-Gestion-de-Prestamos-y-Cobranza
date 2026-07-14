@@ -300,6 +300,7 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   const pdf = await pdfUseCase({ actor: { role: 'admin' }, year: 2026 });
   assert.equal(pdf.contentType, 'application/pdf');
   assert.match(pdf.buffer.toString('latin1'), /%PDF-1\.\d/);
+  assert.match(pdf.buffer.toString('latin1'), /\/MediaBox \[0 0 792 612\]/);
   const pdfText = extractPdfText(pdf.buffer);
   assert.match(pdfText, /Cierre contable 2026/);
   assert.match(pdfText, /pagos a socios/i);

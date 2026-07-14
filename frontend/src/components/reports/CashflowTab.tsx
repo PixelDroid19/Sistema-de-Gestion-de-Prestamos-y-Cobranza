@@ -8,6 +8,7 @@ import {
 import { ReportDownloadControl } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportTabPanel } from './ReportTabPanel';
+import ReportSummaryGrid from './ReportSummaryGrid';
 import ReportValueStack, { ReportMetaPairs } from './ReportValueStack';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
@@ -186,6 +187,13 @@ export default function CashflowTab({
           />
         ) : null}
       />
+
+      {!isCashFlowLoading && displayedMonthlyRows.length > 0 ? (
+        <ReportSummaryGrid columns={2} items={[
+          { label: tTerm('reports.cashflow.table.principalRecovered'), value: formatMoney(summary.totalPrincipalRecovered) },
+          { label: tTerm('reports.cashflow.table.portfolioReceivable'), value: formatMoney(summary.portfolioReceivable) },
+        ]} />
+      ) : null}
 
       <ReportDataTableSection>
             <thead>

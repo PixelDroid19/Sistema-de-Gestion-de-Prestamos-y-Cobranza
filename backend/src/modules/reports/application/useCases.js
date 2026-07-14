@@ -250,6 +250,8 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
       },
       period: {
         collections: totalPaymentInflow.toFixed(2),
+        principalRecovered: totalPrincipalRecovered.toFixed(2),
+        creditIncome: (totalInterestPaid + totalPenaltyPaid).toFixed(2),
         associateContributions: cashAssociateContributions.toFixed(2),
         disbursements: totalPortfolioAmount.toFixed(2),
         operatingExpenses: totalOperatingExpenses.toFixed(2),
@@ -440,7 +442,7 @@ const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService,
     contentType: 'application/pdf',
     buffer: await buildReportPdf({
       title: `Historial del crédito #${history.loan.id}`,
-      subtitle: `Cliente #${history.loan.customerId || 'N/A'} · Estado: ${formatOperationalStatus(history.loan.status)}`,
+      subtitle: `${history.loan.customerId ? `Cliente #${history.loan.customerId}` : 'Cliente no disponible'} · Estado: ${formatOperationalStatus(history.loan.status)}`,
       summary: [
         { label: 'Saldo pendiente', value: formatDisplayMoney(history.snapshot?.outstandingBalance || 0) },
         { label: 'Total pagado', value: formatDisplayMoney(history.snapshot?.totalPaid || 0) },

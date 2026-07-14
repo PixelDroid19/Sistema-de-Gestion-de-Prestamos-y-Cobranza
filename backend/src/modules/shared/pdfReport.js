@@ -11,33 +11,37 @@ const COLORS = Object.freeze({
   brand: '#0f766e',
 });
 
-const PAGE = Object.freeze({
-  left: 48,
-  right: 564,
-  width: 516,
-  bottom: 760,
+const PAGE_MARGIN = 48;
+
+const getPageLayout = (doc) => ({
+  left: PAGE_MARGIN,
+  right: doc.page.width - PAGE_MARGIN,
+  width: doc.page.width - (PAGE_MARGIN * 2),
+  bottom: doc.page.height - 32,
+  pageNumberY: doc.page.height - 20,
 });
 
 const drawBrandHeader = (doc, { title, subtitle, generatedAt }) => {
+  const page = getPageLayout(doc);
   doc
     .font('Helvetica-Bold')
     .fontSize(11)
     .fillColor(COLORS.brand)
-    .text('CrediCobranza', PAGE.left, 44);
+    .text('CrediCobranza', page.left, 44);
   doc
     .font('Helvetica')
     .fontSize(8.5)
     .fillColor(COLORS.muted)
-    .text('Sistema de préstamos y cobranza', PAGE.left, 58);
+    .text('Sistema de préstamos y cobranza', page.left, 58);
   doc
     .font('Helvetica')
     .fontSize(8.5)
     .fillColor(COLORS.muted)
-    .text(`Generado: ${generatedAt}`, PAGE.left, 44, { width: PAGE.width, align: 'right' });
+    .text(`Generado: ${generatedAt}`, page.left, 44, { width: page.width, align: 'right' });
 
   doc
-    .moveTo(PAGE.left, 76)
-    .lineTo(PAGE.right, 76)
+    .moveTo(page.left, 76)
+    .lineTo(page.right, 76)
     .lineWidth(1)
     .strokeColor(COLORS.line)
     .stroke();
@@ -46,7 +50,7 @@ const drawBrandHeader = (doc, { title, subtitle, generatedAt }) => {
     .font('Helvetica-Bold')
     .fontSize(17)
     .fillColor(COLORS.ink)
-    .text(title, PAGE.left, 90, { width: PAGE.width });
+    .text(title, page.left, 90, { width: page.width });
 
   let y = doc.y + 4;
   if (subtitle) {
@@ -54,7 +58,7 @@ const drawBrandHeader = (doc, { title, subtitle, generatedAt }) => {
       .font('Helvetica')
       .fontSize(9.5)
       .fillColor(COLORS.muted)
-      .text(subtitle, PAGE.left, y, { width: PAGE.width });
+      .text(subtitle, page.left, y, { width: page.width });
     y = doc.y + 4;
   }
 
@@ -62,7 +66,7 @@ const drawBrandHeader = (doc, { title, subtitle, generatedAt }) => {
 };
 
 const ensureSpace = (doc, y, needed) => {
-  if (y + needed <= PAGE.bottom) {
+  if (y + needed <= getPageLayout(doc).bottom) {
     return y;
   }
   doc.addPage();
@@ -70,13 +74,14 @@ const ensureSpace = (doc, y, needed) => {
 };
 
 const drawSummary = (doc, y, summary) => {
+  const page = getPageLayout(doc);
   const items = summary.filter((item) => item && item.label);
   if (items.length === 0) {
     return y;
   }
 
   const columns = 2;
-  const cellWidth = PAGE.width / columns;
+  const cellWidth = page.width / columns;
   const rowHeight = 30;
   const rows = Math.ceil(items.length / columns);
   y = ensureSpace(doc, y, rows * rowHeight + 12);
@@ -84,7 +89,7 @@ const drawSummary = (doc, y, summary) => {
   items.forEach((item, index) => {
     const col = index % columns;
     const row = Math.floor(index / columns);
-    const x = PAGE.left + col * cellWidth;
+    const x = page.left + col * cellWidth;
     const cellY = y + row * rowHeight;
 
     doc
@@ -101,8 +106,8 @@ const drawSummary = (doc, y, summary) => {
 
   const endY = y + rows * rowHeight;
   doc
-    .moveTo(PAGE.left, endY + 2)
-    .lineTo(PAGE.right, endY + 2)
+    .moveTo(page.left, endY + 2)
+    .lineTo(page.right, endY + 2)
     .lineWidth(0.5)
     .strokeColor(COLORS.line)
     .stroke();
@@ -110,10 +115,11 @@ const drawSummary = (doc, y, summary) => {
   return endY + 14;
 };
 
-const resolveColumnWidths = (columns) => {
+const resolveColumnWidths = (doc, columns) => {
+  const page = getPageLayout(doc);
   const declared = columns.reduce((sum, column) => sum + (column.width || 0), 0);
   const flexible = columns.filter((column) => !column.width).length;
-  const remaining = Math.max(PAGE.width - declared, 0);
+  const remaining = Math.max(page.width - declared, 0);
   const flexWidth = flexible > 0 ? remaining / flexible : 0;
   return columns.map((column) => column.width || flexWidth);
 };
@@ -132,14 +138,15 @@ const measureRowHeight = (doc, columns, widths, row, fontSize) => {
 };
 
 const drawTable = (doc, y, { columns, rows }, options = {}) => {
+  const page = getPageLayout(doc);
   const fontSize = options.fontSize || 8.5;
-  const widths = resolveColumnWidths(columns);
+  const widths = resolveColumnWidths(doc, columns);
 
   const drawHeader = (headerY) => {
     doc
-      .rect(PAGE.left, headerY, PAGE.width, 18)
+      .rect(page.left, headerY, page.width, 18)
       .fill(COLORS.headerFill);
-    let x = PAGE.left;
+    let x = page.left;
     columns.forEach((column, index) => {
       doc
         .font('Helvetica-Bold')
@@ -160,16 +167,16 @@ const drawTable = (doc, y, { columns, rows }, options = {}) => {
 
   rows.forEach((row, rowIndex) => {
     const rowHeight = measureRowHeight(doc, columns, widths, row, fontSize);
-    if (y + rowHeight > PAGE.bottom) {
+    if (y + rowHeight > getPageLayout(doc).bottom) {
       doc.addPage();
       y = drawHeader(54);
     }
 
     if (rowIndex % 2 === 1) {
-      doc.rect(PAGE.left, y, PAGE.width, rowHeight).fill(COLORS.zebra);
+      doc.rect(page.left, y, page.width, rowHeight).fill(COLORS.zebra);
     }
 
-    let x = PAGE.left;
+    let x = page.left;
     columns.forEach((column, index) => {
       doc
         .font(column.bold ? 'Helvetica-Bold' : 'Helvetica')
@@ -184,8 +191,8 @@ const drawTable = (doc, y, { columns, rows }, options = {}) => {
 
     y += rowHeight;
     doc
-      .moveTo(PAGE.left, y)
-      .lineTo(PAGE.right, y)
+      .moveTo(page.left, y)
+      .lineTo(page.right, y)
       .lineWidth(0.4)
       .strokeColor(COLORS.line)
       .stroke();
@@ -197,7 +204,7 @@ const drawTable = (doc, y, { columns, rows }, options = {}) => {
       .font('Helvetica')
       .fontSize(fontSize)
       .fillColor(COLORS.muted)
-      .text('Sin registros para el rango seleccionado.', PAGE.left, y + 4);
+      .text('Sin registros para el rango seleccionado.', page.left, y + 4);
     y += 22;
   }
 
@@ -205,13 +212,14 @@ const drawTable = (doc, y, { columns, rows }, options = {}) => {
 };
 
 const drawSection = (doc, y, section) => {
+  const page = getPageLayout(doc);
   if (section.heading) {
     y = ensureSpace(doc, y, 30);
     doc
       .font('Helvetica-Bold')
       .fontSize(11)
       .fillColor(COLORS.ink)
-      .text(section.heading, PAGE.left, y);
+      .text(section.heading, page.left, y);
     y = doc.y + 6;
   }
 
@@ -222,7 +230,7 @@ const drawSection = (doc, y, section) => {
         .font('Helvetica')
         .fontSize(9)
         .fillColor(line ? COLORS.ink : COLORS.muted)
-        .text(String(line), PAGE.left, y, { width: PAGE.width });
+        .text(String(line), page.left, y, { width: page.width });
       y = doc.y + 2;
     });
     y += 6;
@@ -239,14 +247,15 @@ const drawPageNumbers = (doc) => {
   const range = doc.bufferedPageRange();
   for (let index = range.start; index < range.start + range.count; index += 1) {
     doc.switchToPage(index);
+    const page = getPageLayout(doc);
     const originalBottomMargin = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
     doc
       .font('Helvetica')
       .fontSize(8)
       .fillColor(COLORS.faint)
-      .text(`Página ${index + 1} de ${range.count}`, PAGE.left, 772, {
-        width: PAGE.width,
+      .text(`Página ${index + 1} de ${range.count}`, page.left, page.pageNumberY, {
+        width: page.width,
         align: 'right',
         lineBreak: false,
       });
@@ -264,13 +273,15 @@ const drawPageNumbers = (doc) => {
  *   generatedAt?: string,
  *   summary?: Array<{label: string, value: string|number}>,
  *   sections?: Array<{heading?: string, lines?: string[], table?: {columns: Array<{header: string, key: string, width?: number, align?: string, bold?: boolean}>, rows: object[]}}>,
+ *   layout?: 'portrait'|'landscape',
  * }} input
  * @returns {Promise<Buffer>}
  */
-const buildReportPdf = ({ title, subtitle, generatedAt, summary = [], sections = [] }) => new Promise((resolve, reject) => {
+const buildReportPdf = ({ title, subtitle, generatedAt, summary = [], sections = [], layout = 'portrait' }) => new Promise((resolve, reject) => {
   const doc = new PDFDocument({
     size: 'LETTER',
-    margins: { top: 44, bottom: 30, left: PAGE.left, right: 612 - PAGE.right },
+    layout,
+    margins: { top: 44, bottom: 30, left: PAGE_MARGIN, right: PAGE_MARGIN },
     bufferPages: true,
     compress: false,
     info: { Title: title, Author: 'CrediCobranza' },

@@ -766,7 +766,7 @@
     min-width: 0;
   }
 
-  @media (min-width: 1024px) {
+  @media (min-width: 1400px) {
     .credit-detail-header__top {
       flex-direction: row;
       align-items: flex-start;
@@ -783,7 +783,7 @@
     flex-shrink: 0;
   }
 
-  @media (min-width: 1024px) {
+  @media (min-width: 1400px) {
     .credit-detail-header-toolbar {
       justify-content: flex-end;
       max-width: 36rem;

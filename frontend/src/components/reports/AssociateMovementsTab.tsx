@@ -116,7 +116,7 @@ export default function AssociateMovementsTab() {
           surfaceClassName={TABLE_EMBEDDED_SHELL_CLASS}
         >
           <thead><tr><th>{tTerm('reports.associates.header.date')}</th><th>{tTerm('reports.associates.header.associate')}</th><th>{tTerm('reports.associates.header.movement')}</th><th>{tTerm('reports.associates.header.amount')}</th><th>{tTerm('reports.associates.header.reference')}</th></tr></thead>
-          <tbody>{visibleRows.map((row: any) => <tr key={`${row.movementType}-${row.id}-${row.associateId}`}><td>{formatDate(row.date)}</td><td className="font-semibold text-text-primary">{row.associateName}</td><td>{movementLabel(row.movementType)}</td><td className="font-mono font-semibold tabular-nums text-text-primary">{formatCurrency(row.amount)}</td><td className="text-text-secondary">{row.reference || tTerm('common.notAvailable')}</td></tr>)}</tbody>
+          <tbody>{visibleRows.map((row: any) => <tr key={`${row.movementType}-${row.id}-${row.associateId}`}><td>{formatDate(row.date)}</td><td className="font-semibold text-text-primary">{row.associateName}</td><td>{movementLabel(row.movementType)}</td><td className="font-mono font-semibold tabular-nums text-text-primary">{formatCurrency(row.amount)}</td><td className="text-text-secondary">{row.reference || '—'}</td></tr>)}</tbody>
         </AppTable>
       </DataTableSurface>
     </div>

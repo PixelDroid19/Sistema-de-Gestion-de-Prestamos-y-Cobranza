@@ -220,7 +220,7 @@ const getLoanCustomerName = (loan) => (
   loan.Customer?.name
   || loan.customer?.name
   || loan.customerName
-  || `Cliente #${loan.customerId || 'N/A'}`
+  || (loan.customerId ? `Cliente #${loan.customerId}` : 'Cliente no disponible')
 );
 
 const getPaymentLoan = (payment) => payment.Loan || payment.loan || {};
@@ -228,7 +228,7 @@ const getPaymentLoan = (payment) => payment.Loan || payment.loan || {};
 const getPaymentCustomerName = (payment) => (
   getPaymentLoan(payment).Customer?.name
   || getPaymentLoan(payment).customer?.name
-  || `Cliente #${getPaymentLoan(payment).customerId || 'N/A'}`
+  || (getPaymentLoan(payment).customerId ? `Cliente #${getPaymentLoan(payment).customerId}` : 'Cliente no disponible')
 );
 
 const getPaymentLoanId = (payment) => Number(payment.loanId || getPaymentLoan(payment).id || 0);

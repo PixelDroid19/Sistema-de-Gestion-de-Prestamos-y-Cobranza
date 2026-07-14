@@ -46,7 +46,7 @@ const getPayoutCreatorLabel = (payout: any) => {
     || payout?.createdByName
     || payout?.createdByUserName
     || payout?.registeredByName
-    || tTerm('common.notAvailable')
+    || tTerm('reports.payouts.table.historicalCreator')
   );
 };
 

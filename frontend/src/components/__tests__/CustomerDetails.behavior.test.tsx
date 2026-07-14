@@ -86,6 +86,14 @@ describe('CustomerDetails behavior', () => {
     historyFixture = [];
   });
 
+  it('names missing credit profile evidence instead of showing an ambiguous N/A', () => {
+    render(<CustomerDetails />);
+
+    expect(screen.getByText('Sin puntaje calculado')).toBeInTheDocument();
+    expect(screen.getByText('Sin historial suficiente')).toBeInTheDocument();
+    expect(screen.queryByText('N/A')).not.toBeInTheDocument();
+  });
+
   it('uploads customer documents as internal records by default', async () => {
     uploadDocumentMutateAsync.mockResolvedValue({ success: true });
 

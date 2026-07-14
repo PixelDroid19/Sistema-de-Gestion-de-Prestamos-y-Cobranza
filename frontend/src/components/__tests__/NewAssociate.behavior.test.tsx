@@ -73,9 +73,10 @@ describe('NewAssociate behavior', () => {
   };
 
   it('does not prefetch the associates list on the new associate form', () => {
-    render(<NewAssociate onBack={vi.fn()} />);
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     expect(useAssociatesMock).toHaveBeenCalledWith(undefined, { enabled: false });
+    expect(container.querySelector('form')).toHaveAttribute('novalidate');
   });
 
   it('starts annual and active without exposing configuration that is not a creation decision', () => {

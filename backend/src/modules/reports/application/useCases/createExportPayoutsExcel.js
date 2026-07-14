@@ -37,14 +37,15 @@ const PAYOUT_WORKBOOK_COLUMNS = [
 
 const formatIsoDate = (value) => {
   if (!value) {
-    return 'N/A';
+    return 'Sin fecha';
   }
 
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+  return Number.isNaN(date.getTime()) ? 'Sin fecha' : date.toISOString().slice(0, 10);
 };
 
 const toWorkbookMoney = (value) => roundMoney(value);
+const toWorkbookDate = (value) => value === 'Sin fecha' ? value : toExcelDate(value);
 
 const normalizePayoutExportFilters = (filters = {}) => {
   const dateRange = parseDateRange({
@@ -100,9 +101,9 @@ const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
     return {
       paymentId: payment.id,
       loanId: payment.loanId,
-      customerId: customer?.id || payment?.Loan?.customerId || 'N/A',
-      customerName: customer?.name || 'N/A',
-      customerEmail: customer?.email || 'N/A',
+      customerId: customer?.id || payment?.Loan?.customerId || 'Sin referencia',
+      customerName: customer?.name || 'Cliente no disponible',
+      customerEmail: customer?.email || 'Sin correo registrado',
       paymentDate: formatIsoDate(payment.paymentDate),
       amount: toWorkbookMoney(payment.amount),
       principalApplied: toWorkbookMoney(payment.principalApplied),
@@ -112,7 +113,7 @@ const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
       paymentType: formatPaymentType(payment.paymentType),
       paymentMethod: formatPaymentMethod(payment.paymentMethod),
       status: formatOperationalStatus(payment.status),
-      createdBy: createdBy?.name || createdBy?.email || 'N/A',
+      createdBy: createdBy?.name || createdBy?.email || 'Registro histórico',
       reference: payment.paymentMetadata?.reference || '',
       observation: payment.paymentMetadata?.observation || '',
       voucherNumber: payment.paymentMetadata?.voucherNumber || '',
@@ -145,8 +146,8 @@ const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filt
         columns: PAYOUT_WORKBOOK_COLUMNS,
         rows: rows.map((row) => ({
           ...row,
-          paymentDate: toExcelDate(row.paymentDate),
-          createdAt: toExcelDate(row.createdAt),
+          paymentDate: toWorkbookDate(row.paymentDate),
+          createdAt: toWorkbookDate(row.createdAt),
         })),
       }],
     },

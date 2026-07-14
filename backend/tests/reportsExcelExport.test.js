@@ -79,6 +79,9 @@ test('report labels preserve recorded values when they are not catalog values', 
   assert.equal(formatOperationalStatus('manual_hold'), 'manual_hold');
   assert.equal(formatPaymentType('adjustment_fee'), 'adjustment_fee');
   assert.equal(formatPaymentMethod('wallet_mobile'), 'wallet_mobile');
+  assert.equal(formatOperationalStatus(null), 'Sin estado');
+  assert.equal(formatPaymentType(undefined), 'Sin tipo');
+  assert.equal(formatPaymentMethod(''), 'Sin método');
 });
 
 test('export associates use case builds approved operational sheet structure', async () => {
@@ -1231,6 +1234,65 @@ test('export payouts use case builds workbook sheets with operational headers an
   assert.equal(repositoryQuery.createdByUserId, 7);
 });
 
+test('export payouts labels rows without a retained creator as historical records', async () => {
+  const useCase = createExportPayoutsExcel({
+    paymentRepository: {
+      async listPayoutsReport() {
+        return {
+          items: [{
+            id: 8,
+            loanId: 4,
+            paymentDate: '2026-02-14T00:00:00.000Z',
+            createdAt: '2026-02-14T15:30:00.000Z',
+            amount: 100,
+            principalApplied: 75,
+            interestApplied: 25,
+            paymentType: 'installment',
+            paymentMethod: 'cash',
+            status: 'completed',
+            Loan: { customerId: 10, Customer: { id: 10, name: 'Ana' } },
+          }],
+        };
+      },
+    },
+  });
+
+  const result = await useCase({ actor: { role: 'admin' } });
+
+  assert.equal(result.data.sheets[0].rows[0].createdBy, 'Registro histórico');
+});
+
+test('export payouts names missing historical relations instead of exposing N/A', async () => {
+  const useCase = createExportPayoutsExcel({
+    paymentRepository: {
+      async listPayoutsReport() {
+        return {
+          items: [{
+            id: 9,
+            loanId: 4,
+            amount: 100,
+            principalApplied: 75,
+            interestApplied: 25,
+            status: 'completed',
+            Loan: { customerId: 10 },
+          }],
+        };
+      },
+    },
+  });
+
+  const result = await useCase({ actor: { role: 'admin' } });
+  const row = result.data.sheets[0].rows[0];
+
+  assert.equal(row.customerName, 'Cliente no disponible');
+  assert.equal(row.customerEmail, 'Sin correo registrado');
+  assert.equal(row.paymentDate, 'Sin fecha');
+  assert.equal(row.paymentType, 'Sin tipo');
+  assert.equal(row.paymentMethod, 'Sin método');
+  assert.equal(row.createdAt, 'Sin fecha');
+  assert.equal(Object.values(row).includes('N/A'), false);
+});
+
 test('export payouts use case rejects inverted date ranges before reading payments', async () => {
   let repositoryCalled = false;
   const useCase = createExportPayoutsExcel({
@@ -1307,7 +1369,7 @@ test('export operating expenses report builds operational Excel and PDF artifact
           expenseDate: '2026-05-12T00:00:00.000Z',
           category: 'Servicios',
           description: 'Internet oficina',
-          paymentMethod: 'Transferencia',
+          paymentMethod: 'bank_transfer',
           reference: 'TRX-12',
           status: 'annulled',
           annulmentReason: 'Registro duplicado',
@@ -1331,6 +1393,7 @@ test('export operating expenses report builds operational Excel and PDF artifact
   assert.equal(excel.sheets[0].rows[0].expenseId, 12);
   assert.ok(excel.sheets[0].rows[0].expenseDate instanceof Date);
   assert.equal(excel.sheets[0].rows[0].amount, 950000);
+  assert.equal(excel.sheets[0].rows[0].paymentMethod, 'Transferencia');
   assert.equal(excel.sheets[0].rows[0].status, 'Anulado');
   assert.ok(excel.sheets[0].rows[0].annulledAt instanceof Date);
   assert.equal(excel.sheets[0].rows.some((row) => row.status === 'annulled'), false);

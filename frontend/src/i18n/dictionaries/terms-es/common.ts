@@ -146,7 +146,7 @@ export const commonEs = {
 'common.quickGuide': 'Guía rápida',
 'common.status.closed': 'Cerrado',
 'common.status.completed': 'Completado',
-'common.notAvailable': 'N/A',
+'common.notAvailable': '—',
 'common.notSpecified': 'No especificado',
 'common.clear': 'Quitar selección',
 'customerSearch.placeholder': 'Buscar cliente existente…',

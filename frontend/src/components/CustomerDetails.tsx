@@ -377,7 +377,9 @@ export default function CustomerDetails() {
                 <div className="rounded-xl border border-border-subtle bg-bg-base p-4 text-sm">
                   <div className="flex justify-between">
                     <span className="text-text-secondary">{tTerm('customerDetails.metric.internalScore')}</span>
-                    <span className="font-bold text-brand-primary">{formatDisplayNumber(customerCreditSummary?.score)}</span>
+                    <span className="font-bold text-brand-primary">
+                      {formatDisplayNumber(customerCreditSummary?.score, tTerm('customerDetails.metric.scoreUnavailable'))}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">{tTerm('customerDetails.metric.totalLoans')}</span>
@@ -385,7 +387,9 @@ export default function CustomerDetails() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">{tTerm('customerDetails.metric.paymentBehavior')}</span>
-                    <span className="font-medium">{customerCreditSummary?.paymentBehavior || tTerm('common.notAvailable')}</span>
+                    <span className="font-medium">
+                      {customerCreditSummary?.paymentBehavior || tTerm('customerDetails.metric.paymentBehaviorUnavailable')}
+                    </span>
                   </div>
                 </div>
               </div>

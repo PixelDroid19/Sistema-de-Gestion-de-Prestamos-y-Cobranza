@@ -90,6 +90,7 @@ export const paymentsEs = {
 'payouts.table.selectAll': 'Seleccionar todos los pagos',
 'payouts.table.selectOne': 'Seleccionar pago registrado',
 'payouts.table.linkedLoan': 'Crédito vinculado',
+'payouts.table.loanReference': 'Crédito #{id}',
 'payouts.table.loanId': 'Crédito',
 'payouts.table.date': 'Fecha',
 'payouts.table.amount': 'Monto',

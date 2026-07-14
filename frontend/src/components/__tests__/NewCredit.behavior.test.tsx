@@ -276,7 +276,7 @@ describe('NewCredit behavior', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
     fireEvent.focus(screen.getByRole('combobox', { name: 'Cliente' }));
-    expect(screen.getByRole('option', { name: /Cliente sin nombre · N\/A\s*Número 10 · Estado No especificado/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Cliente sin nombre · —\s*Número 10 · Estado No especificado/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /#10/ })).not.toBeInTheDocument();
   });
 

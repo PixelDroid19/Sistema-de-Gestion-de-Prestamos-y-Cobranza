@@ -47,7 +47,7 @@ function OperationalMetric({ label, value, detail, danger = false }: MetricProps
   return (
     <article className="min-w-0 border-b border-border-subtle px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
       <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-secondary">{label}</p>
-      <p className={`mt-2 truncate font-mono text-xl font-semibold tabular-nums ${danger ? 'text-danger' : 'text-text-primary'}`}>{value}</p>
+      <p className={`mt-2 whitespace-nowrap font-mono text-lg font-semibold tabular-nums 2xl:text-xl ${danger ? 'text-danger' : 'text-text-primary'}`}>{value}</p>
       {detail ? <p className="mt-1 text-xs text-text-secondary">{detail}</p> : null}
     </article>
   );
@@ -93,6 +93,8 @@ export default function Dashboard() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <SectionSurface title={tTerm('dashboard.period.title')} subtitle={tTerm('dashboard.period.subtitle')} bodyClassName="grid sm:grid-cols-2 xl:grid-cols-3">
           <OperationalMetric label={tTerm('dashboard.period.collections')} value={money(period.collections)} />
+          <OperationalMetric label={tTerm('dashboard.period.principalRecovered')} value={money(period.principalRecovered)} />
+          <OperationalMetric label={tTerm('dashboard.period.creditIncome')} value={money(period.creditIncome)} />
           <OperationalMetric label={tTerm('dashboard.period.associateContributions')} value={money(period.associateContributions)} />
           <OperationalMetric label={tTerm('dashboard.period.disbursements')} value={money(period.disbursements)} />
           <OperationalMetric label={tTerm('dashboard.period.operatingExpenses')} value={money(period.operatingExpenses)} />

@@ -12,6 +12,10 @@ describe('terminology canonical dictionary', () => {
     expect(tTerm('credits.label.customerFallback', { id: 44 })).toBe('Cliente');
   });
 
+  it('uses a neutral missing-value mark instead of the technical N/A abbreviation', () => {
+    expect(tTerm('common.notAvailable')).toBe('—');
+  });
+
   it('keeps report export validation messages free of internal id terminology', () => {
     const messages = [
       tTerm('reports.export.invalidCustomer'),

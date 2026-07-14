@@ -88,6 +88,7 @@ export const paymentsEn = {
 'payouts.table.selectAll': 'Select all payments',
 'payouts.table.selectOne': 'Select recorded payment',
 'payouts.table.linkedLoan': 'Linked loan',
+'payouts.table.loanReference': 'Loan #{id}',
 'payouts.table.loanId': 'Loan',
 'payouts.table.date': 'Date',
 'payouts.table.amount': 'Amount',

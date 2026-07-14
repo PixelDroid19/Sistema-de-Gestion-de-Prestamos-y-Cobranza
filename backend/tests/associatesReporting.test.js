@@ -6,7 +6,25 @@ const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const {
   createGetAssociateFinancialSummary,
   createExportAssociateFinancialSummary,
+  createGetAssociateMovementsReport,
 } = require('@/modules/associates/application/reportingUseCases');
+
+test('createGetAssociateMovementsReport names scheduled interest references as installments', async () => {
+  const getReport = createGetAssociateMovementsReport({
+    associateRepository: {
+      async list() { return [{ id: 12, name: 'Socio Reporte', status: 'active', interestType: 'annual' }]; },
+      async listContributionsByAssociate() { return []; },
+      async listProfitDistributionsByAssociate() { return []; },
+      async findInstallmentsByAssociateId() {
+        return [{ id: 31, installmentNumber: 2, amount: 250, dueDate: '2026-04-01', status: 'pending' }];
+      },
+    },
+  });
+
+  const report = await getReport({ actor: { id: 1, role: 'admin' } });
+
+  assert.equal(report.rows[0].reference, 'Cuota #2');
+});
 
 test('createGetAssociateFinancialSummary rejects socio records as report users', async () => {
   const getAssociateFinancialSummary = createGetAssociateFinancialSummary({

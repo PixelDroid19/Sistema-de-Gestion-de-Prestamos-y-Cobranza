@@ -381,6 +381,7 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
     fileName: `cierre-contable-mensual-${report.year}.pdf`,
     contentType: 'application/pdf',
     buffer: await buildReportPdf({
+      layout: 'landscape',
       title: `Cierre contable ${report.year}`,
       subtitle: 'Cuadre mensual de recaudo, aportes, préstamos, pagos, devoluciones, gastos y caja disponible.',
       summary: [

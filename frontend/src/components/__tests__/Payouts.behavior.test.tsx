@@ -25,6 +25,10 @@ const defaultPaymentsFixture = [
     paymentMetadata: {
       reference: 'REF-OLD',
     },
+    Loan: {
+      id: 999,
+      Customer: { id: 77, name: 'Cliente Historial' },
+    },
   },
 ];
 const defaultLoansFixture = [
@@ -457,14 +461,15 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Descargar comprobantes' })).toBeInTheDocument();
   });
 
-  it('navigates to the credit details without exposing the raw loan id as row text', async () => {
+  it('identifies the customer and linked credit before navigating to its details', async () => {
     renderPayouts();
 
     expect(screen.queryByRole('columnheader', { name: /recibo id/i })).not.toBeInTheDocument();
     expect(screen.queryByText('55')).not.toBeInTheDocument();
-    expect(screen.queryByText('999')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Cliente Historial').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Crédito #999').length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Crédito vinculado' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Crédito #999/ })[0]);
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/999');

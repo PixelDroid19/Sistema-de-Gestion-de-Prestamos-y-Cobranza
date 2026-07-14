@@ -198,13 +198,13 @@ const pickCustomerDocument = (customer = {}) => (
   || customer.documentNumber
   || customer.identification
   || customer.idNumber
-  || 'N/A'
+  || 'Sin documento registrado'
 );
 
 const pickCustomerState = (customer = {}) => (
   customer.state
   || customer.status
-  || 'N/A'
+  || 'Sin estado'
 );
 
 const getPaymentMethod = (payment = {}) => (
@@ -426,9 +426,9 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
         creditId: loan.id,
         loanId: loan.id,
         customerId: loan.customerId,
-        customerName: customer?.name || 'N/A',
+        customerName: customer?.name || 'Cliente no disponible',
         customerDocument: pickCustomerDocument(customer),
-        customerPhone: customer?.phone || 'N/A',
+        customerPhone: customer?.phone || 'Sin teléfono registrado',
         customerState: pickCustomerState(customer),
         loanAmount: roundMoney(loan.amount),
         amount: formatMoney(loan.amount),
@@ -439,9 +439,9 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
         years: termMonths > 0 ? roundMoney(termMonths / 12) : 0,
         quota: roundMoney(snapshot.installmentAmount),
         totalQuotas: schedule.length,
-        status: loan.status || 'N/A',
+        status: loan.status || '',
         creditStatus: formatOperationalStatus(loan.status),
-        recoveryStatus: loan.recoveryStatus || 'N/A',
+        recoveryStatus: loan.recoveryStatus || '',
         isOverdue: isLoanScheduleOverdue(loan, schedule),
         totalPaid: roundMoney(totalPaid),
         totalCapitalPaid: roundMoney(totalPrincipal),

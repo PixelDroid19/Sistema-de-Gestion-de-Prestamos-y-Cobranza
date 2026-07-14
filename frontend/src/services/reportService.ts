@@ -380,6 +380,8 @@ const normalizeDashboardData = (data: any) => {
     },
     period: {
       collections: toNumber(data.period?.collections),
+      principalRecovered: toNumber(data.period?.principalRecovered),
+      creditIncome: toNumber(data.period?.creditIncome),
       associateContributions: toNumber(data.period?.associateContributions),
       disbursements: toNumber(data.period?.disbursements),
       operatingExpenses: toNumber(data.period?.operatingExpenses),

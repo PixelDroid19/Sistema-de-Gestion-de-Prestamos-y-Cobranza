@@ -198,6 +198,20 @@ export default function Payouts() {
     return matchingMethod?.label || tTerm('settings.paymentMethods.methodUnnamed');
   };
 
+  const getPaymentLoanContext = (payment: any) => {
+    const loan = payment?.Loan || payment?.loan || {};
+    const customer = loan?.Customer || loan?.customer || payment?.Customer || payment?.customer || {};
+    const loanId = Number(payment?.loanId ?? loan?.id);
+    const customerName = String(customer?.name || payment?.customerName || '').trim();
+
+    return {
+      customerName,
+      loanLabel: Number.isFinite(loanId) && loanId > 0
+        ? tTerm('payouts.table.loanReference', { id: String(loanId) })
+        : tTerm('payouts.table.linkedLoan'),
+    };
+  };
+
   const getPaymentStatusPresentation = (payment: any) => {
     const normalizedStatus = String(payment?.status || '').toLowerCase();
 
@@ -553,6 +567,7 @@ export default function Payouts() {
                 : (viewGuard.reason || tTerm('credits.action.unavailable'));
               const status = getPaymentStatusPresentation(payment);
               const paymentId = Number(payment.id);
+              const loanContext = getPaymentLoanContext(payment);
 
               return (
                 <article key={`mobile-payout-${payment.id}`} className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-4 shadow-sm">
@@ -572,11 +587,12 @@ export default function Payouts() {
                             disabled={!viewGuard.executable}
                             title={viewCreditTitle}
                           >
-                            {tTerm('payouts.table.linkedLoan')}
+                            {loanContext.loanLabel}
                           </button>
                         ) : (
-                          <p className="font-semibold text-text-primary">{tTerm('payouts.table.linkedLoan')}</p>
+                          <p className="font-semibold text-text-primary">{loanContext.loanLabel}</p>
                         )}
+                        {loanContext.customerName ? <p className="mt-1 text-sm text-text-secondary">{loanContext.customerName}</p> : null}
                         <p className="mt-1 text-sm text-text-secondary">{formatPaymentDate(payment)}</p>
                       </div>
                     </div>
@@ -661,6 +677,7 @@ export default function Payouts() {
                 const viewCreditTitle = viewGuard.executable
                   ? tTerm('payouts.action.viewCredit')
                   : (viewGuard.reason || tTerm('credits.action.unavailable'));
+                const loanContext = getPaymentLoanContext(payment);
 
                 return (
                 <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
@@ -680,10 +697,14 @@ export default function Payouts() {
                         disabled={!viewGuard.executable}
                         title={viewCreditTitle}
                       >
-                        {tTerm('payouts.table.linkedLoan')}
+                        <span className="block font-medium">{loanContext.loanLabel}</span>
+                        {loanContext.customerName ? <span className="mt-0.5 block text-xs text-text-secondary">{loanContext.customerName}</span> : null}
                       </button>
                     ) : (
-                      <span className="text-text-secondary">{tTerm('payouts.table.linkedLoan')}</span>
+                      <span className="text-text-secondary">
+                        <span className="block font-medium">{loanContext.loanLabel}</span>
+                        {loanContext.customerName ? <span className="mt-0.5 block text-xs">{loanContext.customerName}</span> : null}
+                      </span>
                     )}
                   </td>
                   <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>

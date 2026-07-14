@@ -176,7 +176,7 @@ export function CreditDetailHeader({
               icon={<ArrowLeft size={20} />}
               className="shrink-0"
             />
-            <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-text-primary md:text-3xl">
+            <h1 className="min-w-0 whitespace-nowrap text-2xl font-bold leading-tight tracking-tight text-text-primary md:text-3xl">
               {tTerm('creditDetails.header.title', { id: loanId })}
             </h1>
             <StatusChip size="sm" className={`shrink-0 uppercase tracking-[0.12em] ${statusInfo.className}`}>

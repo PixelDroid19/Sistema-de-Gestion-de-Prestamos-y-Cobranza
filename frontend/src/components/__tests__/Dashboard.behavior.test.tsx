@@ -5,7 +5,7 @@ import Dashboard, { buildDashboardMonthlyChartData } from '../Dashboard';
 let reportsState = {
   dashboardData: {
     position: { availableCash: 120000, receivables: 950000, capitalPlaced: 800000, associateCapital: 500000, associateLiabilities: 35000 },
-    period: { collections: 240000, associateContributions: 500000, disbursements: 100000, operatingExpenses: 20000, associatePayments: 30000, capitalReturns: 50000, netResult: 540000 },
+    period: { collections: 240000, principalRecovered: 180000, creditIncome: 60000, associateContributions: 500000, disbursements: 100000, operatingExpenses: 20000, associatePayments: 30000, capitalReturns: 50000, netResult: 540000 },
     risk: { delinquentLoans: 1, capitalAtRisk: 180000, overdueAssociateObligations: 2, overdueAssociateAmount: 25000, arrearsRate: 33.33 },
     trend: [
       {
@@ -71,7 +71,7 @@ describe('Dashboard behavior', () => {
     reportsState = {
       dashboardData: {
         position: { availableCash: 120000, receivables: 950000, capitalPlaced: 800000, associateCapital: 500000, associateLiabilities: 35000 },
-        period: { collections: 240000, associateContributions: 500000, disbursements: 100000, operatingExpenses: 20000, associatePayments: 30000, capitalReturns: 50000, netResult: 540000 },
+        period: { collections: 240000, principalRecovered: 180000, creditIncome: 60000, associateContributions: 500000, disbursements: 100000, operatingExpenses: 20000, associatePayments: 30000, capitalReturns: 50000, netResult: 540000 },
         risk: { delinquentLoans: 1, capitalAtRisk: 180000, overdueAssociateObligations: 2, overdueAssociateAmount: 25000, arrearsRate: 33.33 },
         trend: [
           {
@@ -136,12 +136,23 @@ describe('Dashboard behavior', () => {
     expect(screen.getByText('Capital de socios')).toBeInTheDocument();
     expect(screen.getByText('Intereses por pagar a socios')).toBeInTheDocument();
     expect(screen.getByText('Aportes de socios')).toBeInTheDocument();
+    expect(screen.getByText('Capital recuperado')).toBeInTheDocument();
+    expect(screen.getByText('Interés y mora cobrados')).toBeInTheDocument();
+    expect(screen.getByText('Capital recuperado').closest('article')).toHaveTextContent(/180\.000/);
+    expect(screen.getByText('Interés y mora cobrados').closest('article')).toHaveTextContent(/60\.000/);
     expect(screen.getByText('Devoluciones de capital')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Bloques' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reordenar panel' })).not.toBeInTheDocument();
     const barSeries = screen.getAllByTestId('bar-series').map((node) => node.textContent);
     expect(barSeries).toContain('Entradas|inflows');
     expect(barSeries).toContain('Salidas|outflows');
+  });
+
+  it('keeps financial amounts fully readable instead of clipping them with ellipsis', () => {
+    renderDashboard();
+
+    const availableCash = screen.getByText(/120\.000/);
+    expect(availableCash).not.toHaveClass('truncate');
   });
 
   it('shows explicit error state instead of silent zero metrics', () => {

@@ -274,6 +274,8 @@ test('createGetDashboardSummary aggregates dashboard sections and propagates rep
     associateLiabilities: '45.00',
   });
   assert.equal(summary.data.period.collections, '100.00');
+  assert.equal(summary.data.period.principalRecovered, '60.00');
+  assert.equal(summary.data.period.creditIncome, '40.00');
   assert.equal(summary.data.period.associateContributions, '500.00');
   assert.equal(summary.data.period.disbursements, '1200.00');
   assert.equal(summary.data.period.operatingExpenses, '15.00');

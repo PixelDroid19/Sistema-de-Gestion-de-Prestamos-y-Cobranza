@@ -32,7 +32,7 @@ const VoucherService = {
 
   formatPaymentMethod(method) {
     const normalized = String(method || '').trim().toLowerCase();
-    return PAYMENT_METHOD_LABELS[normalized] || method || 'Efectivo';
+    return PAYMENT_METHOD_LABELS[normalized] || method || 'Sin método';
   },
 
   /**
@@ -42,7 +42,7 @@ const VoucherService = {
    */
   formatDate(date) {
     if (!date) {
-      return 'N/A';
+      return 'Sin fecha';
     }
     const datePartMatch = typeof date === 'string' ? date.match(/^(\d{4})-(\d{2})-(\d{2})/u) : null;
     const rawDate = date instanceof Date ? date : new Date(date);
@@ -50,7 +50,7 @@ const VoucherService = {
       ? new Date(Number(datePartMatch[1]), Number(datePartMatch[2]) - 1, Number(datePartMatch[3]), 12)
       : new Date(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate(), 12);
     if (Number.isNaN(d.getTime())) {
-      return 'N/A';
+      return 'Sin fecha';
     }
     return d.toLocaleDateString('es-CO', {
       year: 'numeric',
@@ -81,7 +81,7 @@ const VoucherService = {
       .font('Helvetica')
       .fontSize(10)
       .fillColor('#666666')
-      .text(`No. ${data.paymentId || 'N/A'}`, 330, 72, { width: 209, align: 'right' });
+      .text(`No. ${data.paymentId || 'Sin referencia'}`, 330, 72, { width: 209, align: 'right' });
 
     doc
       .strokeColor('#cccccc')
@@ -127,9 +127,9 @@ const VoucherService = {
     const startY = 124;
 
     this.renderSectionTitle(doc, 'DATOS DEL CLIENTE', PAGE.left, startY);
-    this.renderKeyValue(doc, 'Nombre', data.customerName || 'N/A', PAGE.left, startY + 22);
-    this.renderKeyValue(doc, 'C.C./NIT', data.documentNumber || 'N/A', PAGE.left, startY + 40);
-    this.renderKeyValue(doc, 'Teléfono', data.customerPhone || 'N/A', PAGE.left, startY + 58);
+    this.renderKeyValue(doc, 'Nombre', data.customerName || 'Cliente no disponible', PAGE.left, startY + 22);
+    this.renderKeyValue(doc, 'C.C./NIT', data.documentNumber || 'Sin documento registrado', PAGE.left, startY + 40);
+    this.renderKeyValue(doc, 'Teléfono', data.customerPhone || 'Sin teléfono registrado', PAGE.left, startY + 58);
 
     return doc;
   },
@@ -143,7 +143,7 @@ const VoucherService = {
     const startY = 212;
 
     this.renderSectionTitle(doc, 'DATOS DEL CRÉDITO', PAGE.left, startY);
-    this.renderKeyValue(doc, 'ID préstamo', String(data.creditId || 'N/A'), PAGE.left, startY + 22);
+    this.renderKeyValue(doc, 'ID préstamo', String(data.creditId || 'Sin referencia'), PAGE.left, startY + 22);
     this.renderKeyValue(doc, 'Monto original', this.formatCurrency(data.originalAmount), PAGE.left, startY + 40);
     this.renderKeyValue(doc, 'Saldo anterior', this.formatCurrency(data.previousBalance), PAGE.left, startY + 58);
     this.renderKeyValue(doc, 'Saldo posterior', this.formatCurrency(data.remainingBalance), PAGE.left, startY + 76);
@@ -161,7 +161,7 @@ const VoucherService = {
 
     this.renderSectionTitle(doc, 'DETALLE DEL PAGO', PAGE.left, startY);
     this.renderKeyValue(doc, 'Fecha de pago', this.formatDate(data.paymentDate), PAGE.left, startY + 24);
-    this.renderKeyValue(doc, 'Número de cuota', `Cuota ${data.installmentNumber || 'N/A'}`, PAGE.left, startY + 42);
+    this.renderKeyValue(doc, 'Número de cuota', data.installmentNumber ? `Cuota ${data.installmentNumber}` : 'Sin cuota asociada', PAGE.left, startY + 42);
     this.renderKeyValue(doc, 'Subtotal', this.formatCurrency(data.totalPaid), PAGE.left, startY + 64);
 
     doc
@@ -274,9 +274,9 @@ const VoucherService = {
         const voucherData = {
           paymentId: payment.id,
           paymentDate: payment.paymentDate,
-          customerName: customer?.name || 'N/A',
-          documentNumber: customer?.documentNumber || 'N/A',
-          customerPhone: customer?.phone || 'N/A',
+          customerName: customer?.name || 'Cliente no disponible',
+          documentNumber: customer?.documentNumber || 'Sin documento registrado',
+          customerPhone: customer?.phone || 'Sin teléfono registrado',
           creditId: loan?.id,
           originalAmount: loan?.amount,
           previousBalance: payment.remainingBalanceAfterPayment + payment.amount,

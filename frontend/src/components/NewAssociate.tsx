@@ -226,6 +226,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
     <SectionSurface
       as="form"
       onSubmit={handleSubmit}
+      noValidate
       data-tour="new-associate-form"
       className={`associate-form ${embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}`}
     >

@@ -3,13 +3,10 @@ import { formatCurrency as formatCurrencyValue, formatNumber as formatNumberValu
 import { tTerm } from '../../i18n/terminology';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportTabPanel } from './ReportTabPanel';
+import ReportSummaryGrid from './ReportSummaryGrid';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 const formatNumber = (value: unknown) => formatNumberValue(value, { maximumFractionDigits: 0 });
-const buildCompactSummary = (items: Array<{ label: string; value: string }>) => (
-  items.map((item) => `${item.label}: ${item.value}`).join(' · ')
-);
-
 const toAmountNumber = (value: unknown) => {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) ? amount : 0;
@@ -89,26 +86,24 @@ export default function OutstandingTab({
   const subtitle = hasActualOverdue
     ? tTerm('reports.outstanding.subtitle')
     : tTerm('reports.outstanding.subtitleCurrent');
-  const compactSummary = !isLoading && !isError && overdueLoans.length > 0
-    ? buildCompactSummary([
-      {
-        label: countLabel,
-        value: formatNumber(hasActualOverdue ? summary.overdueCount : summary.totalCount),
-      },
-      {
-        label: tTerm('reports.outstanding.summary.maxDays.label'),
-        value: formatNumber(summary.maxDaysOverdue),
-      },
-      {
-        label: amountLabel,
-        value: formatMoney(summary.totalOverdueAmount),
-      },
-      {
-        label: tTerm('reports.outstanding.summary.remainingCapital.label'),
-        value: formatMoney(summary.totalRemainingCapital),
-      },
-    ])
-    : '';
+  const summaryItems = [
+    {
+      label: countLabel,
+      value: formatNumber(hasActualOverdue ? summary.overdueCount : summary.totalCount),
+    },
+    {
+      label: tTerm('reports.outstanding.summary.maxDays.label'),
+      value: formatNumber(summary.maxDaysOverdue),
+    },
+    {
+      label: amountLabel,
+      value: formatMoney(summary.totalOverdueAmount),
+    },
+    {
+      label: tTerm('reports.outstanding.summary.remainingCapital.label'),
+      value: formatMoney(summary.totalRemainingCapital),
+    },
+  ];
   const daysColumnLabel = hasActualOverdue
     ? tTerm('reports.outstanding.daysOverdue')
     : tTerm('reports.outstanding.daysStatus');
@@ -120,9 +115,12 @@ export default function OutstandingTab({
     <div className="report-tab-layout">
       <ReportTabPanel
         title={tTerm('reports.outstanding.title')}
-        subtitle={compactSummary ? `${subtitle} · ${compactSummary}` : subtitle}
+        subtitle={subtitle}
         headerActions={exportActions}
       />
+      {!isLoading && !isError && overdueLoans.length > 0 ? (
+        <ReportSummaryGrid columns={4} items={summaryItems} />
+      ) : null}
       <ReportDataTableSection
         isLoading={isLoading}
         isError={isError}

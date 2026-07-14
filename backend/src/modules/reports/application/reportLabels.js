@@ -39,7 +39,7 @@ const PAYMENT_METHOD_LABELS = {
  * @returns {string} Spanish operational label.
  */
 const formatOperationalStatus = (value) => {
-  if (!value) return 'N/A';
+  if (!value) return 'Sin estado';
   const rawValue = String(value).trim();
   const normalized = rawValue.toLowerCase();
   return OPERATIONAL_STATUS_LABELS[normalized] || rawValue;
@@ -52,7 +52,7 @@ const formatOperationalStatus = (value) => {
  * @returns {string} Spanish operational label.
  */
 const formatPaymentType = (value) => {
-  if (!value) return 'N/A';
+  if (!value) return 'Sin tipo';
   const rawValue = String(value).trim();
   const normalized = rawValue.toLowerCase();
   return PAYMENT_TYPE_LABELS[normalized] || rawValue;
@@ -65,7 +65,7 @@ const formatPaymentType = (value) => {
  * @returns {string} Spanish operational label.
  */
 const formatPaymentMethod = (value) => {
-  if (!value) return 'N/A';
+  if (!value) return 'Sin método';
   const rawValue = String(value).trim();
   const normalized = rawValue.toLowerCase();
   return PAYMENT_METHOD_LABELS[normalized] || rawValue;

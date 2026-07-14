@@ -19,9 +19,9 @@ const { buildCsv } = require('@/modules/reports/application/reportHelpers');
 
 const formatIsoDate = (value) => {
   if (!value) {
-    return 'N/A';
+    return 'Sin fecha';
   }
-  return toDateOnlyOrNull(value) || 'N/A';
+  return toDateOnlyOrNull(value) || 'Sin fecha';
 };
 
 // ─── Excel Column Helpers ───────────────────────────────────────────────────

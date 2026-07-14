@@ -595,11 +595,35 @@ describe('Reports operational module', () => {
     expect(screen.getAllByText('Socio Reporte')).toHaveLength(2);
     expect(screen.getByText('Aporte de capital')).toBeInTheDocument();
     expect(screen.getByText('Interés programado pagado')).toBeInTheDocument();
+    expect(screen.queryByText('N/A')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Excel (xlsx)' }));
     await waitFor(() => expect(mockExportAssociatesExcel).toHaveBeenCalledWith({ format: 'xlsx' }));
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+
+  it('identifies payments without a retained creator as historical records', () => {
+    payoutsReportState = {
+      ...payoutsReportState,
+      payouts: [{
+        paymentId: 42,
+        loanId: 15,
+        customerName: 'Cliente Historial',
+        paymentDate: '2026-04-10',
+        amount: '120000.00',
+        paymentType: 'installment',
+        paymentMethod: 'cash',
+        status: 'completed',
+        principalApplied: '90000.00',
+      }],
+    };
+
+    renderReports();
+    fireEvent.click(screen.getByRole('tab', { name: 'Pago de cuotas' }));
+
+    expect(screen.getByText('Registro histórico')).toBeInTheDocument();
+    expect(screen.queryByText('N/A')).not.toBeInTheDocument();
   });
 
   it('uses cashflow data as the default accounting close report and exports it', async () => {
@@ -616,7 +640,12 @@ describe('Reports operational module', () => {
     expect(screen.queryByText('Cierre mensual')).not.toBeInTheDocument();
     expect(within(cashFlowTable).getAllByText('Préstamos').length).toBeGreaterThan(0);
     expect(within(cashFlowTable).getByRole('columnheader', { name: 'Caja disponible' })).toBeInTheDocument();
+    expect(within(cashFlowTable).queryByRole('columnheader', { name: 'Capital recuperado' })).not.toBeInTheDocument();
     expect(within(cashFlowTable).queryByRole('columnheader', { name: 'Cartera por cobrar' })).not.toBeInTheDocument();
+    expect(screen.getByText('Capital recuperado')).toBeInTheDocument();
+    expect(screen.getAllByText('Cartera por cobrar').length).toBeGreaterThan(1);
+    const monthlyCells = within(cashFlowTable).getByRole('row', { name: /2026-01/ }).querySelectorAll('td');
+    expect(monthlyCells[2]).toHaveTextContent('COP 45.000.000');
     expect(screen.queryByText('Recaudo y préstamos')).not.toBeInTheDocument();
     expect(screen.queryByText('Salidas operativas')).not.toBeInTheDocument();
     expect(screen.queryByText('Caja y cartera')).not.toBeInTheDocument();
@@ -703,7 +732,8 @@ describe('Reports operational module', () => {
     expect(screen.getAllByText('COP 50.000.000').length).toBeGreaterThan(0);
     expect(screen.getAllByText('COP 40.000.000').length).toBeGreaterThan(0);
     expect(screen.getAllByText('COP 45.000.000').length).toBeGreaterThan(0);
-    expect(screen.queryByText('COP 12.500.000')).not.toBeInTheDocument();
+    expect(screen.getAllByText('COP 12.500.000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('COP 37.500.000').length).toBeGreaterThan(0);
     expect(screen.getByRole('columnheader', { name: 'Total' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Más indicadores/ })).not.toBeInTheDocument();
   });
@@ -836,10 +866,14 @@ describe('Reports operational module', () => {
     renderReports();
     openReportView('Cartera por cobrar');
 
-    expect(screen.getByText(/Créditos en mora: 2/)).toBeInTheDocument();
-    expect(screen.getByText(/Mayor atraso: 15/)).toBeInTheDocument();
-    expect(screen.getByText(/Saldo vencido: COP 350\.000/)).toBeInTheDocument();
-    expect(screen.getByText(/Capital pendiente: COP 4\.000\.000/)).toBeInTheDocument();
+    expect(screen.getByText('Créditos en mora')).toBeInTheDocument();
+    expect(screen.getByText('Mayor atraso')).toBeInTheDocument();
+    expect(screen.getByText('Saldo vencido')).toBeInTheDocument();
+    expect(screen.getByText('COP 350.000')).toBeInTheDocument();
+    expect(screen.getAllByText('Capital pendiente').length).toBeGreaterThan(0);
+    expect(screen.getByText('COP 4.000.000')).toBeInTheDocument();
+    const reportPanel = screen.getAllByRole('heading', { name: 'Cartera por cobrar' }).at(-1)?.closest('.report-tab-panel');
+    expect(reportPanel).not.toHaveTextContent('Créditos en mora');
   });
 
   it('exports the receivable portfolio to Excel and PDF', async () => {
@@ -898,9 +932,10 @@ describe('Reports operational module', () => {
     renderReports();
     openReportView('Cartera por cobrar');
 
-    expect(screen.getByText(/Créditos con saldo: 1/)).toBeInTheDocument();
-    expect(screen.queryByText(/Créditos en mora:/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Saldo por cobrar: COP 1\.680\.982/)).toBeInTheDocument();
+    expect(screen.getByText('Créditos con saldo')).toBeInTheDocument();
+    expect(screen.queryByText('Créditos en mora')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Saldo por cobrar').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('COP 1.680.982').length).toBeGreaterThan(0);
     expect(screen.getByRole('columnheader', { name: 'Estado del atraso' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Saldo por cobrar' })).toBeInTheDocument();
     expect(screen.getByText('Cliente #7')).toBeInTheDocument();
@@ -914,7 +949,8 @@ describe('Reports operational module', () => {
     renderReports();
     openReportView('Créditos del período');
 
-    expect(screen.getByText('Capital prestado, pagos recibidos y flujo acumulado del rango seleccionado')).toBeInTheDocument();
+    expect(screen.getByText('Créditos y capital prestado en el rango seleccionado.')).toBeInTheDocument();
+    expect(screen.queryByText(/pagos recibidos y flujo acumulado/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
     fireEvent.change(screen.getByLabelText('Desde período'), { target: { value: '2026-04-01' } });

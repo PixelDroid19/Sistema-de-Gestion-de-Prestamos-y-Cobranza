@@ -538,7 +538,9 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
           ...baseFields,
           section: operationalStatus === 'paid' ? ASSOCIATE_EXPORT_SECTIONS.interestPaid : ASSOCIATE_EXPORT_SECTIONS.interestDue,
           entryId: installment.id,
-          reference: installment.installmentNumber || '',
+          reference: installment.installmentNumber
+            ? `Cuota #${installment.installmentNumber}`
+            : '',
           amount: roundMoney(installment.amount),
           date: toExcelDate(operationalStatus === 'paid' ? installment.paidAt : installment.dueDate),
           status: formatOperationalStatus(operationalStatus),

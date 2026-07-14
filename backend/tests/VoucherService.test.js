@@ -34,19 +34,19 @@ describe('VoucherService', () => {
         `Expected month name, got: ${result}`);
     });
 
-    test('returns N/A for null', () => {
+    test('returns a clear label for null', () => {
       const result = VoucherService.formatDate(null);
-      assert.equal(result, 'N/A');
+      assert.equal(result, 'Sin fecha');
     });
 
-    test('returns N/A for undefined', () => {
+    test('returns a clear label for undefined', () => {
       const result = VoucherService.formatDate(undefined);
-      assert.equal(result, 'N/A');
+      assert.equal(result, 'Sin fecha');
     });
 
-    test('returns N/A for invalid date string', () => {
+    test('returns a clear label for invalid date string', () => {
       const result = VoucherService.formatDate('not-a-date');
-      assert.equal(result, 'N/A');
+      assert.equal(result, 'Sin fecha');
     });
 
     test('keeps date-only payment strings on the same calendar day', () => {

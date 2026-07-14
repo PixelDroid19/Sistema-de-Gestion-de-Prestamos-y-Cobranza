@@ -137,7 +137,7 @@ export const commonEn = {
 'common.quickGuide': 'Quick guide',
 'common.status.closed': 'Closed',
 'common.status.completed': 'Completed',
-'common.notAvailable': 'N/A',
+'common.notAvailable': '—',
 'common.notSpecified': 'Not specified',
 'common.clear': 'Clear selection',
 'customerSearch.placeholder': 'Search existing customer...',
