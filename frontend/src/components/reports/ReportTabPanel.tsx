@@ -1,4 +1,7 @@
-import type { FormEventHandler, ReactNode } from 'react';
+import { useEffect, useId, useState, type FormEventHandler, type ReactNode } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
+import { tTerm } from '../../i18n/terminology';
+import { ActionButton } from '../shared/Surfaces';
 import { ReportTabActionsBar } from './ReportTabActionsBar';
 
 type FilterColumns = 1 | 2 | 3 | 4 | 5;
@@ -10,6 +13,8 @@ type ReportTabPanelProps = {
   filters?: ReactNode;
   secondaryFilters?: ReactNode;
   filterColumns?: FilterColumns;
+  activeFilterCount?: number;
+  filtersDefaultOpen?: boolean;
   /** @deprecated Prefer headerActions; kept for footer toolbars */
   actions?: ReactNode;
   children?: ReactNode;
@@ -32,15 +37,29 @@ export function ReportTabPanel({
   filters,
   secondaryFilters,
   filterColumns = 3,
+  activeFilterCount = 0,
+  filtersDefaultOpen = false,
   actions,
   children,
   as: Component = 'section',
   onSubmit,
   className = '',
 }: ReportTabPanelProps) {
+  const [filtersOpen, setFiltersOpen] = useState(filtersDefaultOpen || activeFilterCount > 0);
+  const filtersId = useId();
   const filterClassName = `report-tab-panel__filters report-tab-panel__filters--cols-${filterColumns}`;
   const hasHeaderCopy = Boolean(title || subtitle);
-  const hasHeader = hasHeaderCopy || Boolean(headerActions);
+  const hasFilters = Boolean(filters || secondaryFilters);
+  const hasHeader = hasHeaderCopy || Boolean(headerActions) || hasFilters;
+  const filtersLabel = activeFilterCount > 0
+    ? tTerm('reports.filters.labelWithCount', { count: activeFilterCount })
+    : tTerm('reports.filters.label');
+
+  useEffect(() => {
+    if (activeFilterCount > 0) {
+      setFiltersOpen(true);
+    }
+  }, [activeFilterCount]);
 
   return (
     <Component
@@ -55,15 +74,33 @@ export function ReportTabPanel({
               {subtitle ? <p className="report-tab-panel__subtitle">{subtitle}</p> : null}
             </div>
           ) : null}
-          {headerActions ? (
+          {hasFilters || headerActions ? (
             <div className="report-tab-panel__header-actions">
-              <ReportTabActionsBar>{headerActions}</ReportTabActionsBar>
+              <ReportTabActionsBar>
+                {hasFilters ? (
+                  <ActionButton
+                    type="button"
+                    variant="ghost"
+                    icon={<SlidersHorizontal size={16} />}
+                    aria-expanded={filtersOpen}
+                    aria-controls={filtersId}
+                    onClick={() => setFiltersOpen((open) => !open)}
+                  >
+                    {filtersLabel}
+                  </ActionButton>
+                ) : null}
+                {headerActions}
+              </ReportTabActionsBar>
             </div>
           ) : null}
         </div>
       ) : null}
-      {filters ? <div className={filterClassName}>{filters}</div> : null}
-      {secondaryFilters ? <div className="report-tab-panel__secondary-filters">{secondaryFilters}</div> : null}
+      {hasFilters && filtersOpen ? (
+        <div id={filtersId} className="report-tab-panel__filter-panel">
+          {filters ? <div className={filterClassName}>{filters}</div> : null}
+          {secondaryFilters ? <div className="report-tab-panel__secondary-filters">{secondaryFilters}</div> : null}
+        </div>
+      ) : null}
       {actions ? <div className="report-tab-panel__actions">{actions}</div> : null}
       {children}
     </Component>

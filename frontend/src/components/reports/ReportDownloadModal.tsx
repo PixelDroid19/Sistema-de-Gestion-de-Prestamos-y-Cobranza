@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { ActionButton, ModalShell } from '../shared/Surfaces';
@@ -13,6 +14,12 @@ type ReportDownloadModalProps = {
   formats?: ReportDownloadFormat[];
 };
 
+type ReportDownloadControlProps = Omit<ReportDownloadModalProps, 'onClose'> & {
+  disabled?: boolean;
+  disabledReason?: string;
+  label?: string;
+};
+
 const formatMeta: Record<ReportDownloadFormat, { label: string; icon: typeof FileSpreadsheet }> = {
   xlsx: { label: tTerm('reports.export.format.xlsx'), icon: FileSpreadsheet },
   excel: { label: tTerm('reports.cashflow.cta.excel'), icon: FileSpreadsheet },
@@ -22,10 +29,12 @@ const formatMeta: Record<ReportDownloadFormat, { label: string; icon: typeof Fil
 export function ReportDownloadTrigger({
   onClick,
   disabled,
+  title,
   label,
 }: {
   onClick: () => void;
   disabled?: boolean;
+  title?: string;
   label?: string;
 }) {
   return (
@@ -34,10 +43,37 @@ export function ReportDownloadTrigger({
       variant="secondary"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       icon={<Download size={16} />}
     >
       {label || tTerm('reports.cta.download')}
     </ActionButton>
+  );
+}
+
+export function ReportDownloadControl({
+  disabled,
+  disabledReason,
+  label,
+  ...modalProps
+}: ReportDownloadControlProps) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <ReportDownloadTrigger
+        onClick={() => setOpen(true)}
+        disabled={disabled || modalProps.isExporting}
+        title={disabled ? disabledReason : undefined}
+        label={label}
+      />
+      {open ? (
+        <ReportDownloadModal
+          {...modalProps}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }
 

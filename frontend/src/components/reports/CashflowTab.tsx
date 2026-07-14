@@ -2,10 +2,10 @@ import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { parseReportYearInput } from '../../lib/reportYearInput';
 import {
-  ActionButton,
   AppInput,
   FormField,
 } from '../shared/Surfaces';
+import { ReportDownloadControl } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportTabPanel } from './ReportTabPanel';
 import ReportValueStack, { ReportMetaPairs } from './ReportValueStack';
@@ -121,6 +121,7 @@ export default function CashflowTab({
   const activeMonthlyRows = monthlyRows.filter(hasOperationalCashflowMovement);
   const displayedMonthlyRows = activeMonthlyRows;
   const summary = cashFlowData?.summary || {};
+  const activeFilterCount = Number(Boolean(cashFlowRange.fromDate)) + Number(Boolean(cashFlowRange.toDate));
   const handleYearChange = (value: string) => {
     const parsedYear = parseReportYearInput(value);
     if (parsedYear !== null) {
@@ -144,7 +145,10 @@ export default function CashflowTab({
   return (
     <div className="report-tab-layout">
       <ReportTabPanel
+        title={tTerm('reports.tab.cashflow')}
+        subtitle={tTerm('reports.tab.cashflow.title')}
         filterColumns={3}
+        activeFilterCount={activeFilterCount}
         filters={(
           <>
             <FormField label={tTerm('reports.cashflow.year')}>
@@ -171,31 +175,19 @@ export default function CashflowTab({
           </>
         )}
         headerActions={reportExportGuard.visible ? (
-          <>
-            <ActionButton
-              variant="secondary"
-              onClick={() => onExportCashFlow('excel')}
-              disabled={!reportExportGuard.executable || isCashFlowExporting === 'excel'}
-              title={reportExportGuard.executable ? undefined : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-            >
-              {tTerm('reports.cashflow.cta.excel')}
-            </ActionButton>
-            <ActionButton
-              variant="ghost"
-              onClick={() => onExportCashFlow('pdf')}
-              disabled={!reportExportGuard.executable || isCashFlowExporting === 'pdf'}
-              title={reportExportGuard.executable ? undefined : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-            >
-              {tTerm('reports.cashflow.cta.pdf')}
-            </ActionButton>
-          </>
+          <ReportDownloadControl
+            title={tTerm('reports.download.cashflow.title')}
+            subtitle={tTerm('reports.download.cashflow.subtitle')}
+            isExporting={isCashFlowExporting !== null}
+            disabled={!reportExportGuard.executable}
+            disabledReason={reportExportGuard.reason || tTerm('credits.action.unavailable')}
+            formats={['excel', 'pdf']}
+            onDownload={(format) => onExportCashFlow(format === 'pdf' ? 'pdf' : 'excel')}
+          />
         ) : null}
       />
 
-      <ReportDataTableSection
-        title={tTerm('reports.cashflow.table.title')}
-        subtitle={tTerm('reports.cashflow.table.subtitle')}
-      >
+      <ReportDataTableSection>
             <thead>
               <tr>
                 <th>{tTerm('reports.cashflow.table.month')}</th>
@@ -217,7 +209,7 @@ export default function CashflowTab({
               ) : (
                 displayedMonthlyRows.map((month: CashflowRowLike) => (
                   <tr key={month.month}>
-                    <td className="font-medium">{month.month}</td>
+                    <td className="report-cashflow-period font-medium">{month.month}</td>
                     <td>
                       <ReportValueStack
                         value={formatMoney(sumCashflowAmounts(month.inflows, month.associateContributions))}
@@ -262,20 +254,11 @@ export default function CashflowTab({
               <tfoot>
                 <tr>
                   <th>{tTerm('reports.cashflow.table.total')}</th>
-                  <td><ReportValueStack value={formatMoney(sumCashflowAmounts(summary.totalInflows, summary.totalAssociateContributions))} meta={<ReportMetaPairs pairs={[{ label: tTerm('reports.cashflow.table.installmentsShort'), value: formatMoney(summary.totalInflows) }, { label: tTerm('reports.cashflow.table.contributionsShort'), value: formatMoney(summary.totalAssociateContributions) }]} />} strong /></td>
+                  <td><ReportValueStack value={formatMoney(sumCashflowAmounts(summary.totalInflows, summary.totalAssociateContributions))} strong /></td>
                   <td>
                     <ReportValueStack
                       value={formatMoney(sumCashflowAmounts(summary.totalOutflows, summary.totalAssociatePayments, summary.totalCapitalReturns, summary.totalOperatingExpenses))}
-                      meta={(
-                        <ReportMetaPairs
-                          pairs={[
-                            { label: tTerm('reports.cashflow.table.outflowsShort'), value: formatMoney(summary.totalOutflows) },
-                            { label: tTerm('reports.cashflow.table.associatePaymentsShort'), value: formatMoney(summary.totalAssociatePayments) },
-                            { label: tTerm('reports.cashflow.table.capitalReturnsShort'), value: formatMoney(summary.totalCapitalReturns) },
-                            { label: tTerm('reports.cashflow.table.operatingExpensesShort'), value: formatMoney(summary.totalOperatingExpenses) },
-                          ]}
-                        />
-                      )}
+                      strong
                     />
                   </td>
                   <td>

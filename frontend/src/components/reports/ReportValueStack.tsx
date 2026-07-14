@@ -17,10 +17,11 @@ type ReportValueStackProps = {
 export function ReportMetaPairs({ pairs }: { pairs: ReportMetaPair[] }) {
   return (
     <div className="report-value-stack__meta-pairs">
-      {pairs.map((pair) => (
+      {pairs.map((pair, index) => (
         <span key={`${pair.label}-${pair.value}`} className="report-value-stack__meta-pair">
-          <span className="report-value-stack__meta-label">{pair.label}</span>
+          <span className="report-value-stack__meta-label">{pair.label}</span>{' '}
           <span className="report-value-stack__meta-amount">{pair.value}</span>
+          {index < pairs.length - 1 ? <span className="report-value-stack__meta-separator" aria-hidden="true"> · </span> : null}
         </span>
       ))}
     </div>

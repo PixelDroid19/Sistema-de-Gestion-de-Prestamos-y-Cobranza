@@ -4,8 +4,11 @@ import { formatCurrency, formatDate, formatNumber } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { reportClientError } from '../../lib/clientDiagnostics';
 import { toast } from '../../lib/toast';
-import { ActionButton, AppInput, DataTableSurface, EmptyState, FormField, InsightStrip, OperationalSelect, SectionSurface } from '../shared/Surfaces';
-import { AppTable, TABLE_EMBEDDED_SHELL_CLASS, TableSectionIntro } from '../shared/tables';
+import { AppInput, DataTableSurface, EmptyState, FormField, OperationalSelect } from '../shared/Surfaces';
+import { AppTable, TABLE_EMBEDDED_SHELL_CLASS } from '../shared/tables';
+import { ReportDownloadControl } from './ReportDownloadModal';
+import ReportSummaryGrid from './ReportSummaryGrid';
+import { ReportTabPanel } from './ReportTabPanel';
 
 const PAGE_SIZE = 20;
 
@@ -36,6 +39,12 @@ export default function AssociateMovementsTab() {
   const report = data?.data?.report || {};
   const rows = Array.isArray(report.rows) ? report.rows : [];
   const summary = report.summary || {};
+  const activeFilterCount = [
+    filters.search.trim(),
+    filters.status === 'all' ? '' : filters.status,
+    filters.fromDate,
+    filters.toDate,
+  ].filter(Boolean).length;
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const visibleRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -45,37 +54,56 @@ export default function AssociateMovementsTab() {
   }, [page, totalPages]);
 
   const runExport = async (format: 'xlsx' | 'pdf') => {
-    if (invalidRange) return;
+    if (invalidRange) return false;
     setExporting(format);
     try {
       await exportAssociatesExcel({ ...queryFilters, format });
       toast.success({ description: tTerm('reports.associates.toast.export.success') });
+      return true;
     } catch (error) {
       toast.error({ description: tTerm('reports.associates.toast.export.error') });
       reportClientError('associateMovements.export', error);
+      return false;
     } finally {
       setExporting(null);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <SectionSurface bodyClassName="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-        <FormField label={tTerm('reports.associates.filter.search')}><AppInput value={filters.search} onValueChange={(search) => setFilters((current) => ({ ...current, search }))} placeholder={tTerm('reports.associates.filter.searchPlaceholder')} /></FormField>
-        <FormField label={tTerm('reports.associates.filter.status')}><OperationalSelect value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">{tTerm('reports.associates.filter.allStatuses')}</option><option value="active">{tTerm('common.status.active')}</option><option value="inactive">{tTerm('common.status.inactive')}</option></OperationalSelect></FormField>
-        <FormField label={tTerm('reports.associates.filter.from')} error={invalidRange ? tTerm('reports.export.invalidRange') : undefined}><AppInput variant="date" value={filters.fromDate} onValueChange={(fromDate) => setFilters((current) => ({ ...current, fromDate }))} /></FormField>
-        <FormField label={tTerm('reports.associates.filter.to')}><AppInput variant="date" value={filters.toDate} onValueChange={(toDate) => setFilters((current) => ({ ...current, toDate }))} /></FormField>
-      </SectionSurface>
+    <div className="report-tab-layout">
+      <ReportTabPanel
+        title={tTerm('reports.associates.title')}
+        subtitle={tTerm('reports.associates.description')}
+        filterColumns={4}
+        activeFilterCount={activeFilterCount}
+        filters={(
+          <>
+            <FormField label={tTerm('reports.associates.filter.search')}><AppInput value={filters.search} onValueChange={(search) => setFilters((current) => ({ ...current, search }))} placeholder={tTerm('reports.associates.filter.searchPlaceholder')} /></FormField>
+            <FormField label={tTerm('reports.associates.filter.status')}><OperationalSelect value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">{tTerm('reports.associates.filter.allStatuses')}</option><option value="active">{tTerm('common.status.active')}</option><option value="inactive">{tTerm('common.status.inactive')}</option></OperationalSelect></FormField>
+            <FormField label={tTerm('reports.associates.filter.from')} error={invalidRange ? tTerm('reports.export.invalidRange') : undefined}><AppInput variant="date" value={filters.fromDate} onValueChange={(fromDate) => setFilters((current) => ({ ...current, fromDate }))} /></FormField>
+            <FormField label={tTerm('reports.associates.filter.to')}><AppInput variant="date" value={filters.toDate} onValueChange={(toDate) => setFilters((current) => ({ ...current, toDate }))} /></FormField>
+          </>
+        )}
+        headerActions={(
+          <ReportDownloadControl
+            title={tTerm('reports.download.associates.title')}
+            subtitle={tTerm('reports.download.associates.subtitle')}
+            isExporting={exporting !== null}
+            disabled={invalidRange}
+            disabledReason={invalidRange ? tTerm('reports.export.invalidRange') : undefined}
+            onDownload={(format) => runExport(format === 'pdf' ? 'pdf' : 'xlsx')}
+          />
+        )}
+      />
 
-      <InsightStrip density="compact" items={[
-        { id: 'movements', label: tTerm('reports.associates.summary.movements'), value: formatNumber(summary.totalMovements || 0), accent: 'slate' },
-        { id: 'capital-in', label: tTerm('reports.associates.summary.capitalIn'), value: formatCurrency(Number(summary.contributions || 0) + Number(summary.reinvestments || 0)), accent: 'slate' },
-        { id: 'paid', label: tTerm('reports.associates.summary.profitabilityPaid'), value: formatCurrency(summary.profitabilityPaid), accent: 'slate' },
-        { id: 'pending', label: tTerm('reports.associates.summary.profitabilityPending'), value: formatCurrency(summary.profitabilityPending), accent: 'slate' },
+      <ReportSummaryGrid columns={4} items={[
+        { label: tTerm('reports.associates.summary.movements'), value: formatNumber(summary.totalMovements || 0) },
+        { label: tTerm('reports.associates.summary.capitalIn'), value: formatCurrency(Number(summary.contributions || 0) + Number(summary.reinvestments || 0)) },
+        { label: tTerm('reports.associates.summary.profitabilityPaid'), value: formatCurrency(summary.profitabilityPaid) },
+        { label: tTerm('reports.associates.summary.profitabilityPending'), value: formatCurrency(summary.profitabilityPending) },
       ]} />
 
       <DataTableSurface>
-        <TableSectionIntro embedded title={tTerm('reports.associates.title')} description={tTerm('reports.associates.description')} aside={<div className="flex gap-2"><ActionButton onClick={() => void runExport('xlsx')} disabled={invalidRange || exporting !== null}>{tTerm('reports.cashflow.cta.excel')}</ActionButton><ActionButton variant="ghost" onClick={() => void runExport('pdf')} disabled={invalidRange || exporting !== null}>{tTerm('reports.cashflow.cta.pdf')}</ActionButton></div>} />
         <AppTable
           variant="operational"
           isLoading={isLoading}

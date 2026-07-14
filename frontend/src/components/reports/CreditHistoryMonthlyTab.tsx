@@ -7,7 +7,6 @@ import {
   FormField,
   OperationalSelect,
 } from '../shared/Surfaces';
-import { ReportCollapsibleFilters } from './ReportCollapsibleFilters';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportTabPanel } from './ReportTabPanel';
 import { TableStatusPill } from '../shared/tables';
@@ -127,7 +126,8 @@ export default function CreditHistoryMonthlyTab({
     creditDate: pickValue(credit, ['creditDate', 'createdAt', 'disbursementDate'], ''),
     amount: pickValue(credit, ['amount', 'principal', 'principalAmount']),
   })), [credits]);
-  const advancedFilterCount = filters.customerId.trim().length > 0 ? 1 : 0;
+  const activeFilterCount = [filters.startDate, filters.endDate, filters.status, filters.customerId]
+    .filter((value) => value.trim().length > 0).length;
 
   useEffect(() => {
     setCreditPage(1);
@@ -177,7 +177,10 @@ export default function CreditHistoryMonthlyTab({
   return (
     <div className="report-tab-layout">
       <ReportTabPanel
-        filterColumns={3}
+        title={tTerm('reports.tab.creditHistory')}
+        subtitle={tTerm('reports.tab.creditHistory.title')}
+        filterColumns={4}
+        activeFilterCount={activeFilterCount}
         headerActions={exportActions}
         filters={(
           <>
@@ -205,14 +208,6 @@ export default function CreditHistoryMonthlyTab({
                 ))}
               </OperationalSelect>
             </FormField>
-          </>
-        )}
-        secondaryFilters={(
-          <ReportCollapsibleFilters
-            activeCount={advancedFilterCount}
-            defaultOpen={advancedFilterCount > 0}
-            filterColumns={3}
-          >
             <FormField label={tTerm('reports.creditHistory.customerId')}>
               <CustomerSearchSelect
                 id="credit-history-customer"
@@ -224,7 +219,7 @@ export default function CreditHistoryMonthlyTab({
                 listboxLabel={tTerm('reports.creditHistory.customerSearch.results')}
               />
             </FormField>
-          </ReportCollapsibleFilters>
+          </>
         )}
       />
       <ReportDataTableSection

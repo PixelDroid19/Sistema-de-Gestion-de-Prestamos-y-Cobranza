@@ -27,7 +27,6 @@ import { PERMISSION } from '../constants/permissionNames';
 import { requestInput } from '../lib/confirmModal';
 import { toast } from '../lib/toast';
 import {
-  ActionButton,
   PageHeader,
   PageShell,
 } from './shared/Surfaces';
@@ -39,6 +38,7 @@ import OperatingExpensesTab from './reports/OperatingExpensesTab';
 import PayoutsTab from './reports/PayoutsTab';
 import ReportsTabContent from './reports/ReportsTabContent';
 import AssociateMovementsTab from './reports/AssociateMovementsTab';
+import { ReportDownloadControl } from './reports/ReportDownloadModal';
 import {
   buildContextualExportParams,
   hasInvalidExportRange,
@@ -310,12 +310,6 @@ export default function Reports() {
       ],
     },
   ], [canViewOperatingExpensesTab]);
-  const activeReport = useMemo(
-    () => reportGroups
-      .flatMap((group) => group.leaves)
-      .find((leaf) => leaf.id === activeTab),
-    [activeTab, reportGroups],
-  );
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -333,17 +327,6 @@ export default function Reports() {
         groups={reportGroups}
         primaryAriaLabel={tTerm('reports.tabs.aria')}
       />
-
-      {activeReport && !['outstanding', 'expenses'].includes(activeTab) ? (
-        <section className="reports-module-intro" aria-label={activeReport.label}>
-          <div className="reports-module-intro__copy">
-            <h3 className="reports-module-intro__title">{activeReport.label}</h3>
-            {activeReport.title && activeReport.title !== activeReport.label ? (
-              <p className="reports-module-intro__subtitle">{activeReport.title}</p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
 
       <ReportsTabContent>
       {activeTab === 'cashflow' && (
@@ -367,28 +350,16 @@ export default function Reports() {
           data={creditHistoryData}
           isLoading={isCreditHistoryLoading}
           exportActions={reportExportGuard.visible ? (
-            <>
-              <ActionButton
-                variant="secondary"
-                onClick={() => { void handleExportCreditHistoryWithFormat('xlsx'); }}
-                disabled={creditHistoryExportBlocked || isExporting}
-                title={creditHistoryExportBlocked && hasInvalidExportRange(creditHistoryFilters.startDate, creditHistoryFilters.endDate)
-                  ? tTerm('reports.export.invalidRange')
-                  : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-              >
-                {tTerm('reports.cashflow.cta.excel')}
-              </ActionButton>
-              <ActionButton
-                variant="ghost"
-                onClick={() => { void handleExportCreditHistoryWithFormat('pdf'); }}
-                disabled={creditHistoryExportBlocked || isExporting}
-                title={creditHistoryExportBlocked && hasInvalidExportRange(creditHistoryFilters.startDate, creditHistoryFilters.endDate)
-                  ? tTerm('reports.export.invalidRange')
-                  : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-              >
-                {tTerm('reports.cashflow.cta.pdf')}
-              </ActionButton>
-            </>
+            <ReportDownloadControl
+              title={tTerm('reports.download.creditHistory.title')}
+              subtitle={tTerm('reports.download.creditHistory.subtitle')}
+              isExporting={isExporting}
+              disabled={creditHistoryExportBlocked}
+              disabledReason={hasInvalidExportRange(creditHistoryFilters.startDate, creditHistoryFilters.endDate)
+                ? tTerm('reports.export.invalidRange')
+                : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+              onDownload={(format) => handleExportCreditHistoryWithFormat(format === 'pdf' ? 'pdf' : 'xlsx')}
+            />
           ) : null}
         />
       )}
@@ -399,24 +370,14 @@ export default function Reports() {
           isLoading={isOutstandingLoading}
           isError={isOutstandingError}
           exportActions={reportExportGuard.visible ? (
-            <>
-              <ActionButton
-                variant="secondary"
-                onClick={() => { void handleExportOutstanding('xlsx'); }}
-                disabled={!reportExportGuard.executable || isOutstandingExporting !== null}
-                title={reportExportGuard.reason || tTerm('credits.action.unavailable')}
-              >
-                {tTerm('reports.cashflow.cta.excel')}
-              </ActionButton>
-              <ActionButton
-                variant="ghost"
-                onClick={() => { void handleExportOutstanding('pdf'); }}
-                disabled={!reportExportGuard.executable || isOutstandingExporting !== null}
-                title={reportExportGuard.reason || tTerm('credits.action.unavailable')}
-              >
-                {tTerm('reports.cashflow.cta.pdf')}
-              </ActionButton>
-            </>
+            <ReportDownloadControl
+              title={tTerm('reports.download.outstanding.title')}
+              subtitle={tTerm('reports.download.outstanding.subtitle')}
+              isExporting={isOutstandingExporting !== null}
+              disabled={!reportExportGuard.executable}
+              disabledReason={reportExportGuard.reason || tTerm('credits.action.unavailable')}
+              onDownload={(format) => handleExportOutstanding(format === 'pdf' ? 'pdf' : 'xlsx')}
+            />
           ) : null}
         />
       )}
@@ -435,28 +396,16 @@ export default function Reports() {
           isPayoutsLoading={isPayoutsLoading}
           canFilterByEmployee={canFilterExpensesByEmployee}
           exportActions={reportExportGuard.visible ? (
-            <>
-              <ActionButton
-                variant="secondary"
-                onClick={() => { void handleExportPayoutsWithFormat('xlsx'); }}
-                disabled={payoutExportBlocked || isExporting}
-                title={payoutExportBlocked && hasInvalidExportRange(payoutFilters.fromDate || '', payoutFilters.toDate || '')
-                  ? tTerm('reports.export.invalidRange')
-                  : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-              >
-                {tTerm('reports.cashflow.cta.excel')}
-              </ActionButton>
-              <ActionButton
-                variant="ghost"
-                onClick={() => { void handleExportPayoutsWithFormat('pdf'); }}
-                disabled={payoutExportBlocked || isExporting}
-                title={payoutExportBlocked && hasInvalidExportRange(payoutFilters.fromDate || '', payoutFilters.toDate || '')
-                  ? tTerm('reports.export.invalidRange')
-                  : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
-              >
-                {tTerm('reports.cashflow.cta.pdf')}
-              </ActionButton>
-            </>
+            <ReportDownloadControl
+              title={tTerm('reports.download.payouts.title')}
+              subtitle={tTerm('reports.download.payouts.subtitle')}
+              isExporting={isExporting}
+              disabled={payoutExportBlocked}
+              disabledReason={hasInvalidExportRange(payoutFilters.fromDate || '', payoutFilters.toDate || '')
+                ? tTerm('reports.export.invalidRange')
+                : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
+              onDownload={(format) => handleExportPayoutsWithFormat(format === 'pdf' ? 'pdf' : 'xlsx')}
+            />
           ) : null}
         />
       )}

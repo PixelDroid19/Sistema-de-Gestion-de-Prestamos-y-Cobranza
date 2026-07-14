@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { formatCurrency as formatCurrencyValue, formatNumber as formatNumberValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { ReportDataTableSection } from './ReportDataTableSection';
+import { ReportTabPanel } from './ReportTabPanel';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 const formatNumber = (value: unknown) => formatNumberValue(value, { maximumFractionDigits: 0 });
@@ -117,10 +118,12 @@ export default function OutstandingTab({
 
   return (
     <div className="report-tab-layout">
-      <ReportDataTableSection
+      <ReportTabPanel
         title={tTerm('reports.outstanding.title')}
         subtitle={compactSummary ? `${subtitle} · ${compactSummary}` : subtitle}
-        aside={exportActions}
+        headerActions={exportActions}
+      />
+      <ReportDataTableSection
         isLoading={isLoading}
         isError={isError}
         hasData={overdueLoans.length > 0}

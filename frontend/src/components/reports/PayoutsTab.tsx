@@ -14,7 +14,6 @@ import {
   UserSearchSelect,
 } from '../shared/Surfaces';
 import { TableStatusPill } from '../shared/tables';
-import { ReportCollapsibleFilters } from './ReportCollapsibleFilters';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import ReportSummaryGrid from './ReportSummaryGrid';
 import { ReportTabPanel } from './ReportTabPanel';
@@ -123,7 +122,7 @@ export default function PayoutsTab({
   exportActions,
 }: PayoutsTabProps) {
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
-  const advancedFilterCount = payoutFilters.employeeId ? 1 : 0;
+  const activeFilterCount = Object.values(payoutFilters).filter(Boolean).length;
 
   const updateFilters = (patch: PayoutFilters) => {
     const candidateFilters = { ...payoutFilters, ...patch };
@@ -147,7 +146,10 @@ export default function PayoutsTab({
   return (
     <div className="report-tab-layout">
       <ReportTabPanel
-        filterColumns={4}
+        title={tTerm('reports.tab.payouts')}
+        subtitle={tTerm('reports.tab.payouts.title')}
+        filterColumns={canFilterByEmployee ? 5 : 4}
+        activeFilterCount={activeFilterCount}
         headerActions={exportActions}
         filters={(
           <>
@@ -187,14 +189,7 @@ export default function PayoutsTab({
                 <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
               </OperationalSelect>
             </FormField>
-          </>
-        )}
-        secondaryFilters={canFilterByEmployee ? (
-          <ReportCollapsibleFilters
-            activeCount={advancedFilterCount}
-            defaultOpen={advancedFilterCount > 0}
-            filterColumns={2}
-          >
+            {canFilterByEmployee ? (
             <FormField label={tTerm('reports.payouts.filter.employee')}>
               <UserSearchSelect
                 id="reports-payout-employee"
@@ -207,8 +202,9 @@ export default function PayoutsTab({
                 role="administrative"
               />
             </FormField>
-          </ReportCollapsibleFilters>
-        ) : undefined}
+            ) : null}
+          </>
+        )}
       />
 
       <ReportSummaryGrid

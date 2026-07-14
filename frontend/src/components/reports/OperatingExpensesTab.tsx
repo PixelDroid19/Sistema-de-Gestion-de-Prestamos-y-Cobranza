@@ -16,7 +16,7 @@ import {
   UserSearchSelect,
 } from '../shared/Surfaces';
 import OperatingExpenseCreateModal, { OperatingExpenseCreateTrigger } from './OperatingExpenseCreateModal';
-import ReportDownloadModal, { ReportDownloadTrigger } from './ReportDownloadModal';
+import { ReportDownloadControl } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { RowActionsWithOverflow, TableActionsCell, TableActionsHeader } from '../shared/tables';
 import { ReportTabPanel } from './ReportTabPanel';
@@ -73,7 +73,6 @@ export default function OperatingExpensesTab({
   canFilterByEmployee = false,
 }: OperatingExpensesTabProps) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [downloadOpen, setDownloadOpen] = useState(false);
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
 
   const updateExpenseDateFilter = (key: 'fromDate' | 'toDate', value: string) => {
@@ -90,6 +89,7 @@ export default function OperatingExpensesTab({
 
   const totalPages = Math.max(Number(pagination?.totalPages || 1), 1);
   const totalItems = Number(pagination?.totalItems || expenses.length || 0);
+  const activeFilterCount = Object.values(expenseFilters).filter(Boolean).length;
 
   return (
     <div className="report-tab-layout">
@@ -97,6 +97,7 @@ export default function OperatingExpensesTab({
         title={tTerm('reports.expenses.title')}
         subtitle={tTerm('reports.expenses.subtitle')}
         filterColumns={canFilterByEmployee ? 4 : 3}
+        activeFilterCount={activeFilterCount}
         filters={(
           <>
             <FormField label={tTerm('reports.expenses.filter.from')}>
@@ -148,9 +149,11 @@ export default function OperatingExpensesTab({
         headerActions={(
           <>
             {canCreate && <OperatingExpenseCreateTrigger onClick={() => setCreateOpen(true)} />}
-            <ReportDownloadTrigger
-              onClick={() => setDownloadOpen(true)}
-              disabled={exportingFormat !== null}
+            <ReportDownloadControl
+              title={tTerm('reports.download.expenses.title')}
+              subtitle={tTerm('reports.download.expenses.subtitle')}
+              isExporting={exportingFormat !== null}
+              onDownload={(format) => onExportExpenses(format === 'pdf' ? 'pdf' : 'xlsx')}
             />
           </>
         )}
@@ -161,17 +164,6 @@ export default function OperatingExpensesTab({
           onClose={() => setCreateOpen(false)}
           isCreating={isCreating}
           onCreateExpense={onCreateExpense}
-        />
-      )}
-
-      {downloadOpen && (
-        <ReportDownloadModal
-          onClose={() => setDownloadOpen(false)}
-          title={tTerm('reports.download.expenses.title')}
-          subtitle={tTerm('reports.download.expenses.subtitle')}
-          isExporting={exportingFormat !== null}
-          formats={['xlsx', 'pdf']}
-          onDownload={(format) => onExportExpenses(format === 'pdf' ? 'pdf' : 'xlsx')}
         />
       )}
 
