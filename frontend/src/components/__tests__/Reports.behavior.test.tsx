@@ -612,6 +612,7 @@ describe('Reports operational module', () => {
 
     expect(screen.getByRole('tab', { name: 'Gastos operativos' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Control de gastos operativos' })).toBeInTheDocument();
+    expect(screen.getAllByText('Registra los gastos del negocio. Puedes anularlos y quedan en el historial.')).toHaveLength(1);
   });
 
   it('keeps non-zero cashflow table values when rows arrive with total-prefixed fields', () => {

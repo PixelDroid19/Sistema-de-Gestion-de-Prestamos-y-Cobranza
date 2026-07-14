@@ -334,7 +334,7 @@ export default function Reports() {
         primaryAriaLabel={tTerm('reports.tabs.aria')}
       />
 
-      {activeReport && activeTab !== 'outstanding' ? (
+      {activeReport && !['outstanding', 'expenses'].includes(activeTab) ? (
         <section className="reports-module-intro" aria-label={activeReport.label}>
           <div className="reports-module-intro__copy">
             <h3 className="reports-module-intro__title">{activeReport.label}</h3>
