@@ -537,20 +537,21 @@ describe('Reports operational module', () => {
     paymentCalendarOverviewState = createDefaultPaymentCalendarOverviewState();
   });
 
-  it('renders one operational catalog including the canonical associate report', () => {
+  it('renders one operational catalog including associates and authorized expenses', () => {
     renderReports();
 
     expect(screen.getByRole('heading', { name: 'Reportes operativos' })).toBeInTheDocument();
     expect(screen.queryByText('Informes operativos')).not.toBeInTheDocument();
     expect(screen.queryByText('Elige el informe que necesitas')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('tab')).toHaveLength(5);
-    expect(screen.getByRole('tab', { name: 'Cierre contable' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Créditos del período' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Cartera por cobrar' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Movimientos de socios' })).toBeInTheDocument();
+    const reportSelector = screen.getByRole('region', { name: 'Secciones de reportes' });
+    expect(within(reportSelector).getAllByRole('tab')).toHaveLength(6);
+    expect(within(reportSelector).getByRole('tab', { name: 'Cierre contable' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(reportSelector).getByRole('tab', { name: 'Créditos del período' })).toBeInTheDocument();
+    expect(within(reportSelector).getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
+    expect(within(reportSelector).getByRole('tab', { name: 'Cartera por cobrar' })).toBeInTheDocument();
+    expect(within(reportSelector).getByRole('tab', { name: 'Movimientos de socios' })).toBeInTheDocument();
+    expect(within(reportSelector).getByRole('tab', { name: 'Gastos operativos' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Desembolsos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Movimientos operativos' })).not.toBeInTheDocument();
 
@@ -604,12 +605,13 @@ describe('Reports operational module', () => {
     });
   });
 
-  it('keeps expense management outside the report selector', () => {
+  it('opens expense management from the report catalog', () => {
     renderReports();
 
-    const reportSelector = screen.getByRole('region', { name: 'Secciones de reportes' });
-    expect(within(reportSelector).queryByRole('button', { name: 'Gastos operativos' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Gastos operativos' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Gastos operativos' }));
+
+    expect(screen.getByRole('tab', { name: 'Gastos operativos' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Control de gastos operativos' })).toBeInTheDocument();
   });
 
   it('keeps non-zero cashflow table values when rows arrive with total-prefixed fields', () => {
@@ -833,16 +835,6 @@ describe('Reports operational module', () => {
     });
   });
 
-  it('opens operating-expense management from the tools button without adding it to the query selector', () => {
-    renderReports();
-
-    expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Gastos operativos' }));
-
-    expect(screen.getByText('Control de gastos operativos')).toBeInTheDocument();
-  });
-
   it('uses balance-oriented labels when the receivable portfolio has no visible delay yet', () => {
     reportsState = {
       ...reportsState,
@@ -912,13 +904,13 @@ describe('Reports operational module', () => {
     expect(screen.queryByText('Créditos consultados por mes')).not.toBeInTheDocument();
   });
 
-  it('keeps repeated operational reports out of the primary report tabs', () => {
+  it('keeps retired repeated reports out while retaining canonical expenses', () => {
     renderReports();
 
     expect(screen.queryByRole('tab', { name: 'Desembolsos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Movimientos operativos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Gastos operativos' })).toBeInTheDocument();
   });
 
   it('shows installment payments as a primary report and exports visible filters', async () => {
@@ -964,9 +956,10 @@ describe('Reports operational module', () => {
 
     renderReports();
 
-    expect(screen.queryByRole('button', { name: 'Gastos operativos' })).not.toBeInTheDocument();
+    const reportSelector = screen.getByRole('region', { name: 'Secciones de reportes' });
+    expect(within(reportSelector).queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
+    expect(within(reportSelector).getAllByRole('tab')).toHaveLength(5);
     expect(screen.queryByRole('tab', { name: 'Calendario de pagos' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Gastos operativos' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Pago de cuotas' })).toBeInTheDocument();
   });
 });

@@ -1511,17 +1511,18 @@
 
   @media (min-width: 768px) {
     .reports-module-nav__tabs {
-      display: flex;
-      width: fit-content;
+      display: grid;
+      width: 100%;
       min-height: 3.25rem;
-      overflow-x: auto;
+      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+      overflow: visible;
     }
 
     .reports-module-nav__tabs .view-tab {
-      width: auto;
-      flex: 0 0 auto;
-      padding: 0 0.9rem;
-      white-space: nowrap;
+      width: 100%;
+      min-width: 0;
+      padding: 0.65rem 0.8rem;
+      white-space: normal;
     }
   }
 

@@ -304,25 +304,18 @@ export default function Reports() {
         { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
         { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
         { id: 'associates', label: tTerm('reports.tab.associates'), title: tTerm('reports.tab.associates.title') },
+        ...(canViewOperatingExpensesTab
+          ? [{ id: 'expenses', label: tTerm('reports.tab.expenses'), title: tTerm('reports.expenses.subtitle') }]
+          : []),
       ],
     },
-  ], []);
+  ], [canViewOperatingExpensesTab]);
   const activeReport = useMemo(
     () => reportGroups
       .flatMap((group) => group.leaves)
       .find((leaf) => leaf.id === activeTab),
     [activeTab, reportGroups],
   );
-  const operatingExpensesAction = canViewOperatingExpensesTab ? (
-    <ActionButton
-      variant={activeTab === 'expenses' ? 'primary' : 'secondary'}
-      aria-pressed={activeTab === 'expenses'}
-      onClick={() => setActiveTab('expenses')}
-    >
-      {tTerm('reports.tab.expenses')}
-    </ActionButton>
-  ) : null;
-
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -331,7 +324,6 @@ export default function Reports() {
         title={tTerm('reports.module.title')}
         subtitle={tTerm('reports.module.subtitle')}
         tourId="reports-header"
-        actions={operatingExpensesAction}
       />
 
       <ReportsNavigation
