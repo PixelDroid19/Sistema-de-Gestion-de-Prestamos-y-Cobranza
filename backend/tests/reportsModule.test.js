@@ -203,7 +203,7 @@ test('customer credit history exports preserve recorded values when they are not
   assert.doesNotMatch(`${csvText}\n${pdfText}`, /Tipo de pago no clasificado|Estado no clasificado/);
 });
 
-test('createGetDashboardSummary aggregates dashboard sections and degrades to empty sections on repository failure', async () => {
+test('createGetDashboardSummary aggregates dashboard sections and propagates repository failures', async () => {
   const getDashboardSummary = createGetDashboardSummary({
     reportRepository: {
       async getDashboardSummary() {
@@ -320,10 +320,10 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
     },
   });
 
-  const degraded = await degradedGetDashboardSummary({ actor: { id: 1, role: 'admin' } });
-  assert.equal(degraded.data.position.availableCash, '0.00');
-  assert.equal(degraded.data.risk.delinquentLoans, 0);
-  assert.deepEqual(degraded.data.trend, []);
+  await assert.rejects(
+    degradedGetDashboardSummary({ actor: { id: 1, role: 'admin' } }),
+    /source unavailable/,
+  );
 });
 
 test('createGetCustomerHistory returns normalized chronological history segments', async () => {
