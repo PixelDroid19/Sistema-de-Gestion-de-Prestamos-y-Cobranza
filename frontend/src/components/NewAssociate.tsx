@@ -1,9 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import { formatCurrency, formatDate } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useAssociateById, useAssociates } from '../services/associateService';
-import { parsePercentageWithPrecisionInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
+import { parsePercentageWithPrecisionInput, parsePositiveMoneyInput } from '../lib/moneyInput';
+import {
+  calculatePeriodicReturn,
+  getDefaultFirstPaymentDate,
+  getFirstPaymentDateBounds,
+  getNextConfiguredPaymentDate,
+  isFirstPaymentDateWithinBounds,
+  parseFirstPaymentTerms,
+  type AssociateInterestType,
+} from '../lib/associateCreationTerms';
 import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
 import {
@@ -25,11 +35,24 @@ interface AssociateFormData {
   phone: string;
   status: string;
   initialCapital: string;
-  interestType: string;
+  interestType: AssociateInterestType;
+  interestRate: string;
+  firstPaymentDate: string;
+}
+
+type AssociateMutationPayload = {
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+  interestType: AssociateInterestType;
   interestRate: string;
   interestPaymentDay: string;
   interestPaymentMonth: string;
-}
+  initialCapital?: string;
+};
+
+type AssociateFormErrors = Partial<Record<'initialCapital' | 'interestRate' | 'firstPaymentDate', string>>;
 
 interface NewAssociateProps {
   onBack: () => void;
@@ -37,34 +60,16 @@ interface NewAssociateProps {
   embedded?: boolean;
 }
 
-const EMPTY_FORM: AssociateFormData = {
+const createEmptyForm = (): AssociateFormData => ({
   name: '',
   email: '',
   phone: '',
   status: 'active',
   initialCapital: '',
-  interestType: 'monthly',
+  interestType: 'annual',
   interestRate: '',
-  interestPaymentDay: '1',
-  interestPaymentMonth: '1',
-};
-
-const MONTH_TERM_KEYS = [
-  'common.month.1',
-  'common.month.2',
-  'common.month.3',
-  'common.month.4',
-  'common.month.5',
-  'common.month.6',
-  'common.month.7',
-  'common.month.8',
-  'common.month.9',
-  'common.month.10',
-  'common.month.11',
-  'common.month.12',
-] as const;
-
-const INTEREST_PAYMENT_DAY_OPTIONS = Array.from({ length: 28 }, (_, index) => String(index + 1));
+  firstPaymentDate: getDefaultFirstPaymentDate('annual'),
+});
 
 export default function NewAssociate({ onBack, associateIdOverride, embedded = false }: NewAssociateProps) {
   const { id } = useParams<{ id: string }>();
@@ -74,34 +79,35 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   const { createAssociate, updateAssociate } = useAssociates(undefined, { enabled: false });
   const { data: associateResponse, isLoading: isLoadingAssociate, isError: isAssociateLoadError } = useAssociateById(associateId);
   const existingAssociate = associateResponse?.data?.associate || null;
-  const [formData, setFormData] = useState<AssociateFormData>(EMPTY_FORM);
-  const monthOptions = MONTH_TERM_KEYS.map((key, index) => ({
-    value: String(index + 1),
-    label: tTerm(key),
-  }));
+  const [formData, setFormData] = useState<AssociateFormData>(createEmptyForm);
+  const [fieldErrors, setFieldErrors] = useState<AssociateFormErrors>({});
 
   useEffect(() => {
     if (!isEditing || !existingAssociate) {
       return;
     }
 
+    const interestType: AssociateInterestType = existingAssociate.interestType === 'monthly' ? 'monthly' : 'annual';
     setFormData({
       name: existingAssociate.name || '',
       email: existingAssociate.email || '',
       phone: existingAssociate.phone || '',
       status: existingAssociate.status || 'active',
       initialCapital: '',
-      interestType: existingAssociate.interestType || 'monthly',
+      interestType,
       interestRate: existingAssociate.interestRate != null && existingAssociate.interestRate !== ''
         ? String(Number(existingAssociate.interestRate))
         : '',
-      interestPaymentDay: String(existingAssociate.interestPaymentDay || 1),
-      interestPaymentMonth: String(existingAssociate.interestPaymentMonth || 1),
+      firstPaymentDate: getNextConfiguredPaymentDate({
+        interestType,
+        paymentDay: Number(existingAssociate.interestPaymentDay || 1),
+        paymentMonth: Number(existingAssociate.interestPaymentMonth || 1),
+      }),
     });
   }, [existingAssociate, isEditing]);
 
-  const { isSubmitting, run } = useCreateEntitySubmit({
-    mutate: (payload: Partial<AssociateFormData>) => {
+  const { isSubmitting, run } = useCreateEntitySubmit<AssociateMutationPayload>({
+    mutate: (payload) => {
       if (isEditing) {
         return updateAssociate.mutateAsync({ id: associateId, ...payload });
       }
@@ -115,9 +121,35 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
   const title = isEditing ? tTerm('newAssociate.title.edit') : tTerm('newAssociate.title.create');
   const subtitle = isEditing ? tTerm('newAssociate.subtitle.edit') : tTerm('newAssociate.subtitle.create');
+  const firstPaymentBounds = getFirstPaymentDateBounds(formData.interestType);
+  const capitalAmount = parsePositiveMoneyInput(formData.initialCapital) ?? 0;
+  const parsedRate = parsePercentageWithPrecisionInput(formData.interestRate, 4);
+  const interestRate = parsedRate ?? 0;
+  const periodicReturn = calculatePeriodicReturn(capitalAmount, interestRate);
+  const hasReturnPreview = capitalAmount > 0 && interestRate > 0;
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
+  const clearFieldError = (field: keyof AssociateFormErrors) => {
+    setFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const selectInterestType = (interestType: AssociateInterestType) => {
+    setFormData((current) => ({
+      ...current,
+      interestType,
+      firstPaymentDate: getDefaultFirstPaymentDate(interestType),
+    }));
+    clearFieldError('firstPaymentDate');
+  };
+
+  const handleSubmit = async (event?: React.FormEvent) => {
+    event?.preventDefault();
     if (!formData.name.trim()) {
       toast.error({ title: tTerm('newAssociate.validation.nameRequired') });
       return;
@@ -128,40 +160,39 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       return;
     }
 
-    if (formData.initialCapital.trim() && parsePositiveMoneyInput(formData.initialCapital) === null) {
-      toast.error({ title: tTerm('newAssociate.validation.initialCapital') });
+    const nextErrors: AssociateFormErrors = {};
+    const initialCapital = parsePositiveMoneyInput(formData.initialCapital);
+    if (!isEditing && initialCapital === null) {
+      nextErrors.initialCapital = tTerm('newAssociate.validation.initialCapitalRequired');
+    }
+
+    if (parsedRate === null || parsedRate <= 0) {
+      nextErrors.interestRate = tTerm('newAssociate.validation.rateRange');
+    }
+
+    const paymentTerms = parseFirstPaymentTerms(formData.firstPaymentDate);
+    if (!paymentTerms || !isFirstPaymentDateWithinBounds(formData.firstPaymentDate, formData.interestType)) {
+      nextErrors.firstPaymentDate = tTerm('newAssociate.validation.firstPaymentDate');
+    }
+
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0 || !paymentTerms) {
       return;
     }
 
-    const interestRate = formData.interestRate.trim() === ''
-      ? 0
-      : parsePercentageWithPrecisionInput(formData.interestRate, 4);
-    if (interestRate === null) {
-      toast.error({ title: tTerm('newAssociate.validation.rateRange') });
-      return;
-    }
-
-    const paymentDay = parsePositiveIntegerInput(formData.interestPaymentDay);
-    if (paymentDay === null || paymentDay > 28) {
-      toast.error({ title: tTerm('newAssociate.validation.dayRange') });
-      return;
-    }
-
-    const payload: Partial<AssociateFormData> = {
+    const payload: AssociateMutationPayload = {
       name: formData.name.trim(),
       email: formData.email.trim(),
       phone: formData.phone.trim(),
-      status: formData.status,
+      status: isEditing ? formData.status : 'active',
       interestType: formData.interestType,
-      interestRate: String(interestRate),
-      interestPaymentDay: String(paymentDay),
-      interestPaymentMonth: formData.interestType === 'annual' ? formData.interestPaymentMonth : '1',
+      interestRate: String(parsedRate),
+      interestPaymentDay: paymentTerms.day,
+      interestPaymentMonth: formData.interestType === 'annual' ? paymentTerms.month : '1',
     };
 
-    // Empty initial capital is not part of the create contract; omit it instead of
-    // sending "" which the API rejects as an invalid positive amount.
-    if (!isEditing && formData.initialCapital.trim()) {
-      payload.initialCapital = formData.initialCapital;
+    if (!isEditing && initialCapital !== null) {
+      payload.initialCapital = String(initialCapital);
     }
 
     await run(payload);
@@ -192,148 +223,195 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   }
 
   const form = (
-    <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form" className={`associate-form ${embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}`}>
-        <div className="space-y-5">
-          <div>
-            <h3 className="text-base font-semibold text-text-primary">{tTerm('newAssociate.section.person')}</h3>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label={tTerm('newAssociate.field.name')}>
-            <AppInput
-              id="new-associate-name"
-              variant="text"
-              trimText
-              maxLength={120}
-              value={formData.name}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, name: value }))}
-              placeholder={tTerm('newAssociate.placeholder.name')}
-              required
-            />
-          </FormField>
-
-          <FormField label={tTerm('newAssociate.field.status')}>
-            <OperationalSelect
-              id="new-associate-status"
-              value={formData.status}
-              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
-            >
-              <option value="active">{tTerm('common.status.active')}</option>
-              <option value="inactive">{tTerm('common.status.inactive')}</option>
-            </OperationalSelect>
-          </FormField>
-
-          <FormField label={tTerm('newAssociate.field.email')}>
-            <AppInput
-              id="new-associate-email"
-              variant="text"
-              inputMode="email"
-              trimText
-              maxLength={160}
-              value={formData.email}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, email: value }))}
-              placeholder={tTerm('newAssociate.placeholder.email')}
-              required
-            />
-          </FormField>
-
-          <FormField label={tTerm('newAssociate.field.phone')}>
-            <AppInput
-              id="new-associate-phone"
-              variant="text"
-              inputMode="tel"
-              maxLength={40}
-              value={formData.phone}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
-              placeholder={tTerm('newAssociate.placeholder.phone')}
-              required
-            />
-          </FormField>
-          </div>
-
-          <div className="border-t border-border-subtle pt-4">
-            <h3 className="text-base font-semibold text-text-primary">{tTerm('newAssociate.section.deposit')}</h3>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {!isEditing && (
-              <FormField label={tTerm('newAssociate.field.initialCapital')} className="sm:col-span-2">
-                <CurrencyInput
-                  id="new-associate-initial-capital"
-                  value={formData.initialCapital}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, initialCapital: value }))}
-                  placeholder={tTerm('newAssociate.placeholder.initialCapital')}
-                />
-              </FormField>
-            )}
-
-            <FormField label={tTerm('newAssociate.field.interestType')}>
-              <OperationalSelect
-                id="new-associate-interest-type"
-                value={formData.interestType}
-                onChange={(e) => setFormData((prev) => ({ ...prev, interestType: e.target.value }))}
-              >
-                <option value="monthly">{tTerm('common.interestType.monthly')}</option>
-                <option value="annual">{tTerm('common.interestType.annual')}</option>
-              </OperationalSelect>
-            </FormField>
-
-            <FormField
-              label={formData.interestType === 'annual' ? tTerm('newAssociate.field.interestRate.annual') : tTerm('newAssociate.field.interestRate.monthly')}
-            >
-              <PercentInput
-                id="new-associate-interest-rate"
-                allowZero
-                maxDecimals={4}
-                value={formData.interestRate}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, interestRate: value }))}
-                placeholder={tTerm('newAssociate.placeholder.interestRate')}
+    <SectionSurface
+      as="form"
+      onSubmit={handleSubmit}
+      data-tour="new-associate-form"
+      className={`associate-form ${embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}`}
+    >
+      <div className="associate-form__body">
+        <div className="associate-form__section">
+          <h3 className="text-base font-semibold text-text-primary">{tTerm('newAssociate.section.person')}</h3>
+          <div className={`associate-contact-grid ${isEditing ? 'associate-contact-grid--editing' : ''}`}>
+            <FormField label={tTerm('newAssociate.field.name')}>
+              <AppInput
+                id="new-associate-name"
+                variant="text"
+                trimText
+                maxLength={120}
+                value={formData.name}
+                onValueChange={(value) => setFormData((current) => ({ ...current, name: value }))}
+                placeholder={tTerm('newAssociate.placeholder.name')}
+                required
               />
             </FormField>
 
-            {formData.interestType === 'annual' && (
-              <FormField label={tTerm('newAssociate.field.interestMonth')}>
+            <FormField label={tTerm('newAssociate.field.email')}>
+              <AppInput
+                id="new-associate-email"
+                variant="text"
+                inputMode="email"
+                trimText
+                maxLength={160}
+                value={formData.email}
+                onValueChange={(value) => setFormData((current) => ({ ...current, email: value }))}
+                placeholder={tTerm('newAssociate.placeholder.email')}
+                required
+              />
+            </FormField>
+
+            <FormField label={tTerm('newAssociate.field.phone')}>
+              <AppInput
+                id="new-associate-phone"
+                variant="text"
+                inputMode="tel"
+                maxLength={40}
+                value={formData.phone}
+                onValueChange={(value) => setFormData((current) => ({ ...current, phone: value }))}
+                placeholder={tTerm('newAssociate.placeholder.phone')}
+                required
+              />
+            </FormField>
+
+            {isEditing ? (
+              <FormField label={tTerm('newAssociate.field.status')}>
                 <OperationalSelect
-                  id="new-associate-interest-month"
-                  value={formData.interestPaymentMonth}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, interestPaymentMonth: e.target.value }))}
+                  id="new-associate-status"
+                  value={formData.status}
+                  onChange={(event) => setFormData((current) => ({ ...current, status: event.target.value }))}
                 >
-                  {monthOptions.map((month) => (
-                    <option key={month.value} value={month.value}>{month.label}</option>
-                  ))}
+                  <option value="active">{tTerm('common.status.active')}</option>
+                  <option value="inactive">{tTerm('common.status.inactive')}</option>
                 </OperationalSelect>
               </FormField>
-            )}
+            ) : null}
+          </div>
+        </div>
 
-            <FormField label={tTerm('newAssociate.field.interestDay')}>
-              <OperationalSelect
-                id="new-associate-interest-day"
-                value={formData.interestPaymentDay}
-                onChange={(e) => setFormData((prev) => ({ ...prev, interestPaymentDay: e.target.value }))}
+        <div className="associate-form__section">
+          <h3 className="text-base font-semibold text-text-primary">{tTerm('newAssociate.section.deposit')}</h3>
+          <div className="associate-terms-grid">
+            {!isEditing ? (
+              <FormField
+                label={tTerm('newAssociate.field.initialCapital')}
+                error={fieldErrors.initialCapital}
+                className="associate-terms-grid__capital"
               >
-                {INTEREST_PAYMENT_DAY_OPTIONS.map((day) => (
-                  <option key={day} value={day}>{day}</option>
+                <CurrencyInput
+                  id="new-associate-initial-capital"
+                  value={formData.initialCapital}
+                  onValueChange={(value) => {
+                    setFormData((current) => ({ ...current, initialCapital: value }));
+                    clearFieldError('initialCapital');
+                  }}
+                  placeholder={tTerm('newAssociate.placeholder.initialCapital')}
+                  invalid={Boolean(fieldErrors.initialCapital)}
+                />
+              </FormField>
+            ) : null}
+
+            <fieldset className="associate-frequency">
+              <legend className="form-field-label">{tTerm('newAssociate.field.interestType')}</legend>
+              <div className="associate-frequency__options">
+                {(['annual', 'monthly'] as const).map((interestType) => (
+                  <label
+                    key={interestType}
+                    className={`associate-frequency__option ${formData.interestType === interestType ? 'associate-frequency__option--selected' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="associate-interest-type"
+                      value={interestType}
+                      checked={formData.interestType === interestType}
+                      onChange={() => selectInterestType(interestType)}
+                    />
+                    <span>{interestType === 'annual' ? tTerm('common.interestType.annual') : tTerm('common.interestType.monthly')}</span>
+                  </label>
                 ))}
-              </OperationalSelect>
+              </div>
+            </fieldset>
+
+            <FormField
+              label={formData.interestType === 'annual'
+                ? tTerm('newAssociate.field.interestRate.annual')
+                : tTerm('newAssociate.field.interestRate.monthly')}
+              error={fieldErrors.interestRate}
+            >
+              <PercentInput
+                id="new-associate-interest-rate"
+                maxDecimals={4}
+                value={formData.interestRate}
+                onValueChange={(value) => {
+                  setFormData((current) => ({ ...current, interestRate: value }));
+                  clearFieldError('interestRate');
+                }}
+                placeholder={tTerm('newAssociate.placeholder.interestRate')}
+                invalid={Boolean(fieldErrors.interestRate)}
+              />
+            </FormField>
+
+            <FormField
+              label={tTerm('newAssociate.field.firstPaymentDate')}
+              error={fieldErrors.firstPaymentDate}
+            >
+              <AppInput
+                id="new-associate-first-payment"
+                variant="date"
+                value={formData.firstPaymentDate}
+                min={firstPaymentBounds.min}
+                max={firstPaymentBounds.max}
+                onValueChange={(value) => {
+                  setFormData((current) => ({ ...current, firstPaymentDate: value }));
+                  clearFieldError('firstPaymentDate');
+                }}
+                invalid={Boolean(fieldErrors.firstPaymentDate)}
+              />
             </FormField>
           </div>
+        </div>
 
-          <div className="flex gap-3 pt-4">
-            <ActionButton type="button" onClick={onBack} fullWidth>
-              {tTerm('newAssociate.actions.cancel')}
-            </ActionButton>
+        <div className="associate-form-actions">
+          <div className="associate-return-preview" aria-live="polite" data-tour="new-associate-preview">
+            <p className="associate-return-preview__value">
+              {hasReturnPreview
+                ? tTerm(
+                  formData.interestType === 'annual'
+                    ? 'newAssociate.preview.returnAnnual'
+                    : 'newAssociate.preview.returnMonthly',
+                  { amount: formatCurrency(periodicReturn) },
+                )
+                : tTerm('newAssociate.preview.pending')}
+            </p>
+            <p className="associate-return-preview__date">
+              {tTerm('newAssociate.preview.firstPayment', {
+                date: formatDate(formData.firstPaymentDate, {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  timeZone: 'UTC',
+                }),
+              })}
+            </p>
+          </div>
+
+          <div className="associate-form-actions__buttons">
+            {embedded ? (
+              <ActionButton type="button" onClick={onBack}>
+                {tTerm('newAssociate.actions.cancel')}
+              </ActionButton>
+            ) : null}
             <ActionButton
               type="submit"
               disabled={isSubmitting}
               isLoading={isSubmitting}
               variant="primary"
-              fullWidth
             >
               {isEditing ? tTerm('newAssociate.actions.save') : tTerm('newAssociate.actions.create')}
             </ActionButton>
           </div>
         </div>
-      </SectionSurface>
+      </div>
+    </SectionSurface>
   );
 
   if (embedded) {
@@ -341,7 +419,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   }
 
   return (
-    <PageShell className="associate-module-page associate-new-page mx-auto w-full max-w-3xl" data-tour="new-associate-page">
+    <PageShell className="associate-module-page associate-new-page mx-auto w-full max-w-5xl" data-tour="new-associate-page">
       <PageHeader
         title={title}
         subtitle={subtitle}

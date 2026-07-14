@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import NewAssociate from '../NewAssociate';
 import { toast } from '../../lib/toast';
@@ -11,6 +11,7 @@ const useAssociatesMock = vi.fn((_params?: unknown, _options?: unknown) => ({
   createAssociate: createAssociateMock,
   updateAssociate: updateAssociateMock,
 }));
+let associateQueryState: any;
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
@@ -18,11 +19,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('../../services/associateService', () => ({
   useAssociates: (params?: unknown, options?: unknown) => useAssociatesMock(params, options),
-  useAssociateById: () => ({
-    data: null,
-    isLoading: false,
-    isError: false,
-  }),
+  useAssociateById: () => associateQueryState,
 }));
 
 vi.mock('../hooks/useCreateEntitySubmit', () => ({
@@ -41,9 +38,20 @@ vi.mock('../../lib/toast', () => ({
 describe('NewAssociate behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-13T17:00:00.000Z'));
+    associateQueryState = {
+      data: null,
+      isLoading: false,
+      isError: false,
+    };
   });
 
-  const fillRequiredFields = (container: HTMLElement) => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const fillContactFields = (container: HTMLElement) => {
     fireEvent.change(container.querySelector('#new-associate-name') as HTMLInputElement, {
       target: { value: 'Socio Operativo' },
     });
@@ -55,32 +63,78 @@ describe('NewAssociate behavior', () => {
     });
   };
 
+  const fillCreationTerms = (container: HTMLElement, capital = '2000000', rate = '12') => {
+    fireEvent.change(container.querySelector('#new-associate-initial-capital') as HTMLInputElement, {
+      target: { value: capital },
+    });
+    fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
+      target: { value: rate },
+    });
+  };
+
   it('does not prefetch the associates list on the new associate form', () => {
     render(<NewAssociate onBack={vi.fn()} />);
 
     expect(useAssociatesMock).toHaveBeenCalledWith(undefined, { enabled: false });
   });
 
-  it('normalizes initial capital before submitting the associate', () => {
+  it('starts annual and active without exposing configuration that is not a creation decision', () => {
+    render(<NewAssociate onBack={vi.fn()} />);
+
+    const frequency = screen.getByRole('group', { name: 'Frecuencia de pago' });
+    expect(within(frequency).getByRole('radio', { name: 'Anual' })).toBeChecked();
+    expect(within(frequency).getByRole('radio', { name: 'Mensual' })).not.toBeChecked();
+    expect(screen.queryByLabelText('Estado')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Primer pago')).toHaveValue('2027-07-13');
+  });
+
+  it('normalizes capital and shows the agreed annual return before submission', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
-    fillRequiredFields(container);
-    fireEvent.change(container.querySelector('#new-associate-initial-capital') as HTMLInputElement, {
-      target: { value: '2000000' },
-    });
+    fillContactFields(container);
+    fillCreationTerms(container);
 
     expect(container.querySelector('#new-associate-initial-capital')).toHaveValue('2.000.000');
+    expect(screen.getByText('Recibirá COP 240.000 cada año')).toBeInTheDocument();
+    expect(screen.getByText('Primer pago: 13 de julio de 2027')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
 
-    expect(runSubmitMock).toHaveBeenCalledWith(expect.objectContaining({ initialCapital: '2000000' }));
+    expect(runSubmitMock).toHaveBeenCalledWith(expect.objectContaining({
+      initialCapital: '2000000',
+      interestType: 'annual',
+      interestRate: '12',
+      interestPaymentDay: '13',
+      interestPaymentMonth: '7',
+      status: 'active',
+    }));
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it('does not share invalid money text with associate form state', () => {
+  it('switches to monthly in one action and updates the date, rate label, and preview', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+    fillContactFields(container);
+    fillCreationTerms(container, '2000000', '2,5');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mensual' }));
+
+    expect(screen.getByRole('textbox', { name: 'Tasa pactada mensual' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Primer pago')).toHaveValue('2026-08-13');
+    expect(screen.getByText('Recibirá COP 50.000 cada mes')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+    expect(runSubmitMock).toHaveBeenCalledWith(expect.objectContaining({
+      interestType: 'monthly',
+      interestRate: '2.5',
+      interestPaymentDay: '13',
+      interestPaymentMonth: '1',
+    }));
+  });
+
+  it('rejects unsupported money text without sharing it with form state', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
-    fillRequiredFields(container);
     fireEvent.change(container.querySelector('#new-associate-initial-capital') as HTMLInputElement, {
       target: { value: '100e2' },
     });
@@ -88,27 +142,35 @@ describe('NewAssociate behavior', () => {
     expect(container.querySelector('#new-associate-initial-capital')).toHaveValue('');
   });
 
-  it('no longer asks for a profit participation percentage', () => {
+  it('requires capital, positive rate, and a valid first payment date', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
+    fillContactFields(container);
 
-    expect(container.querySelector('#new-associate-participation')).toBeNull();
-  });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+    expect(screen.getByText('Ingresa el capital inicial aportado.')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
 
-  it('keeps creation focused on data entry without an estimated-interest preview', () => {
-    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+    fillCreationTerms(container, '2000000', '0');
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+    expect(screen.getByText('La tasa pactada debe ser mayor que 0% y no superar 100%.')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
 
-    expect(container.querySelector('[data-tour="new-associate-preview"]')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Guía rápida' })).not.toBeInTheDocument();
-  });
-
-  it('submits only the associate creation fields supported by the current contract', () => {
-    const { container } = render(<NewAssociate onBack={vi.fn()} />);
-
-    fillRequiredFields(container);
-    fireEvent.change(container.querySelector('#new-associate-initial-capital') as HTMLInputElement, {
-      target: { value: '2000000' },
+    fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
+      target: { value: '12' },
     });
+    expect(container.querySelector('#new-associate-interest-rate')).toHaveValue('12');
+    fireEvent.change(screen.getByLabelText('Primer pago'), { target: { value: '2027-07-29' } });
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    expect(screen.getByText('Selecciona una fecha válida para el primer pago.')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(runSubmitMock).not.toHaveBeenCalled();
+  });
 
+  it('submits only the fields supported by the current associate contract', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+
+    fillContactFields(container);
+    fillCreationTerms(container);
     fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
 
     const submittedPayload = runSubmitMock.mock.calls.at(-1)?.[0];
@@ -128,82 +190,45 @@ describe('NewAssociate behavior', () => {
     expect(submittedPayload).not.toHaveProperty('interestStartsAt');
   });
 
-  it('omits empty initial capital from the create payload', () => {
+  it('keeps decimal rate normalization and blocks exponent-like input', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
-    fillRequiredFields(container);
-    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
-
-    const submittedPayload = runSubmitMock.mock.calls.at(-1)?.[0];
-    expect(submittedPayload).not.toHaveProperty('initialCapital');
-    expect(Object.keys(submittedPayload).sort()).toEqual([
-      'email',
-      'interestPaymentDay',
-      'interestPaymentMonth',
-      'interestRate',
-      'interestType',
-      'name',
-      'phone',
-      'status',
-    ]);
-  });
-
-  it('normalizes decimal interest rates and rejects exponent-like values', () => {
-    const { container } = render(<NewAssociate onBack={vi.fn()} />);
-
-    fillRequiredFields(container);
     const rateInput = container.querySelector('#new-associate-interest-rate') as HTMLInputElement;
     expect(rateInput).toHaveAttribute('inputmode', 'decimal');
     expect(rateInput.closest('.operational-control')?.textContent).toContain('%');
 
-    fireEvent.change(rateInput, {
-      target: { value: '2,5' },
-    });
+    fireEvent.change(rateInput, { target: { value: '2,5' } });
     expect(rateInput).toHaveValue('2.5');
 
-    fireEvent.change(rateInput, {
-      target: { value: '1e2' },
-    });
-
+    fireEvent.change(rateInput, { target: { value: '1e2' } });
     expect(rateInput).toHaveValue('2.5');
   });
 
-  it('starts with an empty rate field instead of a prefilled zero', () => {
-    const { container } = render(<NewAssociate onBack={vi.fn()} />);
-    expect(container.querySelector('#new-associate-interest-rate')).toHaveValue('');
-  });
+  it('keeps status available while editing and derives the next annual payment date', () => {
+    associateQueryState = {
+      data: {
+        data: {
+          associate: {
+            id: 7,
+            name: 'Socio Existente',
+            email: 'existente@test.local',
+            phone: '3000000000',
+            status: 'inactive',
+            interestType: 'annual',
+            interestRate: '10',
+            interestPaymentDay: 15,
+            interestPaymentMonth: 12,
+          },
+        },
+      },
+      isLoading: false,
+      isError: false,
+    };
 
-  it('uses a discrete day selector for interest payment day instead of free text', () => {
-    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+    render(<NewAssociate associateIdOverride={7} embedded onBack={vi.fn()} />);
 
-    const daySelect = container.querySelector('#new-associate-interest-day') as HTMLSelectElement;
-    expect(daySelect.tagName).toBe('SELECT');
-    expect(within(daySelect).getAllByRole('option')).toHaveLength(28);
-
-    fillRequiredFields(container);
-    fireEvent.change(daySelect, { target: { value: '15' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
-
-    expect(runSubmitMock).toHaveBeenCalledWith(expect.objectContaining({
-      interestPaymentDay: '15',
-    }));
-  });
-
-  it('shows annual payment month only when annual interest is selected', () => {
-    const { container } = render(<NewAssociate onBack={vi.fn()} />);
-
-    expect(container.querySelector('#new-associate-interest-month')).not.toBeInTheDocument();
-
-    fireEvent.change(container.querySelector('#new-associate-interest-type') as HTMLSelectElement, {
-      target: { value: 'annual' },
-    });
-
-    expect(container.querySelector('#new-associate-interest-month')).toBeInTheDocument();
-
-    fireEvent.change(container.querySelector('#new-associate-interest-type') as HTMLSelectElement, {
-      target: { value: 'monthly' },
-    });
-
-    expect(container.querySelector('#new-associate-interest-month')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Estado')).toHaveValue('inactive');
+    expect(screen.getByLabelText('Primer pago')).toHaveValue('2026-12-15');
+    expect(screen.queryByLabelText('Capital inicial aportado')).not.toBeInTheDocument();
   });
 });
