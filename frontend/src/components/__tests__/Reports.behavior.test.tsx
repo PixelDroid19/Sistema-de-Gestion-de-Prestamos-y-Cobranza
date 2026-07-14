@@ -174,8 +174,8 @@ const creditHistoryData = {
     totalPaymentsReceived: '2500000.00',
     totalInterestCollected: '350000.00',
     totalOperatingExpenses: '125000.00',
-    gains: '350000.00',
-    availableCash: '-1925000.00',
+    collectedInterestAndPenalties: '350000.00',
+    creditFlowBalance: '-1925000.00',
   },
   months: [
     {
@@ -185,9 +185,9 @@ const creditHistoryData = {
       installmentsReceived: 4,
       paymentsReceived: '2500000.00',
       operatingExpenses: '125000.00',
-      gains: '350000.00',
+      collectedInterestAndPenalties: '350000.00',
       lossesAtRisk: '0.00',
-      availableCash: '-1925000.00',
+      creditFlowBalance: '-1925000.00',
     },
   ],
   credits: [
@@ -914,6 +914,8 @@ describe('Reports operational module', () => {
     renderReports();
     openReportView('Créditos del período');
 
+    expect(screen.getByText('Capital prestado, pagos recibidos y flujo acumulado del rango seleccionado')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
     fireEvent.change(screen.getByLabelText('Desde período'), { target: { value: '2026-04-01' } });
     fireEvent.change(screen.getByLabelText('Hasta período'), { target: { value: '2026-04-30' } });
@@ -928,6 +930,7 @@ describe('Reports operational module', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
+    expect(screen.getByText('Exporta capital prestado, pagos recibidos y flujo acumulado con los filtros actuales.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Excel (xlsx)' }));
 
     await waitFor(() => {

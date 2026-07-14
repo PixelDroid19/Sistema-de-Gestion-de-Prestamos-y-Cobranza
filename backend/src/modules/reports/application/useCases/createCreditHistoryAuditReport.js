@@ -42,15 +42,15 @@ const MONTHLY_HISTORY_COLUMNS = [
   { header: 'Créditos Creados', key: 'creditsCreated', width: 18, numFmt: INTEGER_FORMAT },
   moneyColumn('Capital Prestado', 'createdPrincipal'),
   { header: 'Cuotas Recibidas', key: 'installmentsReceived', width: 18, numFmt: INTEGER_FORMAT },
-  moneyColumn('Total Recibido', 'paymentsReceived'),
+  moneyColumn('Pagos Recibidos', 'paymentsReceived'),
   moneyColumn('Gastos Operativos', 'operatingExpenses', 22),
   moneyColumn('Capital Recuperado', 'capitalRecovered'),
   moneyColumn('Intereses Cobrados', 'interestCollected'),
   moneyColumn('Mora Cobrada', 'penaltiesCollected'),
   { header: 'Créditos Vencidos', key: 'overdueCredits', width: 18, numFmt: INTEGER_FORMAT },
   moneyColumn('Pérdidas/Riesgo', 'lossesAtRisk'),
-  moneyColumn('Interés y mora', 'gains'),
-  moneyColumn('Caja Disponible', 'availableCash'),
+  moneyColumn('Interés y Mora Cobrados', 'collectedInterestAndPenalties'),
+  moneyColumn('Flujo Acumulado de Créditos', 'creditFlowBalance', 28),
 ];
 
 const CREDIT_DETAIL_COLUMNS = [
@@ -248,8 +248,8 @@ const makeEmptyMonth = (monthKey) => ({
   penaltiesCollected: 0,
   overdueCredits: 0,
   lossesAtRisk: 0,
-  gains: 0,
-  availableCash: 0,
+  collectedInterestAndPenalties: 0,
+  creditFlowBalance: 0,
 });
 
 const getMonthRange = ({ loans, payments, operatingExpenses, filters }) => {
@@ -326,11 +326,11 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], operatingExp
       monthsByKey.get(month).operatingExpenses += toNumber(expense.amount);
     });
 
-  let accumulatedCash = 0;
+  let accumulatedCreditFlow = 0;
   const months = Array.from(monthsByKey.values()).map((month) => {
-    month.gains = month.interestCollected + month.penaltiesCollected;
-    accumulatedCash += month.paymentsReceived - month.createdPrincipal - month.operatingExpenses;
-    month.availableCash = accumulatedCash;
+    month.collectedInterestAndPenalties = month.interestCollected + month.penaltiesCollected;
+    accumulatedCreditFlow += month.paymentsReceived - month.createdPrincipal - month.operatingExpenses;
+    month.creditFlowBalance = accumulatedCreditFlow;
 
     return {
       ...month,
@@ -341,8 +341,8 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], operatingExp
       interestCollected: toMoneyString(month.interestCollected),
       penaltiesCollected: toMoneyString(month.penaltiesCollected),
       lossesAtRisk: toMoneyString(month.lossesAtRisk),
-      gains: toMoneyString(month.gains),
-      availableCash: toMoneyString(month.availableCash),
+      collectedInterestAndPenalties: toMoneyString(month.collectedInterestAndPenalties),
+      creditFlowBalance: toMoneyString(month.creditFlowBalance),
     };
   });
 
@@ -364,8 +364,8 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], operatingExp
     totalPenaltiesCollected: sum('penaltiesCollected'),
     overdueCredits: count('overdueCredits'),
     lossesAtRisk: sum('lossesAtRisk'),
-    gains: sum('gains'),
-    availableCash: months.at(-1)?.availableCash || '0.00',
+    collectedInterestAndPenalties: sum('collectedInterestAndPenalties'),
+    creditFlowBalance: months.at(-1)?.creditFlowBalance || '0.00',
   };
 
   const paymentsByLoanId = plainPayments.reduce((map, payment) => {
@@ -427,7 +427,7 @@ const buildSummaryRows = (summary) => [
   { indicator: 'Créditos creados', value: summary.creditsCreated },
   { indicator: 'Cuotas recibidas', value: summary.installmentsReceived },
   { indicator: 'Capital prestado', value: Number(summary.totalPrincipalCreated), __formats: { value: { numFmt: MONEY_FORMAT } } },
-  { indicator: 'Total recibido', value: Number(summary.totalPaymentsReceived), __formats: { value: { numFmt: MONEY_FORMAT } } },
+  { indicator: 'Pagos recibidos', value: Number(summary.totalPaymentsReceived), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Gastos operativos', value: Number(summary.totalOperatingExpenses), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Capital recuperado', value: Number(summary.totalCapitalRecovered), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Capital vivo', value: Number(summary.totalPrincipalOutstanding), __formats: { value: { numFmt: MONEY_FORMAT } } },
@@ -435,8 +435,8 @@ const buildSummaryRows = (summary) => [
   { indicator: 'Mora cobrada', value: Number(summary.totalPenaltiesCollected), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Créditos vencidos', value: summary.overdueCredits },
   { indicator: 'Pérdidas/Riesgo', value: Number(summary.lossesAtRisk), __formats: { value: { numFmt: MONEY_FORMAT } } },
-  { indicator: 'Interés y mora', value: Number(summary.gains), __formats: { value: { numFmt: MONEY_FORMAT } } },
-  { indicator: 'Caja disponible', value: Number(summary.availableCash), __formats: { value: { numFmt: MONEY_FORMAT } } },
+  { indicator: 'Interés y mora cobrados', value: Number(summary.collectedInterestAndPenalties), __formats: { value: { numFmt: MONEY_FORMAT } } },
+  { indicator: 'Flujo acumulado de créditos', value: Number(summary.creditFlowBalance), __formats: { value: { numFmt: MONEY_FORMAT } } },
 ];
 
 const createGetCreditHistoryAuditReport = ({ reportRepository }) => async ({ actor, filters = {} }) => {
@@ -511,10 +511,10 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
       summary: [
         { label: 'Créditos creados', value: report.summary.creditsCreated },
         { label: 'Capital prestado', value: formatDisplayMoney(report.summary.totalPrincipalCreated) },
-        { label: 'Total recibido', value: formatDisplayMoney(report.summary.totalPaymentsReceived) },
-        { label: 'Interés y mora cobrados', value: formatDisplayMoney(report.summary.gains) },
+        { label: 'Pagos recibidos', value: formatDisplayMoney(report.summary.totalPaymentsReceived) },
+        { label: 'Interés y mora cobrados', value: formatDisplayMoney(report.summary.collectedInterestAndPenalties) },
         { label: 'Saldo de capital', value: formatDisplayMoney(report.summary.totalPrincipalOutstanding) },
-        { label: 'Caja disponible', value: formatDisplayMoney(report.summary.availableCash) },
+        { label: 'Flujo acumulado de créditos', value: formatDisplayMoney(report.summary.creditFlowBalance) },
       ],
       sections: [
         {
@@ -542,16 +542,16 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
             columns: [
               { header: 'Mes', key: 'month', width: 65 },
               { header: 'Prestado', key: 'lent', align: 'right' },
-              { header: 'Recibido', key: 'received', align: 'right' },
+              { header: 'Pagos recibidos', key: 'received', align: 'right' },
               { header: 'Gastos', key: 'expenses', align: 'right' },
-              { header: 'Caja', key: 'cash', align: 'right', bold: true },
+              { header: 'Flujo acumulado', key: 'creditFlow', align: 'right', bold: true },
             ],
             rows: report.months.map((month) => ({
               month: month.month,
               lent: formatDisplayMoney(month.createdPrincipal),
               received: formatDisplayMoney(month.paymentsReceived),
               expenses: formatDisplayMoney(month.operatingExpenses),
-              cash: formatDisplayMoney(month.availableCash),
+              creditFlow: formatDisplayMoney(month.creditFlowBalance),
             })),
           },
         },

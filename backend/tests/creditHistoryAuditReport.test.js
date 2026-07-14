@@ -95,16 +95,19 @@ test('buildCreditHistoryAuditReport reconciles monthly audit totals for loans an
   assert.equal(report.summary.totalPenaltiesCollected, '1000000.00');
   assert.equal(report.summary.overdueCredits, 1);
   assert.equal(report.summary.lossesAtRisk, '7000000.00');
-  assert.equal(report.summary.gains, '6000000.00');
-  assert.equal(report.summary.availableCash, '8000000.00');
+  assert.equal(report.summary.collectedInterestAndPenalties, '6000000.00');
+  assert.equal(report.summary.creditFlowBalance, '8000000.00');
+  assert.equal('gains' in report.summary, false);
+  assert.equal('availableCash' in report.summary, false);
 
   assert.equal(report.months[0].month, '2026-01');
-  assert.equal(report.months[0].availableCash, '10000000.00');
+  assert.equal(report.months[0].creditFlowBalance, '10000000.00');
   assert.equal(report.months[1].month, '2026-02');
-  assert.equal(report.months[1].availableCash, '8000000.00');
+  assert.equal(report.months[1].creditFlowBalance, '8000000.00');
+  assert.equal('availableCash' in report.months[0], false);
 });
 
-test('buildCreditHistoryAuditReport reconciles caja solo con créditos y gastos operativos', () => {
+test('buildCreditHistoryAuditReport reconciles accumulated credit flow without presenting it as available cash', () => {
   const report = buildCreditHistoryAuditReport({
     filters: {
       startDate: new Date('2026-01-01T00:00:00.000Z'),
@@ -123,9 +126,9 @@ test('buildCreditHistoryAuditReport reconciles caja solo con créditos y gastos 
   });
 
   assert.equal(report.summary.totalOperatingExpenses, '1500000.00');
-  assert.equal(report.summary.availableCash, '8500000.00');
+  assert.equal(report.summary.creditFlowBalance, '8500000.00');
   assert.equal(report.months[0].operatingExpenses, '1500000.00');
-  assert.equal(report.months[0].availableCash, '8500000.00');
+  assert.equal(report.months[0].creditFlowBalance, '8500000.00');
 });
 
 test('credit history detail reconciles paid interest from canonical payments and does not count capital payments as received installments', () => {
@@ -288,29 +291,37 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.ok(headers.includes('Capital Recuperado'));
   assert.ok(headers.includes('Créditos Vencidos'));
   assert.ok(headers.includes('Pérdidas/Riesgo'));
-  assert.ok(headers.includes('Interés y mora'));
-  assert.ok(headers.includes('Caja Disponible'));
+  assert.ok(headers.includes('Interés y Mora Cobrados'));
+  assert.ok(headers.includes('Flujo Acumulado de Créditos'));
+  assert.ok(!headers.includes('Interés y mora'));
+  assert.ok(!headers.includes('Caja Disponible'));
 
   const historySheet = workbook.getWorksheet('Detalle mensual');
   const firstCapitalCell = historySheet.getRow(3).getCell(3);
   const firstReceivedCell = historySheet.getRow(3).getCell(5);
-  const firstGainsCell = historySheet.getRow(3).getCell(12);
-  const firstAvailableCashCell = historySheet.getRow(3).getCell(13);
+  const firstCollectedInterestAndPenaltiesCell = historySheet.getRow(3).getCell(12);
+  const firstCreditFlowBalanceCell = historySheet.getRow(3).getCell(13);
   assert.equal(firstCapitalCell.value, 'COP 2.000.000,00');
   assert.equal(firstReceivedCell.value, 'COP 2.000.000,00');
-  assert.equal(firstGainsCell.value, 'COP 500.000,00');
-  assert.equal(firstAvailableCashCell.value, '-COP 100.000,00');
+  assert.equal(firstCollectedInterestAndPenaltiesCell.value, 'COP 500.000,00');
+  assert.equal(firstCreditFlowBalanceCell.value, '-COP 100.000,00');
   assert.match(firstCapitalCell.numFmt, /COP/);
-  assert.match(firstGainsCell.numFmt, /COP/);
-  assert.match(firstAvailableCashCell.numFmt, /COP/);
+  assert.match(firstCollectedInterestAndPenaltiesCell.numFmt, /COP/);
+  assert.match(firstCreditFlowBalanceCell.numFmt, /COP/);
 
   const summarySheet = workbook.getWorksheet('Resumen Auditoría');
   let capitalVivoRow = null;
+  const summaryIndicators = [];
   summarySheet.eachRow((row) => {
+    summaryIndicators.push(row.getCell(1).value);
     if (row.getCell(1).value === 'Capital vivo') {
       capitalVivoRow = row;
     }
   });
+  assert.ok(summaryIndicators.includes('Pagos recibidos'));
+  assert.ok(summaryIndicators.includes('Interés y mora cobrados'));
+  assert.ok(summaryIndicators.includes('Flujo acumulado de créditos'));
+  assert.ok(!summaryIndicators.includes('Caja disponible'));
   assert.ok(capitalVivoRow, 'Resumen Auditoría should include Capital vivo');
   assert.equal(capitalVivoRow.getCell(2).value, 'COP 500.000,00');
   assert.match(capitalVivoRow.getCell(2).numFmt, /COP/);
@@ -322,6 +333,8 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.match(pdf.buffer.toString('latin1'), /%PDF-1\.\d/);
   assert.match(pdfText, /Detalle mensual/);
   assert.match(pdfText, /Detalle de cr\xe9ditos|Detalle de créditos/);
+  assert.match(pdfText, /Flujo acumulado de cr\xe9ditos|Flujo acumulado de créditos/i);
+  assert.doesNotMatch(pdfText, /\bCaja\b/i);
   assert.match(pdfText, /2026-01/);
 });
 
@@ -335,14 +348,14 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
     useCases: {
       async getCreditHistoryAuditReport({ actor, filters }) {
         calls.push(['json', actor.role, filters.status, filters.customerId, filters.loanId, filters.financialProductId]);
-        return { success: true, data: { summary: { availableCash: '1000.00' }, months: [] } };
+        return { success: true, data: { summary: { creditFlowBalance: '1000.00' }, months: [] } };
       },
       async exportCreditHistoryAuditExcel({ actor, filters }) {
         calls.push(['excel', actor.role, filters.status, filters.customerId, filters.loanId, filters.financialProductId]);
         return {
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           fileName: 'creditos-periodo-2026-01-01-2026-01-31.xlsx',
-          sheets: [{ name: 'Resumen Auditoría', rows: [{ indicador: 'Caja disponible', valor: 1000 }] }],
+          sheets: [{ name: 'Resumen Auditoría', rows: [{ indicador: 'Flujo acumulado de créditos', valor: 1000 }] }],
         };
       },
       async exportCreditHistoryAuditPdf({ actor, filters }) {
@@ -366,7 +379,8 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
     headers: { authorization: 'Bearer valid-token' },
   });
   assert.equal(jsonResponse.statusCode, 200);
-  assert.equal(jsonResponse.body.data.summary.availableCash, '1000.00');
+  assert.equal(jsonResponse.body.data.summary.creditFlowBalance, '1000.00');
+  assert.equal('availableCash' in jsonResponse.body.data.summary, false);
 
   const excelResponse = await requestBuffer(activeServer, {
     path: '/credit-history/monthly/export?format=xlsx&startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15&financialProductId=11111111-1111-4111-8111-111111111111',
