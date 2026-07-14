@@ -7,7 +7,7 @@ import {
 } from '../shared/Surfaces';
 import { ReportDownloadActions } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
-import { ReportTabPanel } from './ReportTabPanel';
+import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
 import ReportSummaryGrid from './ReportSummaryGrid';
 import ReportValueStack, { ReportMetaPairs } from './ReportValueStack';
 
@@ -123,6 +123,23 @@ export default function CashflowTab({
   const displayedMonthlyRows = activeMonthlyRows;
   const summary = cashFlowData?.summary || {};
   const activeFilterCount = Number(Boolean(cashFlowRange.fromDate)) + Number(Boolean(cashFlowRange.toDate));
+  const activeFilters: ReportActiveFilter[] = [];
+  if (cashFlowRange.fromDate) {
+    activeFilters.push({
+      id: 'fromDate',
+      label: tTerm('reports.cashflow.fromDate'),
+      value: cashFlowRange.fromDate,
+      onRemove: () => onCashFlowRangeChange({ ...cashFlowRange, fromDate: '' }),
+    });
+  }
+  if (cashFlowRange.toDate) {
+    activeFilters.push({
+      id: 'toDate',
+      label: tTerm('reports.cashflow.toDate'),
+      value: cashFlowRange.toDate,
+      onRemove: () => onCashFlowRangeChange({ ...cashFlowRange, toDate: '' }),
+    });
+  }
   const handleYearChange = (value: string) => {
     const parsedYear = parseReportYearInput(value);
     if (parsedYear !== null) {
@@ -150,6 +167,8 @@ export default function CashflowTab({
         subtitle={tTerm('reports.tab.cashflow.title')}
         filterColumns={3}
         activeFilterCount={activeFilterCount}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => onCashFlowRangeChange({ fromDate: '', toDate: '' })}
         filters={(
           <>
             <FormField label={tTerm('reports.cashflow.year')}>

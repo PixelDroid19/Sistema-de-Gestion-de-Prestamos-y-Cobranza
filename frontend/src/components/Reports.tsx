@@ -334,15 +334,16 @@ export default function Reports() {
         tourId="reports-header"
       />
 
-      <ReportsNavigation
-        data-tour="reports-tabs"
-        activeTab={activeTab}
-        onChange={handleReportsTabChange}
-        groups={reportGroups}
-        primaryAriaLabel={tTerm('reports.tabs.aria')}
-      />
+      <div className="reports-workspace" data-testid="reports-workspace">
+        <ReportsNavigation
+          data-tour="reports-tabs"
+          activeTab={activeTab}
+          onChange={handleReportsTabChange}
+          groups={reportGroups}
+          primaryAriaLabel={tTerm('reports.tabs.aria')}
+        />
 
-      <ReportsTabContent>
+        <ReportsTabContent>
       {activeTab === 'cashflow' && (
         <CashflowTab
           cashFlowYear={cashFlowYear}
@@ -442,7 +443,8 @@ export default function Reports() {
         />
       )}
 
-      </ReportsTabContent>
+        </ReportsTabContent>
+      </div>
     </PageShell>
   );
 }

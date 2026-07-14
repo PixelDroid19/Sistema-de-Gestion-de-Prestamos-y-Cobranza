@@ -16,7 +16,7 @@ import {
 import { TableStatusPill } from '../shared/tables';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import ReportSummaryGrid from './ReportSummaryGrid';
-import { ReportTabPanel } from './ReportTabPanel';
+import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
 import ReportValueStack from './ReportValueStack';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
@@ -123,6 +123,24 @@ export default function PayoutsTab({
 }: PayoutsTabProps) {
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const activeFilterCount = Object.values(payoutFilters).filter(Boolean).length;
+  const removeFilter = (key: keyof PayoutFilters) => {
+    const nextFilters = { ...payoutFilters };
+    delete nextFilters[key];
+    onPayoutFiltersChange(nextFilters);
+    onPayoutPageChange(1);
+    if (key === 'employeeId') setEmployeeSearchQuery('');
+  };
+  const activeFilters: ReportActiveFilter[] = [];
+  if (payoutFilters.fromDate) activeFilters.push({ id: 'fromDate', label: tTerm('reports.payouts.filter.from'), value: payoutFilters.fromDate, onRemove: () => removeFilter('fromDate') });
+  if (payoutFilters.toDate) activeFilters.push({ id: 'toDate', label: tTerm('reports.payouts.filter.to'), value: payoutFilters.toDate, onRemove: () => removeFilter('toDate') });
+  if (payoutFilters.paymentType) activeFilters.push({ id: 'paymentType', label: tTerm('reports.payouts.filter.paymentType'), value: getPaymentTypeLabel(payoutFilters.paymentType), onRemove: () => removeFilter('paymentType') });
+  if (payoutFilters.status) activeFilters.push({
+    id: 'status',
+    label: tTerm('reports.payouts.filter.status'),
+    value: payoutFilters.status === 'annulled' ? tTerm('reports.payouts.status.annulled') : tTerm('common.status.completed'),
+    onRemove: () => removeFilter('status'),
+  });
+  if (payoutFilters.employeeId) activeFilters.push({ id: 'employeeId', label: tTerm('reports.payouts.filter.employee'), value: tTerm('reports.filters.selectedValue'), onRemove: () => removeFilter('employeeId') });
 
   const updateFilters = (patch: PayoutFilters) => {
     const candidateFilters = { ...payoutFilters, ...patch };
@@ -150,6 +168,12 @@ export default function PayoutsTab({
         subtitle={tTerm('reports.tab.payouts.title')}
         filterColumns={canFilterByEmployee ? 5 : 4}
         activeFilterCount={activeFilterCount}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setEmployeeSearchQuery('');
+          onPayoutFiltersChange({});
+          onPayoutPageChange(1);
+        }}
         headerActions={exportActions}
         filters={(
           <>

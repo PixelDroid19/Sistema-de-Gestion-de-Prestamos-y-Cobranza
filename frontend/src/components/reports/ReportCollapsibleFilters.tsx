@@ -1,9 +1,9 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { ActionButton } from '../shared/Surfaces';
 
-type FilterColumns = 2 | 3 | 4;
+type FilterColumns = 1 | 2 | 3 | 4 | 5;
 
 type ReportCollapsibleFiltersProps = {
   children: ReactNode;
@@ -18,26 +18,18 @@ export function ReportCollapsibleFilters({
   defaultOpen = false,
   filterColumns = 2,
 }: ReportCollapsibleFiltersProps) {
-  const [open, setOpen] = useState(defaultOpen || activeCount > 0);
+  const [open, setOpen] = useState(defaultOpen);
   const panelId = useId();
 
-  useEffect(() => {
-    if (activeCount > 0) {
-      setOpen(true);
-    }
-  }, [activeCount]);
-
-  const toggleLabel = open
-    ? tTerm('reports.export.toggle.hide')
-    : (activeCount > 0
-      ? tTerm('reports.export.toggle.showWithCount', { count: activeCount })
-      : tTerm('reports.export.toggle.show'));
+  const toggleLabel = activeCount > 0
+    ? tTerm('reports.filters.labelWithCount', { count: activeCount })
+    : tTerm('reports.filters.label');
 
   return (
     <div className="report-collapsible-filters">
       <ActionButton
         type="button"
-        variant="ghost"
+        variant="secondary"
         className="report-collapsible-filters__toggle"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}

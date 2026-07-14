@@ -33,11 +33,25 @@ describe('CreditHistoryMonthlyTab behavior', () => {
 
     expect(screen.queryByPlaceholderText('ID cliente')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Número de cliente')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
     expect(screen.getByRole('combobox', { name: 'Clientes para filtrar' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Créditos para filtrar' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Tipo de crédito')).not.toBeInTheDocument();
     fireEvent.focus(screen.getByRole('combobox', { name: 'Clientes para filtrar' }));
     expect(screen.getByRole('option', { name: /Cliente Historial · CC-7/i })).toBeInTheDocument();
+  });
+
+  it('describes an active customer filter without exposing its internal id', () => {
+    render(
+      <CreditHistoryMonthlyTab
+        filters={{ ...emptyFilters, customerId: '7' }}
+        onFiltersChange={vi.fn()}
+        data={{ summary: {}, months: [] }}
+      />,
+    );
+
+    expect(screen.getByText('Cliente: Seleccionado')).toBeVisible();
+    expect(screen.queryByText('Cliente: #7')).not.toBeInTheDocument();
   });
 
   it('shows a simple loan list without collection metrics or summary cards', () => {

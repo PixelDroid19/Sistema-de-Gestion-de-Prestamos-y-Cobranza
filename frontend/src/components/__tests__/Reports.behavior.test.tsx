@@ -500,6 +500,14 @@ const openReportView = (name: string) => {
   fireEvent.change(selector, { target: { value: option.value } });
 };
 
+const openReportFilters = () => {
+  const toggle = screen.getByRole('button', { name: /^Filtros(?: \(\d+\))?$/ });
+  if (toggle.getAttribute('aria-expanded') !== 'true') {
+    fireEvent.click(toggle);
+  }
+  return toggle;
+};
+
 describe('Reports operational module', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -552,6 +560,10 @@ describe('Reports operational module', () => {
     renderReports();
 
     expect(screen.getByRole('heading', { name: 'Reportes operativos' })).toBeInTheDocument();
+    const workspace = screen.getByTestId('reports-workspace');
+    expect(within(workspace).getByRole('radiogroup', { name: 'Categoría del reporte' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('combobox', { name: 'Tipo de reporte' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
     expect(screen.getByRole('radiogroup', { name: 'Categoría del reporte' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Informe comercial' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Informe estadístico' })).not.toBeChecked();
@@ -569,7 +581,7 @@ describe('Reports operational module', () => {
     expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
   });
 
-  it('keeps every report focused on one heading, optional filters, and one download action', () => {
+  it('keeps every report focused on one heading, on-demand filters, and one download action', () => {
     renderReports();
 
     const reports = [
@@ -589,7 +601,9 @@ describe('Reports operational module', () => {
       expect(screen.getAllByRole('button', { name: /Excel/ })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'PDF' })).toHaveLength(1);
       if (report.hiddenFilter) {
-        expect(screen.queryByRole('button', { name: 'Filtros' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Filtros' })).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.queryByLabelText(report.hiddenFilter)).not.toBeInTheDocument();
+        openReportFilters();
         expect(screen.getByLabelText(report.hiddenFilter)).toBeVisible();
       }
     }
@@ -605,8 +619,15 @@ describe('Reports operational module', () => {
     expect(screen.getByText('Interés programado pagado')).toBeInTheDocument();
     expect(screen.queryByText('N/A')).not.toBeInTheDocument();
 
+    expect(screen.queryByLabelText('Buscar socio')).not.toBeInTheDocument();
+    const filterToggle = openReportFilters();
+    fireEvent.change(screen.getByLabelText('Buscar socio'), { target: { value: 'Socio Reporte' } });
+    fireEvent.click(filterToggle);
+    expect(screen.queryByLabelText('Buscar socio')).not.toBeInTheDocument();
+    expect(screen.getByText('Buscar socio: Socio Reporte')).toBeVisible();
+
     fireEvent.click(screen.getByRole('button', { name: 'Excel (xlsx)' }));
-    await waitFor(() => expect(mockExportAssociatesExcel).toHaveBeenCalledWith({ format: 'xlsx' }));
+    await waitFor(() => expect(mockExportAssociatesExcel).toHaveBeenCalledWith({ format: 'xlsx', search: 'Socio Reporte' }));
     expect(mockToastSuccess).toHaveBeenCalled();
   });
 
@@ -657,14 +678,15 @@ describe('Reports operational module', () => {
     expect(screen.queryByText('Salidas operativas')).not.toBeInTheDocument();
     expect(screen.queryByText('Caja y cartera')).not.toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: 'Cierre contable' })).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: 'Filtros' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Año')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Filtros' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Año')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Descargar' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Excel' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'PDF' })).toBeInTheDocument();
     expect(cashFlowTable.querySelector('.report-value-stack__meta-pairs')?.textContent).toContain(' · ');
     expect(within(cashFlowTable).getByRole('columnheader', { name: 'Total' }).closest('tr')?.querySelector('.report-value-stack__meta')).toBeNull();
 
+    openReportFilters();
     expect(screen.getByLabelText('Año')).toHaveValue(String(new Date().getFullYear()));
 
     fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
@@ -955,6 +977,7 @@ describe('Reports operational module', () => {
     expect(screen.getByText('Créditos y capital prestado en el rango seleccionado.')).toBeInTheDocument();
     expect(screen.queryByText(/pagos recibidos y flujo acumulado/)).not.toBeInTheDocument();
 
+    openReportFilters();
     fireEvent.change(screen.getByLabelText('Desde período'), { target: { value: '2026-04-01' } });
     fireEvent.change(screen.getByLabelText('Hasta período'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
@@ -1007,6 +1030,7 @@ describe('Reports operational module', () => {
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('Cliente Historial')).toBeInTheDocument();
 
+    openReportFilters();
     fireEvent.change(screen.getByLabelText('Desde pagos'), { target: { value: '2026-04-01' } });
     fireEvent.change(screen.getByLabelText('Hasta pagos'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'installment' } });

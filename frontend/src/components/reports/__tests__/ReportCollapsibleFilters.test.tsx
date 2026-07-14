@@ -4,7 +4,7 @@ import { ReportCollapsibleFilters } from '../ReportCollapsibleFilters';
 import { AppInput, FormField } from '../../shared/Surfaces';
 
 describe('ReportCollapsibleFilters', () => {
-  it('toggles advanced filters and exposes aria-expanded', () => {
+  it('starts closed and reveals filters with an accessible toggle', () => {
     render(
       <ReportCollapsibleFilters>
         <FormField label="Cliente">
@@ -13,7 +13,7 @@ describe('ReportCollapsibleFilters', () => {
       </ReportCollapsibleFilters>,
     );
 
-    const toggle = screen.getByRole('button', { name: 'Más filtros' });
+    const toggle = screen.getByRole('button', { name: 'Filtros' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByLabelText('Cliente')).not.toBeInTheDocument();
 
@@ -23,7 +23,7 @@ describe('ReportCollapsibleFilters', () => {
     expect(screen.getByLabelText('Cliente')).toBeInTheDocument();
   });
 
-  it('opens automatically when activeCount is greater than zero', () => {
+  it('keeps active filters collapsed and announces their count', () => {
     render(
       <ReportCollapsibleFilters activeCount={2}>
         <FormField label="Crédito">
@@ -32,7 +32,7 @@ describe('ReportCollapsibleFilters', () => {
       </ReportCollapsibleFilters>,
     );
 
-    expect(screen.getByRole('button', { name: 'Ocultar filtros' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByLabelText('Crédito')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filtros (2)' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Crédito')).not.toBeInTheDocument();
   });
 });

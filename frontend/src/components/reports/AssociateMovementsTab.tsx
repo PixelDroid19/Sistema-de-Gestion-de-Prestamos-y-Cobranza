@@ -8,7 +8,7 @@ import { AppInput, DataTableSurface, EmptyState, FormField, OperationalSelect } 
 import { AppTable, TABLE_EMBEDDED_SHELL_CLASS } from '../shared/tables';
 import { ReportDownloadActions } from './ReportDownloadModal';
 import ReportSummaryGrid from './ReportSummaryGrid';
-import { ReportTabPanel } from './ReportTabPanel';
+import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
 
 const PAGE_SIZE = 20;
 
@@ -45,6 +45,39 @@ export default function AssociateMovementsTab() {
     filters.fromDate,
     filters.toDate,
   ].filter(Boolean).length;
+  const activeFilters: ReportActiveFilter[] = [];
+  if (filters.search.trim()) {
+    activeFilters.push({
+      id: 'search',
+      label: tTerm('reports.associates.filter.search'),
+      value: filters.search.trim(),
+      onRemove: () => setFilters((current) => ({ ...current, search: '' })),
+    });
+  }
+  if (filters.status !== 'all') {
+    activeFilters.push({
+      id: 'status',
+      label: tTerm('reports.associates.filter.status'),
+      value: filters.status === 'active' ? tTerm('common.status.active') : tTerm('common.status.inactive'),
+      onRemove: () => setFilters((current) => ({ ...current, status: 'all' })),
+    });
+  }
+  if (filters.fromDate) {
+    activeFilters.push({
+      id: 'fromDate',
+      label: tTerm('reports.associates.filter.from'),
+      value: filters.fromDate,
+      onRemove: () => setFilters((current) => ({ ...current, fromDate: '' })),
+    });
+  }
+  if (filters.toDate) {
+    activeFilters.push({
+      id: 'toDate',
+      label: tTerm('reports.associates.filter.to'),
+      value: filters.toDate,
+      onRemove: () => setFilters((current) => ({ ...current, toDate: '' })),
+    });
+  }
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const visibleRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -76,6 +109,8 @@ export default function AssociateMovementsTab() {
         subtitle={tTerm('reports.associates.description')}
         filterColumns={4}
         activeFilterCount={activeFilterCount}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => setFilters({ search: '', status: 'all', fromDate: '', toDate: '' })}
         filters={(
           <>
             <FormField label={tTerm('reports.associates.filter.search')}><AppInput value={filters.search} onValueChange={(search) => setFilters((current) => ({ ...current, search }))} placeholder={tTerm('reports.associates.filter.searchPlaceholder')} /></FormField>

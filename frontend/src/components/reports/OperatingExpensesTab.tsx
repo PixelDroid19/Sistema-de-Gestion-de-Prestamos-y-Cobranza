@@ -19,7 +19,7 @@ import OperatingExpenseCreateModal, { OperatingExpenseCreateTrigger } from './Op
 import { ReportDownloadActions } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { RowActionsWithOverflow, TableActionsCell, TableActionsHeader } from '../shared/tables';
-import { ReportTabPanel } from './ReportTabPanel';
+import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
 
 type OperatingExpensesTabProps = {
   expenseFilters: OperatingExpenseFilters;
@@ -90,6 +90,18 @@ export default function OperatingExpensesTab({
   const totalPages = Math.max(Number(pagination?.totalPages || 1), 1);
   const totalItems = Number(pagination?.totalItems || expenses.length || 0);
   const activeFilterCount = Object.values(expenseFilters).filter(Boolean).length;
+  const removeExpenseFilter = (key: keyof OperatingExpenseFilters) => {
+    const nextFilters = { ...expenseFilters };
+    delete nextFilters[key];
+    onExpensePageChange(1);
+    onExpenseFiltersChange(nextFilters);
+    if (key === 'employeeId') setEmployeeSearchQuery('');
+  };
+  const activeFilters: ReportActiveFilter[] = [];
+  if (expenseFilters.fromDate) activeFilters.push({ id: 'fromDate', label: tTerm('reports.expenses.filter.from'), value: expenseFilters.fromDate, onRemove: () => removeExpenseFilter('fromDate') });
+  if (expenseFilters.toDate) activeFilters.push({ id: 'toDate', label: tTerm('reports.expenses.filter.to'), value: expenseFilters.toDate, onRemove: () => removeExpenseFilter('toDate') });
+  if (expenseFilters.status) activeFilters.push({ id: 'status', label: tTerm('reports.expenses.filter.status'), value: getExpenseStatusLabel(expenseFilters.status), onRemove: () => removeExpenseFilter('status') });
+  if (expenseFilters.employeeId) activeFilters.push({ id: 'employeeId', label: tTerm('reports.expenses.filter.employee'), value: tTerm('reports.filters.selectedValue'), onRemove: () => removeExpenseFilter('employeeId') });
 
   return (
     <div className="report-tab-layout">
@@ -98,6 +110,12 @@ export default function OperatingExpensesTab({
         subtitle={tTerm('reports.expenses.subtitle')}
         filterColumns={canFilterByEmployee ? 4 : 3}
         activeFilterCount={activeFilterCount}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setEmployeeSearchQuery('');
+          onExpensePageChange(1);
+          onExpenseFiltersChange({});
+        }}
         filters={(
           <>
             <FormField label={tTerm('reports.expenses.filter.from')}>

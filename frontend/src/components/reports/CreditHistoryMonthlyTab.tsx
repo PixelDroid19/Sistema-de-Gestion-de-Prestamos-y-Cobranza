@@ -8,7 +8,7 @@ import {
   OperationalSelect,
 } from '../shared/Surfaces';
 import { ReportDataTableSection } from './ReportDataTableSection';
-import { ReportTabPanel } from './ReportTabPanel';
+import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
 import { TableStatusPill } from '../shared/tables';
 
 type CreditHistoryMonthlyFilters = {
@@ -128,6 +128,32 @@ export default function CreditHistoryMonthlyTab({
   })), [credits]);
   const activeFilterCount = [filters.startDate, filters.endDate, filters.status, filters.customerId]
     .filter((value) => value.trim().length > 0).length;
+  const activeFilters: ReportActiveFilter[] = [];
+  if (filters.startDate) {
+    activeFilters.push({ id: 'startDate', label: tTerm('reports.creditHistory.fromDate'), value: filters.startDate, onRemove: () => onFiltersChange({ ...filters, startDate: '' }) });
+  }
+  if (filters.endDate) {
+    activeFilters.push({ id: 'endDate', label: tTerm('reports.creditHistory.toDate'), value: filters.endDate, onRemove: () => onFiltersChange({ ...filters, endDate: '' }) });
+  }
+  if (filters.status) {
+    activeFilters.push({
+      id: 'status',
+      label: tTerm('reports.creditHistory.status'),
+      value: statusOptions.find((option) => option.value === filters.status)?.label || filters.status,
+      onRemove: () => onFiltersChange({ ...filters, status: '' }),
+    });
+  }
+  if (filters.customerId) {
+    activeFilters.push({
+      id: 'customerId',
+      label: tTerm('reports.creditHistory.customerId'),
+      value: tTerm('reports.filters.selectedValue'),
+      onRemove: () => {
+        setCustomerSearchQuery('');
+        onFiltersChange({ ...filters, customerId: '' });
+      },
+    });
+  }
 
   useEffect(() => {
     setCreditPage(1);
@@ -181,6 +207,11 @@ export default function CreditHistoryMonthlyTab({
         subtitle={tTerm('reports.tab.creditHistory.title')}
         filterColumns={4}
         activeFilterCount={activeFilterCount}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setCustomerSearchQuery('');
+          onFiltersChange({ startDate: '', endDate: '', status: '', customerId: '' });
+        }}
         headerActions={exportActions}
         filters={(
           <>

@@ -70,7 +70,6 @@ export default function ReportsNavigation({
             <option key={leaf.id} value={leaf.id}>{leaf.label}</option>
           ))}
         </OperationalSelect>
-        {activeGroup.title ? <p className="reports-module-nav__description">{activeGroup.title}</p> : null}
       </div>
       {tools ? (
         <div className="reports-module-nav__tools">

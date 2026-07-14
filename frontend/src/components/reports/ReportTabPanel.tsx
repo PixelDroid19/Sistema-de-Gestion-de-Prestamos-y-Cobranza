@@ -1,4 +1,7 @@
 import type { FormEventHandler, ReactNode } from 'react';
+import { X } from 'lucide-react';
+import { tTerm } from '../../i18n/terminology';
+import { ReportCollapsibleFilters } from './ReportCollapsibleFilters';
 import { ReportTabActionsBar } from './ReportTabActionsBar';
 
 type FilterColumns = 1 | 2 | 3 | 4 | 5;
@@ -11,12 +14,21 @@ type ReportTabPanelProps = {
   secondaryFilters?: ReactNode;
   filterColumns?: FilterColumns;
   activeFilterCount?: number;
+  activeFilters?: ReportActiveFilter[];
+  onClearAllFilters?: () => void;
   /** @deprecated Prefer headerActions; kept for footer toolbars */
   actions?: ReactNode;
   children?: ReactNode;
   as?: 'section' | 'form';
   onSubmit?: FormEventHandler<HTMLElement>;
   className?: string;
+};
+
+export type ReportActiveFilter = {
+  id: string;
+  label: string;
+  value: string;
+  onRemove: () => void;
 };
 
 type ReportTableHeaderProps = {
@@ -34,13 +46,14 @@ export function ReportTabPanel({
   secondaryFilters,
   filterColumns = 3,
   activeFilterCount = 0,
+  activeFilters = [],
+  onClearAllFilters,
   actions,
   children,
   as: Component = 'section',
   onSubmit,
   className = '',
 }: ReportTabPanelProps) {
-  const filterClassName = `report-tab-panel__filters report-tab-panel__filters--cols-${filterColumns}`;
   const hasHeaderCopy = Boolean(title || subtitle);
   const hasFilters = Boolean(filters || secondaryFilters);
   const hasHeader = hasHeaderCopy || Boolean(headerActions) || hasFilters;
@@ -67,9 +80,35 @@ export function ReportTabPanel({
         </div>
       ) : null}
       {hasFilters ? (
-        <div className="report-tab-panel__filter-panel" data-active-filter-count={activeFilterCount}>
-          {filters ? <div className={filterClassName}>{filters}</div> : null}
-          {secondaryFilters ? <div className="report-tab-panel__secondary-filters">{secondaryFilters}</div> : null}
+        <div className="report-tab-panel__filter-tools" data-active-filter-count={activeFilterCount}>
+          <ReportCollapsibleFilters activeCount={activeFilterCount} filterColumns={filterColumns}>
+            {filters}
+            {secondaryFilters ? <div className="report-tab-panel__secondary-filters">{secondaryFilters}</div> : null}
+          </ReportCollapsibleFilters>
+          {activeFilters.length > 0 ? (
+            <div className="report-active-filter-row">
+              <ul className="report-active-filters" aria-label={tTerm('reports.filters.active')}>
+                {activeFilters.map((filter) => (
+                  <li key={filter.id} className="report-active-filters__item">
+                    <span>{filter.label}: {filter.value}</span>
+                    <button
+                      type="button"
+                      className="report-active-filters__remove"
+                      onClick={filter.onRemove}
+                      aria-label={tTerm('reports.filters.remove', { filter: filter.label })}
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {onClearAllFilters ? (
+                <button type="button" className="report-active-filter-row__clear" onClick={onClearAllFilters}>
+                  {tTerm('reports.filters.clearAll')}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {actions ? <div className="report-tab-panel__actions">{actions}</div> : null}
