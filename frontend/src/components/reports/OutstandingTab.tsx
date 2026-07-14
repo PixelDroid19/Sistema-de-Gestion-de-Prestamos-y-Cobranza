@@ -139,8 +139,11 @@ export default function OutstandingTab({
           </tr>
         </thead>
         <tbody>
-          {overdueLoans.map((item: any, index: number) => (
-            <tr key={`outstanding-${item.loanId ?? item.customerId ?? 'row'}-${index}`}>
+          {overdueLoans.map((item: any, index: number) => {
+            const isOverdue = toAmountNumber(item.daysOverdue) > 0;
+
+            return (
+              <tr key={`outstanding-${item.loanId ?? item.customerId ?? 'row'}-${index}`}>
               <td>
                 <div className="report-record-stack">
                   <p className="report-record-stack__title">
@@ -153,15 +156,18 @@ export default function OutstandingTab({
                   ) : null}
                 </div>
               </td>
-              <td className="font-medium text-amber-600">
-                {toAmountNumber(item.daysOverdue) > 0
+              <td className={`font-medium ${isOverdue ? 'text-amber-600' : 'text-emerald-700'}`}>
+                {isOverdue
                   ? tTerm('credits.agenda.daysOverdue', { count: item.daysOverdue })
                   : tTerm('reports.outstanding.daysCurrent')}
               </td>
-              <td className="font-bold text-amber-600">{formatMoney(item.overdueAmount)}</td>
+              <td className={`font-bold ${isOverdue ? 'text-amber-600' : 'text-text-primary'}`}>
+                {formatMoney(item.overdueAmount)}
+              </td>
               <td>{formatMoney(item.remainingCapital)}</td>
-            </tr>
-          ))}
+              </tr>
+            );
+          })}
         </tbody>
       </ReportDataTableSection>
     </div>

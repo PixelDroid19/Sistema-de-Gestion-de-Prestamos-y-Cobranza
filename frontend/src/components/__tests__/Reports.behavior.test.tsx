@@ -863,7 +863,10 @@ describe('Reports operational module', () => {
     expect(screen.getByRole('columnheader', { name: 'Estado del atraso' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Saldo por cobrar' })).toBeInTheDocument();
     expect(screen.getByText('Cliente #7')).toBeInTheDocument();
-    expect(screen.getByText('Al día')).toBeInTheDocument();
+    expect(screen.getByText('Al día')).toHaveClass('text-emerald-700');
+    expect(screen.getAllByText('COP 1.680.982')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ className: expect.stringContaining('text-text-primary') })]),
+    );
   });
 
   it('filters credit history and exports with the visible filters', async () => {
