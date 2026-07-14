@@ -561,14 +561,17 @@ describe('Reports operational module', () => {
 
     expect(screen.getByRole('heading', { name: 'Reportes operativos' })).toBeInTheDocument();
     const workspace = screen.getByTestId('reports-workspace');
-    expect(within(workspace).getByRole('radiogroup', { name: 'Categoría del reporte' })).toBeInTheDocument();
-    expect(within(workspace).getByRole('combobox', { name: 'Tipo de reporte' })).toBeInTheDocument();
+    const categoryGroup = within(workspace).getByRole('radiogroup', { name: 'Categoría del reporte' });
+    const reportSelector = within(workspace).getByRole('combobox', { name: 'Tipo de reporte' });
+    const navigationRow = categoryGroup.closest('.reports-module-nav__selection');
+
+    expect(navigationRow).not.toBeNull();
+    expect(navigationRow).toContainElement(reportSelector);
     expect(within(workspace).getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
     expect(screen.getByRole('radiogroup', { name: 'Categoría del reporte' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Informe comercial' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Informe estadístico' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Informe contable' })).toBeChecked();
-    const reportSelector = screen.getByRole('combobox', { name: 'Tipo de reporte' });
     expect(reportSelector).toHaveValue('cashflow');
     expect(within(reportSelector).getAllByRole('option')).toHaveLength(2);
     expect(within(reportSelector).getByRole('option', { name: 'Cierre contable' })).toBeInTheDocument();

@@ -25,6 +25,25 @@ describe('ReportTabPanel', () => {
     expect(screen.getByLabelText('Año')).toBeVisible();
   });
 
+  it('keeps the collapsed filter trigger in the same toolbar as report actions', () => {
+    render(
+      <ReportTabPanel
+        title="Cierre contable"
+        subtitle="Caja del período"
+        filters={<label htmlFor="toolbar-year">Año<input id="toolbar-year" /></label>}
+        headerActions={<button type="button">Excel</button>}
+      />,
+    );
+
+    const filterToggle = screen.getByRole('button', { name: 'Filtros' });
+    const exportAction = screen.getByRole('button', { name: 'Excel' });
+    const toolbar = filterToggle.closest('.report-tab-panel__toolbar');
+
+    expect(toolbar).not.toBeNull();
+    expect(toolbar).toContainElement(exportAction);
+    expect(screen.queryByLabelText('Año')).not.toBeInTheDocument();
+  });
+
   it('shows active filters outside the collapsed panel and removes one at a time', () => {
     const onRemove = vi.fn();
     const onClearAllFilters = vi.fn();

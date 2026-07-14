@@ -1,7 +1,7 @@
-import type { FormEventHandler, ReactNode } from 'react';
+import { useId, useState, type FormEventHandler, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
-import { ReportCollapsibleFilters } from './ReportCollapsibleFilters';
+import { ReportFiltersPanel, ReportFiltersToggle } from './ReportCollapsibleFilters';
 import { ReportTabActionsBar } from './ReportTabActionsBar';
 
 type FilterColumns = 1 | 2 | 3 | 4 | 5;
@@ -54,6 +54,8 @@ export function ReportTabPanel({
   onSubmit,
   className = '',
 }: ReportTabPanelProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersPanelId = useId();
   const hasHeaderCopy = Boolean(title || subtitle);
   const hasFilters = Boolean(filters || secondaryFilters);
   const hasHeader = hasHeaderCopy || Boolean(headerActions) || hasFilters;
@@ -70,21 +72,37 @@ export function ReportTabPanel({
               {subtitle ? <p className="report-tab-panel__subtitle">{subtitle}</p> : null}
             </div>
           ) : null}
-          {headerActions ? (
-            <div className="report-tab-panel__header-actions">
-              <ReportTabActionsBar>
-                {headerActions}
-              </ReportTabActionsBar>
+          {(hasFilters || headerActions) ? (
+            <div className="report-tab-panel__toolbar">
+              {hasFilters ? (
+                <ReportFiltersToggle
+                  activeCount={activeFilterCount}
+                  isOpen={filtersOpen}
+                  onToggle={() => setFiltersOpen((value) => !value)}
+                  panelId={filtersPanelId}
+                />
+              ) : null}
+              {headerActions ? (
+                <div className="report-tab-panel__header-actions">
+                  <ReportTabActionsBar>
+                    {headerActions}
+                  </ReportTabActionsBar>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
       ) : null}
-      {hasFilters ? (
+      {(filtersOpen || activeFilters.length > 0) ? (
         <div className="report-tab-panel__filter-tools" data-active-filter-count={activeFilterCount}>
-          <ReportCollapsibleFilters activeCount={activeFilterCount} filterColumns={filterColumns}>
+          <ReportFiltersPanel
+            filterColumns={filterColumns}
+            isOpen={filtersOpen}
+            panelId={filtersPanelId}
+          >
             {filters}
             {secondaryFilters ? <div className="report-tab-panel__secondary-filters">{secondaryFilters}</div> : null}
-          </ReportCollapsibleFilters>
+          </ReportFiltersPanel>
           {activeFilters.length > 0 ? (
             <div className="report-active-filter-row">
               <ul className="report-active-filters" aria-label={tTerm('reports.filters.active')}>

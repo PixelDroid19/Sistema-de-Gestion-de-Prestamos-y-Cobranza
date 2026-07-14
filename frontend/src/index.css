@@ -1496,16 +1496,19 @@
 
   .reports-module-nav {
     width: 100%;
-    display: grid;
-    grid-template-columns: minmax(0, auto) minmax(16rem, 22rem);
-    align-items: end;
-    justify-content: start;
-    gap: 0.75rem 1rem;
     border: 0;
     border-bottom: 1px solid var(--border-subtle);
     background: transparent;
     padding: 0 0 0.9rem;
     box-shadow: none;
+  }
+
+  .reports-module-nav__selection {
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(16rem, 22rem);
+    align-items: center;
+    justify-content: start;
+    gap: 0.75rem 1rem;
   }
 
   .reports-module-nav__categories {
@@ -1562,21 +1565,22 @@
   }
 
   .reports-module-nav__query {
-    display: grid;
-    grid-template-columns: minmax(16rem, 22rem);
-    align-items: end;
-    gap: 0.35rem;
+    min-width: 0;
   }
 
   .reports-module-nav__select-label {
-    grid-column: 1;
-    color: var(--text-secondary);
-    font-size: 0.78rem;
-    font-weight: 700;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .reports-module-nav__select {
-    grid-column: 1;
+    min-height: 2.55rem;
+    height: 2.55rem;
   }
 
   .reports-download-actions {
@@ -1587,7 +1591,7 @@
   }
 
   @media (max-width: 1023px) {
-    .reports-module-nav {
+    .reports-module-nav__selection {
       grid-template-columns: minmax(0, 1fr);
       align-items: stretch;
     }
@@ -1596,10 +1600,6 @@
       grid-template-columns: minmax(0, 22rem);
     }
 
-    .reports-module-nav__select-label,
-    .reports-module-nav__select {
-      grid-column: 1;
-    }
   }
 
   @media (max-width: 639px) {
@@ -1875,6 +1875,14 @@
     gap: 0.65rem;
   }
 
+  .report-tab-panel__toolbar {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .report-tab-panel__header--actions-only {
     align-items: stretch;
     justify-content: flex-end;
@@ -1902,6 +1910,10 @@
 
   @media (min-width: 768px) {
     .report-tab-panel__header-actions {
+      justify-content: flex-end;
+    }
+
+    .report-tab-panel__toolbar {
       justify-content: flex-end;
     }
   }

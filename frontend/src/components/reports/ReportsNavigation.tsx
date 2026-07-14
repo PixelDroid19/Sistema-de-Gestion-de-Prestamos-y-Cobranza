@@ -42,34 +42,36 @@ export default function ReportsNavigation({
 
   return (
     <section className="reports-module-nav" aria-label={primaryAriaLabel} data-tour={dataTour}>
-      <div className="reports-module-nav__categories" role="radiogroup" aria-label={tTerm('reports.categories.aria')}>
-        {groups.map((group) => (
-          <label key={group.id} className="reports-module-nav__category">
-            <input
-              type="radio"
-              name="report-category"
-              value={group.id}
-              checked={group.id === activeGroup.id}
-              onChange={() => onChange(group.leaves[0].id)}
-            />
-            <span>{group.label}</span>
-          </label>
-        ))}
-      </div>
-      <div className="reports-module-nav__query">
-        <label className="reports-module-nav__select-label" htmlFor={selectId}>
-          {tTerm('reports.selector.label')}
-        </label>
-        <OperationalSelect
-          id={selectId}
-          value={activeTab}
-          onChange={(event) => onChange(event.target.value)}
-          className="reports-module-nav__select"
-        >
-          {activeGroup.leaves.map((leaf) => (
-            <option key={leaf.id} value={leaf.id}>{leaf.label}</option>
+      <div className="reports-module-nav__selection">
+        <div className="reports-module-nav__categories" role="radiogroup" aria-label={tTerm('reports.categories.aria')}>
+          {groups.map((group) => (
+            <label key={group.id} className="reports-module-nav__category">
+              <input
+                type="radio"
+                name="report-category"
+                value={group.id}
+                checked={group.id === activeGroup.id}
+                onChange={() => onChange(group.leaves[0].id)}
+              />
+              <span>{group.label}</span>
+            </label>
           ))}
-        </OperationalSelect>
+        </div>
+        <div className="reports-module-nav__query">
+          <label className="reports-module-nav__select-label" htmlFor={selectId}>
+            {tTerm('reports.selector.label')}
+          </label>
+          <OperationalSelect
+            id={selectId}
+            value={activeTab}
+            onChange={(event) => onChange(event.target.value)}
+            className="reports-module-nav__select"
+          >
+            {activeGroup.leaves.map((leaf) => (
+              <option key={leaf.id} value={leaf.id}>{leaf.label}</option>
+            ))}
+          </OperationalSelect>
+        </div>
       </div>
       {tools ? (
         <div className="reports-module-nav__tools">
