@@ -61,6 +61,7 @@ const buildProps = (overrides: Partial<CreditDetailsModalsProps> = {}): CreditDe
     estimatedInstallments: 1,
     remainingInstallments: 1,
   },
+  isCapitalSubmitting: false,
   capitalPaymentGuard: { executable: true },
   capitalUnavailableDescription: '',
   onCapitalAmountChange: noop,

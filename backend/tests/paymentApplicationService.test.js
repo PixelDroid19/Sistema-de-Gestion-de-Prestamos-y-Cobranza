@@ -274,6 +274,7 @@ test('applyPartialPayment allocates the submitted amount only once across open i
 
 test('applyPayment charges the same late fee quoted for the same operational day when dueDate keeps a timestamp', async () => {
   let savedPayment;
+  let savedLoan;
 
   const loan = {
     id: 2250,
@@ -298,6 +299,7 @@ test('applyPayment charges the same late fee quoted for the same operational day
       },
     ],
     async save() {
+      savedLoan = this;
       return this;
     },
   };
@@ -338,6 +340,19 @@ test('applyPayment charges the same late fee quoted for the same operational day
 
   assert.equal(result.allocation.penaltyApplied, 2);
   assert.equal(savedPayment.penaltyApplied, 2);
+  assert.equal(savedLoan.financialSnapshot.totalPaidPenalty, 2);
+  assert.equal(
+    savedLoan.financialSnapshot.totalPaid,
+    roundCurrency(
+      savedLoan.financialSnapshot.totalPaidPrincipal
+      + savedLoan.financialSnapshot.totalPaidInterest
+      + savedLoan.financialSnapshot.totalPaidPenalty,
+    ),
+  );
+  assert.equal(savedLoan.financialSnapshot.totalPayable, savedLoan.financialSnapshot.totalPaid);
+  const reloadedLateFeeSnapshot = loanViewService.getCanonicalLoanView(savedLoan).snapshot;
+  assert.equal(reloadedLateFeeSnapshot.totalPaidPenalty, 2);
+  assert.equal(reloadedLateFeeSnapshot.totalPaid, savedLoan.financialSnapshot.totalPaid);
 });
 
 test('applyCapitalPayment reduce_term rebuilds the open schedule without marking future installments as paid', async () => {
@@ -807,6 +822,68 @@ test('applyCapitalPayment reduce_payment rebuilds the remaining principal with t
   assert.ok(result.allocation.newInstallmentAmount < result.allocation.previousInstallmentAmount);
   assert.ok(futureRows.every((row) => row.status === 'pending'));
   assert.ok(futureRows.every((row) => row.paidTotal === 0));
+});
+
+test('applyCapitalPayment defers exactly one million after the reported 753591.77 capital payment', async () => {
+  let savedLoan;
+  const schedule = buildAmortizationSchedule({
+    amount: 2000000,
+    interestRate: 70,
+    termMonths: 12,
+    startDate: '2026-05-26T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+
+  schedule.slice(0, 2).forEach((row, index) => {
+    schedule[index] = {
+      ...row,
+      paidPrincipal: row.principalComponent,
+      paidInterest: row.interestComponent,
+      paidTotal: row.scheduledPayment,
+      remainingPrincipal: 0,
+      remainingInterest: 0,
+      status: 'paid',
+    };
+  });
+
+  const startingSnapshot = summarizeSchedule(schedule);
+  assert.equal(startingSnapshot.outstandingPrincipal, 1753591.77);
+
+  const loan = {
+    id: 335,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 2000000,
+    interestRate: 70,
+    termMonths: 12,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[2].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => ({ id: 895, ...payload }));
+
+  const result = await createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 335,
+    amount: 753591.77,
+    paymentDate: '2026-07-26T00:00:00.000Z',
+    strategy: 'reduce_payment',
+    newTermMonths: 10,
+  });
+
+  const pendingRows = savedLoan.emiSchedule.filter((row) => row.status === 'pending');
+  assert.equal(result.allocation.remainingPrincipalOutstanding, 1000000);
+  assert.equal(roundCurrency(pendingRows.reduce((sum, row) => sum + row.remainingPrincipal, 0)), 1000000);
+  assert.equal(pendingRows.length, 10);
+  assert.equal(pendingRows[pendingRows.length - 1].remainingBalance, 0);
 });
 
 test('applyCapitalPayment reduce_payment uses the loan TNA to recalculate the lower installment', async () => {
@@ -1587,9 +1664,9 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
     termMonths: 3,
     startDate: '2026-01-01T00:00:00.000Z',
     emiSchedule: [
-      { installmentNumber: 1, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 300, remainingInterest: 30, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
-      { installmentNumber: 2, dueDate: '2026-05-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 20, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
-      { installmentNumber: 3, dueDate: '2026-06-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 1, dueDate: '2026-04-01T00:00:00.000Z', principalComponent: 300, interestComponent: 30, scheduledPayment: 330, remainingPrincipal: 300, remainingInterest: 30, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 2, dueDate: '2026-05-01T00:00:00.000Z', principalComponent: 350, interestComponent: 20, scheduledPayment: 370, remainingPrincipal: 350, remainingInterest: 20, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 3, dueDate: '2026-06-01T00:00:00.000Z', principalComponent: 350, interestComponent: 10, scheduledPayment: 360, remainingPrincipal: 350, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
     ],
     financialSnapshot: {
       outstandingPrincipal: 1000,
@@ -1630,6 +1707,14 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   assert.equal(result.allocation.remainingBalance, 0);
   assert.equal(result.allocation.payoff.total, 1024);
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 0);
+  assert.equal(savedLoan.financialSnapshot.totalPaidAccruedInterest, 24);
+  assert.equal(savedLoan.financialSnapshot.totalPaidInterest, 24);
+  assert.equal(savedLoan.financialSnapshot.totalPaid, 1024);
+  assert.equal(savedLoan.financialSnapshot.totalPayable, 1024);
+  const reloadedPayoffSnapshot = loanViewService.getCanonicalLoanView(savedLoan).snapshot;
+  assert.equal(reloadedPayoffSnapshot.totalPaidAccruedInterest, 24);
+  assert.equal(reloadedPayoffSnapshot.totalPaid, 1024);
+  assert.equal(reloadedPayoffSnapshot.totalPayable, 1024);
   assert.equal(savedPayment.paymentType, 'payoff');
   assert.equal(savedPayment.createdByUserId, 55);
   assert.equal(savedPayment.paymentMetadata.payoff.asOfDate, '2026-03-15');

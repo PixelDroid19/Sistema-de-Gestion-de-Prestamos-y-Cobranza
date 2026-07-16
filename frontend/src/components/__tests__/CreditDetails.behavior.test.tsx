@@ -832,6 +832,29 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('submits a capital payment only once while the first request is still pending', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    let resolveCapitalPayment: (value: unknown) => void = () => {};
+    mockRecordCapitalPayment.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveCapitalPayment = resolve;
+    }));
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
+    fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '753592' } });
+    const submitButton = screen.getByRole('button', { name: 'Registrar abono' });
+
+    fireEvent.click(submitButton);
+    fireEvent.click(submitButton);
+
+    expect(mockRecordCapitalPayment).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(submitButton).toBeDisabled());
+
+    resolveCapitalPayment({ data: { payment: { id: 994 } } });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Registrar abono' })).not.toBeInTheDocument());
+  });
+
   it('uses the remaining installments by default when switching a capital prepayment to reduce-payment', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockRecordCapitalPayment.mockResolvedValueOnce({ data: { payment: { id: 992 } } });
@@ -900,7 +923,6 @@ describe('CreditDetails behavioral parity scenarios', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Registrar abono' }));
 
     expect(newTermInput).toHaveValue('3');
-    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeEnabled();
 
     await waitFor(() => {
       expect(mockRecordCapitalPayment).toHaveBeenCalledWith(expect.objectContaining({

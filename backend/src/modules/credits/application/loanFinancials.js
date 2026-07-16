@@ -190,6 +190,22 @@ const getCanonicalLoanView = (loan) => {
     snapshot.totalPayable = roundCurrency((snapshot.totalPaid || 0) + (snapshot.outstandingBalance || 0));
   }
 
+  const totalPaidPenalty = roundCurrency(existingSnapshot.totalPaidPenalty || 0);
+  const totalPaidAccruedInterest = roundCurrency(existingSnapshot.totalPaidAccruedInterest || 0);
+  if (totalPaidPenalty > 0 || totalPaidAccruedInterest > 0) {
+    snapshot.totalPaidPenalty = totalPaidPenalty;
+    snapshot.totalPaidAccruedInterest = totalPaidAccruedInterest;
+    snapshot.totalPaidInterest = roundCurrency(
+      Number(rebuiltSnapshot.totalPaidInterest || 0) + totalPaidAccruedInterest,
+    );
+    snapshot.totalPaid = roundCurrency(
+      Number(snapshot.totalPaidPrincipal || 0) + snapshot.totalPaidInterest + totalPaidPenalty,
+    );
+    snapshot.totalPayable = roundCurrency(
+      snapshot.totalPaid + Number(snapshot.outstandingBalance || 0),
+    );
+  }
+
   return {
     schedule: existingSchedule,
     snapshot,

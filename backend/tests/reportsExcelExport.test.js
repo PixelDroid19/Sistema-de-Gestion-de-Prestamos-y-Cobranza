@@ -749,7 +749,9 @@ test('export credits use case builds approved workbook fields with current snaps
   assert.notEqual(paymentHistorySection.rows[0].paymentMethod, 'cash');
   const detailHeaders = result.data.sheets[1].columns.map((column) => column.header);
   assert.ok(detailHeaders.includes('Interés Pagado'));
-  assert.ok(detailHeaders.includes('Interés Generado'));
+  assert.ok(detailHeaders.includes('Interés Proyectado'));
+  assert.ok(detailHeaders.includes('Mora Pagada'));
+  assert.equal(detailHeaders.includes('Mora Acumulada'), false);
   assert.equal(detailHeaders.includes('calculationMethod'), false);
   assert.equal(detailHeaders.includes('ratePolicyId'), false);
   assert.deepEqual(
@@ -769,7 +771,7 @@ test('export credits use case builds approved workbook fields with current snaps
       'Capital Pagado',
       'Interés Pagado',
       'Intereses por Mora',
-      'Interés Total Generado',
+      'Interés Total Proyectado',
       'Interés Pendiente',
       'TNA Promedio',
       'Interés y mora promedio por millón',
@@ -1046,7 +1048,7 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
                   { header: 'ID Crédito', key: 'creditId' },
                   { header: 'Cliente', key: 'customerName' },
                   { header: 'Interés Pagado', key: 'totalInterestPaid' },
-                  { header: 'Interés Generado', key: 'totalInterestGenerated' },
+                  { header: 'Interés Proyectado', key: 'totalInterestGenerated' },
                 ],
                 rows: [{ creditId: 1, customerName: 'Juan', totalInterestPaid: 1000, totalInterestGenerated: 3000 }],
               },
@@ -1094,7 +1096,7 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
 
   const detailHeaders = workbook.getWorksheet('Detalle de Créditos').getRow(2).values;
   assert.ok(detailHeaders.includes('Interés Pagado'));
-  assert.ok(detailHeaders.includes('Interés Generado'));
+  assert.ok(detailHeaders.includes('Interés Proyectado'));
   assert.equal(detailHeaders.includes('loanId'), false);
   assert.equal(detailHeaders.includes('calculationMethod'), false);
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Bell, Clock, DollarSign, Edit2, ShieldAlert, Activity, AlertCircle, FileText } from 'lucide-react';
 import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
@@ -287,6 +287,8 @@ export default function CreditDetails() {
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
   const [capitalNewTermMonths, setCapitalNewTermMonths] = useState('');
   const [capitalPaymentDate, setCapitalPaymentDate] = useState(getLocalDateInputValue());
+  const [isCapitalSubmitting, setIsCapitalSubmitting] = useState(false);
+  const capitalSubmissionLock = useRef(false);
   const [showLateFeeModal, setShowLateFeeModal] = useState(false);
   const [lateFeeRate, setLateFeeRate] = useState('');
 
@@ -699,21 +701,30 @@ export default function CreditDetails() {
       return;
     }
     if (!capitalPaymentGuard.executable) { toast.error({ title: tTerm('creditDetails.toast.capitalUnavailable'), description: capitalPaymentGuard.reason || capitalUnavailableDescription }); return; }
-    await executeGuardedAction({
-      action: 'capital.payment',
-      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
-      run: async () => {
-        await recordCapitalPayment.mutateAsync({
-          amount,
-          paymentDate: capitalPaymentDate,
-          paymentMethod: capitalMethod,
-          strategy: capitalStrategy,
-          ...(capitalStrategy === 'reduce_payment' ? { newTermMonths: newTermMonths as number } : {}),
-        });
-      },
-      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalNewTermMonths(''); setCapitalPaymentDate(getLocalDateInputValue()); },
-      successMessage: tTerm('creditDetails.toast.capitalSuccess'),
-    });
+    if (capitalSubmissionLock.current) return;
+
+    capitalSubmissionLock.current = true;
+    setIsCapitalSubmitting(true);
+    try {
+      await executeGuardedAction({
+        action: 'capital.payment',
+        context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
+        run: async () => {
+          await recordCapitalPayment.mutateAsync({
+            amount,
+            paymentDate: capitalPaymentDate,
+            paymentMethod: capitalMethod,
+            strategy: capitalStrategy,
+            ...(capitalStrategy === 'reduce_payment' ? { newTermMonths: newTermMonths as number } : {}),
+          });
+        },
+        onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalNewTermMonths(''); setCapitalPaymentDate(getLocalDateInputValue()); },
+        successMessage: tTerm('creditDetails.toast.capitalSuccess'),
+      });
+    } finally {
+      capitalSubmissionLock.current = false;
+      setIsCapitalSubmitting(false);
+    }
   };
 
   const handleUpdateLateFeeRate = async () => {
@@ -1082,6 +1093,7 @@ export default function CreditDetails() {
         showCapitalModal={showCapitalModal} capitalAmount={capitalAmount}
         capitalPaymentDate={capitalPaymentDate} capitalMethod={capitalMethod}
         capitalStrategy={capitalStrategy} capitalNewTermMonths={capitalNewTermMonths} capitalPreview={capitalPreview}
+        isCapitalSubmitting={isCapitalSubmitting}
         capitalPaymentGuard={capitalPaymentGuard} capitalUnavailableDescription={capitalUnavailableDescription}
         onCapitalAmountChange={setCapitalAmount} onCapitalDateChange={setCapitalPaymentDate}
         onCapitalMethodChange={setCapitalMethod} onCapitalStrategyChange={handleCapitalStrategyChange}

@@ -112,6 +112,7 @@ export type CreditDetailsModalsProps = {
   capitalStrategy: CapitalStrategy;
   capitalNewTermMonths: string;
   capitalPreview: CapitalPreview;
+  isCapitalSubmitting: boolean;
   capitalPaymentGuard: { executable: boolean; reason?: string };
   capitalUnavailableDescription: string;
   onCapitalAmountChange: (v: string) => void;
@@ -359,6 +360,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
               onClick={props.onRecordCapital}
               disabled={
                 !props.capitalPaymentGuard.executable
+                || props.isCapitalSubmitting
                 || parsePositiveMoneyInput(props.capitalAmount) === null
                 || capitalAmountExceedsPrincipal
                 || (props.capitalStrategy === 'reduce_payment' && parsePositiveIntegerInput(props.capitalNewTermMonths) === null)

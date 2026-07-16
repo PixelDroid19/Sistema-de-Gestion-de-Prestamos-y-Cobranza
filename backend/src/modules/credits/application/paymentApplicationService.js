@@ -243,7 +243,51 @@ const assertCapitalRescheduleTerm = (termMonths) => {
   return numericTerm;
 };
 
-const persistLoanSnapshot = ({ loan, snapshot, schedule, paymentDate, closeLoan = false, closureReason = null }) => {
+const preserveNonScheduleCollectionsInSnapshot = ({
+  snapshot,
+  previousSnapshot = {},
+  penaltyApplied = 0,
+  accruedInterestApplied = 0,
+}) => {
+  const totalPaidPenalty = roundCurrency(
+    Number(previousSnapshot.totalPaidPenalty || 0) + Number(penaltyApplied || 0),
+  );
+  const totalPaidAccruedInterest = roundCurrency(
+    Number(previousSnapshot.totalPaidAccruedInterest || 0) + Number(accruedInterestApplied || 0),
+  );
+  const totalPaidInterest = roundCurrency(
+    Number(snapshot.totalPaidInterest || 0) + totalPaidAccruedInterest,
+  );
+  const totalPaid = roundCurrency(
+    Number(snapshot.totalPaidPrincipal || 0) + totalPaidInterest + totalPaidPenalty,
+  );
+
+  return {
+    ...snapshot,
+    totalPaidPenalty,
+    totalPaidAccruedInterest,
+    totalPaidInterest,
+    totalPaid,
+    totalPayable: roundCurrency(totalPaid + Number(snapshot.outstandingBalance || 0)),
+  };
+};
+
+const persistLoanSnapshot = ({
+  loan,
+  snapshot,
+  schedule,
+  paymentDate,
+  closeLoan = false,
+  closureReason = null,
+  penaltyApplied = 0,
+  accruedInterestApplied = 0,
+}) => {
+  Object.assign(snapshot, preserveNonScheduleCollectionsInSnapshot({
+    snapshot,
+    previousSnapshot: loan.financialSnapshot,
+    penaltyApplied,
+    accruedInterestApplied,
+  }));
   loan.emiSchedule = schedule;
   loan.termMonths = Array.isArray(schedule) ? schedule.length : loan.termMonths;
   loan.installmentAmount = snapshot.installmentAmount;
@@ -833,6 +877,7 @@ const createPaymentApplicationService = ({
         paymentDate: normalizedPaymentDate,
         closeLoan: snapshot.outstandingBalance <= 0.01,
         closureReason: snapshot.outstandingBalance <= 0.01 ? 'schedule_completion' : null,
+        penaltyApplied,
       });
 
       await loan.save({ transaction });
@@ -1046,6 +1091,7 @@ const createPaymentApplicationService = ({
         paymentDate: normalizedPaymentDate,
         closeLoan: snapshot.outstandingBalance <= 0.01,
         closureReason: snapshot.outstandingBalance <= 0.01 ? 'schedule_completion' : null,
+        penaltyApplied: penaltyAppliedPartial,
       });
 
       await loan.save({ transaction });
@@ -1270,6 +1316,8 @@ const createPaymentApplicationService = ({
         paymentDate: normalizedPaymentDate,
         closeLoan: true,
         closureReason: 'payoff',
+        penaltyApplied: recomputedQuote.breakdown.lateFee,
+        accruedInterestApplied: recomputedQuote.breakdown.accruedInterest,
       });
       loan.closedAt = appliedPayoffDate;
 
