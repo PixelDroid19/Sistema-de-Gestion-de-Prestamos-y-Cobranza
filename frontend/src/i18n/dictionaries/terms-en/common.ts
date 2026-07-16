@@ -125,6 +125,7 @@ export const commonEn = {
 'confirm.document.delete.confirm': 'Delete',
 'confirm.payoff.title': 'Confirm payoff',
 'confirm.payoff.message': 'Confirm payoff for {amount}?',
+'confirm.payoff.lateFeeIncluded': 'Includes {amount} in late fees calculated through this date.',
 'confirm.payoff.confirm': 'Confirm',
 'confirm.installment.title': 'Confirm installment payment',
 'confirm.installment.confirm': 'Confirm',

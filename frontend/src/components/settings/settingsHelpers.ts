@@ -369,7 +369,7 @@ export const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: an
   return null;
 };
 
-export const validateLateFeePolicyDraft = (draft: LateFeePolicyDraft, lateFeePolicies: any[]) => {
+export const validateLateFeePolicyDraft = (draft: LateFeePolicyDraft, lateFeePolicies: any[], currentId?: unknown) => {
   const label = draft.label.trim();
   if (!label) return tTerm('settings.validation.lateFee.labelRequired');
 
@@ -380,18 +380,12 @@ export const validateLateFeePolicyDraft = (draft: LateFeePolicyDraft, lateFeePol
   if (priorityError) return priorityError;
 
   const normalizedLabel = normalizeComparable(label);
-  const duplicateLabel = lateFeePolicies.some((policy) => normalizeComparable(policy?.label) === normalizedLabel);
+  const duplicateLabel = lateFeePolicies.some((policy) => (
+    String(policy?.id) !== String(currentId ?? '')
+    && normalizeComparable(policy?.label) === normalizedLabel
+  ));
   if (duplicateLabel) {
     return tTerm('settings.validation.lateFee.duplicateLabel');
-  }
-
-  const priority = normalizePolicyPriority(draft.priority);
-  const duplicatePriority = lateFeePolicies.some((policy) => (
-    policy?.isActive !== false
-    && normalizePolicyPriority(policy?.priority) === priority
-  ));
-  if (duplicatePriority) {
-    return tTerm('settings.validation.lateFee.duplicatePriority');
   }
 
   return null;

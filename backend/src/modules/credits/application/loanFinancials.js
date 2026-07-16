@@ -2,6 +2,7 @@ const { ValidationError } = require('@/utils/errorHandler');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('./creditFormulaHelpers');
 const { assertPayoffAllowed } = require('./paymentEligibility');
 const { buildDateFormatMessage, normalizeDateOnly } = require('@/modules/shared/dateUtils');
+const { calculateLateFee } = require('../domain/calculation/lateFeeCalculator');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const LOAN_NOT_PAYABLE_PAYOFF_MESSAGE = 'El crédito no tiene saldo pendiente para pago total.';
@@ -44,7 +45,7 @@ const countElapsedAccrualDays = ({ anchorDate, asOfDate }) => {
   return Math.round(diffMs / MS_PER_DAY);
 };
 
-const extractOverdueBuckets = ({ schedule, asOfDate }) => schedule.reduce((summary, row) => {
+const extractOverdueBuckets = ({ loan = {}, schedule, asOfDate }) => schedule.reduce((summary, row) => {
   const dueDate = normalizeUtcDateOnly(row.dueDate, 'Schedule due date');
   if (dueDate.getTime() > asOfDate.getTime()) {
     return summary;
@@ -52,10 +53,20 @@ const extractOverdueBuckets = ({ schedule, asOfDate }) => schedule.reduce((summa
 
   summary.overduePrincipal = roundCurrency(summary.overduePrincipal + Number(row.remainingPrincipal || 0));
   summary.overdueInterest = roundCurrency(summary.overdueInterest + Number(row.remainingInterest || 0));
+  const daysOverdue = Math.max(0, Math.floor((asOfDate.getTime() - dueDate.getTime()) / MS_PER_DAY));
+  const remainingInterest = roundCurrency(row.remainingInterest || 0);
+  const remainingInstallment = roundCurrency((row.remainingPrincipal || 0) + remainingInterest);
+  summary.lateFee = roundCurrency(summary.lateFee + calculateLateFee({
+    overdueAmount: remainingInterest > 0 ? remainingInterest : remainingInstallment,
+    daysOverdue,
+    feeMode: String(loan.lateFeeMode || 'NONE').toUpperCase(),
+    annualRate: Number(loan.annualLateFeeRate || 0),
+  }));
   return summary;
 }, {
   overduePrincipal: 0,
   overdueInterest: 0,
+  lateFee: 0,
 });
 
 const resolveAccrualAnchor = ({ loan, schedule, asOfDate }) => {
@@ -91,7 +102,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
     asOfDate: normalizedAsOfDate,
   });
 
-  const overdue = extractOverdueBuckets({ schedule, asOfDate: normalizedAsOfDate });
+  const overdue = extractOverdueBuckets({ loan, schedule, asOfDate: normalizedAsOfDate });
   const outstandingPrincipal = roundCurrency(snapshot.outstandingPrincipal || 0);
   const futurePrincipal = roundCurrency(Math.max(0, outstandingPrincipal - overdue.overduePrincipal));
   const accrualAnchor = resolveAccrualAnchor({ loan, schedule, asOfDate: normalizedAsOfDate });
@@ -102,6 +113,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
   const total = roundCurrency(
     overdue.overduePrincipal
     + overdue.overdueInterest
+    + overdue.lateFee
     + futurePrincipal
     + accruedInterest,
   );
@@ -120,6 +132,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
     },
     outstandingPrincipal,
     breakdown: {
+      lateFee: overdue.lateFee,
       overduePrincipal: overdue.overduePrincipal,
       overdueInterest: overdue.overdueInterest,
       accruedInterest,

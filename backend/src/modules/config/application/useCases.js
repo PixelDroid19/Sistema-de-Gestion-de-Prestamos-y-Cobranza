@@ -720,7 +720,18 @@ const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {})
       entityName: 'Late fee policy',
       options,
     });
-    await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, options });
+
+    if (normalized.isActive !== false) {
+      const activeEntries = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY, options))
+        .filter((entry) => entry.isActive !== false);
+
+      for (const activeEntry of activeEntries) {
+        await configRepository.update(activeEntry.id, {
+          isActive: false,
+          value: activeEntry.value,
+        }, options);
+      }
+    }
 
     const entry = await configRepository.create({
       category: LATE_FEE_POLICY_CATEGORY,

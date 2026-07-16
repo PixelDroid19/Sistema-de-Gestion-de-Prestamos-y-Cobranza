@@ -1684,12 +1684,15 @@ test('applyPayoff rejects stale payoff quotes before persistence', async () => {
   });
 });
 
-test('applyPayoff rejects overdue unpaid installments and exposes denial reasons', async () => {
+test('applyPayoff closes an overdue credit and persists the quoted late-fee allocation', async () => {
+  let savedPayment;
   const loan = {
     id: 11,
     status: 'active',
     amount: 1000,
     interestRate: 12,
+    annualLateFeeRate: 12,
+    lateFeeMode: 'SIMPLE',
     termMonths: 3,
     startDate: '2026-01-01T00:00:00.000Z',
     emiSchedule: [
@@ -1701,27 +1704,34 @@ test('applyPayoff rejects overdue unpaid installments and exposes denial reasons
       outstandingInterest: 50,
       outstandingBalance: 1050,
     },
-    async save() {
-      throw new Error('loan.save should not be called');
-    },
+    async save() { return this; },
   };
 
   mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 901, ...payload };
+  });
 
-  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
+  const result = await createPaymentApplicationService({ loanViewService }).applyPayoff({
     loanId: 11,
     asOfDate: '2026-03-15',
-    quotedTotal: 1000,
-  }), (error) => {
-    assert.ok(error instanceof BusinessRuleViolationError);
-    assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
-    assert.deepEqual(error.denialReasons, [{
-      code: 'OVERDUE_UNPAID_INSTALLMENTS',
-      message: 'El crédito tiene cuotas vencidas pendientes',
-    }]);
-    return true;
+    quotedTotal: 1040.08,
+    paymentDate: '2026-03-15T12:00:00.000Z',
+    actor: { id: 55, role: 'admin' },
   });
+
+  assert.equal(result.loan.status, 'closed');
+  assert.equal(result.allocation.payoff.breakdown.lateFee, 0.41);
+  assert.equal(savedPayment.penaltyApplied, 0.41);
+  assert.deepEqual(savedPayment.allocationBreakdown[0], { bucket: 'late_fee', amount: 0.41 });
+  assert.equal(roundCurrency(
+    savedPayment.principalApplied
+      + savedPayment.interestApplied
+      + savedPayment.penaltyApplied
+      + savedPayment.overpaymentAmount,
+  ), savedPayment.amount);
 });
 
 test('applyPayoff rejects financially blocked loans and exposes denial reasons', async () => {

@@ -993,6 +993,49 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByText('Este crédito ya no tiene saldo pendiente para liquidar.')).not.toBeInTheDocument();
   });
 
+  it('allows total payoff for an overdue credit and discloses the included late fee', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockLoan = {
+      ...buildMockLoan(),
+      status: 'overdue',
+      paymentContext: {
+        ...buildMockLoan().paymentContext,
+        payoffEligibility: { allowed: true, denialReasons: [] },
+        capitalEligibility: {
+          allowed: false,
+          denialReasons: [{ code: 'OVERDUE_UNPAID_INSTALLMENTS', message: 'El crédito tiene cuotas vencidas pendientes' }],
+        },
+      },
+    };
+    mockPayoffQuote = {
+      asOfDate: '2026-07-16',
+      total: 852410,
+      breakdown: {
+        lateFee: 2410,
+        overduePrincipal: 300000,
+        overdueInterest: 50000,
+        accruedInterest: 0,
+        futurePrincipal: 500000,
+      },
+    };
+
+    renderCreditDetails();
+
+    const payoffButton = screen.getByRole('button', { name: 'Pago total' });
+    expect(payoffButton).toBeEnabled();
+    fireEvent.click(payoffButton);
+
+    await waitFor(() => {
+      expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringMatching(/Incluye.*2[.,]410.*mora/i),
+      }));
+    });
+    await waitFor(() => {
+      expect(mockExecutePayoff).toHaveBeenCalledWith({ asOfDate: '2026-07-16', quotedTotal: 852410 });
+    });
+    expect(screen.getByRole('button', { name: 'Abono a capital' })).toBeDisabled();
+  });
+
   it('does not expose payment actions to employees without payment permissions', () => {
     setSessionUser({ id: 10, name: 'Empleado consulta', email: 'readonly.employee@test.com', role: 'employee', permissions: ['CREDITS_VIEW_ALL'] });
 

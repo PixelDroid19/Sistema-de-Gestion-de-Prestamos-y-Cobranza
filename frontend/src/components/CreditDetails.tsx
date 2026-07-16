@@ -527,7 +527,18 @@ export default function CreditDetails() {
       return;
     }
     const quotedTotal = payoffQuote.total ?? payoffQuote.totalPayoffAmount;
-    const confirmed = await confirmDanger({ title: tTerm('confirm.payoff.title'), message: tTerm('confirm.payoff.message').replace('{amount}', formatCurrency(quotedTotal)), confirmLabel: tTerm('confirm.payoff.confirm') });
+    const lateFee = Number(payoffQuote.breakdown?.lateFee || 0);
+    const confirmationMessage = [
+      tTerm('confirm.payoff.message').replace('{amount}', formatCurrency(quotedTotal)),
+      lateFee > 0
+        ? tTerm('confirm.payoff.lateFeeIncluded').replace('{amount}', formatCurrency(lateFee))
+        : null,
+    ].filter(Boolean).join(' ');
+    const confirmed = await confirmDanger({
+      title: tTerm('confirm.payoff.title'),
+      message: confirmationMessage,
+      confirmLabel: tTerm('confirm.payoff.confirm'),
+    });
     if (!confirmed) return;
     await runPayoff({ asOfDate: payoffQuote.asOfDate, quotedTotal });
   };

@@ -472,7 +472,7 @@ describe('Settings operational configuration', () => {
     expect(mockCreateRatePolicy).not.toHaveBeenCalled();
   });
 
-  it('keeps late-fee priority hidden while preserving backend default validation', async () => {
+  it('creates a replacement late-fee policy without exposing or blocking on hidden priority', async () => {
     render(<Settings />);
 
     fireEvent.click(screen.getByRole('tab', { name: /^Políticas de mora\s*1$/i }));
@@ -487,13 +487,45 @@ describe('Settings operational configuration', () => {
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de mora' }));
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          description: expect.stringContaining('política de mora activa con ese nivel'),
-        }),
-      );
+      expect(mockCreateLateFeePolicy).toHaveBeenCalledWith({
+        label: 'Mora QA alterna',
+        annualEffectiveRate: 18,
+        lateFeeMode: 'SIMPLE',
+        priority: 'medium',
+        description: '',
+        isActive: true,
+      });
     });
-    expect(mockCreateLateFeePolicy).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it('edits the active late-fee policy from its row action', async () => {
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Políticas de mora\s*1$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+
+    expect(screen.getByRole('dialog', { name: 'Editar política de mora' })).toBeInTheDocument();
+    const nameInput = screen.getByRole('textbox', { name: 'Nombre de la política de mora' });
+    const rateInput = getTextboxByAriaLabel('Tasa de mora efectiva anual');
+    expect(nameInput).toHaveValue('Mora simple');
+    expect(rateInput).toHaveValue('24');
+
+    fireEvent.change(nameInput, { target: { value: 'Mora simple actualizada' } });
+    fireEvent.change(rateInput, { target: { value: '28' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() => {
+      expect(mockUpdateLateFeePolicy).toHaveBeenCalledWith({
+        id: 21,
+        label: 'Mora simple actualizada',
+        annualEffectiveRate: 28,
+        lateFeeMode: 'SIMPLE',
+        priority: 'medium',
+        description: '',
+        isActive: true,
+      });
+    });
   });
 
   it('rejects exponent-like late-fee rate values before saving late-fee policies', async () => {

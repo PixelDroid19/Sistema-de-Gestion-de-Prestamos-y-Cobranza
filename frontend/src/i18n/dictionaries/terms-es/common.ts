@@ -132,6 +132,7 @@ export const commonEs = {
 'confirm.document.delete.confirm': 'Eliminar',
 'confirm.payoff.title': 'Confirmar pago total',
 'confirm.payoff.message': '¿Confirmar pago total por {amount}?',
+'confirm.payoff.lateFeeIncluded': 'Incluye {amount} de mora calculada a la fecha.',
 'confirm.payoff.confirm': 'Confirmar',
 'confirm.installment.title': 'Confirmar pago de cuota',
 'confirm.installment.confirm': 'Confirmar',

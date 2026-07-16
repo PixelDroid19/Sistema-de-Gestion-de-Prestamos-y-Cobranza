@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { loanValidation, associateValidation } = require('@/middleware/validation');
-const { ValidationError, BusinessRuleViolationError } = require('@/utils/errorHandler');
+const { ValidationError } = require('@/utils/errorHandler');
 const { buildPayoffQuote } = require('@/modules/credits/application/loanFinancials');
 const {
   evaluateCapitalPaymentEligibility,
@@ -294,24 +294,32 @@ test('buildPayoffQuote rejects zero-balance loans with an operator-facing messag
   });
 });
 
-test('buildPayoffQuote rejects overdue earned buckets because overdue unpaid installments block payoff', () => {
-  assert.throws(() => buildPayoffQuote({
+test('buildPayoffQuote includes overdue installments and late fees in total payoff', () => {
+  const quote = buildPayoffQuote({
     loan: {
       status: 'defaulted',
       startDate: '2026-01-01T00:00:00.000Z',
-      interestRate: 24,
+      interestRate: 12,
+      annualLateFeeRate: 12,
+      lateFeeMode: 'SIMPLE',
     },
     schedule: [
-      { installmentNumber: 1, dueDate: '2026-02-01T00:00:00.000Z', remainingPrincipal: 200, remainingInterest: 20 },
-      { installmentNumber: 2, dueDate: '2026-03-01T00:00:00.000Z', remainingPrincipal: 180, remainingInterest: 18 },
-      { installmentNumber: 3, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 160, remainingInterest: 16 },
+      { installmentNumber: 1, dueDate: '2026-02-01T00:00:00.000Z', remainingPrincipal: 300000, remainingInterest: 30000 },
+      { installmentNumber: 2, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 200000, remainingInterest: 10000 },
     ],
     snapshot: {
-      outstandingPrincipal: 540,
-      outstandingBalance: 594,
+      outstandingPrincipal: 500000,
+      outstandingBalance: 540000,
     },
     asOfDate: '2026-03-15',
-  }), BusinessRuleViolationError);
+  });
+
+  assert.equal(quote.breakdown.lateFee, 414.25);
+  assert.equal(quote.breakdown.overduePrincipal, 300000);
+  assert.equal(quote.breakdown.overdueInterest, 30000);
+  assert.equal(quote.breakdown.accruedInterest, 2761.64);
+  assert.equal(quote.breakdown.futurePrincipal, 200000);
+  assert.equal(quote.total, 533175.89);
 });
 
 test('buildPayoffQuote rejects invalid payoff dates outside payable life', async () => {
@@ -362,8 +370,8 @@ test('evaluatePayoffEligibility denies payoff before the loan start date', () =>
   ]);
 });
 
-test('buildPayoffQuote rejects overdue unpaid installments with structured denial reasons', () => {
-  assert.throws(() => buildPayoffQuote({
+test('evaluatePayoffEligibility allows overdue installments while capital eligibility still denies them', () => {
+  const input = {
     loan: {
       status: 'active',
       startDate: '2026-01-01T00:00:00.000Z',
@@ -378,15 +386,16 @@ test('buildPayoffQuote rejects overdue unpaid installments with structured denia
       outstandingBalance: 540,
     },
     asOfDate: '2026-03-15',
-  }), (error) => {
-    assert.ok(error instanceof BusinessRuleViolationError);
-    assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
-    assert.deepEqual(error.denialReasons, [{
-      code: 'OVERDUE_UNPAID_INSTALLMENTS',
-      message: 'El crédito tiene cuotas vencidas pendientes',
-    }]);
-    return true;
+  };
+
+  assert.deepEqual(evaluatePayoffEligibility(input), {
+    allowed: true,
+    denialReasons: [],
   });
+  assert.deepEqual(evaluateCapitalPaymentEligibility(input).denialReasons.map((reason) => reason.code), [
+    'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+    'OVERDUE_UNPAID_INSTALLMENTS',
+  ]);
 });
 
 test('evaluateCapitalPaymentEligibility denies no-outstanding-balance, overdue, and financial block reasons together', () => {

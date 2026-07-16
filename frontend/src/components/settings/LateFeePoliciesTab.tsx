@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, CircleOff, Plus, Save, Trash2 } from 'lucide-react';
+import { CheckCircle2, CircleOff, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
@@ -48,24 +48,57 @@ export default function LateFeePoliciesTab({
     description: '',
   });
   const [isLateFeeModalOpen, setIsLateFeeModalOpen] = useState(false);
+  const [editingLateFeePolicy, setEditingLateFeePolicy] = useState<any | null>(null);
 
   const resetLateFeeDraft = () => {
     setNewLateFeePolicy({ label: '', annualEffectiveRate: '', lateFeeMode: 'SIMPLE', priority: 'medium', description: '' });
+    setEditingLateFeePolicy(null);
     setIsLateFeeModalOpen(false);
+  };
+
+  const openCreateModal = () => {
+    setEditingLateFeePolicy(null);
+    setNewLateFeePolicy({ label: '', annualEffectiveRate: '', lateFeeMode: 'SIMPLE', priority: 'medium', description: '' });
+    setIsLateFeeModalOpen(true);
+  };
+
+  const openEditModal = (policy: any) => {
+    setEditingLateFeePolicy(policy);
+    setNewLateFeePolicy({
+      label: String(policy.label || ''),
+      annualEffectiveRate: String(policy.annualEffectiveRate ?? ''),
+      lateFeeMode: policy.lateFeeMode || 'SIMPLE',
+      priority: policy.priority || 'medium',
+      description: String(policy.description || ''),
+    });
+    setIsLateFeeModalOpen(true);
   };
 
   const handleCreateLateFeePolicy = async (event: React.FormEvent) => {
     event.preventDefault();
-    const validationError = validateLateFeePolicyDraft(newLateFeePolicy, lateFeePolicies);
+    const validationError = validateLateFeePolicyDraft(newLateFeePolicy, lateFeePolicies, editingLateFeePolicy?.id);
     if (validationError) {
       toast.error({ title: tTerm('settings.lateFee.toast.review'), description: validationError });
       return;
     }
 
     try {
-      await createLateFeePolicy.mutateAsync(buildLateFeePayload(newLateFeePolicy));
+      const payload = buildLateFeePayload(newLateFeePolicy);
+      if (editingLateFeePolicy) {
+        await updateLateFeePolicy.mutateAsync({
+          id: editingLateFeePolicy.id,
+          ...payload,
+          isActive: editingLateFeePolicy.isActive !== false,
+        });
+      } else {
+        await createLateFeePolicy.mutateAsync(payload);
+      }
       resetLateFeeDraft();
-      toast.success({ description: tTerm('settings.lateFee.toast.created') });
+      toast.success({
+        description: editingLateFeePolicy
+          ? tTerm('settings.lateFee.toast.updated')
+          : tTerm('settings.lateFee.toast.created'),
+      });
     } catch (error) {
       reportClientError('settings.lateFee.create', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
@@ -90,7 +123,12 @@ export default function LateFeePoliciesTab({
   };
 
   const lateFeePolicyForm = (
-    <form id="late-fee-policy-form" onSubmit={handleCreateLateFeePolicy} aria-label={tTerm('settings.lateFee.section.aria')} className="space-y-4">
+    <form
+      id="late-fee-policy-form"
+      onSubmit={handleCreateLateFeePolicy}
+      aria-label={editingLateFeePolicy ? tTerm('settings.lateFee.section.editAria') : tTerm('settings.lateFee.section.aria')}
+      className="space-y-4"
+    >
       <div className="grid min-w-0 gap-3 md:grid-cols-2">
         <FormField
           label={tTerm('settings.lateFee.field.name')}
@@ -147,7 +185,7 @@ export default function LateFeePoliciesTab({
             type="button"
             variant="primary"
             icon={<Plus size={16} />}
-            onClick={() => setIsLateFeeModalOpen(true)}
+            onClick={openCreateModal}
           >
             {tTerm('settings.lateFee.cta.openCreate')}
           </ActionButton>
@@ -179,6 +217,13 @@ export default function LateFeePoliciesTab({
                       align="center"
                       ariaLabel={tTerm('settings.lateFee.table.actions')}
                       items={[
+                        {
+                          id: 'edit',
+                          label: tTerm('settings.lateFee.table.edit'),
+                          icon: <Pencil size={16} />,
+                          onClick: () => openEditModal(policy),
+                          disabled: updateLateFeePolicy.isPending,
+                        },
                         {
                           id: 'toggle',
                           label: policy.isActive === false
@@ -223,8 +268,12 @@ export default function LateFeePoliciesTab({
       </AppTable>
       {isLateFeeModalOpen && (
         <ModalShell
-          title={tTerm('settings.lateFee.modal.title')}
-          subtitle={tTerm('settings.lateFee.modal.subtitle')}
+          title={editingLateFeePolicy ? tTerm('settings.lateFee.modal.editTitle') : tTerm('settings.lateFee.modal.title')}
+          subtitle={editingLateFeePolicy
+            ? tTerm('settings.lateFee.modal.editSubtitle')
+            : lateFeePolicies.some((policy) => policy.isActive !== false)
+              ? tTerm('settings.lateFee.modal.replacementSubtitle')
+              : tTerm('settings.lateFee.modal.subtitle')}
           maxWidthClassName="max-w-3xl"
           onClose={resetLateFeeDraft}
           footer={(
@@ -235,11 +284,11 @@ export default function LateFeePoliciesTab({
               <ActionButton
                 type="submit"
                 form="late-fee-policy-form"
-                disabled={createLateFeePolicy.isPending}
+                disabled={createLateFeePolicy.isPending || updateLateFeePolicy.isPending}
                 variant="primary"
                 icon={<Save size={16} />}
               >
-                {tTerm('settings.lateFee.cta.create')}
+                {editingLateFeePolicy ? tTerm('settings.lateFee.cta.save') : tTerm('settings.lateFee.cta.create')}
               </ActionButton>
             </div>
           )}

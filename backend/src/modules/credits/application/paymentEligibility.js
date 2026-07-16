@@ -118,13 +118,6 @@ const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDat
     });
   }
 
-  if (hasOverdueUnpaidInstallments({ schedule, asOfDate: normalizedAsOfDate })) {
-    denialReasons.push({
-      code: PAYMENT_DENIAL_CODES.OVERDUE_UNPAID_INSTALLMENTS,
-      message: 'El crédito tiene cuotas vencidas pendientes',
-    });
-  }
-
   if (financialBlock.isBlocked) {
     denialReasons.push(buildFinancialBlockReason(financialBlock));
   }

@@ -304,6 +304,10 @@ const buildInstallmentPaymentCreatePayload = ({
 const buildPayoffAllocationBreakdown = (quote) => {
   const breakdown = [];
 
+  if (quote.breakdown.lateFee > 0) {
+    breakdown.push({ bucket: 'late_fee', amount: quote.breakdown.lateFee });
+  }
+
   if (quote.breakdown.overdueInterest > 0) {
     breakdown.push({ bucket: 'overdue_interest', amount: quote.breakdown.overdueInterest });
   }
@@ -332,6 +336,7 @@ const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, exe
   createdByUserId: actor?.id || null,
   principalApplied: roundCurrency(quote.breakdown.overduePrincipal + quote.breakdown.futurePrincipal),
   interestApplied: roundCurrency(quote.breakdown.overdueInterest + quote.breakdown.accruedInterest),
+  penaltyApplied: roundCurrency(quote.breakdown.lateFee || 0),
   overpaymentAmount: 0,
   remainingBalanceAfterPayment: 0,
   allocationBreakdown: buildPayoffAllocationBreakdown(quote),

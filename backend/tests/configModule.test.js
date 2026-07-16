@@ -371,7 +371,7 @@ test('config policies reject invalid priority and late-fee modes without exposin
   );
 });
 
-test('config policies reject active duplicates that would make resolution ambiguous', async () => {
+test('rate policies reject active duplicates that would make resolution ambiguous', async () => {
   const createRatePolicy = createCreateRatePolicy({
     configRepository: {
       async findByCategoryAndKey() {
@@ -414,45 +414,6 @@ test('config policies reject active duplicates that would make resolution ambigu
     },
   );
 
-  const createLateFeePolicy = createCreateLateFeePolicy({
-    configRepository: {
-      async findByCategoryAndKey() {
-        return null;
-      },
-      async listByCategory() {
-        return [
-          {
-            id: 21,
-            key: 'mora-simple',
-            label: 'Mora simple',
-            isActive: true,
-            value: {
-              annualEffectiveRate: 24,
-              lateFeeMode: 'SIMPLE',
-              priority: 'medium',
-            },
-          },
-        ];
-      },
-      async create() {
-        throw new Error('create should not be called');
-      },
-    },
-  });
-
-  await assert.rejects(
-    () => createLateFeePolicy({
-      label: 'Mora alterna',
-      annualEffectiveRate: 18,
-      lateFeeMode: 'SIMPLE',
-      priority: 'medium',
-    }),
-    (error) => {
-      assert.ok(error instanceof ConflictError);
-      assert.equal(error.message, 'Las políticas de mora activas no pueden compartir la misma prioridad.');
-      return true;
-    },
-  );
 });
 
 test('rate policy creation rejects a catch-all range that overlaps an existing explicit range', async () => {
@@ -889,6 +850,66 @@ test('late-fee policy create and update reuse the shared configuration transacti
   assert.equal(created.annualEffectiveRate, 30);
   assert.equal(updated.annualEffectiveRate, 28);
   assert.equal(updated.description, 'Ajuste operativo');
+});
+
+test('creating an active late-fee policy atomically archives the previous active policy', async () => {
+  const transaction = { id: 'late-fee-replacement-tx' };
+  const archived = [];
+  const existingPolicy = {
+    id: 41,
+    key: 'mora-simple-estandar',
+    label: 'Mora simple estándar',
+    isActive: true,
+    value: {
+      annualEffectiveRate: 12,
+      lateFeeMode: 'SIMPLE',
+      priority: 'medium',
+      description: '',
+      metadata: {},
+    },
+  };
+
+  const createLateFeePolicy = createCreateLateFeePolicy({
+    configRepository: {
+      async runInTransaction(work) {
+        return work(transaction);
+      },
+      async findByCategoryAndKey(_category, _key, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return null;
+      },
+      async listByCategory(_category, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return [existingPolicy];
+      },
+      async update(id, payload, options = {}) {
+        assert.equal(options.transaction, transaction);
+        archived.push({ id, payload });
+        return { ...existingPolicy, ...payload };
+      },
+      async create(payload, options = {}) {
+        assert.equal(options.transaction, transaction);
+        return { id: 42, ...payload };
+      },
+    },
+  });
+
+  const created = await createLateFeePolicy({
+    label: 'Mora compuesta vigente',
+    annualEffectiveRate: 18,
+    lateFeeMode: 'COMPOUND',
+  });
+
+  assert.equal(created.id, 42);
+  assert.equal(created.isActive, true);
+  assert.equal(created.annualEffectiveRate, 18);
+  assert.deepEqual(archived, [{
+    id: 41,
+    payload: {
+      isActive: false,
+      value: existingPolicy.value,
+    },
+  }]);
 });
 
 test('late-fee policies reject modes that are not configurable from the operational UI', async () => {
