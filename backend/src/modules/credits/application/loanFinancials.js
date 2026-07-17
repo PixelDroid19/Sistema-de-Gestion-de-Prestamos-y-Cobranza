@@ -5,6 +5,7 @@ const { buildDateFormatMessage, normalizeDateOnly } = require('@/modules/shared/
 const { calculateLateFee } = require('../domain/calculation/lateFeeCalculator');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const NOMINAL_RATE_YEAR_DAYS = 360;
 const LOAN_NOT_PAYABLE_PAYOFF_MESSAGE = 'El crédito no tiene saldo pendiente para pago total.';
 
 const formatUtcDateOnly = (value) => {
@@ -108,7 +109,9 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
   const accrualAnchor = resolveAccrualAnchor({ loan, schedule, asOfDate: normalizedAsOfDate });
   const accruedDays = countElapsedAccrualDays({ anchorDate: accrualAnchor.date, asOfDate: normalizedAsOfDate });
   const accruedInterest = roundCurrency(
-    futurePrincipal * (Number(loan.interestRate || 0) / 100) * (accruedDays / 365),
+    futurePrincipal
+      * (Number(loan.interestRate || 0) / 100)
+      * (accruedDays / NOMINAL_RATE_YEAR_DAYS),
   );
   const total = roundCurrency(
     overdue.overduePrincipal
@@ -124,7 +127,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
 
   return {
     asOfDate: formatUtcDateOnly(normalizedAsOfDate),
-    accrualMethod: 'actual/365',
+    accrualMethod: 'actual/360',
     accruedDays,
     accrualAnchor: {
       source: accrualAnchor.source,

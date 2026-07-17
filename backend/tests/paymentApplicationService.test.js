@@ -1281,6 +1281,66 @@ test('applyCapitalPayment rejects loans before the first installment is paid', a
   });
 });
 
+test('applyCapitalPayment requires the installment due on the payment date before persisting', async () => {
+  const loan = {
+    id: 333,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 600,
+    financialSnapshot: {
+      outstandingPrincipal: 600,
+      outstandingInterest: 15,
+      outstandingBalance: 615,
+    },
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-06-17T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidPrincipal: 300,
+        paidInterest: 20,
+        paidTotal: 320,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-07-17T00:00:00.000Z',
+        remainingPrincipal: 300,
+        remainingInterest: 15,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 333,
+    amount: 100,
+    paymentDate: '2026-07-17T18:30:00.000Z',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED',
+      message: 'Primero paga completamente la cuota vigente #2 antes de abonar a capital',
+      installmentNumber: 2,
+    }]);
+    return true;
+  });
+});
+
 test('applyCapitalPayment rejects loans with overdue unpaid installments and exposes denial reasons', async () => {
   const loan = {
     id: 34,
@@ -1696,7 +1756,7 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   }).applyPayoff({
     loanId: 10,
     asOfDate: '2026-03-15',
-    quotedTotal: 1024,
+    quotedTotal: 1024.33,
     paymentDate: '2026-03-15T16:00:00.000Z',
     actor: { id: 55, role: 'customer' },
   });
@@ -1705,22 +1765,23 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   assert.equal(result.loan.closureReason, 'payoff');
   assert.equal(result.loan.closedAt.toISOString(), '2026-03-15T00:00:00.000Z');
   assert.equal(result.allocation.remainingBalance, 0);
-  assert.equal(result.allocation.payoff.total, 1024);
+  assert.equal(result.allocation.payoff.total, 1024.33);
+  assert.equal(result.allocation.payoff.accrualMethod, 'actual/360');
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 0);
-  assert.equal(savedLoan.financialSnapshot.totalPaidAccruedInterest, 24);
-  assert.equal(savedLoan.financialSnapshot.totalPaidInterest, 24);
-  assert.equal(savedLoan.financialSnapshot.totalPaid, 1024);
-  assert.equal(savedLoan.financialSnapshot.totalPayable, 1024);
+  assert.equal(savedLoan.financialSnapshot.totalPaidAccruedInterest, 24.33);
+  assert.equal(savedLoan.financialSnapshot.totalPaidInterest, 24.33);
+  assert.equal(savedLoan.financialSnapshot.totalPaid, 1024.33);
+  assert.equal(savedLoan.financialSnapshot.totalPayable, 1024.33);
   const reloadedPayoffSnapshot = loanViewService.getCanonicalLoanView(savedLoan).snapshot;
-  assert.equal(reloadedPayoffSnapshot.totalPaidAccruedInterest, 24);
-  assert.equal(reloadedPayoffSnapshot.totalPaid, 1024);
-  assert.equal(reloadedPayoffSnapshot.totalPayable, 1024);
+  assert.equal(reloadedPayoffSnapshot.totalPaidAccruedInterest, 24.33);
+  assert.equal(reloadedPayoffSnapshot.totalPaid, 1024.33);
+  assert.equal(reloadedPayoffSnapshot.totalPayable, 1024.33);
   assert.equal(savedPayment.paymentType, 'payoff');
   assert.equal(savedPayment.createdByUserId, 55);
   assert.equal(savedPayment.paymentMetadata.payoff.asOfDate, '2026-03-15');
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overduePrincipal, 0);
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overdueInterest, 0);
-  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.accruedInterest, 24);
+  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.accruedInterest, 24.33);
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.futurePrincipal, 1000);
   assert.deepEqual(notifications.map((notification) => notification.userId), [44, 55]);
   assert.equal(notifications[0].payload.loanId, 10);
@@ -1802,12 +1863,13 @@ test('applyPayoff closes an overdue credit and persists the quoted late-fee allo
   const result = await createPaymentApplicationService({ loanViewService }).applyPayoff({
     loanId: 11,
     asOfDate: '2026-03-15',
-    quotedTotal: 1040.08,
+    quotedTotal: 1040.21,
     paymentDate: '2026-03-15T12:00:00.000Z',
     actor: { id: 55, role: 'admin' },
   });
 
   assert.equal(result.loan.status, 'closed');
+  assert.equal(result.allocation.payoff.accrualMethod, 'actual/360');
   assert.equal(result.allocation.payoff.breakdown.lateFee, 0.41);
   assert.equal(savedPayment.penaltyApplied, 0.41);
   assert.deepEqual(savedPayment.allocationBreakdown[0], { bucket: 'late_fee', amount: 0.41 });

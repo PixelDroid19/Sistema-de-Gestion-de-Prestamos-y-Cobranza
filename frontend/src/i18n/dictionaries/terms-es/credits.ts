@@ -348,6 +348,7 @@ export const creditsEs = {
 'creditDetails.payoff.unavailable.ineligible': 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.',
 'creditDetails.payoff.state.preparingQuote': 'Estamos preparando la cotización de liquidación. Intenta de nuevo en unos segundos.',
 'creditDetails.capital.denial.firstInstallmentRequired': 'Primero registra el pago completo de la primera cuota. Después podrás abonar a capital.',
+'creditDetails.capital.denial.currentInstallmentRequired': 'Primero paga completamente la cuota vigente antes de abonar a capital.',
 'creditDetails.capital.denial.noOutstandingBalance': 'Este crédito no tiene saldo de capital disponible para abonar.',
 'creditDetails.capital.denial.invalidStatus': 'El estado actual del crédito no permite abonos a capital.',
 'creditDetails.capital.denial.overdueInstallments': 'Regulariza las cuotas vencidas antes de abonar a capital.',

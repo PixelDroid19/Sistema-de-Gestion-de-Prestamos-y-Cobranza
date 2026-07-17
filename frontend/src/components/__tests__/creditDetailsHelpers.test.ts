@@ -59,4 +59,13 @@ describe('creditDetailsHelpers', () => {
     expect(message).toBe('El abono a capital no está disponible para el estado financiero actual.');
     expect(message).not.toMatch(/Loan has no outstanding balance/i);
   });
+
+  it('explains that the current installment must be paid before a capital payment', () => {
+    const message = formatCapitalPaymentDenialReason({
+      code: 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED',
+      message: 'Primero paga completamente la cuota vigente #2 antes de abonar a capital',
+    });
+
+    expect(message).toBe('Primero paga completamente la cuota vigente antes de abonar a capital.');
+  });
 });

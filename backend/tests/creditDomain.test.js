@@ -203,7 +203,7 @@ test('associateValidation.create rejects removed associate contract fields', asy
   });
 });
 
-test('buildPayoffQuote returns principal plus mid-cycle actual/365 accrual without future interest before any installment is overdue', () => {
+test('buildPayoffQuote uses the product actual/360 convention for daily accrued interest', () => {
   const quote = buildPayoffQuote({
     loan: {
       status: 'active',
@@ -225,8 +225,9 @@ test('buildPayoffQuote returns principal plus mid-cycle actual/365 accrual witho
   assert.equal(quote.breakdown.overdueInterest, 0);
   assert.equal(quote.breakdown.futurePrincipal, 200);
   assert.equal(quote.accruedDays, 14);
-  assert.equal(quote.breakdown.accruedInterest, 0.92);
-  assert.equal(quote.total, 200.92);
+  assert.equal(quote.accrualMethod, 'actual/360');
+  assert.equal(quote.breakdown.accruedInterest, 0.93);
+  assert.equal(quote.total, 200.93);
 });
 
 test('buildPayoffQuote supports legacy loans without startDate by using createdAt', () => {
@@ -248,7 +249,7 @@ test('buildPayoffQuote supports legacy loans without startDate by using createdA
 
   assert.equal(quote.accrualAnchor.date, '2026-01-01');
   assert.equal(quote.accruedDays, 14);
-  assert.equal(quote.total, 100.46);
+  assert.equal(quote.total, 100.47);
 });
 
 test('buildPayoffQuote keeps accrued daily interest at zero on a due date boundary', () => {
@@ -317,9 +318,9 @@ test('buildPayoffQuote includes overdue installments and late fees in total payo
   assert.equal(quote.breakdown.lateFee, 414.25);
   assert.equal(quote.breakdown.overduePrincipal, 300000);
   assert.equal(quote.breakdown.overdueInterest, 30000);
-  assert.equal(quote.breakdown.accruedInterest, 2761.64);
+  assert.equal(quote.breakdown.accruedInterest, 2800);
   assert.equal(quote.breakdown.futurePrincipal, 200000);
-  assert.equal(quote.total, 533175.89);
+  assert.equal(quote.total, 533214.25);
 });
 
 test('buildPayoffQuote rejects invalid payoff dates outside payable life', async () => {
@@ -479,6 +480,84 @@ test('evaluateCapitalPaymentEligibility denies capital payment until the first i
     code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
     message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
   }]);
+});
+
+test('evaluateCapitalPaymentEligibility requires the installment due on the capital-payment date', () => {
+  const eligibility = evaluateCapitalPaymentEligibility({
+    loan: {
+      status: 'active',
+      principalOutstanding: 600,
+    },
+    schedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-06-17T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidTotal: 320,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-07-17T00:00:00.000Z',
+        remainingPrincipal: 300,
+        remainingInterest: 15,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    snapshot: {
+      outstandingPrincipal: 600,
+      outstandingBalance: 615,
+    },
+    asOfDate: new Date('2026-07-17T18:30:00.000Z'),
+  });
+
+  assert.deepEqual(eligibility, {
+    allowed: false,
+    denialReasons: [{
+      code: 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED',
+      message: 'Primero paga completamente la cuota vigente #2 antes de abonar a capital',
+      installmentNumber: 2,
+    }],
+  });
+});
+
+test('evaluateCapitalPaymentEligibility allows a capital payment before the next installment becomes due', () => {
+  const eligibility = evaluateCapitalPaymentEligibility({
+    loan: {
+      status: 'active',
+      principalOutstanding: 600,
+    },
+    schedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-06-17T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidTotal: 320,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-07-17T00:00:00.000Z',
+        remainingPrincipal: 300,
+        remainingInterest: 15,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    snapshot: {
+      outstandingPrincipal: 600,
+      outstandingBalance: 615,
+    },
+    asOfDate: new Date('2026-07-16T23:59:59.000Z'),
+  });
+
+  assert.deepEqual(eligibility, {
+    allowed: true,
+    denialReasons: [],
+  });
 });
 
 test('normalizeFinancialBlock reads fallback block details from financialSnapshot', () => {

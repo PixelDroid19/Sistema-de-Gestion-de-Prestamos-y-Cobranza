@@ -346,6 +346,7 @@ export const creditsEn = {
 'creditDetails.payoff.unavailable.ineligible': 'Check the loan status and portfolio eligibility before continuing with this operation.',
 'creditDetails.payoff.state.preparingQuote': 'We are preparing the payoff quote. Try again in a few seconds.',
 'creditDetails.capital.denial.firstInstallmentRequired': 'First record the full payment of the first installment. After that, you can make a principal prepayment.',
+'creditDetails.capital.denial.currentInstallmentRequired': 'Pay the current installment in full before making a principal prepayment.',
 'creditDetails.capital.denial.noOutstandingBalance': 'This loan has no outstanding principal available for prepayment.',
 'creditDetails.capital.denial.invalidStatus': 'The current loan status does not allow principal prepayments.',
 'creditDetails.capital.denial.overdueInstallments': 'Regularize overdue installments before making a principal prepayment.',

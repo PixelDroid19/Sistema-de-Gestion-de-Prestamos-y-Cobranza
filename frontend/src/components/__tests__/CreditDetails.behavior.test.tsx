@@ -811,6 +811,31 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(await screen.findByText('Abono a capital no disponible. Primero registra el pago completo de la primera cuota. Después podrás abonar a capital.')).toBeInTheDocument();
   });
 
+  it('shows that the current installment must be paid before a capital payment', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockLoan = {
+      ...buildMockLoan(),
+      paymentContext: {
+        ...buildMockLoan().paymentContext,
+        capitalEligibility: {
+          allowed: false,
+          denialReasons: [{
+            code: 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED',
+            message: 'Primero paga completamente la cuota vigente #2 antes de abonar a capital',
+          }],
+        },
+      },
+    };
+
+    renderCreditDetails();
+
+    const capitalButton = screen.getByRole('button', { name: 'Abono a capital' });
+    expect(capitalButton).toBeDisabled();
+    fireEvent.focus(screen.getByLabelText(/Abono a capital no disponible/i));
+
+    expect(await screen.findByText('Abono a capital no disponible. Primero paga completamente la cuota vigente antes de abonar a capital.')).toBeInTheDocument();
+  });
+
   it('sends selected installments when reducing the payment after a capital prepayment', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockRecordCapitalPayment.mockResolvedValueOnce({ data: { payment: { id: 991 } } });

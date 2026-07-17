@@ -1727,7 +1727,7 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
         calls.push(['getPayoffQuote', input]);
         return {
           asOfDate: input.asOfDate,
-          accrualMethod: 'actual/365',
+          accrualMethod: 'actual/360',
           breakdown: {
             overduePrincipal: 0,
             overdueInterest: 0,
@@ -1772,7 +1772,7 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
     data: {
       payoffQuote: {
         asOfDate: '2026-03-15',
-        accrualMethod: 'actual/365',
+        accrualMethod: 'actual/360',
         breakdown: {
           overduePrincipal: 0,
           overdueInterest: 0,

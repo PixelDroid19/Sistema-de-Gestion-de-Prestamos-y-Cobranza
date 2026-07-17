@@ -83,6 +83,8 @@ export function formatCapitalPaymentDenialReason(reason: PayoffDenialReason | nu
     switch (reason.code) {
       case 'FIRST_INSTALLMENT_PAYMENT_REQUIRED':
         return tTerm('creditDetails.capital.denial.firstInstallmentRequired');
+      case 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED':
+        return tTerm('creditDetails.capital.denial.currentInstallmentRequired');
       case 'NO_OUTSTANDING_BALANCE':
         return tTerm('creditDetails.capital.denial.noOutstandingBalance');
       case 'LOAN_NOT_PAYABLE_STATUS':

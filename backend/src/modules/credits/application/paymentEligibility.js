@@ -1,5 +1,6 @@
 const { roundCurrency } = require('./creditFormulaHelpers');
 const { BusinessRuleViolationError } = require('@/utils/errorHandler');
+const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
 
 const PAYABLE_LOAN_STATUSES = new Set(['pending', 'approved', 'active', 'defaulted', 'overdue']);
 
@@ -11,6 +12,7 @@ const PAYMENT_DENIAL_CODES = Object.freeze({
   LOAN_NOT_PAYABLE_STATUS: 'LOAN_NOT_PAYABLE_STATUS',
   PAYOFF_BEFORE_LOAN_START: 'PAYOFF_BEFORE_LOAN_START',
   FIRST_INSTALLMENT_PAYMENT_REQUIRED: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+  CURRENT_INSTALLMENT_PAYMENT_REQUIRED: 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED',
 });
 
 const buildOutstandingBalance = (snapshot = {}) => roundCurrency(
@@ -41,15 +43,31 @@ const normalizeFinancialBlock = (loan = {}) => {
   };
 };
 
-const hasOverdueUnpaidInstallments = ({ schedule = [], asOfDate = new Date() }) => {
-  const normalizedAsOfDate = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
+const getInstallmentOutstanding = (row = {}) => roundCurrency(
+  Number(row.remainingPrincipal || 0) + Number(row.remainingInterest || 0),
+);
 
-  return schedule.some((row) => {
-    const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
-    return outstanding > 0.01
-      && row.status !== 'annulled'
-      && new Date(row.dueDate).getTime() < normalizedAsOfDate.getTime();
-  });
+const isOpenInstallment = (row = {}) => (
+  String(row.status || '').toLowerCase() !== 'annulled'
+  && getInstallmentOutstanding(row) > 0.01
+);
+
+const hasOverdueUnpaidInstallments = ({ schedule = [], asOfDate = new Date() }) => {
+  const normalizedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
+
+  return schedule.some((row) => (
+    isOpenInstallment(row)
+    && normalizeDateOnly(row.dueDate, 'Schedule due date').getTime() < normalizedAsOfDate.getTime()
+  ));
+};
+
+const findCurrentUnpaidInstallment = ({ schedule = [], asOfDate = new Date() }) => {
+  const normalizedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
+
+  return schedule.find((row) => (
+    isOpenInstallment(row)
+    && normalizeDateOnly(row.dueDate, 'Schedule due date').getTime() === normalizedAsOfDate.getTime()
+  )) || null;
 };
 
 const resolveLoanStartDate = (loan = {}) => {
@@ -68,10 +86,6 @@ const buildFinancialBlockReason = (financialBlock) => ({
   ...(financialBlock.code ? { blockCode: financialBlock.code } : {}),
   ...(financialBlock.reason ? { blockReason: financialBlock.reason } : {}),
 });
-
-const getInstallmentOutstanding = (row = {}) => roundCurrency(
-  Number(row.remainingPrincipal || 0) + Number(row.remainingInterest || 0),
-);
 
 const isPaidInstallment = (row = {}) => (
   String(row.status || '').toLowerCase() === 'paid'
@@ -133,6 +147,7 @@ const evaluateCapitalPaymentEligibility = ({ loan, schedule = [], snapshot = {},
   const outstandingBalance = buildOutstandingBalance(snapshot);
   const outstandingPrincipal = buildOutstandingPrincipal({ snapshot, loan });
   const financialBlock = normalizeFinancialBlock(loan);
+  const currentUnpaidInstallment = findCurrentUnpaidInstallment({ schedule, asOfDate });
 
   if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
     denialReasons.push({
@@ -148,7 +163,14 @@ const evaluateCapitalPaymentEligibility = ({ loan, schedule = [], snapshot = {},
     });
   }
 
-  if (outstandingBalance > 0.01 && outstandingPrincipal > 0.01 && !hasFirstInstallmentPaid(schedule)) {
+  if (outstandingBalance > 0.01 && outstandingPrincipal > 0.01 && currentUnpaidInstallment) {
+    denialReasons.push({
+      code: PAYMENT_DENIAL_CODES.CURRENT_INSTALLMENT_PAYMENT_REQUIRED,
+      message: `Primero paga completamente la cuota vigente #${currentUnpaidInstallment.installmentNumber} antes de abonar a capital`,
+      installmentNumber: currentUnpaidInstallment.installmentNumber,
+    });
+  }
+  else if (outstandingBalance > 0.01 && outstandingPrincipal > 0.01 && !hasFirstInstallmentPaid(schedule)) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.FIRST_INSTALLMENT_PAYMENT_REQUIRED,
       message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
