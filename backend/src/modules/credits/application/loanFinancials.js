@@ -2,7 +2,11 @@ const { ValidationError } = require('@/utils/errorHandler');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('./creditFormulaHelpers');
 const { assertPayoffAllowed } = require('./paymentEligibility');
 const { buildDateFormatMessage, normalizeDateOnly } = require('@/modules/shared/dateUtils');
-const { calculateLateFee } = require('../domain/calculation/lateFeeCalculator');
+const {
+  calculateLateFee,
+  getRecordedLateFeePaid,
+  calculateOutstandingLateFee,
+} = require('../domain/calculation/lateFeeCalculator');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const NOMINAL_RATE_YEAR_DAYS = 360;
@@ -47,6 +51,10 @@ const countElapsedAccrualDays = ({ anchorDate, asOfDate }) => {
 };
 
 const extractOverdueBuckets = ({ loan = {}, schedule, asOfDate }) => schedule.reduce((summary, row) => {
+  if (row.status === 'annulled') {
+    return summary;
+  }
+
   const dueDate = normalizeUtcDateOnly(row.dueDate, 'Schedule due date');
   if (dueDate.getTime() > asOfDate.getTime()) {
     return summary;
@@ -57,11 +65,15 @@ const extractOverdueBuckets = ({ loan = {}, schedule, asOfDate }) => schedule.re
   const daysOverdue = Math.max(0, Math.floor((asOfDate.getTime() - dueDate.getTime()) / MS_PER_DAY));
   const remainingInterest = roundCurrency(row.remainingInterest || 0);
   const remainingInstallment = roundCurrency((row.remainingPrincipal || 0) + remainingInterest);
-  summary.lateFee = roundCurrency(summary.lateFee + calculateLateFee({
+  const accruedLateFee = calculateLateFee({
     overdueAmount: remainingInterest > 0 ? remainingInterest : remainingInstallment,
     daysOverdue,
     feeMode: String(loan.lateFeeMode || 'NONE').toUpperCase(),
     annualRate: Number(loan.annualLateFeeRate || 0),
+  });
+  summary.lateFee = roundCurrency(summary.lateFee + calculateOutstandingLateFee({
+    accruedLateFee,
+    paidLateFee: getRecordedLateFeePaid(row),
   }));
   return summary;
 }, {
@@ -72,7 +84,10 @@ const extractOverdueBuckets = ({ loan = {}, schedule, asOfDate }) => schedule.re
 
 const resolveAccrualAnchor = ({ loan, schedule, asOfDate }) => {
   const latestDueRow = [...schedule]
-    .filter((row) => normalizeUtcDateOnly(row.dueDate, 'Schedule due date').getTime() <= asOfDate.getTime())
+    .filter((row) => (
+      row.status !== 'annulled'
+      && normalizeUtcDateOnly(row.dueDate, 'Schedule due date').getTime() <= asOfDate.getTime()
+    ))
     .sort((left, right) => new Date(right.dueDate) - new Date(left.dueDate))[0] || null;
 
   if (latestDueRow) {

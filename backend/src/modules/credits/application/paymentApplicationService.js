@@ -10,6 +10,8 @@ const {
   roundCurrency,
   summarizeSchedule,
   calculateLateFee,
+  getRecordedLateFeePaid,
+  calculateOutstandingLateFee,
 } = require('./creditFormulaHelpers');
 const {
   PAYABLE_LOAN_STATUSES,
@@ -103,12 +105,21 @@ const calculateInstallmentLateFee = (row, loan, asOfDate = new Date()) => {
   const annualRate = Number(loan.annualLateFeeRate || 0);
   const feeMode = String(loan.lateFeeMode || 'NONE').toUpperCase();
 
-  return calculateLateFee({
+  const accruedLateFee = calculateLateFee({
     overdueAmount: overdueInterestAmount > 0 ? overdueInterestAmount : overdueAmount,
     daysOverdue,
     feeMode,
     annualRate,
   });
+
+  return calculateOutstandingLateFee({
+    accruedLateFee,
+    paidLateFee: getRecordedLateFeePaid(row),
+  });
+};
+
+const recordLateFeePayment = (row, amount) => {
+  row.lateFeePaid = roundCurrency(getRecordedLateFeePaid(row) + Number(amount || 0));
 };
 
 /**
@@ -735,6 +746,7 @@ const createPaymentApplicationService = ({
           // Penalizaciones por mora: calculate and collect late fee first
           const lateFee = calculateInstallmentLateFee(row, loan, now);
           const applyLateFee = Math.min(remainingPayment, lateFee);
+          recordLateFeePayment(row, applyLateFee);
           penaltyApplied = roundCurrency(penaltyApplied + applyLateFee);
           remainingPayment = roundCurrency(remainingPayment - applyLateFee);
 
@@ -1019,6 +1031,7 @@ const createPaymentApplicationService = ({
           // Late fee first
           const lateFee = calculateInstallmentLateFee(row, loan, now);
           const applyLateFee = Math.min(remainingPayment, lateFee);
+          recordLateFeePayment(row, applyLateFee);
           penaltyAppliedPartial = roundCurrency(penaltyAppliedPartial + applyLateFee);
           remainingPayment = roundCurrency(remainingPayment - applyLateFee);
 
@@ -1296,11 +1309,15 @@ const createPaymentApplicationService = ({
         const isOverdueOrEarned = rowDueDate.getTime() <= appliedPayoffDate.getTime();
         const principalToApply = roundCurrency(row.remainingPrincipal || 0);
         const interestToApply = isOverdueOrEarned ? roundCurrency(row.remainingInterest || 0) : 0;
+        const lateFeeToApply = isOverdueOrEarned
+          ? calculateInstallmentLateFee(row, loan, appliedPayoffDate)
+          : 0;
 
         return {
           ...row,
           paidPrincipal: roundCurrency((row.paidPrincipal || 0) + principalToApply),
           paidInterest: roundCurrency((row.paidInterest || 0) + interestToApply),
+          lateFeePaid: roundCurrency(getRecordedLateFeePaid(row) + lateFeeToApply),
           paidTotal: roundCurrency((row.paidTotal || 0) + principalToApply + interestToApply),
           remainingPrincipal: 0,
           remainingInterest: 0,

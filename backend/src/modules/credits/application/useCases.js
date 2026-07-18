@@ -3,6 +3,10 @@ const { buildReportPdf } = require('@/modules/shared/pdfReport');
 const { IdempotencyKey } = require('@/models');
 const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
 const { roundCurrency, calculateLateFee } = require('./creditFormulaHelpers');
+const {
+  getRecordedLateFeePaid,
+  calculateOutstandingLateFee,
+} = require('../domain/calculation/lateFeeCalculator');
 const { paginateArray } = require('@/modules/shared/pagination');
 const { validateInterestRate } = require('@/modules/shared/validators');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
@@ -295,11 +299,15 @@ const calculateInstallmentLateFeeDue = ({ loan, row, asOfDate }) => {
     return { daysOverdue, lateFeeDue: 0, lateFeeBase: 0, lateFeeBaseType: null };
   }
 
-  const lateFeeDue = calculateLateFee({
+  const accruedLateFee = calculateLateFee({
     overdueAmount: lateFeeBase,
     daysOverdue,
     feeMode: String(loan.lateFeeMode || 'NONE').toUpperCase(),
     annualRate: Number(loan.annualLateFeeRate || 0),
+  });
+  const lateFeeDue = calculateOutstandingLateFee({
+    accruedLateFee,
+    paidLateFee: getRecordedLateFeePaid(row),
   });
 
   return {

@@ -364,6 +364,130 @@ integrationTest('producto: calcula mora y liquida el saldo total con cierre y tr
   assert.equal(history.body?.data?.history?.payoffHistory?.length, 1);
 });
 
+integrationTest('producto: una mora pagada no vuelve a cobrarse en la siguiente cuota o liquidación', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de mora requiere el fixture de originación.');
+
+  let response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-late-fee-once-loan` },
+    body: {
+      customerId,
+      amount: 900000,
+      termMonths: 3,
+      startDate: '2026-01-01',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 201);
+  const lateFeeLoanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(lateFeeLoanId);
+
+  response = await expectStatus({
+    path: `/api/loans/${lateFeeLoanId}/installments/1/quote?asOfDate=2026-07-18`,
+    token: accessToken,
+  }, 200);
+  const initialQuote = response.body?.data?.quote;
+  assert.ok(Number(initialQuote?.lateFeeDue) > 0, 'El escenario debe iniciar con mora acumulada.');
+
+  response = await expectStatus({
+    path: `/api/loans/${lateFeeLoanId}/payoff-quote?asOfDate=2026-07-18`,
+    token: accessToken,
+  }, 200);
+  const payoffQuoteBeforeLateFee = response.body?.data?.payoffQuote;
+  const expectedRemainingLateFee = Math.max(
+    0,
+    Math.round((Number(payoffQuoteBeforeLateFee?.breakdown?.lateFee || 0) - Number(initialQuote.lateFeeDue)) * 100) / 100,
+  );
+
+  response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans/payments/process',
+    token: accessToken,
+    headers: {
+      'Idempotency-Key': `${fixturePrefix}-late-fee-only`,
+      'x-forwarded-for': '127.0.0.250',
+    },
+    body: {
+      loanId: lateFeeLoanId,
+      paymentAmount: initialQuote.lateFeeDue,
+      paymentDate: '2026-07-18',
+      paymentMethod: 'cash',
+      installmentNumber: 1,
+    },
+  }, 200);
+  assert.equal(Number(response.body?.data?.breakdown?.penalty), Number(initialQuote.lateFeeDue));
+  assert.equal(Number(response.body?.data?.breakdown?.capital), 0);
+  assert.equal(Number(response.body?.data?.breakdown?.interest), 0);
+
+  response = await expectStatus({
+    path: `/api/loans/${lateFeeLoanId}/installments/1/quote?asOfDate=2026-07-18`,
+    token: accessToken,
+  }, 200);
+  const afterLateFeeQuote = response.body?.data?.quote;
+  assert.equal(Number(afterLateFeeQuote?.lateFeeDue), 0, 'La mora ya pagada no debe aparecer otra vez en la misma fecha.');
+
+  response = await expectStatus({
+    path: `/api/loans/${lateFeeLoanId}/payoff-quote?asOfDate=2026-07-18`,
+    token: accessToken,
+  }, 200);
+  const payoffQuoteAfterLateFee = response.body?.data?.payoffQuote;
+  assert.equal(
+    Number(payoffQuoteAfterLateFee?.breakdown?.lateFee),
+    expectedRemainingLateFee,
+    'La liquidación no debe volver a cobrar la mora ya pagada de la cuota 1.',
+  );
+});
+
+integrationTest('producto: las cuotas anuladas no reaparecen como deuda en la liquidación', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de anulación requiere el fixture de originación.');
+
+  let response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-annulled-quote-loan` },
+    body: {
+      customerId,
+      amount: 900000,
+      termMonths: 3,
+      startDate: '2026-01-01',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 201);
+  const annulledQuoteLoanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(annulledQuoteLoanId);
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/loans/${annulledQuoteLoanId}/installments/1/annul`,
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-annulled-quote-installment` },
+    body: { reason: 'Cuota anulada para validar liquidación' },
+  }, 201);
+  assert.equal(response.body?.data?.payment?.status, 'annulled');
+
+  response = await expectStatus({ path: `/api/loans/${annulledQuoteLoanId}`, token: accessToken }, 200);
+  const loanAfterAnnulment = response.body?.data?.loan;
+  const activeSchedule = (loanAfterAnnulment?.emiSchedule || []).filter((row) => row.status !== 'annulled');
+  const activePrincipal = activeSchedule.reduce((sum, row) => sum + Number(row.remainingPrincipal || 0), 0);
+  assert.equal(Number(loanAfterAnnulment?.financialSnapshot?.outstandingPrincipal), Math.round(activePrincipal * 100) / 100);
+
+  response = await expectStatus({
+    path: `/api/loans/${annulledQuoteLoanId}/payoff-quote?asOfDate=2026-07-18`,
+    token: accessToken,
+  }, 200);
+  const payoffQuote = response.body?.data?.payoffQuote;
+  assert.equal(Number(payoffQuote?.outstandingPrincipal), Math.round(activePrincipal * 100) / 100);
+  assert.equal(
+    Number(payoffQuote?.breakdown?.overduePrincipal),
+    Math.round(activePrincipal * 100) / 100,
+    'La cuota anulada no debe sumarse a los vencidos de la liquidación.',
+  );
+});
+
 integrationTest('producto: gestiona el ciclo financiero completo de un socio y sus reportes', async () => {
   assert.ok(accessToken && fixturePrefix, 'La prueba de socios requiere autenticación administrativa.');
 

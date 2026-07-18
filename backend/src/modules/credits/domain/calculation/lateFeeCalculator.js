@@ -19,6 +19,14 @@ const assertSupportedLateFeeMode = (mode) => {
   return normalizedMode;
 };
 
+const getRecordedLateFeePaid = (row = {}) => roundCurrency(
+  Number(row.lateFeePaid ?? row.paidLateFee ?? 0),
+);
+
+const calculateOutstandingLateFee = ({ accruedLateFee, paidLateFee = 0 }) => roundCurrency(
+  Math.max(0, Number(accruedLateFee || 0) - Number(paidLateFee || 0)),
+);
+
 const calculateLateFee = ({
   overdueAmount,
   daysOverdue,
@@ -65,5 +73,7 @@ module.exports = {
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,
   assertSupportedLateFeeMode,
+  getRecordedLateFeePaid,
+  calculateOutstandingLateFee,
   calculateLateFee,
 };

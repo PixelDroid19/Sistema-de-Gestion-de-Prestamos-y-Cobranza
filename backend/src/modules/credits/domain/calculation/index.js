@@ -10,6 +10,8 @@ const {
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,
   assertSupportedLateFeeMode,
+  getRecordedLateFeePaid,
+  calculateOutstandingLateFee,
   calculateLateFee,
 } = require('./lateFeeCalculator');
 const {
@@ -45,6 +47,8 @@ module.exports = {
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,
   assertSupportedLateFeeMode,
+  getRecordedLateFeePaid,
+  calculateOutstandingLateFee,
   calculateLateFee,
   calculateInstallmentAmount,
   buildAmortizationSchedule,
