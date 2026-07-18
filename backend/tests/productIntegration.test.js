@@ -7,6 +7,9 @@ const { Op } = require('sequelize');
 const {
   sequelize,
   Customer,
+  Associate,
+  AssociateContribution,
+  AssociateInstallment,
   Loan,
   Payment,
   DocumentAttachment,
@@ -76,18 +79,26 @@ const integrationTest = (name, handler) => {
 let accessToken;
 let customerId;
 let loanId;
+const fixtureLoanIds = [];
+const fixtureAssociateIds = [];
 let fixturePrefix;
 
 const cleanupFixture = async () => {
   if (!fixturePrefix) return;
 
-  if (loanId) {
-    await Payment.destroy({ where: { loanId }, force: true });
-    await DocumentAttachment.destroy({ where: { loanId }, force: true });
-    await LoanAlert.destroy({ where: { loanId }, force: true });
-    await PromiseToPay.destroy({ where: { loanId }, force: true });
-    await ProfitDistribution.destroy({ where: { loanId }, force: true });
-    await Loan.destroy({ where: { id: loanId }, force: true });
+  for (const currentLoanId of [...new Set(fixtureLoanIds.filter(Boolean))]) {
+    await Payment.destroy({ where: { loanId: currentLoanId }, force: true });
+    await DocumentAttachment.destroy({ where: { loanId: currentLoanId }, force: true });
+    await LoanAlert.destroy({ where: { loanId: currentLoanId }, force: true });
+    await PromiseToPay.destroy({ where: { loanId: currentLoanId }, force: true });
+    await ProfitDistribution.destroy({ where: { loanId: currentLoanId }, force: true });
+    await Loan.destroy({ where: { id: currentLoanId }, force: true });
+  }
+  for (const currentAssociateId of [...new Set(fixtureAssociateIds.filter(Boolean))]) {
+    await AssociateInstallment.destroy({ where: { associateId: currentAssociateId }, force: true });
+    await AssociateContribution.destroy({ where: { associateId: currentAssociateId }, force: true });
+    await ProfitDistribution.destroy({ where: { associateId: currentAssociateId }, force: true });
+    await Associate.destroy({ where: { id: currentAssociateId }, force: true });
   }
   await IdempotencyKey.destroy({ where: { idempotencyKey: { [Op.like]: `${fixturePrefix}%` } }, force: true });
   if (customerId) {
@@ -156,6 +167,7 @@ integrationTest('producto: origina un crédito y expone el mismo calendario por 
     },
   }, 201);
   loanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(loanId);
   assert.ok(loanId, 'La originación real debe devolver data.loan.id.');
   assert.equal(response.body.data.loan.emiSchedule.length, 3);
   assert.equal(response.body.data.loan.status, 'pending');
@@ -163,6 +175,262 @@ integrationTest('producto: origina un crédito y expone el mismo calendario por 
   response = await expectStatus({ path: `/api/loans/${loanId}`, token: accessToken }, 200);
   assert.equal(response.body?.data?.loan?.id, loanId);
   assert.equal(response.body?.data?.loan?.customerId, customerId);
+});
+
+integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deuda antes de confirmar', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de capital requiere el fixture de originación.');
+
+  const response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-capital-loan` },
+    body: {
+      customerId,
+      amount: 1000000,
+      termMonths: 4,
+      startDate: '2026-07-17',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 201);
+  const capitalLoanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(capitalLoanId);
+  assert.ok(capitalLoanId);
+
+  const before = await expectStatus({ path: `/api/loans/${capitalLoanId}`, token: accessToken }, 200);
+  const scheduleBefore = before.body?.data?.loan?.emiSchedule;
+  assert.equal(scheduleBefore?.length, 4);
+
+  // The domain requires the first scheduled installment to be paid before a
+  // capital prepayment. Exercise that guard through the real payment route.
+  await expectStatus({
+    method: 'POST',
+    path: '/api/loans/payments/process',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-capital-first-installment` },
+    body: {
+      loanId: capitalLoanId,
+      paymentAmount: Number(scheduleBefore[0].scheduledPayment),
+      paymentDate: '2026-07-17',
+      paymentMethod: 'cash',
+    },
+  }, 200);
+
+  const afterFirstInstallment = await expectStatus({ path: `/api/loans/${capitalLoanId}`, token: accessToken }, 200);
+  const principalBefore = Number(afterFirstInstallment.body?.data?.loan?.financialSnapshot?.outstandingPrincipal);
+  assert.ok(principalBefore > 0 && principalBefore < 1000000);
+
+  const preview = await expectStatus({
+    method: 'POST',
+    path: '/api/payments/capital/preview',
+    token: accessToken,
+    body: {
+      loanId: capitalLoanId,
+      amount: 250000,
+      asOfDate: '2026-07-17',
+      strategy: 'REDUCE_QUOTA',
+      newTermMonths: 4,
+    },
+  }, 200);
+  assert.equal(preview.body?.data?.preview?.before?.outstandingPrincipal, principalBefore);
+  const expectedPrincipalAfterCapital = Math.round((principalBefore - 250000) * 100) / 100;
+  assert.equal(preview.body?.data?.preview?.after?.outstandingPrincipal, expectedPrincipalAfterCapital);
+
+  const unchanged = await expectStatus({ path: `/api/loans/${capitalLoanId}`, token: accessToken }, 200);
+  assert.equal(Number(unchanged.body?.data?.loan?.financialSnapshot?.outstandingPrincipal), principalBefore, 'El preview no debe persistir cambios.');
+
+  const applied = await expectStatus({
+    method: 'POST',
+    path: '/api/payments/capital',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-capital-payment` },
+    body: {
+      loanId: capitalLoanId,
+      amount: 250000,
+      paymentDate: '2026-07-17',
+      paymentMethod: 'cash',
+      strategy: 'REDUCE_QUOTA',
+      newTermMonths: 4,
+    },
+  }, 201);
+  assert.equal(applied.body?.data?.allocation?.principalApplied, 250000);
+  assert.equal(applied.body?.data?.allocation?.remainingPrincipalOutstanding, expectedPrincipalAfterCapital);
+  assert.equal(applied.body?.data?.strategyApplied, 'reduce_payment');
+
+  const replay = await expectStatus({
+    method: 'POST',
+    path: '/api/payments/capital',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-capital-payment` },
+    body: {
+      loanId: capitalLoanId,
+      amount: 250000,
+      paymentDate: '2026-07-17',
+      paymentMethod: 'cash',
+      strategy: 'REDUCE_QUOTA',
+      newTermMonths: 4,
+    },
+  }, 201);
+  assert.equal(replay.body?.data?.payment?.id, applied.body?.data?.payment?.id, 'Repetir el abono no debe duplicarlo.');
+
+  const after = await expectStatus({ path: `/api/loans/${capitalLoanId}`, token: accessToken }, 200);
+  assert.equal(Number(after.body?.data?.loan?.financialSnapshot?.outstandingPrincipal), expectedPrincipalAfterCapital);
+  const scheduleAfter = after.body?.data?.loan?.emiSchedule || [];
+  assert.equal(scheduleAfter.length, 5, 'El historial de la cuota pagada se conserva y se agregan cuatro cuotas reproyectadas.');
+  assert.equal(scheduleAfter.filter((row) => !['paid', 'annulled'].includes(row.status)).length, 4);
+});
+
+integrationTest('producto: calcula mora y liquida el saldo total con cierre y trazabilidad', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de liquidación requiere el fixture de originación.');
+
+  const response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-payoff-loan` },
+    body: {
+      customerId,
+      amount: 900000,
+      termMonths: 3,
+      startDate: '2026-01-01',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 201);
+  const payoffLoanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(payoffLoanId);
+
+  const quote = await expectStatus({ path: `/api/loans/${payoffLoanId}/payoff-quote?asOfDate=2026-07-18`, token: accessToken }, 200);
+  const payoffQuote = quote.body?.data?.payoffQuote;
+  assert.equal(payoffQuote?.accrualMethod, 'actual/360');
+  assert.ok(Number(payoffQuote?.accruedDays) > 0);
+  assert.ok(Number(payoffQuote?.breakdown?.overduePrincipal) > 0);
+  assert.ok(Number(payoffQuote?.breakdown?.overdueInterest) > 0);
+  assert.ok(Number(payoffQuote?.total) > Number(payoffQuote?.breakdown?.principal || 0), 'La mora/interés debe sumarse, no restarse, del saldo total.');
+
+  const execution = await expectStatus({
+    method: 'POST',
+    path: `/api/loans/${payoffLoanId}/payoff-executions`,
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-payoff` },
+    body: { asOfDate: '2026-07-18', quotedTotal: payoffQuote.total },
+  }, 201);
+  assert.equal(execution.body?.data?.loan?.status, 'closed');
+  assert.equal(execution.body?.data?.loan?.closureReason, 'payoff');
+  assert.ok(Number(execution.body?.data?.allocation?.payoff?.breakdown?.overdueInterest) > 0);
+
+  const history = await expectStatus({ path: `/api/reports/credit-history/loan/${payoffLoanId}`, token: accessToken }, 200);
+  assert.equal(history.body?.data?.history?.closure?.closureReason, 'payoff');
+  assert.equal(history.body?.data?.history?.payoffHistory?.length, 1);
+});
+
+integrationTest('producto: gestiona el ciclo financiero completo de un socio y sus reportes', async () => {
+  assert.ok(accessToken && fixturePrefix, 'La prueba de socios requiere autenticación administrativa.');
+
+  let response = await expectStatus({
+    method: 'POST',
+    path: '/api/associates',
+    token: accessToken,
+    body: {
+      name: `Socio ${fixturePrefix}`,
+      email: `socio-${fixturePrefix}@test.local`,
+      phone: `301${String(Date.now()).slice(-7)}`,
+      status: 'active',
+      interestType: 'monthly',
+      interestRate: 2,
+      interestPaymentDay: 28,
+      interestPaymentMonth: 1,
+      initialCapital: 1000000,
+    },
+  }, 201);
+  const associateId = response.body?.data?.associate?.id;
+  fixtureAssociateIds.push(associateId);
+  assert.ok(associateId);
+  assert.equal(response.body?.data?.associate?.interestType, 'monthly');
+
+  response = await expectStatus({ path: `/api/associates/${associateId}/installments`, token: accessToken }, 200);
+  const initialInstallments = response.body?.data?.installments?.installments;
+  assert.equal(initialInstallments?.length, 1);
+  assert.equal(Number(initialInstallments[0].amount), 20000, 'La rentabilidad mensual debe ser capital x tasa mensual.');
+
+  response = await expectStatus({ path: `/api/associates/${associateId}/financial-summary`, token: accessToken }, 200);
+  assert.equal(Number(response.body?.data?.report?.summary?.currentCapital ?? response.body?.data?.report?.currentCapital), 1000000);
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/associates/${associateId}/contributions`,
+    token: accessToken,
+    body: { amount: 500000, contributionDate: '2026-07-18', notes: 'Aporte integración' },
+  }, 201);
+  assert.equal(Number(response.body?.data?.contribution?.amount), 500000);
+
+  response = await expectStatus({ path: `/api/associates/${associateId}/installments`, token: accessToken }, 200);
+  assert.equal(Number(response.body?.data?.installments?.installments?.[0]?.amount), 30000, 'La cuota futura debe reproyectarse con el capital vigente.');
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/associates/${associateId}/installments/1/pay`,
+    token: accessToken,
+    body: { paymentDate: '2026-07-18', paymentMethod: 'transfer' },
+  }, 200);
+  assert.equal(response.body?.data?.installment?.installment?.status, 'paid');
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/associates/${associateId}/capital-returns`,
+    token: accessToken,
+    body: { amount: 250000, capitalReturnDate: '2026-08-01', notes: 'Retiro parcial integración' },
+  }, 201);
+  assert.equal(response.body?.data?.summary?.currentCapital, 1250000);
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/associates/${associateId}/reinvestments`,
+    token: accessToken,
+    body: { amount: 100000, reinvestmentDate: '2026-08-02', notes: 'Reinversión integración' },
+  }, 201);
+  assert.equal(response.body?.data?.reinvestment?.amount, '100000.00');
+
+  response = await expectStatus({ path: `/api/associates/movements?associateId=${associateId}`, token: accessToken }, 200);
+  assert.ok(Array.isArray(response.body?.data?.report?.rows));
+  assert.ok(response.body.data.report.rows.some((row) => row.movementType === 'reinvestment'));
+
+  response = await expectStatus({ path: `/api/associates/${associateId}/financial-details`, token: accessToken }, 200);
+  assert.ok(response.body?.data?.details);
+  response = await expectStatus({ path: `/api/associates/${associateId}/calendar-events`, token: accessToken }, 200);
+  assert.ok(Array.isArray(response.body?.data?.calendar?.events));
+
+  // Annual CDT-style returns use the same nominal rate over a yearly period.
+  response = await expectStatus({
+    method: 'POST',
+    path: '/api/associates',
+    token: accessToken,
+    body: {
+      name: `Socio anual ${fixturePrefix}`,
+      email: `socio-anual-${fixturePrefix}@test.local`,
+      phone: `303${String(Date.now()).slice(-7)}`,
+      status: 'active',
+      interestType: 'annual',
+      interestRate: 12,
+      interestPaymentDay: 15,
+      interestPaymentMonth: 8,
+      initialCapital: 1200000,
+    },
+  }, 201);
+  const annualAssociateId = response.body?.data?.associate?.id;
+  fixtureAssociateIds.push(annualAssociateId);
+  assert.ok(annualAssociateId);
+
+  response = await expectStatus({ path: `/api/associates/${annualAssociateId}/installments`, token: accessToken }, 200);
+  const annualInstallment = response.body?.data?.installments?.installments?.[0];
+  assert.equal(Number(annualInstallment?.amount), 144000, 'La rentabilidad anual debe ser capital x tasa anual.');
+  assert.match(String(annualInstallment?.dueDate), /^2026-08-15/u);
+
+  response = await expectStatus({ path: `/api/associates/${associateId}/export?format=xlsx`, token: accessToken }, 200);
+  assert.match(String(response.headers['content-type']), /spreadsheet|octet-stream/u);
+  response = await expectStatus({ path: '/api/associates/export?format=pdf', token: accessToken }, 200);
+  assert.match(String(response.headers['content-type']), /pdf/u);
 });
 
 integrationTest('producto: registra un pago, actualiza calendario, liquida cuota y exporta reportes', async () => {
