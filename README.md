@@ -300,6 +300,16 @@ npm run smoke:local
 
 Este smoke valida health/OpenAPI, cálculo de crédito, módulos core con admin, permisos del empleado local y denegaciones 403 para APIs sensibles cuando el empleado no tiene permisos amplios.
 
+Pruebas de integración del producto:
+
+```bash
+npm run dev:local
+npm run seed:local-users
+npm run test:integration
+```
+
+Estas pruebas ejercitan el backend HTTP real, sin mocks: inician sesión, crean un cliente, calculan y originan un crédito, registran un pago, consultan el calendario y la liquidación, leen el historial y descargan el reporte Excel. Generan un fixture con identificador único y lo eliminan al terminar. Solo aceptan `localhost` o `127.0.0.1`; no deben apuntarse a Railway ni a otra base compartida. No forman parte de `npm test` ni de `npm run verify:release` porque requieren que la aplicación y PostgreSQL estén levantados y escriben datos temporales en la base local.
+
 Smoke local de navegador:
 
 ```bash
