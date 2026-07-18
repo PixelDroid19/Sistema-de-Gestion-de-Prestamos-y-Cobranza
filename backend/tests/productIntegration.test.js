@@ -12,6 +12,7 @@ const {
   AssociateInstallment,
   Loan,
   Payment,
+  OperatingExpense,
   DocumentAttachment,
   LoanAlert,
   PromiseToPay,
@@ -81,6 +82,7 @@ let customerId;
 let loanId;
 const fixtureLoanIds = [];
 const fixtureAssociateIds = [];
+const fixtureExpenseIds = [];
 let fixturePrefix;
 
 const cleanupFixture = async () => {
@@ -99,6 +101,9 @@ const cleanupFixture = async () => {
     await AssociateContribution.destroy({ where: { associateId: currentAssociateId }, force: true });
     await ProfitDistribution.destroy({ where: { associateId: currentAssociateId }, force: true });
     await Associate.destroy({ where: { id: currentAssociateId }, force: true });
+  }
+  for (const currentExpenseId of [...new Set(fixtureExpenseIds.filter(Boolean))]) {
+    await OperatingExpense.destroy({ where: { id: currentExpenseId }, force: true });
   }
   await IdempotencyKey.destroy({ where: { idempotencyKey: { [Op.like]: `${fixturePrefix}%` } }, force: true });
   if (customerId) {
@@ -171,6 +176,40 @@ integrationTest('producto: origina un crédito y expone el mismo calendario por 
   assert.ok(loanId, 'La originación real debe devolver data.loan.id.');
   assert.equal(response.body.data.loan.emiSchedule.length, 3);
   assert.equal(response.body.data.loan.status, 'pending');
+
+  response = await expectStatus({
+    method: 'PATCH',
+    path: `/api/loans/${loanId}/status`,
+    token: accessToken,
+    body: { status: 'approved' },
+  }, 200);
+  assert.equal(response.body?.data?.loan?.status, 'approved');
+  response = await expectStatus({
+    method: 'PATCH',
+    path: `/api/loans/${loanId}/status`,
+    token: accessToken,
+    body: { status: 'active' },
+  }, 200);
+  assert.equal(response.body?.data?.loan?.status, 'active');
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/loans/${loanId}/promises`,
+    token: accessToken,
+    body: { promisedDate: '2026-08-17', amount: 200000, notes: 'Compromiso de pago QA' },
+  }, 201);
+  const promiseId = response.body?.data?.promise?.id;
+  assert.ok(promiseId);
+  assert.equal(response.body?.data?.promise?.status, 'pending');
+  response = await expectStatus({ path: `/api/loans/${loanId}/promises`, token: accessToken }, 200);
+  assert.ok(response.body?.data?.promises?.some((promise) => Number(promise.id) === Number(promiseId)));
+  response = await expectStatus({
+    method: 'PATCH',
+    path: `/api/loans/${loanId}/promises/${promiseId}/status`,
+    token: accessToken,
+    body: { status: 'kept', notes: 'Pago confirmado' },
+  }, 200);
+  assert.equal(response.body?.data?.promise?.status, 'kept');
 
   response = await expectStatus({ path: `/api/loans/${loanId}`, token: accessToken }, 200);
   assert.equal(response.body?.data?.loan?.id, loanId);
@@ -528,6 +567,94 @@ integrationTest('producto: expone módulos operativos y respeta permisos por rol
   ]) {
     await expectStatus({ path, token: employeeToken }, 403);
   }
+});
+
+integrationTest('producto: mantiene configuración, gastos, notificaciones y reportes administrativos coherentes', async () => {
+  assert.ok(accessToken && fixturePrefix, 'La prueba administrativa requiere autenticación y fixture.');
+
+  let response = await expectStatus({ path: '/api/config/rate-policies', token: accessToken }, 200);
+  const ratePolicy = response.body?.data?.policies?.find((policy) => policy.key === 'standard-credit');
+  assert.ok(ratePolicy?.id);
+  assert.equal(Number(ratePolicy.annualEffectiveRate), 60);
+
+  response = await expectStatus({
+    method: 'PUT',
+    path: `/api/config/rate-policies/${ratePolicy.id}`,
+    token: accessToken,
+    body: { annualEffectiveRate: 61 },
+  }, 200);
+  assert.equal(Number(response.body?.data?.policy?.annualEffectiveRate), 61);
+  response = await expectStatus({
+    method: 'PUT',
+    path: `/api/config/rate-policies/${ratePolicy.id}`,
+    token: accessToken,
+    body: { annualEffectiveRate: 60 },
+  }, 200);
+  assert.equal(Number(response.body?.data?.policy?.annualEffectiveRate), 60, 'La restauración de la tasa no debe dejar configuración de prueba activa.');
+
+  response = await expectStatus({ path: '/api/config/late-fee-policies', token: accessToken }, 200);
+  const lateFeePolicy = response.body?.data?.policies?.find((policy) => policy.key === 'standard-simple-late-fee');
+  assert.ok(lateFeePolicy?.id);
+  assert.equal(String(lateFeePolicy.lateFeeMode), 'SIMPLE');
+  response = await expectStatus({
+    method: 'PUT',
+    path: `/api/config/late-fee-policies/${lateFeePolicy.id}`,
+    token: accessToken,
+    body: { annualEffectiveRate: 13, lateFeeMode: 'SIMPLE' },
+  }, 200);
+  assert.equal(Number(response.body?.data?.policy?.annualEffectiveRate), 13);
+  await expectStatus({
+    method: 'PUT',
+    path: `/api/config/late-fee-policies/${lateFeePolicy.id}`,
+    token: accessToken,
+    body: { annualEffectiveRate: 12, lateFeeMode: 'SIMPLE' },
+  }, 200);
+
+  response = await expectStatus({
+    method: 'POST',
+    path: '/api/operating-expenses',
+    token: accessToken,
+    body: {
+      amount: 125000,
+      expenseDate: '2026-07-18',
+      category: 'Servicios',
+      description: `Gasto ${fixturePrefix}`,
+      paymentMethod: 'cash',
+      reference: `${fixturePrefix}-expense`,
+    },
+  }, 201);
+  const expenseId = response.body?.data?.expense?.id;
+  fixtureExpenseIds.push(expenseId);
+  assert.ok(expenseId);
+  assert.equal(Number(response.body?.data?.expense?.amount), 125000);
+  assert.equal(response.body?.data?.expense?.status, 'completed');
+
+  response = await expectStatus({ path: '/api/operating-expenses?fromDate=2026-07-18&toDate=2026-07-18&status=completed', token: accessToken }, 200);
+  assert.ok(response.body?.data?.expenses?.some((expense) => Number(expense.id) === Number(expenseId)));
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/operating-expenses/${expenseId}/annul`,
+    token: accessToken,
+    body: { reason: 'Prueba de reversión operativa' },
+  }, 200);
+  assert.equal(response.body?.data?.expense?.status, 'annulled');
+  assert.equal(response.body?.data?.expense?.annulmentReason, 'Prueba de reversión operativa');
+
+  response = await expectStatus({ path: '/api/reports/operating-expenses/export?format=xlsx&fromDate=2026-07-18&toDate=2026-07-18', token: accessToken }, 200);
+  assert.match(String(response.headers['content-type']), /spreadsheet|octet-stream/u);
+  response = await expectStatus({ path: '/api/reports/operating-expenses/export?format=pdf&fromDate=2026-07-18&toDate=2026-07-18', token: accessToken }, 200);
+  assert.match(String(response.headers['content-type']), /pdf/u);
+
+  response = await expectStatus({ path: '/api/notifications/unread-count', token: accessToken }, 200);
+  assert.equal(typeof response.body?.data?.unreadCount, 'number');
+  response = await expectStatus({ path: '/api/notifications', token: accessToken }, 200);
+  assert.ok(Array.isArray(response.body?.data?.notifications));
+  response = await expectStatus({ method: 'PATCH', path: '/api/notifications/mark-all-read', token: accessToken, body: {} }, 200);
+  assert.equal(response.body?.success, true);
+
+  response = await expectStatus({ path: '/api/config/payment-methods/active', token: accessToken }, 200);
+  assert.ok(response.body?.data?.paymentMethods?.some((method) => method.key === 'cash'));
 });
 
 test.after(async () => {
