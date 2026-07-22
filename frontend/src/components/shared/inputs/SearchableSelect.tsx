@@ -168,7 +168,7 @@ export function SearchableSelect({
         role="combobox"
         autoComplete="off"
         aria-expanded={open}
-        aria-controls={listboxId}
+        aria-controls={open ? listboxId : undefined}
         aria-haspopup="listbox"
         aria-label={listboxLabel}
         aria-invalid={invalid || undefined}

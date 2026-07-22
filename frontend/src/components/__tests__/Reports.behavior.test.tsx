@@ -604,9 +604,14 @@ describe('Reports operational module', () => {
       expect(screen.getAllByRole('button', { name: /Excel/ })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'PDF' })).toHaveLength(1);
       if (report.hiddenFilter) {
-        expect(screen.getByRole('button', { name: 'Filtros' })).toHaveAttribute('aria-expanded', 'false');
-        expect(screen.queryByLabelText(report.hiddenFilter)).not.toBeInTheDocument();
+        const filtersToggle = screen.getByRole('button', { name: 'Filtros' });
+        const filtersPanelId = filtersToggle.getAttribute('aria-controls');
+        expect(filtersToggle).toHaveAttribute('aria-expanded', 'false');
+        expect(filtersPanelId).toBeTruthy();
+        expect(document.getElementById(filtersPanelId!)).toHaveAttribute('hidden');
+        expect(screen.getByLabelText(report.hiddenFilter)).not.toBeVisible();
         openReportFilters();
+        expect(document.getElementById(filtersPanelId!)).not.toHaveAttribute('hidden');
         expect(screen.getByLabelText(report.hiddenFilter)).toBeVisible();
       }
     }
@@ -622,11 +627,11 @@ describe('Reports operational module', () => {
     expect(screen.getByText('Interés programado pagado')).toBeInTheDocument();
     expect(screen.queryByText('N/A')).not.toBeInTheDocument();
 
-    expect(screen.queryByLabelText('Buscar socio')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Buscar socio')).not.toBeVisible();
     const filterToggle = openReportFilters();
     fireEvent.change(screen.getByLabelText('Buscar socio'), { target: { value: 'Socio Reporte' } });
     fireEvent.click(filterToggle);
-    expect(screen.queryByLabelText('Buscar socio')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Buscar socio')).not.toBeVisible();
     expect(screen.getByText('Buscar socio: Socio Reporte')).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: 'Excel (xlsx)' }));
@@ -682,7 +687,7 @@ describe('Reports operational module', () => {
     expect(screen.queryByText('Caja y cartera')).not.toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: 'Cierre contable' })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Filtros' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByLabelText('Año')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Año')).not.toBeVisible();
     expect(screen.queryByRole('button', { name: 'Descargar' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Excel' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'PDF' })).toBeInTheDocument();
@@ -701,6 +706,19 @@ describe('Reports operational module', () => {
       );
       expect(mockToastSuccess).toHaveBeenCalled();
     });
+  });
+
+  it('renders the empty accounting close as a readable table state instead of an empty wide grid', () => {
+    monthlyCashFlowState = {
+      data: { ...defaultMonthlyCashFlowData, months: [] },
+      isLoading: false,
+      isError: false,
+    };
+
+    renderReports();
+
+    expect(screen.getByText('No hay movimientos para el año seleccionado.')).toBeVisible();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('opens expense management from the report catalog', () => {

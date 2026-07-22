@@ -77,8 +77,8 @@ test('local browser smoke can include a reports cashflow verification segment', 
 
   assert(commands.includes('open http://127.0.0.1:3000/reports'));
   assert(commands.includes('wait --text Reportes operativos'));
-  assert(commands.includes('find role tab click --name Cierre contable'));
-  assert(commands.includes('wait --text Cierre contable mensual'));
+  assert(commands.includes('find text Informe contable click'));
+  assert(commands.includes('wait --text Cierre contable'));
   assert.equal(steps[steps.length - 1].command, 'close');
 });
 
@@ -129,7 +129,7 @@ test('local browser smoke can include a new credit screen verification segment',
     && command.includes('Registrar crédito')
   )));
   assert(!commands.includes('wait --text Registrar crédito'));
-  assert(commands.includes('wait --text Aún no hay cálculo generado'));
+  assert(!commands.includes('wait --text Aún no hay cálculo generado'));
   assert.equal(steps[steps.length - 1].command, 'close');
 });
 

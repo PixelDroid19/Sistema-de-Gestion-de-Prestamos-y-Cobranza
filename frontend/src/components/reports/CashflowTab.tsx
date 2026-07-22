@@ -212,7 +212,12 @@ export default function CashflowTab({
         ]} />
       ) : null}
 
-      <ReportDataTableSection>
+      <ReportDataTableSection
+        isLoading={isCashFlowLoading}
+        hasData={displayedMonthlyRows.length > 0}
+        loadingContent={<div className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.loading')}</div>}
+        emptyContent={<div className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.empty')}</div>}
+      >
             <thead>
               <tr>
                 <th>{tTerm('reports.cashflow.table.month')}</th>
@@ -223,16 +228,7 @@ export default function CashflowTab({
               </tr>
             </thead>
             <tbody>
-              {isCashFlowLoading ? (
-                <tr>
-                  <td colSpan={5} className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.loading')}</td>
-                </tr>
-              ) : displayedMonthlyRows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="table-empty-state table-empty-state--compact">{tTerm('reports.cashflow.table.empty')}</td>
-                </tr>
-              ) : (
-                displayedMonthlyRows.map((month: CashflowRowLike) => (
+              {displayedMonthlyRows.map((month: CashflowRowLike) => (
                   <tr key={month.month}>
                     <td className="report-cashflow-period font-medium">{month.month}</td>
                     <td>
@@ -272,8 +268,7 @@ export default function CashflowTab({
                       />
                     </td>
                   </tr>
-                ))
-              )}
+              ))}
             </tbody>
             {!isCashFlowLoading && displayedMonthlyRows.length > 0 ? (
               <tfoot>

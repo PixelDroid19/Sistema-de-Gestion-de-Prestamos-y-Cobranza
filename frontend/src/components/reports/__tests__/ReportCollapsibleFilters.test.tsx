@@ -15,7 +15,7 @@ describe('ReportCollapsibleFilters', () => {
 
     const toggle = screen.getByRole('button', { name: 'Filtros' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByLabelText('Cliente')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Cliente')).not.toBeVisible();
 
     fireEvent.click(toggle);
 
@@ -33,6 +33,6 @@ describe('ReportCollapsibleFilters', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Filtros (2)' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByLabelText('Crédito')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Crédito')).not.toBeVisible();
   });
 });

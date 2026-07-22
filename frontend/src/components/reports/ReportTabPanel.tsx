@@ -93,7 +93,7 @@ export function ReportTabPanel({
           ) : null}
         </div>
       ) : null}
-      {(filtersOpen || activeFilters.length > 0) ? (
+      {(hasFilters || activeFilters.length > 0) ? (
         <div className="report-tab-panel__filter-tools" data-active-filter-count={activeFilterCount}>
           <ReportFiltersPanel
             filterColumns={filterColumns}

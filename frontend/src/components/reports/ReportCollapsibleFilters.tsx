@@ -63,14 +63,11 @@ export function ReportFiltersPanel({
   isOpen,
   panelId,
 }: ReportFiltersPanelProps) {
-  if (!isOpen) {
-    return null;
-  }
-
   return (
     <div
       id={panelId}
       className={`report-tab-panel__filters report-tab-panel__filters--cols-${filterColumns} report-collapsible-filters__panel`}
+      hidden={!isOpen}
     >
       {children}
     </div>

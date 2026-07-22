@@ -97,4 +97,36 @@ describe('LoanSearchSelect behavior', () => {
     expect(screen.queryByText('No se pudieron cargar los créditos.')).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Andrés Ruiz/i })).toBeInTheDocument();
   });
+
+  it('links the combobox to its listbox only while that listbox is rendered', () => {
+    mockUseLoans.mockReturnValue({
+      data: {
+        data: {
+          loans: [{ id: 77, customerName: 'Andrés Ruiz', amount: 1850000, status: 'active' }],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(
+      <LoanSearchSelect
+        id="loan-search-aria"
+        selectedLoanId=""
+        searchValue=""
+        onSearchValueChange={vi.fn()}
+        onSelectedLoanIdChange={vi.fn()}
+        listboxLabel="Créditos para filtrar"
+      />,
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Créditos para filtrar' });
+    expect(input).not.toHaveAttribute('aria-controls');
+
+    fireEvent.focus(input);
+
+    const listboxId = input.getAttribute('aria-controls');
+    expect(listboxId).toBeTruthy();
+    expect(document.getElementById(listboxId!)).toHaveAttribute('role', 'listbox');
+  });
 });

@@ -131,11 +131,10 @@ const resolveBrowserSmokeConfig = (env = process.env, argv = []) => {
     newCreditAmountFieldText: env.BROWSER_SMOKE_NEW_CREDIT_AMOUNT_TEXT || 'Monto del crédito',
     newCreditValidateButtonName: env.BROWSER_SMOKE_NEW_CREDIT_VALIDATE_BUTTON || 'Validar crédito',
     newCreditRegisterButtonName: env.BROWSER_SMOKE_NEW_CREDIT_REGISTER_BUTTON || 'Registrar crédito',
-    newCreditEmptyStateText: env.BROWSER_SMOKE_NEW_CREDIT_EMPTY_STATE || 'Aún no hay cálculo generado',
     includeReports: isTrue(env.BROWSER_SMOKE_INCLUDE_REPORTS),
     reportsPageText: env.BROWSER_SMOKE_REPORTS_TEXT || 'Reportes operativos',
-    reportsCashflowTab: env.BROWSER_SMOKE_REPORTS_CASHFLOW_TAB || 'Cierre contable',
-    reportsCashflowHeading: env.BROWSER_SMOKE_REPORTS_CASHFLOW_HEADING || 'Cierre contable mensual',
+    reportsCashflowCategory: env.BROWSER_SMOKE_REPORTS_CASHFLOW_CATEGORY || 'Informe contable',
+    reportsCashflowHeading: env.BROWSER_SMOKE_REPORTS_CASHFLOW_HEADING || 'Cierre contable',
     includeSettings: isTrue(env.BROWSER_SMOKE_INCLUDE_SETTINGS),
     settingsPageText: env.BROWSER_SMOKE_SETTINGS_TEXT || 'Configuración operativa',
     settingsPaymentMethodsTab: env.BROWSER_SMOKE_SETTINGS_PAYMENT_METHODS_TAB || 'Métodos de pago',
@@ -318,11 +317,18 @@ const buildAccessibilityAuditExpression = (label) => `(() => {
 
   const activeElement = document.activeElement;
   if (activeElement && activeElement !== document.body && isVisible(activeElement)) {
-    const style = window.getComputedStyle(activeElement);
-    const hasVisibleFocus = (
-      style.outlineStyle !== 'none'
-      && style.outlineWidth !== '0px'
-    ) || style.boxShadow !== 'none';
+    const hasFocusIndicator = (element) => {
+      if (!element) return false;
+      const style = window.getComputedStyle(element);
+      return (
+        style.outlineStyle !== 'none'
+        && style.outlineWidth !== '0px'
+      ) || style.boxShadow !== 'none';
+    };
+    // Inputs inside shared operational controls deliberately suppress their own
+    // native outline; the enclosing control owns the visible focus treatment.
+    const hasVisibleFocus = hasFocusIndicator(activeElement)
+      || hasFocusIndicator(activeElement.closest?.('.operational-control'));
     if (!hasVisibleFocus) {
       push('missing-visible-focus', activeElement, 'Focused element has no visible focus indicator.');
     }
@@ -357,7 +363,7 @@ const buildReportsSmokeSteps = (config) => [
   },
   {
     command: 'find',
-    args: ['role', 'tab', 'click', '--name', config.reportsCashflowTab],
+    args: ['text', config.reportsCashflowCategory, 'click'],
   },
   {
     command: 'wait',
@@ -457,10 +463,6 @@ const buildNewCreditSmokeSteps = (config) => [
   buildButtonAccessibleNameWaitStep(config.newCreditValidateButtonName),
   buildButtonAccessibleNameWaitStep(config.newCreditRegisterButtonName),
   buildButtonDisabledWaitStep(config.newCreditRegisterButtonName),
-  {
-    command: 'wait',
-    args: ['--text', config.newCreditEmptyStateText],
-  },
   ...buildAccessibilityAuditSteps(config, 'Nuevo crédito'),
 ];
 

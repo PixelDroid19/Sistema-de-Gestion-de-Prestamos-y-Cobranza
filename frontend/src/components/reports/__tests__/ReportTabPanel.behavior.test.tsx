@@ -17,7 +17,7 @@ describe('ReportTabPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
     expect(screen.getByText('Datos del cierre')).toBeVisible();
-    expect(screen.queryByLabelText('Año')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Año')).not.toBeVisible();
 
     const toggle = screen.getByRole('button', { name: 'Filtros' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -41,7 +41,7 @@ describe('ReportTabPanel', () => {
 
     expect(toolbar).not.toBeNull();
     expect(toolbar).toContainElement(exportAction);
-    expect(screen.queryByLabelText('Año')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Año')).not.toBeVisible();
   });
 
   it('shows active filters outside the collapsed panel and removes one at a time', () => {
@@ -63,7 +63,7 @@ describe('ReportTabPanel', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('Estado')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Estado')).not.toBeVisible();
     expect(screen.getByRole('button', { name: 'Filtros (1)' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('Estado: Completado')).toBeVisible();
 
