@@ -210,7 +210,8 @@ const getCanonicalLoanView = (loan) => {
 
   const totalPaidPenalty = roundCurrency(existingSnapshot.totalPaidPenalty || 0);
   const totalPaidAccruedInterest = roundCurrency(existingSnapshot.totalPaidAccruedInterest || 0);
-  if (totalPaidPenalty > 0 || totalPaidAccruedInterest > 0) {
+  const wasClosedByPayoff = String(loan.closureReason || '').toLowerCase() === 'payoff';
+  if (wasClosedByPayoff || totalPaidPenalty > 0 || totalPaidAccruedInterest > 0) {
     snapshot.totalPaidPenalty = totalPaidPenalty;
     snapshot.totalPaidAccruedInterest = totalPaidAccruedInterest;
     snapshot.totalPaidInterest = roundCurrency(

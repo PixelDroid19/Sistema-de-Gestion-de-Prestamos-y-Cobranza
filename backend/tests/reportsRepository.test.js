@@ -110,8 +110,12 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   let capturedExpenseQuery = null;
   let capturedInstallmentQuery = null;
   let capturedDistributionQuery = null;
+  let capturedLoanQuery = null;
 
-  Loan.findAll = async () => [];
+  Loan.findAll = async (query) => {
+    capturedLoanQuery = query;
+    return [];
+  };
   Payment.findAll = async () => [];
   AssociateInstallment.findAll = async (query) => {
     capturedInstallmentQuery = query;
@@ -134,6 +138,12 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   assert.equal(dataset.associateContributions, contributionRows);
   assert.deepEqual(dataset.associateReinvestments, [distributionRows[1]]);
   assert.deepEqual(dataset.associateCapitalReturns, [distributionRows[2]]);
+  const loanDateConditions = capturedLoanQuery.where[Op.and][1][Op.or];
+  assert.equal(loanDateConditions[0].startDate[Op.gte], fromDate);
+  assert.equal(loanDateConditions[0].startDate[Op.lte], toDate);
+  assert.equal(loanDateConditions[1][Op.and][0].startDate, null);
+  assert.equal(loanDateConditions[1][Op.and][1].createdAt[Op.gte], fromDate);
+  assert.equal(loanDateConditions[1][Op.and][1].createdAt[Op.lte], toDate);
   assert.equal(capturedInstallmentQuery.where.status, 'paid');
   assert.equal(capturedInstallmentQuery.where.paidAt[Op.gte], fromDate);
   assert.equal(capturedInstallmentQuery.where.paidAt[Op.lte], toDate);

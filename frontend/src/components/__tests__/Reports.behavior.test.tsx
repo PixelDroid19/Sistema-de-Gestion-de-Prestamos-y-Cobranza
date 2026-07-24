@@ -279,6 +279,26 @@ const defaultMonthlyCashFlowData = {
       lossesAtRisk: '0.00',
     },
   ],
+  movements: [
+    {
+      id: 'customer_payment-41',
+      date: '2026-01-20',
+      movementType: 'customer_payment',
+      counterpartyName: 'Cliente Contable',
+      reference: 'Crédito #15 · Pago #41',
+      inflow: '50000000.00',
+      outflow: '0.00',
+    },
+    {
+      id: 'loan_disbursement-15',
+      date: '2026-01-02',
+      movementType: 'loan_disbursement',
+      counterpartyName: 'Cliente Contable',
+      reference: 'Crédito #15',
+      inflow: '0.00',
+      outflow: '40000000.00',
+    },
+  ],
 };
 
 const defaultAnnualCashFlowData = {
@@ -667,7 +687,7 @@ describe('Reports operational module', () => {
 
     expect(screen.getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Entradas registradas' })).toBeInTheDocument();
-    const cashFlowTable = screen.getByRole('table');
+    const cashFlowTable = screen.getAllByRole('table')[0];
     expect(within(cashFlowTable).getByRole('columnheader', { name: 'Salidas registradas' })).toBeInTheDocument();
     expect(within(cashFlowTable).getAllByText('Socios').length).toBeGreaterThan(0);
     expect(within(cashFlowTable).getAllByText('Aportes').length).toBeGreaterThan(0);
@@ -680,6 +700,10 @@ describe('Reports operational module', () => {
     expect(within(cashFlowTable).queryByRole('columnheader', { name: 'Cartera por cobrar' })).not.toBeInTheDocument();
     expect(screen.getByText('Capital recuperado')).toBeInTheDocument();
     expect(screen.getAllByText('Cartera por cobrar').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Detalle por persona y movimiento' })).toBeInTheDocument();
+    expect(screen.getAllByText('Cliente Contable')).toHaveLength(2);
+    expect(screen.getByText('Crédito #15 · Pago #41')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Corresponde a' })).toBeInTheDocument();
     const monthlyCells = within(cashFlowTable).getByRole('row', { name: /2026-01/ }).querySelectorAll('td');
     expect(monthlyCells[2]).toHaveTextContent('COP 45.000.000');
     expect(screen.queryByText('Recaudo y préstamos')).not.toBeInTheDocument();
@@ -710,7 +734,7 @@ describe('Reports operational module', () => {
 
   it('renders the empty accounting close as a readable table state instead of an empty wide grid', () => {
     monthlyCashFlowState = {
-      data: { ...defaultMonthlyCashFlowData, months: [] },
+      data: { ...defaultMonthlyCashFlowData, months: [], movements: [] },
       isLoading: false,
       isError: false,
     };
@@ -789,7 +813,8 @@ describe('Reports operational module', () => {
   it('keeps cashflow focused on a single monthly close without an annual subview', () => {
     renderReports();
 
-    expect(screen.getAllByRole('table')).toHaveLength(1);
+    expect(screen.getAllByRole('table')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Detalle por persona y movimiento' })).toBeInTheDocument();
     expect(screen.queryByText('Comparativo anual de caja')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ver comparativo anual' })).not.toBeInTheDocument();
   });
@@ -867,6 +892,21 @@ describe('Reports operational module', () => {
 
     expect(screen.getByText('No se pudo cargar este reporte. Los demás informes siguen disponibles.')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Informe comercial' })).toBeInTheDocument();
+  });
+
+  it('requests the accounting close with the selected date range', async () => {
+    renderReports();
+    openReportFilters();
+
+    fireEvent.change(screen.getByLabelText('Desde cierre'), { target: { value: '2026-07-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta cierre'), { target: { value: '2026-07-31' } });
+
+    await waitFor(() => {
+      expect(mockUseMonthlyCashFlow).toHaveBeenLastCalledWith(2026, {
+        fromDate: '2026-07-01',
+        toDate: '2026-07-31',
+      });
+    });
   });
 
   it('describes an empty receivable portfolio without implying that only overdue loans are included', () => {

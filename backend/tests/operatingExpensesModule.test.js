@@ -125,8 +125,8 @@ test('operating expense use cases create, list, and annul traceable expenses', a
   assert.equal(annulled.annulledByUserId, 9);
   assert.equal(annulled.annulmentReason, 'Registro duplicado');
   assert.deepEqual(auditCalls.map((entry) => [entry.action, entry.module, entry.entityId, entry.entityType]), [
-    ['CREATE', 'operatingExpenses', '4', 'OperatingExpense'],
-    ['UPDATE', 'operatingExpenses', '4', 'OperatingExpense'],
+    ['CREATE', 'finances', '4', 'OperatingExpense'],
+    ['UPDATE', 'finances', '4', 'OperatingExpense'],
   ]);
   assert.deepEqual(calls[1], ['listPage', {
     filters: {

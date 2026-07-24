@@ -126,6 +126,7 @@ export const commonEn = {
 'confirm.payoff.title': 'Confirm payoff',
 'confirm.payoff.message': 'Confirm payoff for {amount}?',
 'confirm.payoff.lateFeeIncluded': 'Includes {amount} in late fees calculated through this date.',
+'confirm.payoff.breakdown': 'Principal: {principal}. Accrued interest: {interest}. Late fee: {lateFee}.',
 'confirm.payoff.confirm': 'Confirm',
 'confirm.installment.title': 'Confirm installment payment',
 'confirm.installment.confirm': 'Confirm',

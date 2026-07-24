@@ -529,12 +529,17 @@ export default function CreditDetails() {
       return;
     }
     const quotedTotal = payoffQuote.total ?? payoffQuote.totalPayoffAmount;
-    const lateFee = Number(payoffQuote.breakdown?.lateFee || 0);
+    const breakdown = payoffQuote.breakdown || {};
+    const principal = Number(breakdown.overduePrincipal || 0) + Number(breakdown.futurePrincipal || 0);
+    const interest = Number(breakdown.overdueInterest || 0) + Number(breakdown.accruedInterest || 0);
+    const lateFee = Number(breakdown.lateFee || 0);
     const confirmationMessage = [
       tTerm('confirm.payoff.message').replace('{amount}', formatCurrency(quotedTotal)),
-      lateFee > 0
-        ? tTerm('confirm.payoff.lateFeeIncluded').replace('{amount}', formatCurrency(lateFee))
-        : null,
+      tTerm('confirm.payoff.breakdown', {
+        principal: formatCurrency(principal),
+        interest: formatCurrency(interest),
+        lateFee: formatCurrency(lateFee),
+      }),
     ].filter(Boolean).join(' ');
     const confirmed = await confirmDanger({
       title: tTerm('confirm.payoff.title'),

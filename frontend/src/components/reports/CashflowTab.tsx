@@ -1,4 +1,4 @@
-import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
+import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { parseReportYearInput } from '../../lib/reportYearInput';
 import {
@@ -32,6 +32,26 @@ type CashflowRowLike = Record<string, unknown> & {
   portfolioReceivable: unknown;
   lossesAtRisk: unknown;
   netCashFlow: unknown;
+};
+
+type AccountingMovement = {
+  id: string;
+  date: string;
+  movementType: string;
+  counterpartyName: string;
+  reference: string;
+  inflow: unknown;
+  outflow: unknown;
+};
+
+const accountingMovementLabels: Record<string, string> = {
+  customer_payment: tTerm('reports.cashflow.movements.type.customerPayment'),
+  loan_disbursement: tTerm('reports.cashflow.movements.type.loanDisbursement'),
+  associate_contribution: tTerm('reports.cashflow.movements.type.associateContribution'),
+  associate_payment: tTerm('reports.cashflow.movements.type.associatePayment'),
+  associate_capital_return: tTerm('reports.cashflow.movements.type.associateCapitalReturn'),
+  associate_reinvestment: tTerm('reports.cashflow.movements.type.associateReinvestment'),
+  operating_expense: tTerm('reports.cashflow.movements.type.operatingExpense'),
 };
 
 const resolveCashflowField = (entry: Record<string, unknown>, candidates: string[]) => {
@@ -121,6 +141,7 @@ export default function CashflowTab({
   const monthlyRows = (cashFlowData?.months || []).map((row: any) => normalizeCashflowRow(row));
   const activeMonthlyRows = monthlyRows.filter(hasOperationalCashflowMovement);
   const displayedMonthlyRows = activeMonthlyRows;
+  const movements = (Array.isArray(cashFlowData?.movements) ? cashFlowData.movements : []) as AccountingMovement[];
   const summary = cashFlowData?.summary || {};
   const activeFilterCount = Number(Boolean(cashFlowRange.fromDate)) + Number(Boolean(cashFlowRange.toDate));
   const activeFilters: ReportActiveFilter[] = [];
@@ -299,6 +320,39 @@ export default function CashflowTab({
               </tfoot>
             ) : null}
       </ReportDataTableSection>
+
+      {!isCashFlowLoading && movements.length > 0 ? (
+        <ReportDataTableSection
+          title={tTerm('reports.cashflow.movements.title')}
+          subtitle={tTerm('reports.cashflow.movements.subtitle')}
+          isLoading={false}
+          hasData
+          minWidthClassName="min-w-[860px]"
+        >
+          <thead>
+            <tr>
+              <th>{tTerm('reports.cashflow.movements.date')}</th>
+              <th>{tTerm('reports.cashflow.movements.type')}</th>
+              <th>{tTerm('reports.cashflow.movements.counterparty')}</th>
+              <th>{tTerm('reports.cashflow.movements.reference')}</th>
+              <th className="text-right">{tTerm('reports.cashflow.movements.inflow')}</th>
+              <th className="text-right">{tTerm('reports.cashflow.movements.outflow')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {movements.map((movement) => (
+              <tr key={movement.id}>
+                <td>{formatDateValue(movement.date, { dateStyle: 'medium', timeZone: 'UTC' })}</td>
+                <td>{accountingMovementLabels[movement.movementType] || movement.movementType}</td>
+                <td className="font-medium">{movement.counterpartyName}</td>
+                <td>{movement.reference}</td>
+                <td className="text-right">{Number(movement.inflow || 0) > 0 ? formatMoney(movement.inflow) : '—'}</td>
+                <td className="text-right">{Number(movement.outflow || 0) > 0 ? formatMoney(movement.outflow) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </ReportDataTableSection>
+      ) : null}
     </div>
   );
 }

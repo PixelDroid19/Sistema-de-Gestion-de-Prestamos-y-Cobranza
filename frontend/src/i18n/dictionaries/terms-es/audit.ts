@@ -100,6 +100,7 @@ export const auditEs = {
 'audit.presentation.module.payments': 'Pagos',
 'audit.presentation.module.associates': 'Socios',
 'audit.presentation.module.reports': 'Reportes',
+'audit.presentation.module.finances': 'Finanzas',
 'audit.presentation.module.users': 'Usuarios',
 'audit.presentation.module.permissions': 'Permisos',
 'audit.presentation.module.config': 'Configuración',

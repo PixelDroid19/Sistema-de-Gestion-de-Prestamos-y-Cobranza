@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { loanValidation, associateValidation } = require('@/middleware/validation');
 const { ValidationError } = require('@/utils/errorHandler');
-const { buildPayoffQuote } = require('@/modules/credits/application/loanFinancials');
+const { buildPayoffQuote, getCanonicalLoanView } = require('@/modules/credits/application/loanFinancials');
 const {
   evaluateCapitalPaymentEligibility,
   evaluatePayoffEligibility,
@@ -275,6 +275,106 @@ test('buildPayoffQuote keeps accrued daily interest at zero on a due date bounda
   assert.equal(quote.total, 615);
 });
 
+test('buildPayoffQuote does not charge future installments when settling the reported principal on cutoff', () => {
+  const outstandingPrincipal = 1753591.77;
+  const quote = buildPayoffQuote({
+    loan: {
+      status: 'active',
+      startDate: '2026-05-26T00:00:00.000Z',
+      interestRate: 70,
+    },
+    schedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-06-26T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-07-26T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 3,
+        dueDate: '2026-08-26T00:00:00.000Z',
+        remainingPrincipal: outstandingPrincipal,
+        remainingInterest: 102292.85,
+        status: 'pending',
+      },
+    ],
+    snapshot: {
+      outstandingPrincipal,
+      outstandingInterest: 102292.85,
+      outstandingBalance: 1855884.62,
+    },
+    asOfDate: '2026-07-26',
+  });
+
+  assert.equal(quote.breakdown.futurePrincipal, outstandingPrincipal);
+  assert.equal(quote.breakdown.accruedInterest, 0);
+  assert.equal(quote.breakdown.overdueInterest, 0);
+  assert.equal(quote.total, outstandingPrincipal);
+});
+
+test('getCanonicalLoanView does not restore future interest after payoff on a due date', () => {
+  const loan = {
+    status: 'closed',
+    closureReason: 'payoff',
+    amount: 1000,
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-02-01T00:00:00.000Z',
+        scheduledPayment: 500,
+        principalComponent: 400,
+        interestComponent: 100,
+        paidPrincipal: 400,
+        paidInterest: 100,
+        paidTotal: 500,
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-03-01T00:00:00.000Z',
+        scheduledPayment: 660,
+        principalComponent: 600,
+        interestComponent: 60,
+        paidPrincipal: 600,
+        paidInterest: 0,
+        paidTotal: 600,
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        status: 'paid',
+      },
+    ],
+    financialSnapshot: {
+      totalPrincipal: 1000,
+      totalInterest: 100,
+      totalPaidPrincipal: 1000,
+      totalPaidInterest: 100,
+      totalPaid: 1100,
+      totalPayable: 1100,
+      outstandingPrincipal: 0,
+      outstandingInterest: 0,
+      outstandingBalance: 0,
+    },
+  };
+
+  const { snapshot } = getCanonicalLoanView(loan);
+
+  assert.equal(snapshot.totalPaidPrincipal, 1000);
+  assert.equal(snapshot.totalPaidInterest, 100);
+  assert.equal(snapshot.totalPaid, 1100);
+  assert.equal(snapshot.totalPayable, 1100);
+  assert.equal(snapshot.outstandingBalance, 0);
+});
+
 test('buildPayoffQuote rejects zero-balance loans with an operator-facing message', () => {
   assert.throws(() => buildPayoffQuote({
     loan: {
@@ -523,7 +623,7 @@ test('evaluateCapitalPaymentEligibility requires the installment due on the capi
   });
 });
 
-test('evaluateCapitalPaymentEligibility allows a capital payment before the next installment becomes due', () => {
+test('evaluateCapitalPaymentEligibility requires the new cycle installment from the day after the previous cutoff', () => {
   const eligibility = evaluateCapitalPaymentEligibility({
     loan: {
       status: 'active',
@@ -532,7 +632,7 @@ test('evaluateCapitalPaymentEligibility allows a capital payment before the next
     schedule: [
       {
         installmentNumber: 1,
-        dueDate: '2026-06-17T00:00:00.000Z',
+        dueDate: '2026-07-24T00:00:00.000Z',
         remainingPrincipal: 0,
         remainingInterest: 0,
         paidTotal: 320,
@@ -540,7 +640,7 @@ test('evaluateCapitalPaymentEligibility allows a capital payment before the next
       },
       {
         installmentNumber: 2,
-        dueDate: '2026-07-17T00:00:00.000Z',
+        dueDate: '2026-08-24T00:00:00.000Z',
         remainingPrincipal: 300,
         remainingInterest: 15,
         paidTotal: 0,
@@ -551,7 +651,48 @@ test('evaluateCapitalPaymentEligibility allows a capital payment before the next
       outstandingPrincipal: 600,
       outstandingBalance: 615,
     },
-    asOfDate: new Date('2026-07-16T23:59:59.000Z'),
+    asOfDate: new Date('2026-07-25T00:00:00.000Z'),
+  });
+
+  assert.deepEqual(eligibility, {
+    allowed: false,
+    denialReasons: [{
+      code: 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED',
+      message: 'Primero paga completamente la cuota vigente #2 antes de abonar a capital',
+      installmentNumber: 2,
+    }],
+  });
+});
+
+test('evaluateCapitalPaymentEligibility allows capital payment on the cutoff after that installment is paid', () => {
+  const eligibility = evaluateCapitalPaymentEligibility({
+    loan: {
+      status: 'active',
+      principalOutstanding: 600,
+    },
+    schedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-07-24T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidTotal: 320,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-08-24T00:00:00.000Z',
+        remainingPrincipal: 300,
+        remainingInterest: 15,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    snapshot: {
+      outstandingPrincipal: 600,
+      outstandingBalance: 615,
+    },
+    asOfDate: new Date('2026-07-24T18:30:00.000Z'),
   });
 
   assert.deepEqual(eligibility, {

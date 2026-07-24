@@ -99,6 +99,7 @@ export const auditEn = {
 'audit.presentation.module.payments': 'Payments',
 'audit.presentation.module.associates': 'Associates',
 'audit.presentation.module.reports': 'Reports',
+'audit.presentation.module.finances': 'Finances',
 'audit.presentation.module.users': 'Users',
 'audit.presentation.module.permissions': 'Permissions',
 'audit.presentation.module.config': 'Configuration',

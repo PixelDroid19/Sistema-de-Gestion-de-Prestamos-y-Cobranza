@@ -1074,7 +1074,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     await waitFor(() => {
       expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({
-        message: expect.stringMatching(/Incluye.*2[.,]410.*mora/i),
+        message: expect.stringMatching(/Capital.*800[.,]000.*Inter[eé]s.*50[.,]000.*Mora.*2[.,]410/i),
       }));
     });
     await waitFor(() => {

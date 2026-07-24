@@ -42,6 +42,25 @@ const SUMMARY_COLUMNS = [
   { header: 'Descripción', key: 'description', width: 54 },
 ];
 
+const MOVEMENT_COLUMNS = [
+  { header: 'Fecha', key: 'date', width: 14 },
+  { header: 'Movimiento', key: 'movementLabel', width: 24 },
+  { header: 'Corresponde a', key: 'counterpartyName', width: 30 },
+  { header: 'Referencia', key: 'reference', width: 28 },
+  moneyColumn('Entrada', 'inflow'),
+  moneyColumn('Salida', 'outflow'),
+];
+
+const MOVEMENT_LABELS = Object.freeze({
+  customer_payment: 'Pago de cliente',
+  loan_disbursement: 'Préstamo entregado',
+  associate_contribution: 'Aporte de socio',
+  associate_payment: 'Pago a socio',
+  associate_capital_return: 'Devolución de capital',
+  associate_reinvestment: 'Reinversión de socio',
+  operating_expense: 'Gasto operativo',
+});
+
 const toNumber = (value) => {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number : 0;
@@ -57,6 +76,179 @@ const monthKeyFromDate = (value) => {
   const date = toDate(value);
   if (!date) return null;
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+};
+
+const toPlainRecord = (value) => (
+  typeof value?.toJSON === 'function' ? value.toJSON() : value || {}
+);
+
+const toDateOnly = (value) => {
+  const date = toDate(value);
+  return date ? date.toISOString().slice(0, 10) : '';
+};
+
+const getRelatedRecord = (row, keys) => {
+  const source = toPlainRecord(row);
+  for (const key of keys) {
+    const related = source?.[key];
+    if (related) return toPlainRecord(related);
+  }
+  return null;
+};
+
+const buildMovement = ({
+  id,
+  date,
+  movementType,
+  counterpartyType,
+  counterpartyId,
+  counterpartyName,
+  reference,
+  inflow = 0,
+  outflow = 0,
+  operatorName = null,
+}) => ({
+  id: `${movementType}-${id}`,
+  date: toDateOnly(date),
+  movementType,
+  movementLabel: MOVEMENT_LABELS[movementType],
+  counterpartyType,
+  counterpartyId: counterpartyId ?? null,
+  counterpartyName,
+  reference,
+  inflow: formatMoney(inflow),
+  outflow: formatMoney(outflow),
+  operatorName,
+});
+
+const buildAccountingMovements = ({
+  loans,
+  payments,
+  associateContributions,
+  associateReinvestments,
+  associatePayments,
+  associateCapitalReturns,
+  operatingExpenses,
+}) => {
+  const movements = [];
+
+  loans
+    .filter((loan) => DISBURSED_STATUSES.has(loan?.status))
+    .forEach((loan) => {
+      const source = toPlainRecord(loan);
+      const customer = getRelatedRecord(source, ['Customer', 'customer']);
+      movements.push(buildMovement({
+        id: source.id,
+        date: pickLoanDisbursementDate(source),
+        movementType: 'loan_disbursement',
+        counterpartyType: 'customer',
+        counterpartyId: customer?.id ?? source.customerId,
+        counterpartyName: customer?.name || `Cliente del crédito #${source.id}`,
+        reference: `Crédito #${source.id}`,
+        outflow: source.amount,
+      }));
+    });
+
+  payments
+    .filter((payment) => payment?.status === 'completed')
+    .forEach((payment) => {
+      const source = toPlainRecord(payment);
+      const loan = getRelatedRecord(source, ['Loan', 'loan']);
+      const customer = getRelatedRecord(loan, ['Customer', 'customer']);
+      const loanId = source.loanId ?? loan?.id;
+      movements.push(buildMovement({
+        id: source.id,
+        date: source.paymentDate || source.createdAt,
+        movementType: 'customer_payment',
+        counterpartyType: 'customer',
+        counterpartyId: customer?.id ?? loan?.customerId,
+        counterpartyName: customer?.name || `Cliente del crédito #${loanId}`,
+        reference: `Crédito #${loanId} · Pago #${source.id}`,
+        inflow: source.amount,
+      }));
+    });
+
+  associateContributions.forEach((contribution) => {
+    const source = toPlainRecord(contribution);
+    const associate = getRelatedRecord(source, ['Associate', 'associate']);
+    movements.push(buildMovement({
+      id: source.id,
+      date: source.contributionDate || source.createdAt,
+      movementType: 'associate_contribution',
+      counterpartyType: 'associate',
+      counterpartyId: source.associateId,
+      counterpartyName: associate?.name || `Socio #${source.associateId}`,
+      reference: `Aporte #${source.id}`,
+      inflow: source.amount,
+    }));
+  });
+
+  associateReinvestments.forEach((reinvestment) => {
+    const source = toPlainRecord(reinvestment);
+    const associate = getRelatedRecord(source, ['Associate', 'associate']);
+    movements.push(buildMovement({
+      id: source.id,
+      date: source.distributionDate || source.createdAt,
+      movementType: 'associate_reinvestment',
+      counterpartyType: 'associate',
+      counterpartyId: source.associateId,
+      counterpartyName: associate?.name || `Socio #${source.associateId}`,
+      reference: `Reinversión #${source.id}`,
+      outflow: source.amount,
+    }));
+  });
+
+  associatePayments.forEach((payment) => {
+    const source = toPlainRecord(payment);
+    const associate = getRelatedRecord(source, ['Associate', 'associate']);
+    movements.push(buildMovement({
+      id: source.id,
+      date: source.paidAt || source.distributionDate || source.paymentDate || source.createdAt,
+      movementType: 'associate_payment',
+      counterpartyType: 'associate',
+      counterpartyId: source.associateId,
+      counterpartyName: associate?.name || `Socio #${source.associateId}`,
+      reference: `Pago a socio #${source.id}`,
+      outflow: source.amount,
+    }));
+  });
+
+  associateCapitalReturns.forEach((capitalReturn) => {
+    const source = toPlainRecord(capitalReturn);
+    const associate = getRelatedRecord(source, ['Associate', 'associate']);
+    movements.push(buildMovement({
+      id: source.id,
+      date: source.distributionDate || source.createdAt,
+      movementType: 'associate_capital_return',
+      counterpartyType: 'associate',
+      counterpartyId: source.associateId,
+      counterpartyName: associate?.name || `Socio #${source.associateId}`,
+      reference: `Devolución #${source.id}`,
+      outflow: source.amount,
+    }));
+  });
+
+  operatingExpenses
+    .filter((expense) => ['completed', 'paid', 'posted'].includes(String(expense?.status || '').toLowerCase()))
+    .forEach((expense) => {
+      const source = toPlainRecord(expense);
+      const operator = getRelatedRecord(source, ['createdBy', 'CreatedBy']);
+      movements.push(buildMovement({
+        id: source.id,
+        date: source.expenseDate || source.paymentDate || source.date || source.createdAt,
+        movementType: 'operating_expense',
+        counterpartyType: 'expense',
+        counterpartyId: null,
+        counterpartyName: source.description || source.category || `Gasto #${source.id}`,
+        reference: `Gasto #${source.id}${source.category ? ` · ${source.category}` : ''}`,
+        outflow: source.amount,
+        operatorName: operator?.name || null,
+      }));
+    });
+
+  return movements.sort((left, right) => (
+    left.date.localeCompare(right.date) || left.id.localeCompare(right.id)
+  ));
 };
 
 const pickLoanDisbursementDate = (loan) => (
@@ -243,6 +435,15 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
       loanCount: rawMonths.reduce((sum, row) => sum + row.loanCount, 0),
     },
     months,
+    movements: buildAccountingMovements({
+      loans,
+      payments,
+      associateContributions,
+      associateReinvestments,
+      associatePayments,
+      associateCapitalReturns,
+      operatingExpenses,
+    }),
   };
 };
 
@@ -310,6 +511,18 @@ const buildCashFlowSheets = (report) => {
         lossesAtRisk: Number(month.lossesAtRisk),
       })),
     },
+    {
+      name: 'Movimientos Detallados',
+      title: `MOVIMIENTOS CONTABLES DETALLADOS ${report.year}`,
+      tabColor: STYLE_COLORS.green,
+      headerFill: STYLE_COLORS.headerBlue,
+      columns: MOVEMENT_COLUMNS,
+      rows: report.movements.map((movement) => ({
+        ...movement,
+        inflow: Number(movement.inflow),
+        outflow: Number(movement.outflow),
+      })),
+    },
   ];
 };
 
@@ -336,6 +549,17 @@ const resolveCashFlowDateRange = (filters = {}) => {
   };
 };
 
+const isMonthWithinDateRange = (month, { fromDate, toDate }) => {
+  const monthStart = new Date(`${month}-01T00:00:00.000Z`);
+  const nextMonthStart = new Date(monthStart.getTime());
+  nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
+  const monthEnd = new Date(nextMonthStart.getTime() - 1);
+
+  if (fromDate && monthEnd < fromDate) return false;
+  if (toDate && monthStart > toDate) return false;
+  return true;
+};
+
 const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year, filters = {} }) => {
   ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al cierre contable mensual.');
   const resolvedYear = resolveYear(year);
@@ -355,6 +579,7 @@ const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year,
     associateCapitalReturns: dataset.associateCapitalReturns || [],
     operatingExpenses: dataset.operatingExpenses || [],
   });
+  report.months = report.months.filter((month) => isMonthWithinDateRange(month.month, dateRange));
   report.filters = {
     fromDate: toDateOnlyOrNull(dateRange.fromDate),
     toDate: toDateOnlyOrNull(dateRange.toDate),
@@ -420,6 +645,24 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
             operatingExpenses: formatDisplayMoney(month.operatingExpenses),
             net: formatDisplayMoney(month.netCashFlow),
             cash: formatDisplayMoney(month.availableCash),
+          })),
+        },
+        tableOptions: { fontSize: 6 },
+      }, {
+        heading: 'Detalle por persona y movimiento',
+        table: {
+          columns: [
+            { header: 'Fecha', key: 'date', width: 58 },
+            { header: 'Movimiento', key: 'movementLabel', width: 100 },
+            { header: 'Corresponde a', key: 'counterpartyName', width: 120 },
+            { header: 'Referencia', key: 'reference', width: 110 },
+            { header: 'Entrada', key: 'inflow', align: 'right' },
+            { header: 'Salida', key: 'outflow', align: 'right' },
+          ],
+          rows: report.movements.map((movement) => ({
+            ...movement,
+            inflow: formatDisplayMoney(movement.inflow),
+            outflow: formatDisplayMoney(movement.outflow),
           })),
         },
         tableOptions: { fontSize: 6 },

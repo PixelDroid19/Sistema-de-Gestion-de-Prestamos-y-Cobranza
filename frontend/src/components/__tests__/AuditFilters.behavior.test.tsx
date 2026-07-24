@@ -10,6 +10,7 @@ describe('AuditFilters behavior', () => {
 
     expect(screen.queryByText('ID usuario')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/ID de entidad/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Finanzas' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Buscar evento'), { target: { value: '23' } });
     fireEvent.change(screen.getByLabelText('Usuario'), { target: { value: '7' } });

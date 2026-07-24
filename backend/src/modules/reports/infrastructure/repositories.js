@@ -11,6 +11,7 @@ const {
   OperatingExpense,
   AssociateContribution,
   AssociateInstallment,
+  Associate,
   ProfitDistribution,
   User,
 } = require('@/models');
@@ -407,10 +408,19 @@ const reportRepository = {
     const [loans, payments, paidAssociateInstallments, associateContributions, associateDistributions, operatingExpenses] = await Promise.all([
       Loan.findAll({
         where: {
-          status: { [Op.in]: ['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] },
-          [Op.or]: [
-            { startDate: { [Op.gte]: startDate, [Op.lte]: endDate } },
-            { createdAt: { [Op.gte]: startDate, [Op.lte]: endDate } },
+          [Op.and]: [
+            { status: { [Op.in]: ['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] } },
+            {
+              [Op.or]: [
+                { startDate: { [Op.gte]: startDate, [Op.lte]: endDate } },
+                {
+                  [Op.and]: [
+                    { startDate: null },
+                    { createdAt: { [Op.gte]: startDate, [Op.lte]: endDate } },
+                  ],
+                },
+              ],
+            },
           ],
         },
         include: reportIncludes,
@@ -437,6 +447,10 @@ const reportRepository = {
         },
         include: [
           {
+            model: Associate,
+            attributes: ['id', 'name', 'email', 'phone'],
+          },
+          {
             model: User,
             as: 'paidByUser',
             attributes: ['id', 'name', 'email', 'role'],
@@ -449,6 +463,7 @@ const reportRepository = {
           status: 'completed',
           contributionDate: { [Op.gte]: startDate, [Op.lte]: endDate },
         },
+        include: [{ model: Associate, attributes: ['id', 'name', 'email', 'phone'] }],
         order: [['contributionDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
       }),
       ProfitDistribution.findAll({
@@ -456,6 +471,10 @@ const reportRepository = {
           distributionDate: { [Op.gte]: startDate, [Op.lte]: endDate },
         },
         include: [
+          {
+            model: Associate,
+            attributes: ['id', 'name', 'email', 'phone'],
+          },
           {
             model: User,
             as: 'createdBy',

@@ -1,4 +1,4 @@
-export const AUDIT_MODULES = ['credits', 'customers', 'payments', 'associates', 'reports', 'users', 'permissions', 'config', 'audit', 'auth'] as const;
+export const AUDIT_MODULES = ['credits', 'customers', 'payments', 'associates', 'reports', 'finances', 'users', 'permissions', 'config', 'audit', 'auth'] as const;
 export const AUDIT_ACTIONS = ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'EXPORT', 'IMPORT', 'PAYOFF', 'RESTORE'] as const;
 export const AUDIT_CATEGORIES = ['TECHNICAL', 'BUSINESS', 'SECURITY', 'AUDIT'] as const;
 export const AUDIT_SEVERITIES = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL'] as const;

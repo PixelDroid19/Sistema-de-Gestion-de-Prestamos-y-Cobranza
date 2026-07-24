@@ -13,6 +13,7 @@ const MODULE_LABEL_KEYS: Record<string, TermKey> = {
   payments: 'audit.presentation.module.payments',
   associates: 'audit.presentation.module.associates',
   reports: 'audit.presentation.module.reports',
+  finances: 'audit.presentation.module.finances',
   users: 'audit.presentation.module.users',
   permissions: 'audit.presentation.module.permissions',
   config: 'audit.presentation.module.config',

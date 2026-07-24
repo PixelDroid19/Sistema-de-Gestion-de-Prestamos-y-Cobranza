@@ -228,7 +228,7 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
       customerId,
       amount: 1000000,
       termMonths: 4,
-      startDate: '2026-07-17',
+      startDate: '2026-06-24',
       rateSource: 'policy',
       lateFeeSource: 'policy',
     },
@@ -251,7 +251,7 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
     body: {
       loanId: capitalLoanId,
       paymentAmount: Number(scheduleBefore[0].scheduledPayment),
-      paymentDate: '2026-07-17',
+      paymentDate: '2026-07-24',
       paymentMethod: 'cash',
     },
   }, 200);
@@ -267,7 +267,7 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
     body: {
       loanId: capitalLoanId,
       amount: 250000,
-      asOfDate: '2026-07-17',
+      asOfDate: '2026-07-24',
       strategy: 'REDUCE_QUOTA',
       newTermMonths: 4,
     },
@@ -275,6 +275,21 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
   assert.equal(preview.body?.data?.preview?.before?.outstandingPrincipal, principalBefore);
   const expectedPrincipalAfterCapital = Math.round((principalBefore - 250000) * 100) / 100;
   assert.equal(preview.body?.data?.preview?.after?.outstandingPrincipal, expectedPrincipalAfterCapital);
+
+  const nextCyclePreview = await expectStatus({
+    method: 'POST',
+    path: '/api/payments/capital/preview',
+    token: accessToken,
+    body: {
+      loanId: capitalLoanId,
+      amount: 250000,
+      asOfDate: '2026-07-25',
+      strategy: 'REDUCE_QUOTA',
+      newTermMonths: 4,
+    },
+  }, 400);
+  assert.equal(nextCyclePreview.body?.error?.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+  assert.equal(nextCyclePreview.body?.error?.denialReasons?.[0]?.code, 'CURRENT_INSTALLMENT_PAYMENT_REQUIRED');
 
   const unchanged = await expectStatus({ path: `/api/loans/${capitalLoanId}`, token: accessToken }, 200);
   assert.equal(Number(unchanged.body?.data?.loan?.financialSnapshot?.outstandingPrincipal), principalBefore, 'El preview no debe persistir cambios.');
@@ -287,7 +302,7 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
     body: {
       loanId: capitalLoanId,
       amount: 250000,
-      paymentDate: '2026-07-17',
+      paymentDate: '2026-07-24',
       paymentMethod: 'cash',
       strategy: 'REDUCE_QUOTA',
       newTermMonths: 4,
@@ -305,7 +320,7 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
     body: {
       loanId: capitalLoanId,
       amount: 250000,
-      paymentDate: '2026-07-17',
+      paymentDate: '2026-07-24',
       paymentMethod: 'cash',
       strategy: 'REDUCE_QUOTA',
       newTermMonths: 4,
@@ -318,6 +333,23 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
   const scheduleAfter = after.body?.data?.loan?.emiSchedule || [];
   assert.equal(scheduleAfter.length, 5, 'El historial de la cuota pagada se conserva y se agregan cuatro cuotas reproyectadas.');
   assert.equal(scheduleAfter.filter((row) => !['paid', 'annulled'].includes(row.status)).length, 4);
+
+  const julyClose = await expectStatus({
+    path: '/api/reports/cash-flow/monthly?year=2026&fromDate=2026-07-01&toDate=2026-07-31',
+    token: accessToken,
+  }, 200);
+  assert.deepEqual(julyClose.body?.data?.months?.map((month) => month.month), ['2026-07']);
+  const capitalLoanMovements = (julyClose.body?.data?.movements || [])
+    .filter((movement) => String(movement.reference).startsWith(`Crédito #${capitalLoanId}`));
+  assert.ok(
+    capitalLoanMovements.some((movement) => movement.movementType === 'customer_payment'),
+    'El cierre filtrado debe identificar el pago y el cliente al que corresponde.',
+  );
+  assert.equal(
+    capitalLoanMovements.some((movement) => movement.movementType === 'loan_disbursement'),
+    false,
+    'Un desembolso de junio no debe entrar al cierre de julio por su fecha de creación.',
+  );
 });
 
 integrationTest('producto: calcula mora y liquida el saldo total con cierre y trazabilidad', async () => {

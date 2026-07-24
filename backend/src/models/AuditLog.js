@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
 const { LOG_CATEGORY, LOG_SEVERITY } = require('@/modules/shared/logCategories');
 
-const AUDIT_MODULES = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'USUARIOS', 'PERMISOS', 'CONFIGURACION', 'AUDITORÍA', 'AUTH', 'SISTEMA', 'NOTIFICACIONES'];
+const AUDIT_MODULES = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'FINANZAS', 'USUARIOS', 'PERMISOS', 'CONFIGURACION', 'AUDITORÍA', 'AUTH', 'SISTEMA', 'NOTIFICACIONES'];
 const AUDIT_ACTIONS = ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'EXPORT', 'IMPORT', 'PAYOFF', 'RESTORE'];
 const AUDIT_CATEGORIES = Object.values(LOG_CATEGORY);
 const AUDIT_SEVERITIES = Object.values(LOG_SEVERITY);

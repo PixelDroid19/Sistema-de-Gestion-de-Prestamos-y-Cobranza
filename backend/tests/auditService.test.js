@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const { createAuditService } = require('@/modules/audit/domain/services/AuditService');
 const { runWithRequestContext } = require('@/modules/shared/requestContext');
+const { AUDIT_MODULES } = require('@/models/AuditLog');
 
 test('AuditService.log creates audit entry with required fields', async () => {
   const mockRepository = {
@@ -10,6 +11,7 @@ test('AuditService.log creates audit entry with required fields', async () => {
   };
 
   const auditService = createAuditService({ auditLogRepository: mockRepository });
+  assert.ok(AUDIT_MODULES.includes('FINANZAS'));
 
   const result = await auditService.log({
     actor: { id: 1, name: 'Test User' },
@@ -252,4 +254,28 @@ test('AuditService.query normalizes filters and presents stored modules as domai
   assert.equal(mockRepository.findWithFilters.mock.calls[0].arguments[0].action, 'RESTORE');
   assert.equal(result.items[0].module, 'customers');
   assert.equal(result.items[0].action, 'RESTORE');
+});
+
+test('AuditService maps finance operations to a persisted audit module', async () => {
+  const mockRepository = {
+    create: mock.fn((payload) => Promise.resolve(payload)),
+    findWithFilters: mock.fn(() => Promise.resolve({
+      items: [{ id: 1, action: 'UPDATE', module: 'FINANZAS' }],
+      totalItems: 1,
+    })),
+  };
+  const auditService = createAuditService({ auditLogRepository: mockRepository });
+
+  const created = await auditService.log({
+    actor: { id: 1 },
+    action: 'UPDATE',
+    module: 'finances',
+    entityId: 8,
+    entityType: 'OperatingExpense',
+  });
+  const queried = await auditService.query({ module: 'finances' });
+
+  assert.equal(created.module, 'FINANZAS');
+  assert.equal(mockRepository.findWithFilters.mock.calls[0].arguments[0].module, 'FINANZAS');
+  assert.equal(queried.items[0].module, 'finances');
 });

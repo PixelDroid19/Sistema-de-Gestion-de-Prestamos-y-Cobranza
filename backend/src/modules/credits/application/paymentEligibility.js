@@ -63,11 +63,29 @@ const hasOverdueUnpaidInstallments = ({ schedule = [], asOfDate = new Date() }) 
 
 const findCurrentUnpaidInstallment = ({ schedule = [], asOfDate = new Date() }) => {
   const normalizedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
+  const payableRows = schedule
+    .filter((row) => String(row?.status || '').toLowerCase() !== 'annulled')
+    .sort((left, right) => Number(left?.installmentNumber || 0) - Number(right?.installmentNumber || 0));
+  const openIndex = payableRows.findIndex(isOpenInstallment);
 
-  return schedule.find((row) => (
-    isOpenInstallment(row)
-    && normalizeDateOnly(row.dueDate, 'Schedule due date').getTime() === normalizedAsOfDate.getTime()
-  )) || null;
+  if (openIndex < 0) {
+    return null;
+  }
+
+  const openInstallment = payableRows[openIndex];
+  const dueDate = normalizeDateOnly(openInstallment.dueDate, 'Schedule due date');
+
+  if (dueDate.getTime() === normalizedAsOfDate.getTime()) {
+    return openInstallment;
+  }
+
+  const previousInstallment = openIndex > 0 ? payableRows[openIndex - 1] : null;
+  if (!previousInstallment || !isPaidInstallment(previousInstallment) || dueDate < normalizedAsOfDate) {
+    return null;
+  }
+
+  const previousDueDate = normalizeDateOnly(previousInstallment.dueDate, 'Schedule due date');
+  return previousDueDate < normalizedAsOfDate ? openInstallment : null;
 };
 
 const resolveLoanStartDate = (loan = {}) => {

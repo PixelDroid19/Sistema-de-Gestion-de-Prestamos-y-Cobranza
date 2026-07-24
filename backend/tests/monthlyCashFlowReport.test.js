@@ -180,6 +180,97 @@ test('buildMonthlyCashFlowReport reconciles cash contributions, reinvestments, a
   assert.equal(report.summary.netProfitIndicator, '0.00');
 });
 
+test('buildMonthlyCashFlowReport identifies who owns every accounting movement', () => {
+  const report = buildMonthlyCashFlowReport({
+    year: 2026,
+    loans: [
+      makeLoan({
+        id: 31,
+        amount: 2000000,
+        startDate: '2026-07-10T00:00:00.000Z',
+        Customer: { id: 8, name: 'Cliente Contable' },
+      }),
+    ],
+    payments: [
+      makePayment({
+        id: 41,
+        loanId: 31,
+        amount: 300000,
+        paymentDate: '2026-07-24T00:00:00.000Z',
+        Loan: { id: 31, Customer: { id: 8, name: 'Cliente Contable' } },
+      }),
+    ],
+    associateContributions: [{
+      id: 51,
+      associateId: 12,
+      amount: 1000000,
+      contributionDate: '2026-07-05T00:00:00.000Z',
+      Associate: { id: 12, name: 'Socio Contable' },
+    }],
+    associatePayments: [{
+      id: 61,
+      associateId: 12,
+      amount: 50000,
+      paidAt: '2026-07-25T00:00:00.000Z',
+      Associate: { id: 12, name: 'Socio Contable' },
+    }],
+    operatingExpenses: [
+      makeOperatingExpense({
+        id: 71,
+        amount: 80000,
+        expenseDate: '2026-07-28T00:00:00.000Z',
+        description: 'Servicio contable',
+        category: 'Administración',
+        createdBy: { id: 3, name: 'Operador Contable' },
+      }),
+    ],
+  });
+
+  assert.deepEqual(report.movements.map((movement) => ({
+    movementType: movement.movementType,
+    counterpartyName: movement.counterpartyName,
+    reference: movement.reference,
+    inflow: movement.inflow,
+    outflow: movement.outflow,
+  })), [
+    {
+      movementType: 'associate_contribution',
+      counterpartyName: 'Socio Contable',
+      reference: 'Aporte #51',
+      inflow: '1000000.00',
+      outflow: '0.00',
+    },
+    {
+      movementType: 'loan_disbursement',
+      counterpartyName: 'Cliente Contable',
+      reference: 'Crédito #31',
+      inflow: '0.00',
+      outflow: '2000000.00',
+    },
+    {
+      movementType: 'customer_payment',
+      counterpartyName: 'Cliente Contable',
+      reference: 'Crédito #31 · Pago #41',
+      inflow: '300000.00',
+      outflow: '0.00',
+    },
+    {
+      movementType: 'associate_payment',
+      counterpartyName: 'Socio Contable',
+      reference: 'Pago a socio #61',
+      inflow: '0.00',
+      outflow: '50000.00',
+    },
+    {
+      movementType: 'operating_expense',
+      counterpartyName: 'Servicio contable',
+      reference: 'Gasto #71 · Administración',
+      inflow: '0.00',
+      outflow: '80000.00',
+    },
+  ]);
+});
+
 test('buildMonthlyCashFlowReport subtracts completed operating expenses from available cash', () => {
   const report = buildMonthlyCashFlowReport({
     year: 2026,
@@ -254,7 +345,8 @@ test('createGetMonthlyCashFlow forwards normalized date range filters to reposit
   assert.equal(response.success, true);
   assert.equal(response.data.filters.fromDate, '2026-03-01');
   assert.equal(response.data.filters.toDate, '2026-03-31');
-  assert.equal(response.data.months[2].availableCash, '4500000.00');
+  assert.deepEqual(response.data.months.map((month) => month.month), ['2026-03']);
+  assert.equal(response.data.months[0].availableCash, '4500000.00');
 });
 
 test('monthly cash flow Excel and PDF exports include operational fields', async () => {

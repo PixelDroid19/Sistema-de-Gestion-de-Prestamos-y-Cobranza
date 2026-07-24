@@ -136,7 +136,7 @@ const createCreateOperatingExpense = ({ operatingExpenseRepository, auditService
     return withAudit({
       auditService,
       action: 'CREATE',
-      module: 'operatingExpenses',
+      module: 'finances',
       getEntityId: (result) => result?.id,
       getEntityType: () => 'OperatingExpense',
     })(useCase);
@@ -171,7 +171,7 @@ const createAnnulOperatingExpense = ({ operatingExpenseRepository, auditService 
     return withAudit({
       auditService,
       action: 'UPDATE',
-      module: 'operatingExpenses',
+      module: 'finances',
       getEntityId: (params) => params?.expenseId,
       getEntityType: () => 'OperatingExpense',
     })(useCase);

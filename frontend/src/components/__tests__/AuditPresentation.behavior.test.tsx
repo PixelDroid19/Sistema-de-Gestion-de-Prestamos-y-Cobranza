@@ -31,6 +31,7 @@ describe('Audit presentation helpers', () => {
   });
 
   it('renders live audit event metadata with operator-friendly labels', () => {
+    expect(getAuditModuleLabel('finances')).toBe('Finanzas');
     expect(getAuditEventTypeLabel('credit.created')).toBe('Crédito creado');
     expect(getAuditEventTypeLabel('payment.voucher.generated')).toBe('Comprobante generado');
     expect(getAuditCategoryLabel('SECURITY')).toBe('Seguridad');

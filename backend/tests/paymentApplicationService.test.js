@@ -1159,7 +1159,7 @@ test('applyCapitalPayment rejects amounts greater than the live principal before
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
     loanId: 3314,
     amount: 350,
-    paymentDate: '2026-05-15T00:00:00.000Z',
+    paymentDate: '2026-04-01T00:00:00.000Z',
     strategy: 'reduce_term',
   }), (error) => {
     assert.ok(error instanceof BusinessRuleViolationError);
@@ -1447,7 +1447,7 @@ test('applyCapitalPayment rejects loans with a partial operative installment bef
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
     loanId: 334,
     amount: 50,
-    paymentDate: '2026-04-15T00:00:00.000Z',
+    paymentDate: '2026-04-01T00:00:00.000Z',
   }), (error) => {
     assert.ok(error instanceof BusinessRuleViolationError);
     assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
