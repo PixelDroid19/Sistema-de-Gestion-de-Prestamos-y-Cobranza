@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  getCurrentOperationalDateOnly,
   normalizeDateOnly,
   normalizeOperationalDate,
   normalizeOptionalDateOnlyString,
@@ -35,4 +36,15 @@ test('shared optional date validator only accepts operational date payloads', ()
   assert.equal(validateOptionalDateInput('2026-05-17T08:00:00.000Z'), true);
   assert.equal(validateOptionalDateInput('2026-02-31'), false);
   assert.equal(validateOptionalDateInput('60517-02-14'), false);
+});
+
+test('current operational date follows the Bogotá business day at the UTC boundary', () => {
+  assert.equal(
+    getCurrentOperationalDateOnly(new Date('2026-07-28T02:30:00.000Z')).toISOString(),
+    '2026-07-27T00:00:00.000Z',
+  );
+  assert.equal(
+    getCurrentOperationalDateOnly(new Date('2026-07-28T05:30:00.000Z')).toISOString(),
+    '2026-07-28T00:00:00.000Z',
+  );
 });

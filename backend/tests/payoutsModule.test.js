@@ -10,6 +10,8 @@ const {
   createCreatePartialPayment,
   createCreateCapitalPayment,
   createPreviewCapitalPayment,
+  createCalculateTotalDebt,
+  createPayTotalDebt,
   createAnnulInstallment,
   createListPaymentsByLoan,
   createListPaymentDocuments,
@@ -58,6 +60,91 @@ test('createCreatePayment delegates backoffice canonical payment application', a
     actorId: 12,
     idempotencyKey: undefined,
   });
+});
+
+test('createCreatePayment defaults to the Bogotá operational date', async () => {
+  let serviceInput;
+  const createPayment = createCreatePayment({
+    clock: () => new Date('2026-04-02T02:30:00.000Z'),
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 4 };
+      },
+    },
+    paymentApplicationService: {
+      async applyPayment(input) {
+        serviceInput = input;
+        return { payment: { id: 51 }, loan: { id: 4 }, allocation: {} };
+      },
+    },
+  });
+
+  await createPayment({
+    actor: { id: 12, role: 'admin' },
+    loanId: 4,
+    amount: 250,
+  });
+
+  assert.equal(serviceInput.paymentDate.toISOString(), '2026-04-01T00:00:00.000Z');
+});
+
+test('payoff calculation defaults to the Bogotá operational day', async () => {
+  let quotedAsOfDate;
+  const calculateTotalDebt = createCalculateTotalDebt({
+    clock: () => new Date('2026-04-02T02:30:00.000Z'),
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 4 };
+      },
+    },
+    loanViewService: {
+      getPayoffQuote(_loan, asOfDate) {
+        quotedAsOfDate = asOfDate;
+        return { asOfDate, total: 1250 };
+      },
+    },
+  });
+
+  const result = await calculateTotalDebt({
+    actor: { id: 12, role: 'admin' },
+    loanId: 4,
+  });
+
+  assert.equal(quotedAsOfDate, '2026-04-01');
+  assert.equal(result.asOfDate, '2026-04-01');
+  assert.equal(result.totalDebt, 1250);
+});
+
+test('payoff execution uses the same Bogotá day as its default quote', async () => {
+  let executionInput;
+  const payTotalDebt = createPayTotalDebt({
+    clock: () => new Date('2026-04-02T02:30:00.000Z'),
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 4 };
+      },
+    },
+    loanViewService: {
+      getPayoffQuote(_loan, asOfDate) {
+        return { asOfDate, total: 1250 };
+      },
+    },
+    paymentApplicationService: {
+      async applyPayoff(input) {
+        executionInput = input;
+        return { payment: { id: 51 }, loan: { id: 4 }, allocation: {} };
+      },
+    },
+  });
+
+  await payTotalDebt({
+    actor: { id: 12, role: 'admin' },
+    loanId: 4,
+  });
+
+  assert.equal(executionInput.asOfDate, '2026-04-01');
+  assert.equal(executionInput.quotedTotal, 1250);
+  assert.equal(executionInput.paymentDate.toISOString(), '2026-04-02T02:30:00.000Z');
 });
 
 test('createListPayments only returns all payments to admins', async () => {
@@ -590,6 +677,16 @@ test('createCreatePartialPayment rejects invalid operator payment dates', async 
       loanId: 5,
       amount: 80,
       paymentDate: 'not-a-date',
+    }),
+    (error) => error instanceof ValidationError && error.message === 'La fecha del pago debe ser válida.',
+  );
+
+  await assert.rejects(
+    () => createPartialPayment({
+      actor: { id: 1, role: 'admin' },
+      loanId: 5,
+      amount: 80,
+      paymentDate: '2026-02-31',
     }),
     (error) => error instanceof ValidationError && error.message === 'La fecha del pago debe ser válida.',
   );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import ContributionModal from '../ContributionModal';
@@ -107,7 +107,7 @@ describe('ContributionModal behavior', () => {
     expect(onAddContribution).not.toHaveBeenCalled();
   });
 
-  it('shows normalized contribution amounts while submitting canonical values', () => {
+  it('shows normalized contribution amounts while submitting canonical values', async () => {
     const onAddContribution = vi.fn().mockResolvedValue(undefined);
 
     const { container } = render(
@@ -126,10 +126,12 @@ describe('ContributionModal behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(onAddContribution).toHaveBeenCalledWith(expect.objectContaining({ amount: 1200000 }));
+    await waitFor(() => {
+      expect(onAddContribution).toHaveBeenCalledWith(expect.objectContaining({ amount: 1200000 }));
+    });
   });
 
-  it('submits contribution date, status, and notes from the modal form', () => {
+  it('submits contribution date, status, and notes from the modal form', async () => {
     const onAddContribution = vi.fn().mockResolvedValue(undefined);
 
     const { container } = render(
@@ -150,11 +152,13 @@ describe('ContributionModal behavior', () => {
     fireEvent.change(screen.getByLabelText('Notas'), { target: { value: 'Aporte pendiente de conciliación' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(onAddContribution).toHaveBeenCalledWith({
-      amount: 3500000,
-      contributionDate: '2026-06-04',
-      status: 'pending',
-      notes: 'Aporte pendiente de conciliación',
+    await waitFor(() => {
+      expect(onAddContribution).toHaveBeenCalledWith({
+        amount: 3500000,
+        contributionDate: '2026-06-04',
+        status: 'pending',
+        notes: 'Aporte pendiente de conciliación',
+      });
     });
   });
 });

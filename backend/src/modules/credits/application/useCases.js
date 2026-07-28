@@ -11,7 +11,10 @@ const { paginateArray } = require('@/modules/shared/pagination');
 const { validateInterestRate } = require('@/modules/shared/validators');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { isAdministrativeLoginRole } = require('@/modules/shared/roles');
-const { buildDateRangeMessage } = require('@/modules/shared/dateUtils');
+const {
+  buildDateRangeMessage,
+  getCurrentOperationalDateOnly,
+} = require('@/modules/shared/dateUtils');
 const {
   normalizeAttachmentVisibility,
   ensureUploadedFile,
@@ -272,7 +275,7 @@ const buildFollowUpNoteEntry = ({ actor, note, status = null, kind = 'follow_up'
 
 const normalizeDateOnly = (value, field = 'date') => {
   if (!value) {
-    return normalizeUtcDateOnly(new Date(), field);
+    return normalizeUtcDateOnly(getCurrentOperationalDateOnly(), field);
   }
 
   return normalizeUtcDateOnly(value, field);
@@ -333,7 +336,7 @@ const getOutstandingAmount = (row) => roundCurrency((row.remainingPrincipal || 0
  * @param {Date} [asOfDate] - evaluation date (defaults to now).
  * @returns {{ isOverdue: boolean, daysOverdue: number, overdueInstallments: number, overdueAmount: number, lateFeeOutstanding: number }}
  */
-const deriveLoanOverdueSnapshot = (loan, asOfDate = new Date()) => {
+const deriveLoanOverdueSnapshot = (loan, asOfDate = getCurrentOperationalDateOnly()) => {
   const schedule = Array.isArray(loan?.emiSchedule) ? loan.emiSchedule : [];
   let overdueInstallments = 0;
   let daysOverdue = 0;
@@ -378,7 +381,7 @@ const deriveLoanOverdueSnapshot = (loan, asOfDate = new Date()) => {
  * @param {Date} [asOfDate]
  * @returns {object}
  */
-const attachLoanOverdueSnapshot = (loan, asOfDate = new Date()) => {
+const attachLoanOverdueSnapshot = (loan, asOfDate = getCurrentOperationalDateOnly()) => {
   if (!loan || typeof loan !== 'object') {
     return loan;
   }
@@ -398,7 +401,12 @@ const getNextPayableInstallmentNumber = (schedule) => {
   return row ? Number(row.installmentNumber) : null;
 };
 
-const buildInstallmentQuote = ({ loan, schedule, installmentNumber, asOfDate = new Date() }) => {
+const buildInstallmentQuote = ({
+  loan,
+  schedule,
+  installmentNumber,
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const targetInstallmentNumber = Number(installmentNumber);
   if (!Number.isInteger(targetInstallmentNumber) || targetInstallmentNumber <= 0) {
     throw new ValidationError('El número de cuota debe ser un entero positivo');
@@ -478,7 +486,12 @@ const formatCalendarEntryStatus = ({ row, isOverdue, outstandingAmount }) => {
   return 'pending';
 };
 
-const buildCalendarEntries = ({ loan, schedule, alerts, asOfDate = new Date() }) => {
+const buildCalendarEntries = ({
+  loan,
+  schedule,
+  alerts,
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const alertByInstallment = new Map(
     alerts
       .map((alert) => [Number(alert.installmentNumber), alert]),
@@ -1298,14 +1311,20 @@ const createListLoanAlerts = ({ alertRepository, loanAccessPolicy, loanViewServi
   return alertRepository.listByLoan(loan.id);
 };
 
-const createGetPaymentCalendar = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
+const createGetPaymentCalendar = ({
+  alertRepository,
+  loanAccessPolicy,
+  loanViewService,
+  clock = () => new Date(),
+}) => async ({ actor, loanId, asOfDate }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
   const alerts = await alertRepository.listByLoan(loan.id);
+  const effectiveAsOfDate = asOfDate || getCurrentOperationalDateOnly(clock());
 
   return {
     loanId: loan.id,
-    entries: buildCalendarEntries({ loan, schedule, alerts, asOfDate: asOfDate || new Date() }),
+    entries: buildCalendarEntries({ loan, schedule, alerts, asOfDate: effectiveAsOfDate }),
     snapshot,
     alerts,
   };
@@ -1316,6 +1335,7 @@ const createGetPaymentCalendarOverview = ({
   loanAccessPolicy,
   loanViewService,
   loanRepository,
+  clock = () => new Date(),
 }) => async ({
   actor,
   loanIds,
@@ -1324,7 +1344,7 @@ const createGetPaymentCalendarOverview = ({
 }) => {
   const parsedFilters = parseCalendarOverviewFilters(filters);
   assertCalendarOverviewDateRange(parsedFilters);
-  const effectiveAsOfDate = asOfDate || new Date();
+  const effectiveAsOfDate = asOfDate || getCurrentOperationalDateOnly(clock());
   const { normalizedLoanIds, loans } = await resolveCalendarOverviewLoans({
     actor,
     loanIds,
@@ -1366,7 +1386,11 @@ const createGetPaymentCalendarOverview = ({
   });
 };
 
-const createGetInstallmentQuote = ({ loanAccessPolicy, loanViewService }) => async ({
+const createGetInstallmentQuote = ({
+  loanAccessPolicy,
+  loanViewService,
+  clock = () => new Date(),
+}) => async ({
   actor,
   loanId,
   installmentNumber,
@@ -1378,7 +1402,7 @@ const createGetInstallmentQuote = ({ loanAccessPolicy, loanViewService }) => asy
     loan,
     schedule,
     installmentNumber,
-    asOfDate: asOfDate || new Date(),
+    asOfDate: asOfDate || getCurrentOperationalDateOnly(clock()),
   });
 };
 
@@ -1755,7 +1779,7 @@ const createGetLoanStatistics = ({ loanRepository }) => async () => {
   // Overdue is derived live from the schedule (same logic as the calendar) and combined
   // with the persisted collection state, so the statistics widget agrees with the per-loan
   // list/calendar instead of relying solely on the manually-updated status columns.
-  const asOfDate = new Date();
+  const asOfDate = getCurrentOperationalDateOnly();
   const isLoanOverdue = (loan) => (
     loan.status === 'defaulted'
     || loan.recoveryStatus === 'overdue'
@@ -1803,13 +1827,17 @@ const createGetLoanStatistics = ({ loanRepository }) => async () => {
 
 /**
  * Create the use case that returns installments due on or before a specified date.
- * @param {{ loanRepository: object, alertRepository: object, loanViewService: object }} dependencies
+ * @param {{ loanRepository: object, loanViewService: object, clock?: Function }} dependencies
  * @returns {Function}
  */
-const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService }) => async ({ date }) => {
+const createGetDuePayments = ({
+  loanRepository,
+  loanViewService,
+  clock = () => new Date(),
+}) => async ({ date }) => {
   const loans = await loanRepository.list();
-  const targetDate = new Date(date);
-  const now = new Date();
+  const targetDate = normalizeDateOnly(date, 'asOfDate');
+  const now = getCurrentOperationalDateOnly(clock());
   const duePayments = [];
 
   for (const loan of loans) {
@@ -1818,14 +1846,13 @@ const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService
     }
 
     const { schedule } = loanViewService.getCanonicalLoanView(loan);
-    const alerts = await alertRepository.listByLoan(loan.id);
 
     for (const installment of schedule) {
       if (installment.status === 'annulled') {
         continue;
       }
 
-      const installmentDate = new Date(installment.dueDate);
+      const installmentDate = normalizeDateOnly(installment.dueDate, 'Schedule due date');
       if (installmentDate > targetDate) {
         continue;
       }
@@ -1835,8 +1862,7 @@ const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService
         continue;
       }
 
-      const alert = alerts.find((a) => Number(a.installmentNumber) === Number(installment.installmentNumber));
-      const isOverdue = Boolean(alert) || installmentDate < now;
+      const isOverdue = installmentDate < now;
       const daysOverdue = isOverdue
         ? Math.floor((now.getTime() - installmentDate.getTime()) / (1000 * 60 * 60 * 24))
         : 0;

@@ -327,5 +327,44 @@ test('createExportAssociateFinancialSummary keeps csv exports focused on recorde
   assert.match(exportFile.buffer.toString('utf8'), /Pago manual de rentabilidad,2,,150,,,Pago manual de rentabilidad,/);
   assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,1,,200,2026-03-02,Pagado/);
   assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,2,,250,2026-04-01,Vencido/);
-  assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,2,,250,2026-04-01,Vencido/);
+});
+
+test('createExportAssociateFinancialSummary keeps due-today interest pending during the Bogotá operational day', async () => {
+  const exportAssociateFinancialSummary = createExportAssociateFinancialSummary({
+    clock: () => new Date('2026-04-02T02:30:00.000Z'),
+    associateRepository: {
+      async findById(id) {
+        return {
+          id,
+          name: 'Socio frontera horaria',
+          status: 'active',
+          interestType: 'annual',
+          interestRate: '12.0000',
+        };
+      },
+      async listContributionsByAssociate() {
+        return [];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [{
+          id: 4,
+          installmentNumber: 2,
+          amount: 250,
+          dueDate: '2026-04-01',
+          status: 'pending',
+        }];
+      },
+    },
+  });
+
+  const exportFile = await exportAssociateFinancialSummary({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    format: 'csv',
+  });
+
+  assert.match(exportFile.buffer.toString('utf8'), /Cronograma de intereses,2,,250,2026-04-01,Pendiente/);
 });

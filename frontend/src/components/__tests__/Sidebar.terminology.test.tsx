@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import Sidebar from '../Sidebar';
 
 const mockClearSession = vi.fn();
@@ -341,7 +341,9 @@ describe('Sidebar canonical terminology parity', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+    });
 
     expect(mockRequestLogout).toHaveBeenCalledWith({
       accessToken: 'access-token-before-clear',

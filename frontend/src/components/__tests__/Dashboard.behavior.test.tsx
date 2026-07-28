@@ -169,4 +169,22 @@ describe('Dashboard behavior', () => {
     expect(screen.getByRole('heading', { name: 'No se pudo cargar el dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
   });
+
+  it('shows an empty trend state instead of a meaningless zero-only chart', () => {
+    reportsState = {
+      ...reportsState,
+      dashboardData: {
+        ...reportsState.dashboardData,
+        trend: [
+          { month: '2026-06', disbursed: 0, recovered: 0 },
+          { month: '2026-07', disbursed: 0, recovered: 0 },
+        ],
+      },
+    };
+
+    renderDashboard();
+
+    expect(screen.getByRole('heading', { name: 'Aún no hay movimientos mensuales para comparar.' })).toBeInTheDocument();
+    expect(screen.queryByTestId('bar-series')).not.toBeInTheDocument();
+  });
 });

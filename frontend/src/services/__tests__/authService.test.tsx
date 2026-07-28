@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../api/client';
@@ -50,11 +50,13 @@ describe('authService', () => {
   });
 
   afterEach(() => {
-    useSessionStore.setState({
-      accessToken: null,
-      refreshToken: null,
-      user: null,
-      hasHydrated: true,
+    act(() => {
+      useSessionStore.setState({
+        accessToken: null,
+        refreshToken: null,
+        user: null,
+        hasHydrated: true,
+      });
     });
   });
 
@@ -121,9 +123,11 @@ describe('authService', () => {
       expect(result.current.profile?.name).toBe('QA Admin');
     });
 
-    await result.current.updateProfile.mutateAsync({
-      name: 'QA Admin Actualizado',
-      email: qaUser.email,
+    await act(async () => {
+      await result.current.updateProfile.mutateAsync({
+        name: 'QA Admin Actualizado',
+        email: qaUser.email,
+      });
     });
 
     expect(useSessionStore.getState().user?.name).toBe('QA Admin Actualizado');

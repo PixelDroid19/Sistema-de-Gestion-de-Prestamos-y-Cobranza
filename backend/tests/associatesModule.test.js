@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
+const AssociateInstallment = require('@/models/AssociateInstallment');
 const {
   createListAssociates,
   createCreateAssociate,
@@ -1391,9 +1392,81 @@ test('createGetAssociateInstallments separates overdue installments from pending
   assert.equal(result.totals.totalPaid, 50);
 });
 
+test('createGetAssociateInstallments keeps a Bogotá due-date installment pending for the entire operational day', async () => {
+  const statusUpdates = [];
+  const getInstallments = createGetAssociateInstallments({
+    clock: () => new Date('2026-07-28T02:30:00.000Z'),
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        return [
+          {
+            id: 1,
+            installmentNumber: 1,
+            amount: 20000,
+            dueDate: new Date('2026-07-27T00:00:00.000Z'),
+            status: 'pending',
+            paidAt: null,
+            paidBy: null,
+            paidByUser: null,
+          },
+        ];
+      },
+      async findById() {
+        return { id: 12, name: 'Socio Bogotá' };
+      },
+      async updateInstallmentStatus(...args) {
+        statusUpdates.push(args);
+      },
+    },
+  });
+
+  const result = await getInstallments({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.equal(result.installments[0].status, 'pending');
+  assert.equal(result.installments[0].amount, 20000);
+  assert.equal(result.totals.totalPending, 20000);
+  assert.deepEqual(statusUpdates, []);
+});
+
+test('createGetAssociateInstallments preserves Sequelize installment values when marking them overdue', async () => {
+  const persistedInstallment = AssociateInstallment.build({
+    id: 9,
+    associateId: 12,
+    installmentNumber: 3,
+    amount: 20000,
+    dueDate: new Date('2026-07-26T00:00:00.000Z'),
+    status: 'pending',
+    paidAt: null,
+    paidBy: null,
+  }, { isNewRecord: false });
+
+  const getInstallments = createGetAssociateInstallments({
+    clock: () => new Date('2026-07-28T12:00:00.000Z'),
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        return [persistedInstallment];
+      },
+      async findById() {
+        return { id: 12, name: 'Socio persistido' };
+      },
+      async updateInstallmentStatus() {
+        return [1];
+      },
+    },
+  });
+
+  const result = await getInstallments({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.equal(result.installments[0].id, 9);
+  assert.equal(result.installments[0].installmentNumber, 3);
+  assert.equal(result.installments[0].amount, 20000);
+  assert.equal(result.installments[0].status, 'overdue');
+  assert.equal(result.totals.totalOverdue, 20000);
+});
+
 test('createGetAssociateInstallments returns alerts for overdue and upcoming associate payments', async () => {
   const getInstallments = createGetAssociateInstallments({
-    clock: () => new Date('2026-05-10T00:00:00.000Z'),
+    clock: () => new Date('2026-05-10T12:00:00.000Z'),
     associateRepository: {
       async findInstallmentsByAssociateId() {
         return [

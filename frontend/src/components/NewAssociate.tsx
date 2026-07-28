@@ -14,7 +14,6 @@ import {
   parseFirstPaymentTerms,
   type AssociateInterestType,
 } from '../lib/associateCreationTerms';
-import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
 import {
   ActionButton,
@@ -52,7 +51,17 @@ type AssociateMutationPayload = {
   initialCapital?: string;
 };
 
-type AssociateFormErrors = Partial<Record<'initialCapital' | 'interestRate' | 'firstPaymentDate', string>>;
+type AssociateFormErrorField = 'name' | 'email' | 'phone' | 'initialCapital' | 'interestRate' | 'firstPaymentDate';
+type AssociateFormErrors = Partial<Record<AssociateFormErrorField, string>>;
+
+const ASSOCIATE_FORM_FIELD_IDS: Record<AssociateFormErrorField, string> = {
+  name: 'new-associate-name',
+  email: 'new-associate-email',
+  phone: 'new-associate-phone',
+  initialCapital: 'new-associate-initial-capital',
+  interestRate: 'new-associate-interest-rate',
+  firstPaymentDate: 'new-associate-first-payment',
+};
 
 interface NewAssociateProps {
   onBack: () => void;
@@ -150,17 +159,20 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
   const handleSubmit = async (event?: React.FormEvent) => {
     event?.preventDefault();
-    if (!formData.name.trim()) {
-      toast.error({ title: tTerm('newAssociate.validation.nameRequired') });
-      return;
-    }
-
-    if (!formData.email.trim() || !formData.phone.trim()) {
-      toast.error({ title: tTerm('newAssociate.validation.contactRequired') });
-      return;
-    }
-
     const nextErrors: AssociateFormErrors = {};
+
+    if (!formData.name.trim()) {
+      nextErrors.name = tTerm('newAssociate.validation.nameRequired');
+    }
+
+    if (!formData.email.trim()) {
+      nextErrors.email = tTerm('newAssociate.validation.emailRequired');
+    }
+
+    if (!formData.phone.trim()) {
+      nextErrors.phone = tTerm('newAssociate.validation.phoneRequired');
+    }
+
     const initialCapital = parsePositiveMoneyInput(formData.initialCapital);
     if (!isEditing && initialCapital === null) {
       nextErrors.initialCapital = tTerm('newAssociate.validation.initialCapitalRequired');
@@ -177,6 +189,11 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0 || !paymentTerms) {
+      const firstInvalidField = (Object.keys(ASSOCIATE_FORM_FIELD_IDS) as AssociateFormErrorField[])
+        .find((field) => Boolean(nextErrors[field]));
+      if (firstInvalidField) {
+        document.getElementById(ASSOCIATE_FORM_FIELD_IDS[firstInvalidField])?.focus();
+      }
       return;
     }
 
@@ -234,20 +251,24 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
         <div className="associate-form__section">
           <h3 className="text-base font-semibold text-text-primary">{tTerm('newAssociate.section.person')}</h3>
           <div className={`associate-contact-grid ${isEditing ? 'associate-contact-grid--editing' : ''}`}>
-            <FormField label={tTerm('newAssociate.field.name')}>
+            <FormField label={tTerm('newAssociate.field.name')} error={fieldErrors.name}>
               <AppInput
                 id="new-associate-name"
                 variant="text"
                 trimText
                 maxLength={120}
                 value={formData.name}
-                onValueChange={(value) => setFormData((current) => ({ ...current, name: value }))}
+                onValueChange={(value) => {
+                  setFormData((current) => ({ ...current, name: value }));
+                  clearFieldError('name');
+                }}
                 placeholder={tTerm('newAssociate.placeholder.name')}
                 required
+                invalid={Boolean(fieldErrors.name)}
               />
             </FormField>
 
-            <FormField label={tTerm('newAssociate.field.email')}>
+            <FormField label={tTerm('newAssociate.field.email')} error={fieldErrors.email}>
               <AppInput
                 id="new-associate-email"
                 variant="text"
@@ -255,22 +276,30 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                 trimText
                 maxLength={160}
                 value={formData.email}
-                onValueChange={(value) => setFormData((current) => ({ ...current, email: value }))}
+                onValueChange={(value) => {
+                  setFormData((current) => ({ ...current, email: value }));
+                  clearFieldError('email');
+                }}
                 placeholder={tTerm('newAssociate.placeholder.email')}
                 required
+                invalid={Boolean(fieldErrors.email)}
               />
             </FormField>
 
-            <FormField label={tTerm('newAssociate.field.phone')}>
+            <FormField label={tTerm('newAssociate.field.phone')} error={fieldErrors.phone}>
               <AppInput
                 id="new-associate-phone"
                 variant="text"
                 inputMode="tel"
                 maxLength={40}
                 value={formData.phone}
-                onValueChange={(value) => setFormData((current) => ({ ...current, phone: value }))}
+                onValueChange={(value) => {
+                  setFormData((current) => ({ ...current, phone: value }));
+                  clearFieldError('phone');
+                }}
                 placeholder={tTerm('newAssociate.placeholder.phone')}
                 required
+                invalid={Boolean(fieldErrors.phone)}
               />
             </FormField>
 

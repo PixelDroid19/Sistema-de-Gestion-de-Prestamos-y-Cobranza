@@ -2,6 +2,7 @@ const { ValidationError } = require('@/utils/errorHandler');
 
 const MIN_OPERATIONAL_YEAR = 1900;
 const MAX_OPERATIONAL_YEAR = 2199;
+const OPERATIONAL_TIME_ZONE = 'America/Bogota';
 const DATE_ONLY_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
 const ISO_OPERATIONAL_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:[T\s][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]{1,3})?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?$/;
 
@@ -61,6 +62,17 @@ const buildUtcDateOnly = ({ year, month, day }, field) => {
 
   assertOperationalYear(date, field);
   return date;
+};
+
+const getCurrentOperationalDateOnly = (now = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: OPERATIONAL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
 };
 
 const normalizeDateOnly = (value, field = 'date') => {
@@ -171,6 +183,7 @@ module.exports = {
   MAX_OPERATIONAL_YEAR,
   MIN_OPERATIONAL_YEAR,
   buildDateFormatMessage,
+  getCurrentOperationalDateOnly,
   isValidDateOnly,
   isValidOptionalOperationalDate,
   buildDateRangeMessage,

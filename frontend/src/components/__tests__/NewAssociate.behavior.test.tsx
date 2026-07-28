@@ -167,6 +167,24 @@ describe('NewAssociate behavior', () => {
     expect(runSubmitMock).not.toHaveBeenCalled();
   });
 
+  it('shows every missing required field in one pass and focuses the first error', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+
+    expect(screen.getByText('El nombre es requerido')).toBeInTheDocument();
+    expect(screen.getByText('Ingresa el correo electrónico.')).toBeInTheDocument();
+    expect(screen.getByText('Ingresa el teléfono.')).toBeInTheDocument();
+    expect(screen.getByText('Ingresa el capital inicial aportado.')).toBeInTheDocument();
+    expect(screen.getByText('La tasa pactada debe ser mayor que 0% y no superar 100%.')).toBeInTheDocument();
+    expect(container.querySelector('#new-associate-name')).toHaveFocus();
+    expect(container.querySelector('#new-associate-name')).toHaveAttribute('aria-invalid', 'true');
+    expect(container.querySelector('#new-associate-email')).toHaveAttribute('aria-invalid', 'true');
+    expect(container.querySelector('#new-associate-phone')).toHaveAttribute('aria-invalid', 'true');
+    expect(runSubmitMock).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it('submits only the fields supported by the current associate contract', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 

@@ -1,6 +1,9 @@
 const { roundCurrency } = require('./creditFormulaHelpers');
 const { BusinessRuleViolationError } = require('@/utils/errorHandler');
-const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
+const {
+  getCurrentOperationalDateOnly,
+  normalizeDateOnly,
+} = require('@/modules/shared/dateUtils');
 
 const PAYABLE_LOAN_STATUSES = new Set(['pending', 'approved', 'active', 'defaulted', 'overdue']);
 
@@ -52,7 +55,10 @@ const isOpenInstallment = (row = {}) => (
   && getInstallmentOutstanding(row) > 0.01
 );
 
-const hasOverdueUnpaidInstallments = ({ schedule = [], asOfDate = new Date() }) => {
+const hasOverdueUnpaidInstallments = ({
+  schedule = [],
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const normalizedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
 
   return schedule.some((row) => (
@@ -61,7 +67,10 @@ const hasOverdueUnpaidInstallments = ({ schedule = [], asOfDate = new Date() }) 
   ));
 };
 
-const findCurrentUnpaidInstallment = ({ schedule = [], asOfDate = new Date() }) => {
+const findCurrentUnpaidInstallment = ({
+  schedule = [],
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const normalizedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
   const payableRows = schedule
     .filter((row) => String(row?.status || '').toLowerCase() !== 'annulled')
@@ -119,7 +128,12 @@ const hasFirstInstallmentPaid = (schedule = []) => {
   return Boolean(firstInstallment && isPaidInstallment(firstInstallment));
 };
 
-const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDate = new Date() }) => {
+const evaluatePayoffEligibility = ({
+  loan,
+  schedule = [],
+  snapshot = {},
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const denialReasons = [];
   const outstandingBalance = buildOutstandingBalance(snapshot);
   const financialBlock = normalizeFinancialBlock(loan);
@@ -160,7 +174,12 @@ const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDat
   };
 };
 
-const evaluateCapitalPaymentEligibility = ({ loan, schedule = [], snapshot = {}, asOfDate = new Date() }) => {
+const evaluateCapitalPaymentEligibility = ({
+  loan,
+  schedule = [],
+  snapshot = {},
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const denialReasons = [];
   const outstandingBalance = buildOutstandingBalance(snapshot);
   const outstandingPrincipal = buildOutstandingPrincipal({ snapshot, loan });

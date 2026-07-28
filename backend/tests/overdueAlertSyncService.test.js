@@ -95,6 +95,67 @@ test('scheduler overdue sync stays idempotent across repeated runs', async () =>
   assert.equal(secondRun.results[0].alertCount, 1);
 });
 
+test('overdue sync does not create an alert on the Bogotá due date', async () => {
+  const loanAlertModel = createAlertModelDouble();
+  const { alertRepository } = createCreditsInfrastructure({
+    clock: () => new Date('2026-04-02T02:30:00.000Z'),
+    loanAlertModel,
+    loanModel: {},
+    customerModel: {},
+    associateModel: {},
+    userModel: {},
+    documentAttachmentModel: {},
+    promiseToPayModel: {},
+    paymentModel: {},
+    notifications: {},
+    attachmentStorage: {},
+  });
+
+  const alerts = await alertRepository.syncOverdueInstallmentAlerts({
+    loan: { id: 22, status: 'active' },
+    schedule: [{
+      installmentNumber: 1,
+      dueDate: '2026-04-01T00:00:00.000Z',
+      remainingPrincipal: 100,
+      remainingInterest: 20,
+      scheduledPayment: 120,
+    }],
+  });
+
+  assert.equal(alerts.length, 0);
+});
+
+test('overdue sync ignores annulled installments even when legacy balances remain', async () => {
+  const loanAlertModel = createAlertModelDouble();
+  const { alertRepository } = createCreditsInfrastructure({
+    clock: () => new Date('2026-04-05T12:00:00.000Z'),
+    loanAlertModel,
+    loanModel: {},
+    customerModel: {},
+    associateModel: {},
+    userModel: {},
+    documentAttachmentModel: {},
+    promiseToPayModel: {},
+    paymentModel: {},
+    notifications: {},
+    attachmentStorage: {},
+  });
+
+  const alerts = await alertRepository.syncOverdueInstallmentAlerts({
+    loan: { id: 22, status: 'active' },
+    schedule: [{
+      installmentNumber: 1,
+      dueDate: '2026-04-01T00:00:00.000Z',
+      remainingPrincipal: 100,
+      remainingInterest: 20,
+      scheduledPayment: 120,
+      status: 'annulled',
+    }],
+  });
+
+  assert.equal(alerts.length, 0);
+});
+
 test('createCreditsInfrastructure builds overdue-sync loan queries with Sequelize operators', async () => {
   let receivedQuery = null;
   const { loanRepository } = createCreditsInfrastructure({

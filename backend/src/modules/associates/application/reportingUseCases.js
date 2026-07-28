@@ -1,6 +1,9 @@
 const { buildReportPdf } = require('@/modules/shared/pdfReport');
 const { NotFoundError } = require('@/utils/errorHandler');
-const { toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
+const {
+  getCurrentOperationalDateOnly,
+  toOperationalDateOrNull,
+} = require('@/modules/shared/dateUtils');
 const {
   ensureAdmin,
   formatDisplayMoney,
@@ -287,7 +290,7 @@ const formatInterestType = (value) => (value === 'annual' ? 'Anual' : 'Mensual')
 
 const formatPdfMoney = (value) => formatDisplayMoney(value);
 
-const isOverdueInterestInstallment = (installment, asOfDate = new Date()) => {
+const isOverdueInterestInstallment = (installment, asOfDate = getCurrentOperationalDateOnly()) => {
   if (installment?.status === 'overdue') {
     return true;
   }
@@ -300,7 +303,7 @@ const isOverdueInterestInstallment = (installment, asOfDate = new Date()) => {
   return Boolean(dueDate && dueDate < asOfDate);
 };
 
-const resolveInterestInstallmentExportStatus = (installment, asOfDate = new Date()) => {
+const resolveInterestInstallmentExportStatus = (installment, asOfDate = getCurrentOperationalDateOnly()) => {
   if (installment?.status === 'paid') {
     return 'paid';
   }
@@ -428,8 +431,12 @@ const buildAssociateSheets = (rows) => {
   ];
 };
 
-const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor, filters = {} }) => {
+const createExportAssociatesExcel = ({
+  associateRepository,
+  clock = () => new Date(),
+}) => async ({ actor, filters = {} }) => {
   ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden exportar información de socios.');
+  const asOfDate = getCurrentOperationalDateOnly(clock());
   const associateIdFilter = normalizeAssociateFilterId(filters.associateId);
   const searchFilter = normalizeAssociateSearchFilter(filters.search);
   const statusFilter = normalizeAssociateStatusFilter(filters.status);
@@ -531,7 +538,7 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
       });
 
       const interestRows = filteredInstallments.map((installment) => {
-        const operationalStatus = resolveInterestInstallmentExportStatus(installment);
+        const operationalStatus = resolveInterestInstallmentExportStatus(installment, asOfDate);
         return {
           associateId: associate.id,
           associateName: associate.name,
@@ -582,8 +589,11 @@ const createExportAssociatesExcel = ({ associateRepository }) => async ({ actor,
   };
 };
 
-const createExportAssociatesPdf = ({ associateRepository }) => async ({ actor, filters = {} }) => {
-  const exportData = await createExportAssociatesExcel({ associateRepository })({ actor, filters });
+const createExportAssociatesPdf = ({
+  associateRepository,
+  clock = () => new Date(),
+}) => async ({ actor, filters = {} }) => {
+  const exportData = await createExportAssociatesExcel({ associateRepository, clock })({ actor, filters });
   const rows = exportData.data?.rows || [];
   const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
   const contributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.contribution);
@@ -648,8 +658,11 @@ const createExportAssociatesPdf = ({ associateRepository }) => async ({ actor, f
   };
 };
 
-const createGetAssociateMovementsReport = ({ associateRepository }) => async ({ actor, filters = {} }) => {
-  const exportData = await createExportAssociatesExcel({ associateRepository })({ actor, filters });
+const createGetAssociateMovementsReport = ({
+  associateRepository,
+  clock = () => new Date(),
+}) => async ({ actor, filters = {} }) => {
+  const exportData = await createExportAssociatesExcel({ associateRepository, clock })({ actor, filters });
   const movementTypeBySection = {
     [ASSOCIATE_EXPORT_SECTIONS.contribution]: 'contribution',
     [ASSOCIATE_EXPORT_SECTIONS.distribution]: 'manual_profitability',
@@ -755,8 +768,12 @@ const createGetAssociateFinancialSummary = ({ associateRepository }) => async ({
   };
 };
 
-const createExportAssociateFinancialSummary = ({ associateRepository }) => async ({ actor, associateId, format = 'xlsx' }) => {
+const createExportAssociateFinancialSummary = ({
+  associateRepository,
+  clock = () => new Date(),
+}) => async ({ actor, associateId, format = 'xlsx' }) => {
   const report = await createGetAssociateFinancialSummary({ associateRepository })({ actor, associateId });
+  const asOfDate = getCurrentOperationalDateOnly(clock());
   const contributions = Array.isArray(report.data?.contributions) ? report.data.contributions : [];
   const distributions = Array.isArray(report.data?.distributions) ? report.data.distributions : [];
   const installments = Array.isArray(report.data?.installments) ? report.data.installments : [];
@@ -783,7 +800,7 @@ const createExportAssociateFinancialSummary = ({ associateRepository }) => async
   const capitalReturnRows = distributionRows.filter((row) => row.distributionType === 'Devolución de capital');
   const reinvestmentRows = distributionRows.filter((row) => row.distributionType === 'Reinversión');
   const installmentRows = (installments || []).map((entry) => {
-    const operationalStatus = resolveInterestInstallmentExportStatus(entry);
+    const operationalStatus = resolveInterestInstallmentExportStatus(entry, asOfDate);
     return {
       installmentNumber: entry.installmentNumber,
       amount: entry.amount,

@@ -20,6 +20,10 @@ const {
 } = require('./reportInternals');
 const { MONEY_FORMAT } = require('./excelExportFormats');
 const { formatOperationalStatus, formatPaymentType } = require('./reportLabels');
+const {
+  getCurrentOperationalDateOnly,
+  toDateOnlyOrNull,
+} = require('@/modules/shared/dateUtils');
 
 const createGetOutstandingLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
   ensureAdmin(actor);
@@ -86,16 +90,21 @@ const isInstallmentPaid = (row = {}) => (
   || (toFiniteNumber(row.paidTotal) > 0 && getInstallmentOutstanding(row) <= 0.01)
 );
 
-const isInstallmentOverdue = (row = {}, now = new Date()) => {
+const isInstallmentOverdue = (row = {}, now = getCurrentOperationalDateOnly()) => {
   if (isInstallmentPaid(row)) return false;
   if (row.status === 'overdue') return true;
   if (!row.dueDate) return false;
 
-  const dueDate = new Date(row.dueDate);
-  return Number.isFinite(dueDate.getTime()) && dueDate < now;
+  const dueDate = toDateOnlyOrNull(row.dueDate);
+  const asOfDate = toDateOnlyOrNull(now);
+  return Boolean(dueDate && asOfDate && dueDate < asOfDate);
 };
 
-const countInstallmentsByStatus = ({ loans = [], activeAlerts = [], now = new Date() }) => {
+const countInstallmentsByStatus = ({
+  loans = [],
+  activeAlerts = [],
+  now = getCurrentOperationalDateOnly(),
+}) => {
   let pendingInstallments = 0;
   let overdueInstallments = 0;
   let hasScheduleEvidence = false;
@@ -162,9 +171,16 @@ const buildDashboardCashTrend = ({ base = [], dashboard = {} }) => {
     .sort((left, right) => left.month.localeCompare(right.month));
 };
 
-const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
+const createGetDashboardSummary = ({
+  reportRepository,
+  paymentRepository,
+  loanViewService,
+  clock = () => new Date(),
+}) => async ({ actor }) => {
   ensureAdmin(actor);
 
+  const operationalDate = getCurrentOperationalDateOnly(clock());
+  const operationalDateString = operationalDate.toISOString().slice(0, 10);
   const dashboard = await reportRepository.getDashboardSummary();
   const monthlyPerformance = buildMonthlyPerformanceSeries({
     loans: dashboard.loans || [],
@@ -174,6 +190,7 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     loans: dashboard.loans || [],
     paymentRepository,
     loanViewService,
+    asOfDate: operationalDate,
   });
   const cashTrend = buildDashboardCashTrend({ base: monthlyPerformance, dashboard });
 
@@ -203,11 +220,10 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     .filter((installment) => ['pending', 'overdue'].includes(installment.status));
   const associateLiabilities = openAssociateObligations
     .reduce((sum, installment) => sum + toFiniteNumber(installment.amount), 0);
-  const now = new Date();
   const overdueAssociateObligations = openAssociateObligations.filter((installment) => {
     if (installment.status === 'overdue') return true;
-    const dueDate = new Date(installment.dueDate);
-    return Number.isFinite(dueDate.getTime()) && dueDate < now;
+    const dueDate = toDateOnlyOrNull(installment.dueDate);
+    return Boolean(dueDate && dueDate < operationalDateString);
   });
   // Delinquency is derived live from the canonical schedule (consistent with the
   // credits list/calendar and profitability), not from stale active-alert rows.
@@ -215,6 +231,7 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
   const installmentStatus = countInstallmentsByStatus({
     loans: loansWithDetails,
     activeAlerts: dashboard.alerts || [],
+    now: operationalDate,
   });
   const totalOpenPortfolioLoans = loansWithDetails.filter((loan) => (
     !['closed', 'paid'].includes(loan.status) && loan.recoveryBucket !== 'recovered'

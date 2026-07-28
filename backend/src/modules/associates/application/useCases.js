@@ -9,6 +9,7 @@ const { parsePositiveCurrencyAmount, roundCurrency, formatCurrency } = require('
 const { validateIntegerRange } = require('@/modules/shared/validators');
 const {
   buildDateRangeMessage,
+  getCurrentOperationalDateOnly,
   normalizeOperationalDate,
   normalizeOptionalOperationalDate,
   toDateOnlyOrNull,
@@ -27,16 +28,6 @@ const ASSOCIATE_CURRENCY_FIELD_LABELS = {
   initialCapital: 'El capital inicial',
 };
 
-const getCurrentLocalDateOnly = (now = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Bogota',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(now);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
-};
 const ASSOCIATE_DATE_FIELD_LABELS = {
   contributionDate: 'La fecha del aporte',
   distributionDate: 'La fecha de distribución',
@@ -242,7 +233,13 @@ const normalizeAssociateListFilters = (filters = {}) => {
   return normalized;
 };
 
-const buildAssociateTrackingRowSnapshot = ({ associate, contributions = [], distributions = [], installments = [], asOfDate = new Date() }) => {
+const buildAssociateTrackingRowSnapshot = ({
+  associate,
+  contributions = [],
+  distributions = [],
+  installments = [],
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const capitalBearingContributions = filterCapitalBearingContributions(contributions);
   const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
   const { capitalReturns, interestWithdrawals } = splitAssociateDistributions(distributions);
@@ -273,7 +270,11 @@ const buildAssociateTrackingRowSnapshot = ({ associate, contributions = [], dist
   };
 };
 
-const hydrateAssociateListFinancialSnapshot = async ({ associateRepository, associates = [], asOfDate = new Date() }) => {
+const hydrateAssociateListFinancialSnapshot = async ({
+  associateRepository,
+  associates = [],
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   if (!Array.isArray(associates) || associates.length === 0 || typeof associateRepository.getFinancialDatasetByAssociateIds !== 'function') {
     return associates;
   }
@@ -636,7 +637,7 @@ const getNextInstallmentNumber = (installments = []) => {
   return maxInstallmentNumber + 1;
 };
 
-const isAssociateInstallmentOverdue = (installment, asOfDate = new Date()) => {
+const isAssociateInstallmentOverdue = (installment, asOfDate = getCurrentOperationalDateOnly()) => {
   if (installment?.status === 'overdue') {
     return true;
   }
@@ -650,10 +651,11 @@ const isAssociateInstallmentOverdue = (installment, asOfDate = new Date()) => {
     return false;
   }
 
-  return dueDate < asOfDate;
+  const daysUntilDue = diffCalendarDaysUtc(dueDate, asOfDate);
+  return daysUntilDue !== null && daysUntilDue < 0;
 };
 
-const resolveAssociateInstallmentStatus = (installment, asOfDate = new Date()) => {
+const resolveAssociateInstallmentStatus = (installment, asOfDate = getCurrentOperationalDateOnly()) => {
   if (installment?.status === 'paid') {
     return 'paid';
   }
@@ -664,6 +666,10 @@ const resolveAssociateInstallmentStatus = (installment, asOfDate = new Date()) =
 
   return isAssociateInstallmentOverdue(installment, asOfDate) ? 'overdue' : 'pending';
 };
+
+const serializeInstallmentRecord = (installment) => (
+  typeof installment?.toJSON === 'function' ? installment.toJSON() : installment
+);
 
 const persistExpiredAssociateInstallments = async ({ associateRepository, associateId, installments, asOfDate }) => {
   if (typeof associateRepository.updateInstallmentStatus !== 'function') {
@@ -684,12 +690,12 @@ const persistExpiredAssociateInstallments = async ({ associateRepository, associ
 
   return installments.map((installment) => (
     installment.status === 'pending' && isAssociateInstallmentOverdue(installment, asOfDate)
-      ? { ...installment, status: 'overdue' }
+      ? { ...serializeInstallmentRecord(installment), status: 'overdue' }
       : installment
   ));
 };
 
-const buildAssociatePaymentAlerts = (installments, asOfDate = new Date()) => installments
+const buildAssociatePaymentAlerts = (installments, asOfDate = getCurrentOperationalDateOnly()) => installments
   .map((installment) => {
     const status = resolveAssociateInstallmentStatus(installment, asOfDate);
     if (!['pending', 'overdue'].includes(status)) {
@@ -928,7 +934,7 @@ const createCreateAssociate = ({ associateRepository, auditService, clock = () =
     const createAssociateWithFinancialTrace = async (transaction) => {
       const associate = await associateRepository.create(normalizedPayload, { transaction });
       if (initialCapital !== null) {
-        const operationDate = getCurrentLocalDateOnly(clock());
+        const operationDate = getCurrentOperationalDateOnly(clock());
         await associateRepository.createContribution({
           associateId: associate.id,
           amount: initialCapital,
@@ -1087,7 +1093,7 @@ const createListAssociateFinancialDetails = ({ associateRepository }) => async (
     associateRepository,
     associateId: associate.id,
     installments: rawInstallments,
-    asOfDate: new Date(),
+    asOfDate: getCurrentOperationalDateOnly(),
   });
 
   const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
@@ -1268,10 +1274,6 @@ const mapAssociateInterestPayment = ({ payment, associate, paymentType }) => {
   };
 };
 
-const serializeInstallmentRecord = (installment) => (
-  typeof installment?.toJSON === 'function' ? installment.toJSON() : installment
-);
-
 /**
  * Build the aggregate investor-associate tracking read model.
  * @param {{ associateRepository: object }} dependencies
@@ -1284,7 +1286,7 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
 
   const normalizedFilters = normalizeAssociateListFilters(filters);
   const dataset = await associateRepository.getTrackingDataset(normalizedFilters);
-  const asOfDate = clock();
+  const asOfDate = getCurrentOperationalDateOnly(clock());
   const contributionsByAssociate = groupRowsByAssociateId(dataset.contributions);
   const distributionsByAssociate = groupRowsByAssociateId(dataset.distributions);
   const installmentsByAssociate = groupRowsByAssociateId(dataset.installments);
@@ -1685,7 +1687,7 @@ const createGetAssociateInstallments = ({ associateRepository, clock = () => new
   await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
   const rawInstallments = await associateRepository.findInstallmentsByAssociateId(associateId);
-  const asOfDate = clock();
+  const asOfDate = getCurrentOperationalDateOnly(clock());
   const installments = await persistExpiredAssociateInstallments({
     associateRepository,
     associateId,

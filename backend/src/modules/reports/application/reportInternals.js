@@ -10,7 +10,10 @@
 
 const { formatCurrency } = require('@/modules/shared/money');
 const { buildPaginationMeta, paginateArray } = require('@/modules/shared/pagination');
-const { toDateOnlyOrNull } = require('@/modules/shared/dateUtils');
+const {
+  getCurrentOperationalDateOnly,
+  toDateOnlyOrNull,
+} = require('@/modules/shared/dateUtils');
 const { deriveLoanOverdueSnapshot } = require('@/modules/credits/application/useCases');
 const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
 const { buildCsv } = require('@/modules/reports/application/reportHelpers');
@@ -453,7 +456,12 @@ const getRecoveryBucket = ({ loan, snapshot }) => {
  * @param {{ loan: object, paymentRepository: object, loanViewService: object }} deps
  * @returns {Promise<object>}
  */
-const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService }) => {
+const buildLoanReportRecord = async ({
+  loan,
+  paymentRepository,
+  loanViewService,
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => {
   const payments = await paymentRepository.listByLoan(loan.id);
   const snapshot = loanViewService.getSnapshot(loan);
   const serializedLoan = typeof loan.toJSON === 'function' ? loan.toJSON() : loan;
@@ -462,7 +470,7 @@ const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService 
   // Live overdue snapshot derived from the canonical schedule (same source as the
   // credits list/calendar and profitability risk signals), so dashboard delinquency
   // never relies on stale alert state.
-  const derivedOverdue = deriveLoanOverdueSnapshot(serializedLoan).isOverdue;
+  const derivedOverdue = deriveLoanOverdueSnapshot(serializedLoan, asOfDate).isOverdue;
   const loanStatus = String(serializedLoan.status || '').toLowerCase();
   const recoveryStatus = String(serializedLoan.recoveryStatus || '').toLowerCase();
   const isOverdue = recoveryStatus !== 'recovered'
@@ -487,8 +495,18 @@ const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService 
   };
 };
 
-const buildLoansWithDetails = async ({ loans, paymentRepository, loanViewService }) => Promise.all(
-  loans.map((loan) => buildLoanReportRecord({ loan, paymentRepository, loanViewService })),
+const buildLoansWithDetails = async ({
+  loans,
+  paymentRepository,
+  loanViewService,
+  asOfDate = getCurrentOperationalDateOnly(),
+}) => Promise.all(
+  loans.map((loan) => buildLoanReportRecord({
+    loan,
+    paymentRepository,
+    loanViewService,
+    asOfDate,
+  })),
 );
 
 // ─── Pagination ─────────────────────────────────────────────────────────────

@@ -22,6 +22,10 @@ const {
   resolveDocumentDownload,
   validateAttachmentFileSignature,
 } = require('@/modules/shared/documentOperations');
+const {
+  getCurrentOperationalDateOnly,
+  normalizeOperationalDate,
+} = require('@/modules/shared/dateUtils');
 
 const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
 const PAYMENT_METHOD_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -122,15 +126,14 @@ const resolveMetadataInput = (payload = {}) => {
 
 const resolvePaymentDateInput = (paymentDate, clock) => {
   if (paymentDate === undefined || paymentDate === null || paymentDate === '') {
-    return clock();
+    return getCurrentOperationalDateOnly(clock());
   }
 
-  const resolvedDate = new Date(paymentDate);
-  if (Number.isNaN(resolvedDate.getTime())) {
+  try {
+    return normalizeOperationalDate(paymentDate, 'paymentDate');
+  } catch (_error) {
     throw new ValidationError(PAYMENT_DATE_VALID_MESSAGE);
   }
-
-  return resolvedDate;
 };
 
 const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
@@ -348,9 +351,14 @@ const createPreviewCapitalPayment = ({
   });
 };
 
-const createCalculateTotalDebt = ({ loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
+const createCalculateTotalDebt = ({
+  loanAccessPolicy,
+  loanViewService,
+  clock = () => new Date(),
+}) => async ({ actor, loanId, asOfDate }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
-  const quote = loanViewService.getPayoffQuote(loan, asOfDate || new Date().toISOString().slice(0, 10));
+  const effectiveAsOfDate = asOfDate || getCurrentOperationalDateOnly(clock()).toISOString().slice(0, 10);
+  const quote = loanViewService.getPayoffQuote(loan, effectiveAsOfDate);
 
   return {
     loanId: loan.id,
@@ -368,7 +376,7 @@ const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanV
   idempotencyKey,
 }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
-  const effectiveAsOfDate = asOfDate || new Date().toISOString().slice(0, 10);
+  const effectiveAsOfDate = asOfDate || getCurrentOperationalDateOnly(clock()).toISOString().slice(0, 10);
   const effectiveQuotedTotal = quotedTotal || loanViewService.getPayoffQuote(loan, effectiveAsOfDate).total;
 
   return paymentApplicationService.applyPayoff({

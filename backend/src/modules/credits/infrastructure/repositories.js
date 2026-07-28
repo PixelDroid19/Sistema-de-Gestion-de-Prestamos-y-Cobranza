@@ -18,6 +18,7 @@ const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
 const { roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
 const { normalizeUtcDateOnly } = require('@/modules/credits/application/loanFinancials');
+const { getCurrentOperationalDateOnly } = require('@/modules/shared/dateUtils');
 const {
   DEFAULT_CALCULATION_SCOPE_KEY,
   createProfileBackedCalculationService,
@@ -184,7 +185,7 @@ const buildLoanSearchWhere = ({ actor, filters = {} }) => {
  * Create the infrastructure ports consumed by the credits module composition seam.
  *
  *
- * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, notifications?: object, attachmentStorage?: object, configRepositoryPort?: object, policyResolverOverride?: object }} [options]
+ * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, notifications?: object, attachmentStorage?: object, configRepositoryPort?: object, policyResolverOverride?: object, clock?: Function }} [options]
  * @returns {object}
  */
 const createCreditsInfrastructure = ({
@@ -203,6 +204,7 @@ const createCreditsInfrastructure = ({
   calculationServiceOverride,
   loanCreatorOverride,
   policyResolverOverride,
+  clock = () => new Date(),
 } = {}) => {
   const loanIncludes = [
     customerModel,
@@ -436,10 +438,14 @@ const createCreditsInfrastructure = ({
         return alert.save();
       },
       async syncOverdueInstallmentAlerts({ loan, schedule }) {
-        const now = new Date();
+        const operationalDate = getCurrentOperationalDateOnly(clock());
         const overdueRows = schedule.filter((row) => {
+          if (['annulled', 'paid'].includes(String(row.status || '').toLowerCase())) {
+            return false;
+          }
           const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
-          return outstanding > 0 && new Date(row.dueDate) < now;
+          const dueDate = normalizeUtcDateOnly(row.dueDate, 'Schedule due date');
+          return outstanding > 0 && dueDate < operationalDate;
         });
 
         const existingAlerts = await loanAlertModel.findAll({ where: { loanId: loan.id } });
@@ -484,7 +490,7 @@ const createCreditsInfrastructure = ({
           .map((alert) => alert.update({
             status: 'resolved',
             outstandingAmount: 0,
-            resolvedAt: new Date(),
+            resolvedAt: clock(),
             resolutionSource: 'payment_satisfied',
           })));
 
@@ -529,7 +535,7 @@ const createCreditsInfrastructure = ({
       save(promise) {
         return promise.save();
       },
-      async expireBrokenPromises({ loanId, asOf = new Date() }) {
+      async expireBrokenPromises({ loanId, asOf = getCurrentOperationalDateOnly(clock()) }) {
         const asOfDateOnly = normalizeUtcDateOnly(asOf, 'Promise expiration date');
         const promises = await promiseToPayModel.findAll({
           where: {

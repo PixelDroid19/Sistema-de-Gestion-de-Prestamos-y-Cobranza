@@ -1121,6 +1121,52 @@ test('createGetPaymentCalendar maps schedule rows into overdue-aware entries', a
   assert.equal(listedLoanId, 22);
 });
 
+test('createGetPaymentCalendar keeps a due-today installment current during the Bogotá operational day', async () => {
+  const getPaymentCalendar = createGetPaymentCalendar({
+    clock: () => new Date('2026-04-02T02:30:00.000Z'),
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return {
+          id: 22,
+          status: 'active',
+          annualLateFeeRate: 24,
+          lateFeeMode: 'SIMPLE',
+        };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [{
+            installmentNumber: 1,
+            dueDate: '2026-04-01T00:00:00.000Z',
+            remainingPrincipal: 100,
+            remainingInterest: 20,
+            scheduledPayment: 120,
+            paidTotal: 0,
+            status: 'pending',
+          }],
+          snapshot: { outstandingBalance: 120 },
+        };
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        return [];
+      },
+    },
+  });
+
+  const calendar = await getPaymentCalendar({
+    actor: { id: 7, role: 'admin' },
+    loanId: 22,
+  });
+
+  assert.equal(calendar.entries[0].status, 'pending');
+  assert.equal(calendar.entries[0].daysOverdue, 0);
+  assert.equal(calendar.entries[0].lateFeeDue, 0);
+});
+
 test('createGetPaymentCalendar keeps annulled installments hidden from overdue alerts and zeroes outstanding amount', async () => {
   const getPaymentCalendar = createGetPaymentCalendar({
     loanAccessPolicy: {
@@ -1979,6 +2025,48 @@ test('createGetDuePayments uses a Spanish customer fallback label', async () => 
   const duePayments = await getDuePayments({ date: '2026-03-25' });
 
   assert.equal(duePayments[0].customerName, 'Cliente 44');
+});
+
+test('createGetDuePayments does not turn upcoming reminders into overdue debt', async () => {
+  const getDuePayments = createGetDuePayments({
+    clock: () => new Date('2026-08-01T02:30:00.000Z'),
+    loanRepository: {
+      async list() {
+        return [{
+          id: 22,
+          customerId: 44,
+          status: 'active',
+        }];
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        return [{
+          id: 91,
+          installmentNumber: 1,
+          alertType: 'payment_reminder',
+          status: 'active',
+        }];
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [{
+            installmentNumber: 1,
+            dueDate: '2026-08-01',
+            status: 'pending',
+            remainingPrincipal: 100,
+            remainingInterest: 20,
+          }],
+        };
+      },
+    },
+  });
+
+  const duePayments = await getDuePayments({ date: '2026-08-01' });
+
+  assert.equal(duePayments[0].daysOverdue, 0);
 });
 
 test('createCreateLoanFollowUp creates a reminder and notifies the customer', async () => {

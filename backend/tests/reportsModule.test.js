@@ -328,6 +328,72 @@ test('createGetDashboardSummary aggregates dashboard sections and propagates rep
   );
 });
 
+test('createGetDashboardSummary keeps due-today loan and associate obligations current in Bogotá', async () => {
+  const getDashboardSummary = createGetDashboardSummary({
+    clock: () => new Date('2026-04-02T02:30:00.000Z'),
+    reportRepository: {
+      async getDashboardSummary() {
+        return {
+          totalCustomers: 1,
+          loans: [{
+            id: 1,
+            status: 'active',
+            amount: 100,
+            emiSchedule: [{
+              installmentNumber: 1,
+              dueDate: '2026-04-01T00:00:00.000Z',
+              remainingPrincipal: 80,
+              remainingInterest: 20,
+            }],
+          }],
+          payments: [],
+          alerts: [],
+          promises: [],
+          notifications: [],
+          operatingExpenses: [],
+          associatePayments: [],
+          associateContributions: [],
+          associateCapitalReturns: [],
+          associateReinvestments: [],
+          associateObligations: [{
+            id: 10,
+            amount: 25,
+            status: 'pending',
+            dueDate: '2026-04-01T00:00:00.000Z',
+          }],
+        };
+      },
+    },
+    paymentRepository: {
+      async listByLoan() {
+        return [];
+      },
+    },
+    loanViewService: {
+      getSnapshot() {
+        return {
+          totalPaid: 0,
+          totalPaidPrincipal: 0,
+          totalPayable: 100,
+          totalInterest: 20,
+          totalPaidInterest: 0,
+          outstandingPrincipal: 80,
+          outstandingBalance: 100,
+          installmentAmount: 100,
+          nextInstallment: null,
+        };
+      },
+    },
+  });
+
+  const summary = await getDashboardSummary({ actor: { id: 1, role: 'admin' } });
+
+  assert.equal(summary.data.risk.delinquentLoans, 0);
+  assert.equal(summary.data.risk.overdueAssociateObligations, 0);
+  assert.equal(summary.data.context.pendingLoanInstallments, 1);
+  assert.equal(summary.data.context.overdueLoanInstallments, 0);
+});
+
 test('createGetCustomerHistory returns normalized chronological history segments', async () => {
   const getCustomerHistory = createGetCustomerHistory({
     reportRepository: {

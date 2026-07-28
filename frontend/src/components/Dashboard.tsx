@@ -62,6 +62,9 @@ export default function Dashboard() {
   const risk = dashboardData?.risk || {};
   const trend = Array.isArray(dashboardData?.trend) ? dashboardData.trend : [];
   const chartData = useMemo(() => buildDashboardMonthlyChartData(trend, locale), [trend, locale]);
+  const hasTrendActivity = useMemo(() => chartData.some((entry) => (
+    Math.abs(entry.inflows) > 0.01 || Math.abs(entry.outflows) > 0.01
+  )), [chartData]);
   const netNegative = Number(period.netResult || 0) < 0;
 
   if (isLoading) return <PageShell><EmptyState title={tTerm('dashboard.loading')} icon={<BarChart3 size={18} />} compact /></PageShell>;
@@ -120,7 +123,7 @@ export default function Dashboard() {
       </div>
 
       <SectionSurface title={tTerm('dashboard.trend.title')} subtitle={tTerm('dashboard.trend.subtitle')}>
-        {chartData.length ? (
+        {hasTrendActivity ? (
           <MeasuredChart className="h-[300px] min-w-0" minHeight={300}>
             {({ width, height }) => (
               <BarChart width={width} height={height} data={chartData} margin={{ top: 16, right: 8, left: 8, bottom: 0 }}>
