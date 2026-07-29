@@ -201,7 +201,7 @@ export function RowActionsWithOverflow({
           className={`${tableIconButtonBase} ${open ? 'border-brand-primary/40 bg-hover-bg' : ''}`}
           label={moreLabel}
           ariaExpanded={open}
-          ariaControls={menuId}
+          ariaControls={open ? menuId : undefined}
           ariaHaspopup="menu"
         >
           <MoreHorizontal size={16} />
@@ -217,7 +217,7 @@ export function RowActionsWithOverflow({
         variant="ghost"
         className={open ? 'bg-hover-bg' : ''}
         aria-expanded={open}
-        aria-controls={menuId}
+        aria-controls={open ? menuId : undefined}
         aria-haspopup="menu"
       />
     );

@@ -38,7 +38,13 @@ describe('RowActionsWithOverflow', () => {
     expect(screen.getByLabelText('Registrar pago')).toBeInTheDocument();
     expect(screen.queryByLabelText('Anular cuota')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText('Más acciones de la cuota'));
+    const overflowTrigger = screen.getByLabelText('Más acciones de la cuota');
+    expect(overflowTrigger).not.toHaveAttribute('aria-controls');
+
+    fireEvent.click(overflowTrigger);
+
+    const menu = screen.getByRole('menu');
+    expect(overflowTrigger).toHaveAttribute('aria-controls', menu.id);
 
     const annulInMenu = screen.getByRole('menuitem', { name: /Anular cuota/i });
     fireEvent.click(annulInMenu);
