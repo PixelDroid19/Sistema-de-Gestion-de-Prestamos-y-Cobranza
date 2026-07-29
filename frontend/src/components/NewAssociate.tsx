@@ -134,7 +134,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   const capitalAmount = parsePositiveMoneyInput(formData.initialCapital) ?? 0;
   const parsedRate = parsePercentageWithPrecisionInput(formData.interestRate, 4);
   const interestRate = parsedRate ?? 0;
-  const periodicReturn = calculatePeriodicReturn(capitalAmount, interestRate);
+  const periodicReturn = calculatePeriodicReturn(capitalAmount, interestRate, formData.interestType);
   const hasReturnPreview = capitalAmount > 0 && interestRate > 0;
 
   const clearFieldError = (field: keyof AssociateFormErrors) => {
@@ -152,9 +152,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
     setFormData((current) => ({
       ...current,
       interestType,
-      firstPaymentDate: getDefaultFirstPaymentDate(interestType),
     }));
-    clearFieldError('firstPaymentDate');
   };
 
   const handleSubmit = async (event?: React.FormEvent) => {
@@ -205,7 +203,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       interestType: formData.interestType,
       interestRate: String(parsedRate),
       interestPaymentDay: paymentTerms.day,
-      interestPaymentMonth: formData.interestType === 'annual' ? paymentTerms.month : '1',
+      interestPaymentMonth: paymentTerms.month,
     };
 
     if (!isEditing && initialCapital !== null) {
@@ -359,6 +357,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                   </label>
                 ))}
               </div>
+              <p className="mt-2 text-xs leading-5 text-text-secondary">{tTerm('newAssociate.field.interestTypeHint')}</p>
             </fieldset>
 
             <FormField
@@ -404,12 +403,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
           <div className="associate-return-preview" aria-live="polite" data-tour="new-associate-preview">
             <p className="associate-return-preview__value">
               {hasReturnPreview
-                ? tTerm(
-                  formData.interestType === 'annual'
-                    ? 'newAssociate.preview.returnAnnual'
-                    : 'newAssociate.preview.returnMonthly',
-                  { amount: formatCurrency(periodicReturn) },
-                )
+                ? tTerm('newAssociate.preview.returnMonthly', { amount: formatCurrency(periodicReturn) })
                 : tTerm('newAssociate.preview.pending')}
             </p>
             <p className="associate-return-preview__date">

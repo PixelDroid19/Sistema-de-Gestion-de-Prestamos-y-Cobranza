@@ -191,10 +191,10 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
             minimum: 0.01,
             description: 'Capital inicial aportado. Si se envía, el backend registra el aporte inicial y agenda el primer pago de interés.',
           },
-          interestType: { type: 'string', enum: ['monthly', 'annual'], description: 'Periodicidad de interés reconocido al socio.' },
+          interestType: { type: 'string', enum: ['monthly', 'annual'], description: 'Base de la tasa pactada. La rentabilidad se programa y paga mensualmente.' },
           interestRate: { type: 'number', minimum: 0, maximum: 100, description: 'Tasa pactada por periodo: mensual si interestType=monthly, anual si interestType=annual.' },
           interestPaymentDay: { type: 'integer', minimum: 1, maximum: 28 },
-          interestPaymentMonth: { type: 'integer', minimum: 1, maximum: 12, description: 'Mes de pago cuando el interés es anual.' },
+          interestPaymentMonth: { type: 'integer', minimum: 1, maximum: 12, description: 'Mes de referencia del primer pago; se conserva para los registros históricos y no cambia la programación mensual.' },
         },
       },
       AssociateInstallmentPaymentInput: {

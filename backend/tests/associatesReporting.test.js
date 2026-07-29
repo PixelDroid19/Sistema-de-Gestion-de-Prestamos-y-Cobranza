@@ -26,6 +26,118 @@ test('createGetAssociateMovementsReport names scheduled interest references as i
   assert.equal(report.rows[0].reference, 'Cuota #2');
 });
 
+test('createGetAssociateMovementsReport applies the monthly annual-rate projection to exports', async () => {
+  const installments = [{
+    id: 31,
+    associateId: 12,
+    installmentNumber: 1,
+    amount: 1200000,
+    dueDate: new Date('2027-01-15T00:00:00.000Z'),
+    status: 'pending',
+    capitalBase: 1200000,
+    interestRate: '12.0000',
+    interestType: 'annual',
+  }];
+  const getReport = createGetAssociateMovementsReport({
+    clock: () => new Date('2026-07-10T12:00:00.000Z'),
+    associateRepository: {
+      async list() {
+        return [{
+          id: 12,
+          name: 'Socio Reporte',
+          status: 'active',
+          interestType: 'annual',
+          interestRate: '12.0000',
+          interestPaymentDay: 15,
+        }];
+      },
+      async listContributionsByAssociate() {
+        return [{
+          id: 1,
+          amount: 1200000,
+          status: 'completed',
+          interestTypeSnapshot: 'annual',
+          interestRateSnapshot: '12.0000',
+        }];
+      },
+      async listProfitDistributionsByAssociate() { return []; },
+      async findInstallmentsByAssociateId() { return installments; },
+      async createInstallment() {
+        throw new Error('A pending installment must be reprojected, not duplicated');
+      },
+      async updateInstallmentProjection(installmentId, payload) {
+        Object.assign(installments[0], payload);
+        return installments[0];
+      },
+    },
+  });
+
+  const report = await getReport({ actor: { id: 1, role: 'admin' } });
+
+  assert.equal(report.rows.find((row) => row.movementType === 'scheduled_profitability_pending')?.amount, 12000);
+  assert.equal(report.summary.profitabilityPending, 12000);
+});
+
+test('createGetAssociateFinancialSummary reprojects legacy annual terms before reporting their monthly obligation', async () => {
+  const installments = [{
+    id: 31,
+    associateId: 12,
+    installmentNumber: 1,
+    amount: 1200000,
+    dueDate: new Date('2027-01-15T00:00:00.000Z'),
+    status: 'pending',
+    capitalBase: 1200000,
+    interestRate: '12.0000',
+    interestType: 'annual',
+  }];
+  const projectionUpdates = [];
+  const getAssociateFinancialSummary = createGetAssociateFinancialSummary({
+    clock: () => new Date('2026-07-10T12:00:00.000Z'),
+    associateRepository: {
+      async findById(id) {
+        return {
+          id,
+          name: 'Socio Mensual',
+          status: 'active',
+          interestType: 'annual',
+          interestRate: '12.0000',
+          interestPaymentDay: 15,
+        };
+      },
+      async listContributionsByAssociate() {
+        return [{
+          id: 1,
+          amount: 1200000,
+          status: 'completed',
+          interestTypeSnapshot: 'annual',
+          interestRateSnapshot: '12.0000',
+        }];
+      },
+      async listProfitDistributionsByAssociate() { return []; },
+      async findInstallmentsByAssociateId() { return installments; },
+      async createInstallment() {
+        throw new Error('A pending installment must be reprojected, not duplicated');
+      },
+      async updateInstallmentProjection(installmentId, payload) {
+        projectionUpdates.push({ installmentId, payload });
+        Object.assign(installments[0], payload);
+        return installments[0];
+      },
+    },
+  });
+
+  const report = await getAssociateFinancialSummary({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+  });
+
+  assert.equal(projectionUpdates.length, 1);
+  assert.equal(projectionUpdates[0].installmentId, 31);
+  assert.equal(report.summary.interestDebt, '12000.00');
+  assert.equal(new Date(report.summary.nextInterestPaymentDate).toISOString().slice(0, 10), '2026-07-15');
+  assert.equal(report.data.installments[0].amount, 12000);
+});
+
 test('createGetAssociateFinancialSummary rejects socio records as report users', async () => {
   const getAssociateFinancialSummary = createGetAssociateFinancialSummary({
     associateRepository: {

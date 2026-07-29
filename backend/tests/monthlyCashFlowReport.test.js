@@ -250,7 +250,7 @@ test('buildMonthlyCashFlowReport identifies who owns every accounting movement',
     {
       movementType: 'customer_payment',
       counterpartyName: 'Cliente Contable',
-      reference: 'Crédito #31 · Pago #41',
+      reference: 'Crédito #31 · Pago de cuota #41',
       inflow: '300000.00',
       outflow: '0.00',
     },
@@ -267,6 +267,40 @@ test('buildMonthlyCashFlowReport identifies who owns every accounting movement',
       reference: 'Gasto #71 · Administración',
       inflow: '0.00',
       outflow: '80000.00',
+    },
+  ]);
+});
+
+test('buildMonthlyCashFlowReport identifies the financial purpose of each customer payment', () => {
+  const loan = { id: 31, Customer: { id: 8, name: 'Cliente Contable' } };
+  const report = buildMonthlyCashFlowReport({
+    year: 2026,
+    payments: [
+      makePayment({ id: 101, loanId: 31, paymentType: 'installment', amount: 300000, paymentDate: '2026-07-24T00:00:00.000Z', Loan: loan }),
+      makePayment({ id: 102, loanId: 31, paymentType: 'capital', amount: 500000, paymentDate: '2026-07-25T00:00:00.000Z', Loan: loan }),
+      makePayment({ id: 103, loanId: 31, paymentType: 'payoff', amount: 1000000, paymentDate: '2026-07-26T00:00:00.000Z', Loan: loan }),
+    ],
+  });
+
+  assert.deepEqual(report.movements.map((movement) => ({
+    paymentType: movement.paymentType,
+    movementLabel: movement.movementLabel,
+    reference: movement.reference,
+  })), [
+    {
+      paymentType: 'installment',
+      movementLabel: 'Pago de cuota',
+      reference: 'Crédito #31 · Pago de cuota #101',
+    },
+    {
+      paymentType: 'capital',
+      movementLabel: 'Abono a capital',
+      reference: 'Crédito #31 · Abono a capital #102',
+    },
+    {
+      paymentType: 'payoff',
+      movementLabel: 'Pago total',
+      reference: 'Crédito #31 · Pago total #103',
     },
   ]);
 });

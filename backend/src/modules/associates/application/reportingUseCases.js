@@ -28,6 +28,7 @@ const {
 const {
   normalizeAssociateRecord,
   filterCapitalBearingContributions,
+  synchronizeOpenInterestInstallments,
 } = require('./useCases');
 
 // Reinvestments create both a ProfitDistribution and a matching AssociateContribution,
@@ -78,7 +79,7 @@ const SUMMARY_COLUMNS = [
 const DETAIL_COLUMNS = [
   { header: 'ID Socio', key: 'associateId', width: 12 },
   { header: 'Socio', key: 'associateName', width: 28 },
-  { header: 'Tipo de Interés', key: 'interestType', width: 18 },
+  { header: 'Tipo de tasa', key: 'interestType', width: 18 },
   { header: 'Tasa Pactada %', key: 'interestRate', width: 18, numFmt: TNA_FORMAT },
   moneyColumn('Deuda con Socio', 'interestDebt', 20),
   moneyColumn('Interés Pagado', 'totalInterestPaid', 20),
@@ -286,7 +287,8 @@ const formatAssociateDistributionType = (value) => {
   return String(value).trim();
 };
 
-const formatInterestType = (value) => (value === 'annual' ? 'Anual' : 'Mensual');
+const formatInterestType = (value) => (value === 'annual' ? 'Tasa anual' : 'Tasa mensual');
+const formatMonthlyInterestSchedule = (value) => `Rentabilidad mensual · ${formatInterestType(value).toLowerCase()}`;
 
 const formatPdfMoney = (value) => formatDisplayMoney(value);
 
@@ -459,13 +461,19 @@ const createExportAssociatesExcel = ({
         associateRepository.listProfitDistributionsByAssociate(associateId),
         associateRepository.findInstallmentsByAssociateId(associateId),
       ]);
+      const synchronizedInstallments = await synchronizeOpenInterestInstallments({
+        associateRepository,
+        associate,
+        installments,
+        asOfDate,
+      });
       const filteredContributions = contributions.filter((contribution) => (
         isWithinDateRange(contribution.contributionDate, dateRange)
       ));
       const filteredDistributions = distributions.filter((distribution) => (
         isWithinDateRange(distribution.distributionDate, dateRange)
       ));
-      const filteredInstallments = installments.filter((installment) => (
+      const filteredInstallments = synchronizedInstallments.filter((installment) => (
         isWithinDateRange(installment.status === 'paid' ? installment.paidAt : installment.dueDate, dateRange)
       ));
 
@@ -553,7 +561,7 @@ const createExportAssociatesExcel = ({
           status: formatOperationalStatus(operationalStatus),
           contributionInterestType: '',
           contributionInterestRate: '',
-          distributionType: associate.interestType === 'annual' ? 'Interés anual' : 'Interés mensual',
+          distributionType: formatMonthlyInterestSchedule(associate.interestType),
           notes: installment.notes || '',
         };
       });
@@ -707,7 +715,10 @@ const createGetAssociateMovementsReport = ({
   };
 };
 
-const createGetAssociateFinancialSummary = ({ associateRepository }) => async ({ actor, associateId = null }) => {
+const createGetAssociateFinancialSummary = ({
+  associateRepository,
+  clock = () => new Date(),
+}) => async ({ actor, associateId = null }) => {
   ensureAdmin(actor, 'Solo usuarios administrativos autorizados pueden acceder al resumen financiero de socios.');
 
   const associate = await associateRepository.findById(associateId);
@@ -733,7 +744,12 @@ const createGetAssociateFinancialSummary = ({ associateRepository }) => async ({
     .filter((item) => item.distributionType === 'capital_return')
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const currentCapital = Math.max(0, totalContributed - totalCapitalReturned);
-  const normalizedInstallments = Array.isArray(installments) ? installments : [];
+  const normalizedInstallments = await synchronizeOpenInterestInstallments({
+    associateRepository,
+    associate,
+    installments,
+    asOfDate: getCurrentOperationalDateOnly(clock()),
+  });
   const paidInstallments = normalizedInstallments.filter((installment) => installment.status === 'paid');
   const unpaidInstallments = normalizedInstallments.filter(isUnpaidInterestInstallment);
   const totalInterestPaid = paidInstallments.reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
@@ -772,7 +788,7 @@ const createExportAssociateFinancialSummary = ({
   associateRepository,
   clock = () => new Date(),
 }) => async ({ actor, associateId, format = 'xlsx' }) => {
-  const report = await createGetAssociateFinancialSummary({ associateRepository })({ actor, associateId });
+  const report = await createGetAssociateFinancialSummary({ associateRepository, clock })({ actor, associateId });
   const asOfDate = getCurrentOperationalDateOnly(clock());
   const contributions = Array.isArray(report.data?.contributions) ? report.data.contributions : [];
   const distributions = Array.isArray(report.data?.distributions) ? report.data.distributions : [];
@@ -835,7 +851,7 @@ const createExportAssociateFinancialSummary = ({
           row.amount,
           row.paidAt || row.dueDate,
           row.status,
-          report.associate?.interestType === 'annual' ? 'Interés anual' : 'Interés mensual',
+          formatMonthlyInterestSchedule(report.associate?.interestType),
           row.notes,
         ]),
       ],

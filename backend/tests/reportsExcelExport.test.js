@@ -150,7 +150,7 @@ test('export associates use case builds approved operational sheet structure', a
   assert.deepEqual(result.data.sheets[3].columns.slice(0, 7).map((column) => column.header), [
     'ID Socio',
     'Socio',
-    'Tipo de Interés',
+    'Tipo de tasa',
     'Tasa Pactada %',
     'Deuda con Socio',
     'Interés Pagado',
@@ -162,7 +162,7 @@ test('export associates use case builds approved operational sheet structure', a
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente' && row.status === 'Vencido'));
   assert.ok(result.data.rows.some((row) => row.section === 'Aporte'));
-  assert.ok(result.data.rows.some((row) => row.section === 'Aporte' && row.contributionInterestType === 'Mensual' && row.contributionInterestRate === '2.5000'));
+  assert.ok(result.data.rows.some((row) => row.section === 'Aporte' && row.contributionInterestType === 'Tasa mensual' && row.contributionInterestRate === '2.5000'));
   assert.ok(result.data.rows.some((row) => row.section === 'Pago manual de rentabilidad'));
   const manualProfitabilityRow = result.data.rows.find((row) => (
     row.section === 'Pago manual de rentabilidad' && Number(row.entryId) === 2
@@ -1596,13 +1596,13 @@ test('GET /associates/export returns xlsx file for admin', async () => {
               columns: [
                 { header: 'ID Socio', key: 'associateId' },
                 { header: 'Socio', key: 'associateName' },
-                { header: 'Tipo de Interés', key: 'interestType' },
+                { header: 'Tipo de tasa', key: 'interestType' },
                 { header: 'Deuda con Socio', key: 'interestDebt', numFmt: MONEY_FORMAT },
               ],
               rows: [{
                 associateId: 1,
                 associateName: 'Socio 1',
-                interestType: 'Mensual',
+                interestType: 'Tasa mensual',
                 interestDebt: '1000.00',
               }],
             }],
@@ -1631,7 +1631,7 @@ test('GET /associates/export returns xlsx file for admin', async () => {
   assert.deepEqual(headers.slice(1, 5), [
     'ID Socio',
     'Socio',
-    'Tipo de Interés',
+    'Tipo de tasa',
     'Deuda con Socio',
   ]);
   assert.equal(headers.includes('associateId'), false);

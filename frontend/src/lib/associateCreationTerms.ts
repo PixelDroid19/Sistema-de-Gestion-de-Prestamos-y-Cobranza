@@ -43,18 +43,14 @@ const isSupportedPaymentDay = (day: number): boolean => (
 );
 
 export const getDefaultFirstPaymentDate = (
-  interestType: AssociateInterestType,
+  _interestType: AssociateInterestType,
   today = new Date(),
 ): string => {
   const baseDate = toBogotaDateOnly(today);
   const dueDate = new Date(baseDate);
   dueDate.setUTCDate(Math.min(baseDate.getUTCDate(), 28));
 
-  if (interestType === 'annual') {
-    dueDate.setUTCFullYear(dueDate.getUTCFullYear() + 1);
-  } else {
-    dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
-  }
+  dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
 
   return formatDateOnly(dueDate);
 };
@@ -68,26 +64,15 @@ export const getFirstPaymentDateBounds = (
 });
 
 export const getNextConfiguredPaymentDate = ({
-  interestType,
   paymentDay,
-  paymentMonth,
   today = new Date(),
 }: ConfiguredPaymentTerms): string => {
   const baseDate = toBogotaDateOnly(today);
   const normalizedDay = isSupportedPaymentDay(paymentDay) ? paymentDay : 1;
-  const normalizedMonth = Number.isInteger(paymentMonth) && paymentMonth >= 1 && paymentMonth <= 12
-    ? paymentMonth
-    : 1;
-  const dueDate = interestType === 'annual'
-    ? new Date(Date.UTC(baseDate.getUTCFullYear(), normalizedMonth - 1, normalizedDay))
-    : new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), normalizedDay));
+  const dueDate = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), normalizedDay));
 
   if (dueDate.getTime() <= baseDate.getTime()) {
-    if (interestType === 'annual') {
-      dueDate.setUTCFullYear(dueDate.getUTCFullYear() + 1);
-    } else {
-      dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
-    }
+    dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
   }
 
   return formatDateOnly(dueDate);
@@ -125,10 +110,15 @@ export const isFirstPaymentDateWithinBounds = (
   return value >= min && value <= max;
 };
 
-export const calculatePeriodicReturn = (capital: number, rate: number): number => {
+export const calculatePeriodicReturn = (
+  capital: number,
+  rate: number,
+  interestType: AssociateInterestType = 'annual',
+): number => {
   if (!Number.isFinite(capital) || !Number.isFinite(rate) || capital <= 0 || rate < 0) {
     return 0;
   }
 
-  return Math.round(((capital * rate) / 100) * 100) / 100;
+  const monthlyRate = interestType === 'annual' ? rate / 12 : rate;
+  return Math.round(((capital * monthlyRate) / 100) * 100) / 100;
 };

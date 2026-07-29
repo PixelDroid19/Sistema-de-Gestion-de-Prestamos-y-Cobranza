@@ -197,12 +197,12 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
     if (paymentDay > 0) {
       return tTerm('associates.table.interestScheduleWithDay', {
-        periodicity: type,
+        rateType: type,
         day: formatNumberValue(paymentDay, { maximumFractionDigits: 0 }),
       });
     }
 
-    return tTerm('associates.table.interestSchedule', { periodicity: type });
+    return tTerm('associates.table.interestSchedule', { rateType: type });
   };
 
   const getNextPaymentLabel = (associate: any) => {

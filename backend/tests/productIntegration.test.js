@@ -596,7 +596,7 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
   response = await expectStatus({ path: `/api/associates/${associateId}/calendar-events`, token: accessToken }, 200);
   assert.ok(Array.isArray(response.body?.data?.calendar?.events));
 
-  // Annual CDT-style returns use the same nominal rate over a yearly period.
+  // Annual CDT-style rates are paid as a monthly return: annual rate / 12.
   response = await expectStatus({
     method: 'POST',
     path: '/api/associates',
@@ -619,7 +619,7 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
 
   response = await expectStatus({ path: `/api/associates/${annualAssociateId}/installments`, token: accessToken }, 200);
   const annualInstallment = response.body?.data?.installments?.installments?.[0];
-  assert.equal(Number(annualInstallment?.amount), 144000, 'La rentabilidad anual debe ser capital x tasa anual.');
+  assert.equal(Number(annualInstallment?.amount), 12000, 'La tasa anual debe liquidarse en pagos mensuales equivalentes.');
   assert.match(String(annualInstallment?.dueDate), /^2026-08-15/u);
 
   response = await expectStatus({ path: `/api/associates/${associateId}/export?format=xlsx`, token: accessToken }, 200);

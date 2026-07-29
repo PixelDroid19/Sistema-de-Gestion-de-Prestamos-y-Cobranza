@@ -250,7 +250,7 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.queryByText('0% mensual')).not.toBeInTheDocument();
-    expect(screen.getByText(/Rentabilidad No especificado/i)).toBeInTheDocument();
+    expect(screen.getByText(/Socio Uno · No especificado · Con intereses pendientes/i)).toBeInTheDocument();
   });
 
   it('keeps non-admin associate access read-only for operational actions', () => {

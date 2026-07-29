@@ -836,7 +836,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(await screen.findByText('Abono a capital no disponible. Primero paga completamente la cuota vigente antes de abonar a capital.')).toBeInTheDocument();
   });
 
-  it('sends selected installments when reducing the payment after a capital prepayment', async () => {
+  it('downloads the voucher after a capital prepayment', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockRecordCapitalPayment.mockResolvedValueOnce({ data: { payment: { id: 991 } } });
 
@@ -854,6 +854,10 @@ describe('CreditDetails behavioral parity scenarios', () => {
         strategy: 'reduce_payment',
         newTermMonths: 10,
       }));
+    });
+
+    await waitFor(() => {
+      expect(downloadVoucher).toHaveBeenCalledWith(991);
     });
   });
 
@@ -1042,6 +1046,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
   it('allows total payoff for an overdue credit and discloses the included late fee', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockExecutePayoff.mockResolvedValueOnce({ data: { payment: { id: 995 } } });
     mockLoan = {
       ...buildMockLoan(),
       status: 'overdue',
@@ -1079,6 +1084,9 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
     await waitFor(() => {
       expect(mockExecutePayoff).toHaveBeenCalledWith({ asOfDate: '2026-07-16', quotedTotal: 852410 });
+    });
+    await waitFor(() => {
+      expect(downloadVoucher).toHaveBeenCalledWith(995);
     });
     expect(screen.getByRole('button', { name: 'Abono a capital' })).toBeDisabled();
   });

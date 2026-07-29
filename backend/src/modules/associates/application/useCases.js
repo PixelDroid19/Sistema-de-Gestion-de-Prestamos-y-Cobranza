@@ -80,7 +80,7 @@ const normalizeInterestType = (value) => {
 
   const normalizedValue = String(value).trim().toLowerCase();
   if (!ALLOWED_INTEREST_TYPES.has(normalizedValue)) {
-    throw new ValidationError('El tipo de interés debe ser mensual o anual');
+    throw new ValidationError('La tasa pactada debe ser mensual o anual');
   }
 
   return normalizedValue;
@@ -295,9 +295,9 @@ const hydrateAssociateListFinancialSnapshot = async ({
 
   for (const associate of associates) {
     const associateId = Number(associate.id);
-    const installments = await persistExpiredAssociateInstallments({
+    const installments = await synchronizeOpenInterestInstallments({
       associateRepository,
-      associateId,
+      associate,
       installments: installmentsByAssociate.get(associateId) || [],
       asOfDate,
     });
@@ -378,42 +378,35 @@ const diffCalendarDaysUtc = (targetDate, baseDate) => {
   return Math.round((targetTimestamp - baseTimestamp) / DAY_IN_MS);
 };
 
-const addYearsUtc = (date, years) => new Date(Date.UTC(
-  date.getUTCFullYear() + years,
-  date.getUTCMonth(),
-  date.getUTCDate(),
-));
-
 const buildInterestDueDate = ({ associate, fromDate = new Date(), afterDate = null }) => {
-  const interestType = normalizeInterestType(associate.interestType);
   const paymentDay = normalizePaymentDay(associate.interestPaymentDay);
-  const paymentMonth = normalizePaymentMonth(associate.interestPaymentMonth);
   const baseDate = normalizeOperationalDate(afterDate || fromDate, 'interest due anchor date');
   const year = baseDate.getUTCFullYear();
   const month = baseDate.getUTCMonth();
-  let dueDate = interestType === 'annual'
-    ? new Date(Date.UTC(year, paymentMonth - 1, paymentDay))
-    : new Date(Date.UTC(year, month, paymentDay));
+  let dueDate = new Date(Date.UTC(year, month, paymentDay));
 
   if (dueDate.getTime() <= baseDate.getTime()) {
-    dueDate = interestType === 'annual' ? addYearsUtc(dueDate, 1) : addMonthsUtc(dueDate, 1);
+    dueDate = addMonthsUtc(dueDate, 1);
   }
 
   return dueDate;
 };
 
-const buildInterestPeriod = ({ interestType, dueDate }) => {
+const buildInterestPeriod = ({ dueDate }) => {
   const periodEndDate = new Date(dueDate);
-  const periodStartDate = interestType === 'annual'
-    ? addYearsUtc(periodEndDate, -1)
-    : addMonthsUtc(periodEndDate, -1);
+  const periodStartDate = addMonthsUtc(periodEndDate, -1);
 
   return { periodStartDate, periodEndDate };
 };
 
-const calculateInterestInstallmentAmount = ({ capitalBase, interestRate }) => roundCurrency(
-  Number(capitalBase || 0) * (Number(interestRate || 0) / 100),
-);
+const calculateInterestInstallmentAmount = ({ capitalBase, interestRate, interestType }) => {
+  const periodicRate = Number(interestRate || 0) / 100;
+  const monthlyRate = normalizeInterestType(interestType) === 'annual'
+    ? periodicRate / 12
+    : periodicRate;
+
+  return roundCurrency(Number(capitalBase || 0) * monthlyRate);
+};
 
 const getContributionInterestRate = ({ contribution, associate }) => normalizeInterestRate(
   contribution.interestRateSnapshot ?? associate.interestRate,
@@ -566,7 +559,11 @@ const buildInterestInstallmentBasis = ({
   if (capitalBaseOverride !== null) {
     const capitalBase = roundCurrency(capitalBaseOverride);
     const interestRate = normalizeInterestRate(associate.interestRate);
-    const amount = calculateInterestInstallmentAmount({ capitalBase, interestRate });
+    const amount = calculateInterestInstallmentAmount({
+      capitalBase,
+      interestRate,
+      interestType: associate.interestType,
+    });
 
     return {
       capitalBase,
@@ -587,13 +584,17 @@ const buildInterestInstallmentBasis = ({
     result.amount += calculateInterestInstallmentAmount({
       capitalBase: contributionAmount,
       interestRate: bucket.interestRate,
+      interestType: bucket.interestType,
     });
     return result;
   }, { capitalBase: 0, amount: 0 });
 
-  const effectiveInterestRate = basis.capitalBase > 0
-    ? ((basis.amount / basis.capitalBase) * 100).toFixed(4)
+  const effectiveMonthlyRate = basis.capitalBase > 0
+    ? (basis.amount / basis.capitalBase) * 100
     : normalizeInterestRate(associate.interestRate);
+  const effectiveInterestRate = normalizeInterestType(associate.interestType) === 'annual'
+    ? (Number(effectiveMonthlyRate) * 12).toFixed(4)
+    : Number(effectiveMonthlyRate).toFixed(4);
 
   return {
     capitalBase: roundCurrency(basis.capitalBase),
@@ -609,7 +610,7 @@ const buildInterestInstallmentPayload = ({
   dueDate,
 }) => {
   const interestType = normalizeInterestType(associate.interestType);
-  const { periodStartDate, periodEndDate } = buildInterestPeriod({ interestType, dueDate });
+  const { periodStartDate, periodEndDate } = buildInterestPeriod({ dueDate });
 
   return {
     installmentNumber,
@@ -743,11 +744,21 @@ const ensureNextInterestInstallment = async ({
   afterDate = null,
   capitalBaseOverride = null,
   excludeInstallmentNumber = null,
+  existingInstallments = null,
 }) => {
   if (typeof associateRepository.createInstallment !== 'function') {
     return null;
   }
 
+  const loadInstallments = () => {
+    if (Array.isArray(existingInstallments)) {
+      return existingInstallments;
+    }
+
+    return typeof associateRepository.findInstallmentsByAssociateId === 'function'
+      ? associateRepository.findInstallmentsByAssociateId(associate.id, { transaction })
+      : [];
+  };
   const [contributions, distributions, rawInstallments] = await Promise.all([
     typeof associateRepository.listContributionsByAssociate === 'function'
       ? associateRepository.listContributionsByAssociate(associate.id, { transaction })
@@ -755,9 +766,7 @@ const ensureNextInterestInstallment = async ({
     typeof associateRepository.listProfitDistributionsByAssociate === 'function'
       ? associateRepository.listProfitDistributionsByAssociate(associate.id, { transaction })
       : [],
-    typeof associateRepository.findInstallmentsByAssociateId === 'function'
-      ? associateRepository.findInstallmentsByAssociateId(associate.id, { transaction })
-      : [],
+    loadInstallments(),
   ]);
 
   const openInstallments = rawInstallments
@@ -785,7 +794,10 @@ const ensureNextInterestInstallment = async ({
   }
 
   if (pendingInstallment) {
-    const dueDate = toOperationalDateOrNull(pendingInstallment.dueDate) || buildInterestDueDate({ associate, fromDate, afterDate });
+    const isPendingInstallment = String(pendingInstallment.status || '').toLowerCase() === 'pending';
+    const dueDate = isPendingInstallment
+      ? buildInterestDueDate({ associate, fromDate, afterDate })
+      : (toOperationalDateOrNull(pendingInstallment.dueDate) || buildInterestDueDate({ associate, fromDate, afterDate }));
     const projectionPayload = buildInterestInstallmentPayload({
       associate,
       interestBasis,
@@ -820,6 +832,60 @@ const ensureNextInterestInstallment = async ({
     ...projectionPayload,
     status: 'pending',
   }, { transaction });
+};
+
+const replaceInstallmentProjection = (installments, projection) => {
+  if (!projection) {
+    return installments;
+  }
+
+  const normalizedProjection = serializeInstallmentRecord(projection);
+  const projectedId = Number(normalizedProjection?.id);
+  if (!Number.isFinite(projectedId)) {
+    return installments;
+  }
+
+  const projectedIndex = installments.findIndex((installment) => Number(installment?.id) === projectedId);
+  if (projectedIndex < 0) {
+    return [...installments, normalizedProjection];
+  }
+
+  return installments.map((installment, index) => (
+    index === projectedIndex
+      ? { ...serializeInstallmentRecord(installment), ...normalizedProjection }
+      : installment
+  ));
+};
+
+// Reconcile open projections on reads as well as writes so previously scheduled
+// annual terms become a single monthly obligation without altering paid history.
+const synchronizeOpenInterestInstallments = async ({
+  associateRepository,
+  associate,
+  installments = [],
+  asOfDate = getCurrentOperationalDateOnly(),
+  transaction,
+}) => {
+  const normalizedInstallments = await persistExpiredAssociateInstallments({
+    associateRepository,
+    associateId: associate.id,
+    installments,
+    asOfDate,
+  });
+
+  if (String(associate?.status || 'active').toLowerCase() !== 'active') {
+    return normalizedInstallments;
+  }
+
+  const projection = await ensureNextInterestInstallment({
+    associateRepository,
+    associate,
+    transaction,
+    fromDate: asOfDate,
+    existingInstallments: normalizedInstallments,
+  });
+
+  return replaceInstallmentProjection(normalizedInstallments, projection);
 };
 
 const normalizeDistributionRecord = (distribution) => {
@@ -1084,16 +1150,17 @@ const ensureAssociateFinancialDetailsAccess = async ({ actor, associateRepositor
  */
 const createListAssociateFinancialDetails = ({ associateRepository }) => async ({ actor, associateId }) => {
   const associate = await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
+  const asOfDate = getCurrentOperationalDateOnly();
   const [contributions, distributions, rawInstallments] = await Promise.all([
     associateRepository.listContributionsByAssociate(associate.id),
     associateRepository.listProfitDistributionsByAssociate(associate.id),
     associateRepository.findInstallmentsByAssociateId(associate.id),
   ]);
-  const installments = await persistExpiredAssociateInstallments({
+  const installments = await synchronizeOpenInterestInstallments({
     associateRepository,
-    associateId: associate.id,
+    associate,
     installments: rawInstallments,
-    asOfDate: getCurrentOperationalDateOnly(),
+    asOfDate,
   });
 
   const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
@@ -1297,9 +1364,9 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
   for (const associate of normalizedAssociates) {
     const associateId = Number(associate.id);
     const rawInstallments = installmentsByAssociate.get(associateId) || [];
-    const installments = await persistExpiredAssociateInstallments({
+    const installments = await synchronizeOpenInterestInstallments({
       associateRepository,
-      associateId,
+      associate,
       installments: rawInstallments,
       asOfDate,
     });
@@ -1684,13 +1751,13 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
  * @returns {Function}
  */
 const createGetAssociateInstallments = ({ associateRepository, clock = () => new Date() }) => async ({ actor, associateId }) => {
-  await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
+  const associate = await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
   const rawInstallments = await associateRepository.findInstallmentsByAssociateId(associateId);
   const asOfDate = getCurrentOperationalDateOnly(clock());
-  const installments = await persistExpiredAssociateInstallments({
+  const installments = await synchronizeOpenInterestInstallments({
     associateRepository,
-    associateId,
+    associate,
     installments: rawInstallments,
     asOfDate,
   });
@@ -1818,11 +1885,11 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
 
 /**
  * Create the use case that retrieves calendar events for an associate.
- * @param {{ associateRepository: object }} dependencies
+ * @param {{ associateRepository: object, clock?: Function }} dependencies
  * @returns {Function}
  */
-const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, associateId, startDate, endDate }) => {
-  await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
+const createGetAssociateCalendar = ({ associateRepository, clock = () => new Date() }) => async ({ actor, associateId, startDate, endDate }) => {
+  const associate = await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
   const normalizedStartDate = normalizeOptionalOperationalDate(startDate, 'startDate');
   const normalizedEndDate = normalizeOptionalOperationalDate(endDate, 'endDate');
@@ -1830,6 +1897,16 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
   if (normalizedStartDate && normalizedEndDate && normalizedStartDate.getTime() > normalizedEndDate.getTime()) {
     throw new ValidationError(buildDateRangeMessage('startDate', 'endDate'));
   }
+
+  // Keep the calendar aligned with the same monthly projection shown in the
+  // associate detail and reporting screens before reading its dated events.
+  const rawInstallments = await associateRepository.findInstallmentsByAssociateId(associate.id);
+  await synchronizeOpenInterestInstallments({
+    associateRepository,
+    associate,
+    installments: rawInstallments,
+    asOfDate: getCurrentOperationalDateOnly(clock()),
+  });
 
   const events = await associateRepository.findCalendarEvents(associateId, normalizedStartDate, normalizedEndDate);
 
@@ -1874,6 +1951,7 @@ module.exports = {
   normalizeDistributionRecord,
   normalizeAssociateRecord,
   filterCapitalBearingContributions,
+  synchronizeOpenInterestInstallments,
   createListAssociates,
   createCreateAssociate,
   createGetAssociateById,

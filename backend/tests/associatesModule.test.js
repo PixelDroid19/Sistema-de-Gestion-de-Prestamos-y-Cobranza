@@ -365,9 +365,10 @@ test('createCreateAssociate records initial capital and schedules the first mont
   assert.equal(calls[2][1].dueDate.getUTCDate(), 15);
 });
 
-test('createCreateAssociate schedules annual interest on the configured month and day', async () => {
+test('createCreateAssociate schedules a monthly payment from an annual rate basis', async () => {
   let installmentPayload = null;
   const createAssociate = createCreateAssociate({
+    clock: () => new Date('2026-07-11T04:30:00.000Z'),
     associateRepository: {
       async findConflictingContact() {
         return null;
@@ -402,9 +403,10 @@ test('createCreateAssociate schedules annual interest on the configured month an
     },
   });
 
-  assert.equal(installmentPayload.amount, 360000);
+  assert.equal(installmentPayload.amount, 30000);
   assert.equal(installmentPayload.interestType, 'annual');
-  assert.equal(installmentPayload.dueDate.toISOString().slice(0, 10), '2026-12-20');
+  assert.equal(installmentPayload.dueDate.toISOString().slice(0, 10), '2026-07-20');
+  assert.equal(installmentPayload.periodStartDate.toISOString().slice(0, 10), '2026-06-20');
 });
 
 test('createCreateAssociate rejects invalid associate interest terms', async () => {
@@ -430,7 +432,7 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
     },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.equal(error.message, 'El tipo de interés debe ser mensual o anual');
+    assert.equal(error.message, 'La tasa pactada debe ser mensual o anual');
     return true;
   });
 
@@ -1359,6 +1361,75 @@ test('createGetAssociateInstallments returns installments with totals', async ()
   assert.equal(result.totals.totalPending, 200);
 });
 
+test('createGetAssociateInstallments reprojects an annual rate basis as a monthly associate return', async () => {
+  const installments = [{
+    id: 21,
+    associateId: 12,
+    installmentNumber: 1,
+    amount: 120000,
+    dueDate: new Date('2026-08-15T00:00:00.000Z'),
+    capitalBase: 1200000,
+    interestRate: '12.0000',
+    interestType: 'annual',
+    status: 'pending',
+    paidAt: null,
+    paidBy: null,
+    paidByUser: null,
+  }];
+  const projectionUpdates = [];
+  const getInstallments = createGetAssociateInstallments({
+    clock: () => new Date('2026-07-10T12:00:00.000Z'),
+    associateRepository: {
+      async findById() {
+        return {
+          id: 12,
+          name: 'Socio anual',
+          status: 'active',
+          interestType: 'annual',
+          interestRate: '12.0000',
+          interestPaymentDay: 15,
+        };
+      },
+      async listContributionsByAssociate() {
+        return [{
+          id: 8,
+          amount: 1200000,
+          status: 'completed',
+          contributionDate: '2026-06-01T00:00:00.000Z',
+          interestTypeSnapshot: 'annual',
+          interestRateSnapshot: '12.0000',
+        }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return installments;
+      },
+      async createInstallment(payload) {
+        installments.push({ id: 22, ...payload });
+        return installments[installments.length - 1];
+      },
+      async updateInstallmentProjection(installmentId, payload) {
+        projectionUpdates.push({ installmentId, payload });
+        Object.assign(installments[0], payload);
+        return installments[0];
+      },
+    },
+  });
+
+  const result = await getInstallments({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.equal(projectionUpdates.length, 1);
+  assert.equal(projectionUpdates[0].installmentId, 21);
+  assert.equal(projectionUpdates[0].payload.amount, 12000);
+  assert.match(projectionUpdates[0].payload.dueDate.toISOString(), /^2026-07-15/u);
+  assert.match(projectionUpdates[0].payload.periodStartDate.toISOString(), /^2026-06-15/u);
+  assert.equal(result.installments[0].amount, 12000);
+  assert.match(new Date(result.installments[0].dueDate).toISOString(), /^2026-07-15/u);
+  assert.equal(result.totals.totalPending, 12000);
+});
+
 test('createGetAssociateInstallments separates overdue installments from pending totals', async () => {
   const calls = [];
   const getInstallments = createGetAssociateInstallments({
@@ -1689,6 +1760,9 @@ test('createGetAssociateCalendar aggregates contributions, distributions, and in
       async findById() {
         return { id: 12, name: 'Partner One' };
       },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
     },
   });
 
@@ -1809,6 +1883,9 @@ test('createGetAssociateCalendar counts overdue installments as pending in summa
       async findById() {
         return { id: 12, name: 'Partner One' };
       },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
       async findCalendarEvents() {
         return {
           contributions: [],
@@ -1828,4 +1905,75 @@ test('createGetAssociateCalendar counts overdue installments as pending in summa
   });
 
   assert.equal(result.summary.pendingInstallments, 1);
+});
+
+test('createGetAssociateCalendar reprojects legacy annual terms as a monthly return before reading events', async () => {
+  const installments = [{
+    id: 21,
+    associateId: 12,
+    installmentNumber: 1,
+    amount: 120000,
+    dueDate: new Date('2026-08-15T00:00:00.000Z'),
+    capitalBase: 1200000,
+    interestRate: '12.0000',
+    interestType: 'annual',
+    status: 'pending',
+  }];
+  const projectionUpdates = [];
+  const getCalendar = createGetAssociateCalendar({
+    clock: () => new Date('2026-07-10T12:00:00.000Z'),
+    associateRepository: {
+      async findById() {
+        return {
+          id: 12,
+          name: 'Socio anual',
+          status: 'active',
+          interestType: 'annual',
+          interestRate: '12.0000',
+          interestPaymentDay: 15,
+        };
+      },
+      async findInstallmentsByAssociateId() {
+        return installments;
+      },
+      async listContributionsByAssociate() {
+        return [{
+          id: 8,
+          amount: 1200000,
+          status: 'completed',
+          contributionDate: '2026-06-01T00:00:00.000Z',
+          interestTypeSnapshot: 'annual',
+          interestRateSnapshot: '12.0000',
+        }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async updateInstallmentProjection(installmentId, payload) {
+        projectionUpdates.push({ installmentId, payload });
+        Object.assign(installments[0], payload);
+        return installments[0];
+      },
+      async createInstallment() {
+        throw new Error('existing pending installment must be reprojected, not duplicated');
+      },
+      async findCalendarEvents() {
+        return { contributions: [], distributions: [], installments };
+      },
+    },
+  });
+
+  const result = await getCalendar({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+  });
+
+  assert.equal(projectionUpdates.length, 1);
+  assert.equal(projectionUpdates[0].installmentId, 21);
+  assert.equal(projectionUpdates[0].payload.amount, 12000);
+  assert.match(projectionUpdates[0].payload.dueDate.toISOString(), /^2026-07-15/u);
+  assert.equal(result.events[0].amount, 12000);
+  assert.match(result.events[0].date.toISOString(), /^2026-07-15/u);
 });

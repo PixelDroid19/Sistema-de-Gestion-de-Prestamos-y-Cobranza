@@ -79,26 +79,26 @@ describe('NewAssociate behavior', () => {
     expect(container.querySelector('form')).toHaveAttribute('novalidate');
   });
 
-  it('starts annual and active without exposing configuration that is not a creation decision', () => {
+  it('starts with an annual rate basis and a monthly first payout', () => {
     render(<NewAssociate onBack={vi.fn()} />);
 
-    const frequency = screen.getByRole('group', { name: 'Frecuencia de pago' });
-    expect(within(frequency).getByRole('radio', { name: 'Anual' })).toBeChecked();
-    expect(within(frequency).getByRole('radio', { name: 'Mensual' })).not.toBeChecked();
+    const rateBasis = screen.getByRole('group', { name: 'Tipo de tasa' });
+    expect(within(rateBasis).getByRole('radio', { name: 'Anual' })).toBeChecked();
+    expect(within(rateBasis).getByRole('radio', { name: 'Mensual' })).not.toBeChecked();
     expect(screen.queryByLabelText('Estado')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Primer pago')).toHaveValue('2027-07-13');
+    expect(screen.getByLabelText('Primer pago')).toHaveValue('2026-08-13');
   });
 
-  it('normalizes capital and shows the agreed annual return before submission', () => {
+  it('converts an annual rate into the monthly return before submission', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     fillContactFields(container);
     fillCreationTerms(container);
 
     expect(container.querySelector('#new-associate-initial-capital')).toHaveValue('2.000.000');
-    expect(screen.getByText('Recibirá COP 240.000 cada año')).toBeInTheDocument();
-    expect(screen.getByText('Primer pago: 13 de julio de 2027')).toBeInTheDocument();
+    expect(screen.getByText('Recibirá COP 20.000 cada mes')).toBeInTheDocument();
+    expect(screen.getByText('Primer pago: 13 de agosto de 2026')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
 
@@ -107,7 +107,7 @@ describe('NewAssociate behavior', () => {
       interestType: 'annual',
       interestRate: '12',
       interestPaymentDay: '13',
-      interestPaymentMonth: '7',
+      interestPaymentMonth: '8',
       status: 'active',
     }));
     expect(toast.error).not.toHaveBeenCalled();
@@ -129,7 +129,7 @@ describe('NewAssociate behavior', () => {
       interestType: 'monthly',
       interestRate: '2.5',
       interestPaymentDay: '13',
-      interestPaymentMonth: '1',
+      interestPaymentMonth: '8',
     }));
   });
 
@@ -223,7 +223,7 @@ describe('NewAssociate behavior', () => {
     expect(rateInput).toHaveValue('2.5');
   });
 
-  it('keeps status available while editing and derives the next annual payment date', () => {
+  it('keeps status available while editing and derives the next monthly payment date', () => {
     associateQueryState = {
       data: {
         data: {
@@ -247,7 +247,7 @@ describe('NewAssociate behavior', () => {
     render(<NewAssociate associateIdOverride={7} embedded onBack={vi.fn()} />);
 
     expect(screen.getByLabelText('Estado')).toHaveValue('inactive');
-    expect(screen.getByLabelText('Primer pago')).toHaveValue('2026-12-15');
+    expect(screen.getByLabelText('Primer pago')).toHaveValue('2026-07-15');
     expect(screen.queryByLabelText('Capital inicial aportado')).not.toBeInTheDocument();
   });
 });

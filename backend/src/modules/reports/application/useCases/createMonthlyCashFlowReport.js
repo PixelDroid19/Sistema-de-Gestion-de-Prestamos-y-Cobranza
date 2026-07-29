@@ -61,6 +61,20 @@ const MOVEMENT_LABELS = Object.freeze({
   operating_expense: 'Gasto operativo',
 });
 
+const CUSTOMER_PAYMENT_PURPOSE_LABELS = Object.freeze({
+  installment: 'Pago de cuota',
+  partial: 'Pago parcial',
+  capital: 'Abono a capital',
+  payoff: 'Pago total',
+});
+
+const normalizeCustomerPaymentType = (value) => {
+  const normalized = String(value || 'installment').trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(CUSTOMER_PAYMENT_PURPOSE_LABELS, normalized)
+    ? normalized
+    : null;
+};
+
 const toNumber = (value) => {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number : 0;
@@ -107,11 +121,13 @@ const buildMovement = ({
   inflow = 0,
   outflow = 0,
   operatorName = null,
+  paymentType = null,
+  movementLabel = null,
 }) => ({
   id: `${movementType}-${id}`,
   date: toDateOnly(date),
   movementType,
-  movementLabel: MOVEMENT_LABELS[movementType],
+  movementLabel: movementLabel || MOVEMENT_LABELS[movementType],
   counterpartyType,
   counterpartyId: counterpartyId ?? null,
   counterpartyName,
@@ -119,6 +135,7 @@ const buildMovement = ({
   inflow: formatMoney(inflow),
   outflow: formatMoney(outflow),
   operatorName,
+  paymentType,
 });
 
 const buildAccountingMovements = ({
@@ -156,6 +173,10 @@ const buildAccountingMovements = ({
       const loan = getRelatedRecord(source, ['Loan', 'loan']);
       const customer = getRelatedRecord(loan, ['Customer', 'customer']);
       const loanId = source.loanId ?? loan?.id;
+      const paymentType = normalizeCustomerPaymentType(source.paymentType);
+      const paymentPurpose = paymentType
+        ? CUSTOMER_PAYMENT_PURPOSE_LABELS[paymentType]
+        : 'Pago registrado';
       movements.push(buildMovement({
         id: source.id,
         date: source.paymentDate || source.createdAt,
@@ -163,8 +184,10 @@ const buildAccountingMovements = ({
         counterpartyType: 'customer',
         counterpartyId: customer?.id ?? loan?.customerId,
         counterpartyName: customer?.name || `Cliente del crédito #${loanId}`,
-        reference: `Crédito #${loanId} · Pago #${source.id}`,
+        reference: `Crédito #${loanId} · ${paymentPurpose} #${source.id}`,
         inflow: source.amount,
+        paymentType,
+        movementLabel: paymentPurpose,
       }));
     });
 

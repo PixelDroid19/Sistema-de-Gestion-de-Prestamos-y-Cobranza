@@ -190,9 +190,7 @@ export default function CreditDetails() {
   const paymentHistoryEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
     const payments = Array.isArray(source?.payments) ? source.payments : [];
-    const payoffHistory = Array.isArray(source?.payoffHistory) ? source.payoffHistory : [];
-    return [
-      ...payments.map((p: any) => ({
+    return payments.map((p: any) => ({
         id: p.id ?? stableCreditKey('payment', p.paymentDate, p.createdAt, p.amount, p.installmentNumber),
         paymentId: Number(p.id), amount: p.amount, paymentType: p.paymentType,
         installmentNumber: p.installmentNumber, principalApplied: p.principalApplied,
@@ -205,14 +203,13 @@ export default function CreditDetails() {
         action: tTerm('creditDetails.history.action.payment', { type: getPaymentTypeLabel(p.paymentType) }),
         description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(p.amount) }),
         date: p.paymentDate || p.createdAt, type: 'payment',
-      })),
-      ...payoffHistory.map((e: any) => ({
-        id: stableCreditKey('payoff', e.id, e.paymentDate, e.createdAt, e.amount, e.quotedTotal),
-        action: tTerm('creditDetails.history.action.payoffApplied'),
-        description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(e.amount ?? e.quotedTotal) }),
-        date: e.paymentDate || e.createdAt, type: 'payoff',
-      })),
-    ].filter((e) => e.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }))
+        .filter((entry: { date?: string | Date | null }) => Boolean(entry.date))
+        .sort(
+          (left: { date: string | Date }, right: { date: string | Date }) => (
+            new Date(right.date).getTime() - new Date(left.date).getTime()
+          ),
+        );
   }, [history, locale]);
 
   let customerLabel = normalizeVisibleName(loan?.Customer?.name || loan?.customerName || '');
@@ -295,11 +292,6 @@ export default function CreditDetails() {
   // -------------------------------------------------------------------------
   // Safe mutation wrappers
   // -------------------------------------------------------------------------
-  const { run: runPayoff } = useSafeMutationAction<{ asOfDate: string; quotedTotal: number }>({
-    action: async (payload) => executePayoff.mutateAsync(payload),
-    errorContext: { domain: 'credits', action: 'generic' },
-    successMessage: tTerm('creditDetails.toast.payoff.success'),
-  });
   const { run: runDownloadVoucher } = useSafeMutationAction<number>({
     action: async (paymentId) => downloadVoucher(paymentId),
     errorContext: { domain: 'payments', action: 'generic' },
@@ -547,7 +539,27 @@ export default function CreditDetails() {
       confirmLabel: tTerm('confirm.payoff.confirm'),
     });
     if (!confirmed) return;
-    await runPayoff({ asOfDate: payoffQuote.asOfDate, quotedTotal });
+    let recordedPaymentId: number | null = null;
+    await executeGuardedAction({
+      action: 'payoff.execute',
+      context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
+      run: async () => {
+        const result = await executePayoff.mutateAsync({ asOfDate: payoffQuote.asOfDate, quotedTotal });
+        recordedPaymentId = resolvePaymentIdFromResponse(result);
+      },
+      onSuccess: async () => {
+        await invalidateAfterPayment(queryClient, { loanId });
+        if (recordedPaymentId) {
+          await runDownloadVoucher(recordedPaymentId);
+          return;
+        }
+        toast.error({
+          title: tTerm('creditDetails.toast.paymentVoucherUnavailable'),
+          description: tTerm('creditDetails.toast.paymentVoucherUnavailableDescription'),
+        });
+      },
+      successMessage: tTerm('creditDetails.toast.payoff.success'),
+    });
   };
 
   const handleUpdateStatus = async () => {
@@ -711,19 +723,35 @@ export default function CreditDetails() {
     capitalSubmissionLock.current = true;
     setIsCapitalSubmitting(true);
     try {
+      let recordedPaymentId: number | null = null;
       await executeGuardedAction({
         action: 'capital.payment',
         context: { role: user?.role, permissions: resolvedPermissions, loanStatus: loan?.status },
         run: async () => {
-          await recordCapitalPayment.mutateAsync({
+          const result = await recordCapitalPayment.mutateAsync({
             amount,
             paymentDate: capitalPaymentDate,
             paymentMethod: capitalMethod,
             strategy: capitalStrategy,
             ...(capitalStrategy === 'reduce_payment' ? { newTermMonths: newTermMonths as number } : {}),
           });
+          recordedPaymentId = resolvePaymentIdFromResponse(result);
         },
-        onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalNewTermMonths(''); setCapitalPaymentDate(getLocalDateInputValue()); },
+        onSuccess: async () => {
+          await invalidateAfterPayment(queryClient, { loanId });
+          setShowCapitalModal(false);
+          setCapitalAmount('');
+          setCapitalNewTermMonths('');
+          setCapitalPaymentDate(getLocalDateInputValue());
+          if (recordedPaymentId) {
+            await runDownloadVoucher(recordedPaymentId);
+            return;
+          }
+          toast.error({
+            title: tTerm('creditDetails.toast.paymentVoucherUnavailable'),
+            description: tTerm('creditDetails.toast.paymentVoucherUnavailableDescription'),
+          });
+        },
         successMessage: tTerm('creditDetails.toast.capitalSuccess'),
       });
     } finally {
@@ -897,19 +925,16 @@ export default function CreditDetails() {
   const renderPaymentRowActions = (entry: any, options?: { align?: 'start' | 'end' | 'center' }) => {
     const paymentId = Number(entry.paymentId ?? entry.id);
     const hasVoucher = Number.isFinite(paymentId) && paymentId > 0;
-    const isPayoff = entry.type === 'payoff';
     const downloadLabel = tTerm('payouts.action.downloadVoucher');
     const voucherUnavailable = tTerm('creditDetails.payouts.voucherUnavailable');
-    const editGuard = !isPayoff
-      ? resolveOperationalGuard('installment.editPaymentMethod', {
-        role: user?.role,
-        permissions: resolvedPermissions,
-        loanStatus: loan?.status,
-        paymentStatus: entry.paymentStatus,
-        paymentReconciled: Boolean(entry.paymentReconciled),
-      })
-      : null;
-    const showVoucher = !isPayoff;
+    const editGuard = resolveOperationalGuard('installment.editPaymentMethod', {
+      role: user?.role,
+      permissions: resolvedPermissions,
+      loanStatus: loan?.status,
+      paymentStatus: entry.paymentStatus,
+      paymentReconciled: Boolean(entry.paymentReconciled),
+    });
+    const showVoucher = true;
     const showEdit = isBackofficeUser && Boolean(editGuard?.visible);
 
     if (!showVoucher && !showEdit) {

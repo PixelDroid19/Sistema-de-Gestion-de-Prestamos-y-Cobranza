@@ -38,6 +38,8 @@ type AccountingMovement = {
   id: string;
   date: string;
   movementType: string;
+  movementLabel?: string;
+  paymentType?: string | null;
   counterpartyName: string;
   reference: string;
   inflow: unknown;
@@ -343,7 +345,7 @@ export default function CashflowTab({
             {movements.map((movement) => (
               <tr key={movement.id}>
                 <td>{formatDateValue(movement.date, { dateStyle: 'medium', timeZone: 'UTC' })}</td>
-                <td>{accountingMovementLabels[movement.movementType] || movement.movementType}</td>
+                <td>{movement.movementLabel || accountingMovementLabels[movement.movementType] || movement.movementType}</td>
                 <td className="font-medium">{movement.counterpartyName}</td>
                 <td>{movement.reference}</td>
                 <td className="text-right">{Number(movement.inflow || 0) > 0 ? formatMoney(movement.inflow) : '—'}</td>

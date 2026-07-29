@@ -284,8 +284,10 @@ const defaultMonthlyCashFlowData = {
       id: 'customer_payment-41',
       date: '2026-01-20',
       movementType: 'customer_payment',
+      paymentType: 'installment',
+      movementLabel: 'Pago de cuota',
       counterpartyName: 'Cliente Contable',
-      reference: 'Crédito #15 · Pago #41',
+      reference: 'Crédito #15 · Pago de cuota #41',
       inflow: '50000000.00',
       outflow: '0.00',
     },
@@ -702,7 +704,8 @@ describe('Reports operational module', () => {
     expect(screen.getAllByText('Cartera por cobrar').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Detalle por persona y movimiento' })).toBeInTheDocument();
     expect(screen.getAllByText('Cliente Contable')).toHaveLength(2);
-    expect(screen.getByText('Crédito #15 · Pago #41')).toBeInTheDocument();
+    expect(screen.getByText('Pago de cuota')).toBeInTheDocument();
+    expect(screen.getByText('Crédito #15 · Pago de cuota #41')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Corresponde a' })).toBeInTheDocument();
     const monthlyCells = within(cashFlowTable).getByRole('row', { name: /2026-01/ }).querySelectorAll('td');
     expect(monthlyCells[2]).toHaveTextContent('COP 45.000.000');
