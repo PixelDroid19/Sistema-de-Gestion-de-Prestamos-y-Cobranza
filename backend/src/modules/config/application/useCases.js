@@ -29,6 +29,7 @@ const CONFIG_CONFLICT_MESSAGES = {
   lateFeePolicyLabelExists: 'Ya existe una política de mora con ese nombre.',
   lateFeePolicyPriorityConflict: 'Las políticas de mora activas no pueden compartir la misma prioridad.',
   lateFeePolicyUsedByLoans: 'No se puede eliminar la política de mora porque ya está asociada a créditos existentes.',
+  lateFeePolicyLastActive: 'No se puede desactivar o eliminar la única política de mora activa. Crea una política de reemplazo antes de retirarla.',
 };
 
 const DUPLICATE_LABEL_MESSAGES = {
@@ -762,6 +763,14 @@ const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, pay
     });
     await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, currentId: existing.id, options });
 
+    if (normalized.isActive === false && existing.isActive !== false) {
+      const activePolicies = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY, options))
+        .filter((policy) => policy.isActive !== false);
+      if (activePolicies.length <= 1) {
+        throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyLastActive);
+      }
+    }
+
     const updated = await configRepository.update(existing.id, normalized, options);
     return buildLateFeePolicy(updated);
   });
@@ -775,6 +784,13 @@ const createDeleteLateFeePolicy = ({ configRepository }) => async (policyId) => 
     : 0;
   if (usedLoans > 0) {
     throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyUsedByLoans);
+  }
+  if (existing.isActive !== false) {
+    const activePolicies = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY))
+      .filter((policy) => policy.isActive !== false);
+    if (activePolicies.length <= 1) {
+      throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyLastActive);
+    }
   }
   await configRepository.destroy(existing.id);
   return { id: Number(policyId) };

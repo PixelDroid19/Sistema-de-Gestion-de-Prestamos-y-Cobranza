@@ -110,10 +110,10 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   let capturedExpenseQuery = null;
   let capturedInstallmentQuery = null;
   let capturedDistributionQuery = null;
-  let capturedLoanQuery = null;
+  const capturedLoanQueries = [];
 
   Loan.findAll = async (query) => {
-    capturedLoanQuery = query;
+    capturedLoanQueries.push(query);
     return [];
   };
   Payment.findAll = async () => [];
@@ -138,6 +138,10 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   assert.equal(dataset.associateContributions, contributionRows);
   assert.deepEqual(dataset.associateReinvestments, [distributionRows[1]]);
   assert.deepEqual(dataset.associateCapitalReturns, [distributionRows[2]]);
+  const capturedLoanQuery = capturedLoanQueries.find((query) => query.where[Op.and][0].status[Op.in].includes('approved'));
+  const riskLoanQuery = capturedLoanQueries.find((query) => query.where[Op.and][0].status[Op.in].includes('overdue'));
+  assert.ok(capturedLoanQuery);
+  assert.ok(riskLoanQuery);
   const loanDateConditions = capturedLoanQuery.where[Op.and][1][Op.or];
   assert.equal(loanDateConditions[0].startDate[Op.gte], fromDate);
   assert.equal(loanDateConditions[0].startDate[Op.lte], toDate);
@@ -153,6 +157,10 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   assert.equal(capturedExpenseQuery.where.expenseDate[Op.gte], fromDate);
   assert.equal(capturedExpenseQuery.where.expenseDate[Op.lte], toDate);
   assert.deepEqual(capturedExpenseQuery.order, [['expenseDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']]);
+  const riskDateConditions = riskLoanQuery.where[Op.and][1][Op.or];
+  assert.equal(riskDateConditions[0].startDate[Op.lte], toDate);
+  assert.equal(riskDateConditions[1][Op.and][0].startDate, null);
+  assert.equal(riskDateConditions[1][Op.and][1].createdAt[Op.lte], toDate);
 });
 
 test('reportRepository getDashboardSummary includes paid associate movements and excludes reinvestments', async (t) => {

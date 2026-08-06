@@ -217,7 +217,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   );
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const workspaceRevealed = hasValidatedResult || isSimulating;
-  const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && isLateFeePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
+  const canAttemptRegistration = isRatePolicyReady && isLateFeePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
   const appliedAnnualRate = Number(
     result?.inputs?.interestRate
     ?? resolvedRatePolicy?.annualEffectiveRate
@@ -377,6 +377,14 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       return next;
     });
   };
+
+  useEffect(() => {
+    if (!borrowerErrors.customerId) {
+      return;
+    }
+
+    document.getElementById('customerId')?.focus();
+  }, [borrowerErrors.customerId]);
 
   const handleCalculationInputChange = (partialInput: Partial<CreditCalculationInput>) => {
     if (Object.prototype.hasOwnProperty.call(partialInput, 'interestRate')) {
@@ -574,12 +582,16 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       </ActionButton>
       <ActionButton
         type="submit"
-        disabled={!canRegister}
+        disabled={!canAttemptRegistration}
         data-tour="new-credit-submit"
         className={`${floatingActionDockButtonClass} new-credit-action-register`}
         isLoading={isSubmitting}
         aria-label={tTerm('newCredit.action.register')}
-        title={canRegister ? tTerm('newCredit.action.register.title.ready') : tTerm('newCredit.action.register.title.blocked')}
+        title={canAttemptRegistration
+          ? borrower.customerId
+            ? tTerm('newCredit.action.register.title.ready')
+            : tTerm('newCredit.action.register.title.customerMissing')
+          : tTerm('newCredit.action.register.title.blocked')}
         icon={isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         variant="primary"
         fullWidth

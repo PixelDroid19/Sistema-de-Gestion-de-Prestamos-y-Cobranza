@@ -298,6 +298,7 @@ test('createCreateAssociate rejects removed associate contract fields', async ()
       name: 'New Associate',
       email: 'associate@example.com',
       phone: '+573001112255',
+      investmentTermMonths: 12,
       interestStartsAt: '2026-01-01',
     },
   }), (error) => {
@@ -342,6 +343,7 @@ test('createCreateAssociate records initial capital and schedules the first mont
       email: 'socio.capital@example.com',
       phone: '+573001112244',
       initialCapital: '2000000',
+      investmentTermMonths: 1,
       interestType: 'monthly',
       interestRate: '2.5',
       interestPaymentDay: 15,
@@ -363,6 +365,69 @@ test('createCreateAssociate records initial capital and schedules the first mont
   assert.equal(calls[2][1].interestType, 'monthly');
   assert.equal(calls[2][1].interestRate, '2.5000');
   assert.equal(calls[2][1].dueDate.getUTCDate(), 15);
+});
+
+test('createCreateAssociate creates every monthly interest payment through the agreed investment maturity', async () => {
+  const calls = [];
+  const createAssociate = createCreateAssociate({
+    clock: () => new Date('2026-07-11T04:30:00.000Z'),
+    associateRepository: {
+      async findConflictingContact() {
+        return null;
+      },
+      async runInTransaction(work) {
+        return work('tx-1');
+      },
+      async create(payload, options) {
+        calls.push(['createAssociate', payload, options]);
+        return { id: 32, ...payload };
+      },
+      async createContribution(payload, options) {
+        calls.push(['createContribution', payload, options]);
+        return { id: 33, ...payload };
+      },
+      async createInstallment(payload, options) {
+        calls.push(['createInstallment', payload, options]);
+        return { id: 100 + calls.length, ...payload };
+      },
+    },
+  });
+
+  const associate = await createAssociate({
+    actor: { id: 7, role: 'admin' },
+    payload: {
+      name: 'Socio CDT',
+      email: 'socio.cdt@example.com',
+      phone: '+573001112243',
+      initialCapital: '2000000',
+      investmentTermMonths: 6,
+      interestType: 'annual',
+      interestRate: '12',
+      interestPaymentDay: 15,
+      interestPaymentMonth: 7,
+    },
+  });
+
+  const scheduledPayments = calls.filter(([type]) => type === 'createInstallment');
+
+  assert.equal(associate.investmentTermMonths, 6);
+  assert.equal(new Date(associate.investmentMaturityDate).toISOString().slice(0, 10), '2026-12-15');
+  assert.equal(scheduledPayments.length, 6);
+  assert.deepEqual(
+    scheduledPayments.map(([, payload]) => ({
+      installmentNumber: payload.installmentNumber,
+      dueDate: payload.dueDate.toISOString().slice(0, 10),
+      amount: payload.amount,
+    })),
+    [
+      { installmentNumber: 1, dueDate: '2026-07-15', amount: 20000 },
+      { installmentNumber: 2, dueDate: '2026-08-15', amount: 20000 },
+      { installmentNumber: 3, dueDate: '2026-09-15', amount: 20000 },
+      { installmentNumber: 4, dueDate: '2026-10-15', amount: 20000 },
+      { installmentNumber: 5, dueDate: '2026-11-15', amount: 20000 },
+      { installmentNumber: 6, dueDate: '2026-12-15', amount: 20000 },
+    ],
+  );
 });
 
 test('createCreateAssociate schedules a monthly payment from an annual rate basis', async () => {
@@ -396,6 +461,7 @@ test('createCreateAssociate schedules a monthly payment from an annual rate basi
       email: 'socio.anual@example.com',
       phone: '+573001112245',
       initialCapital: 3000000,
+      investmentTermMonths: 1,
       interestType: 'annual',
       interestRate: 12,
       interestPaymentMonth: 12,
@@ -487,6 +553,7 @@ test('createCreateAssociate rejects duplicate contact details through the reposi
       name: 'New Associate',
       email: 'associate@example.com',
       phone: '+573001112255',
+      investmentTermMonths: 12,
     },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
@@ -1136,6 +1203,74 @@ test('createCreateAssociateContribution does not schedule interest for pending c
   assert.equal(calls.some(([name]) => name === 'createInstallment'), false);
 });
 
+test('createCreateAssociateContribution rejects capital after the agreed investment maturity', async () => {
+  const repository = {
+    async findById() {
+      return {
+        id: 12,
+        status: 'active',
+        interestType: 'monthly',
+        interestRate: '2.0000',
+        interestPaymentDay: 10,
+        investmentTermMonths: 1,
+        investmentMaturityDate: '2026-03-10',
+      };
+    },
+    async runInTransaction(work) {
+      return work('tx-1');
+    },
+    async createContribution() {
+      throw new Error('createContribution should not be called after maturity');
+    },
+  };
+
+  const createContribution = createCreateAssociateContribution({ associateRepository: repository });
+
+  await assert.rejects(() => createContribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 100000, contributionDate: '2026-03-11' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /plazo de inversión ya venció/i);
+    return true;
+  });
+});
+
+test('createCreateAssociateReinvestment rejects capital after the agreed investment maturity', async () => {
+  const repository = {
+    async findById() {
+      return {
+        id: 12,
+        status: 'active',
+        interestType: 'monthly',
+        interestRate: '2.0000',
+        interestPaymentDay: 10,
+        investmentTermMonths: 1,
+        investmentMaturityDate: '2026-03-10',
+      };
+    },
+    async runInTransaction(work) {
+      return work('tx-1');
+    },
+    async createContribution() {
+      throw new Error('createContribution should not be called after maturity');
+    },
+  };
+
+  const createReinvestment = createCreateAssociateReinvestment({ associateRepository: repository });
+
+  await assert.rejects(() => createReinvestment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 100000, reinvestmentDate: '2026-03-11' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /plazo de inversión ya venció/i);
+    return true;
+  });
+});
+
 test('associate money movement use cases reject ambiguous currency amounts', async () => {
   const repository = {
     async findById() {
@@ -1638,6 +1773,57 @@ test('createPayAssociateInstallment marks installment as paid with date and meth
   assert.equal(calls[1][1].installmentNumber, 3);
   assert.equal(calls[1][1].amount, 20);
   assert.equal(calls[1][1].dueDate.toISOString().slice(0, 10), '2026-03-15');
+});
+
+test('createPayAssociateInstallment does not generate a payment after the agreed investment maturity', async () => {
+  const installments = [
+    { id: 1, installmentNumber: 1, amount: 20, dueDate: new Date('2026-01-15T00:00:00.000Z'), status: 'paid' },
+    { id: 2, installmentNumber: 2, amount: 20, dueDate: new Date('2026-02-15T00:00:00.000Z'), status: 'pending' },
+  ];
+  const payInstallment = createPayAssociateInstallment({
+    associateRepository: {
+      async findById() {
+        return {
+          id: 12,
+          name: 'Socio a plazo',
+          status: 'active',
+          interestType: 'annual',
+          interestRate: '12.0000',
+          interestPaymentDay: 15,
+          investmentTermMonths: 2,
+          investmentMaturityDate: '2026-02-15',
+        };
+      },
+      async findInstallmentsByAssociateId() {
+        return installments;
+      },
+      async listContributionsByAssociate() {
+        return [{ id: 10, amount: 2000, contributionDate: '2026-01-01', status: 'completed' }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async updateInstallmentStatus(_associateId, installmentNumber, status) {
+        const installment = installments.find((candidate) => candidate.installmentNumber === installmentNumber);
+        installment.status = status;
+        return 1;
+      },
+      async createInstallment() {
+        throw new Error('the contract must not create an installment after maturity');
+      },
+    },
+  });
+
+  const result = await payInstallment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    installmentNumber: 2,
+    payload: { paymentDate: '2026-02-15', paymentMethod: 'transferencia' },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(installments.filter((installment) => installment.status === 'paid').length, 2);
+  assert.equal(installments.length, 2);
 });
 
 test('createPayAssociateInstallment rejects notes and missing payment method', async () => {

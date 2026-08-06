@@ -31,7 +31,7 @@ const CASH_FLOW_COLUMNS = [
   moneyColumn('Interés Cobrado', 'interestCollected'),
   moneyColumn('Mora Cobrada', 'penaltyCollected'),
   moneyColumn('Interés y Mora Cobrados', 'collectedProfit'),
-  moneyColumn('Pérdidas en Riesgo', 'lossesAtRisk'),
+  moneyColumn('Capital en Riesgo del Período', 'lossesAtRisk'),
   { header: 'Pagos Recibidos', key: 'paymentCount', width: 16 },
   { header: 'Préstamos Entregados', key: 'loanCount', width: 20 },
 ];
@@ -344,9 +344,10 @@ const formatMonth = (row, availableCash) => ({
  * @param {Array<object>} input.associatePayments Canonical profitability payment cash outflow rows.
  * @param {Array<object>} input.associateCapitalReturns Canonical capital return cash outflow rows.
  * @param {Array<object>} input.operatingExpenses Canonical completed operating expense rows.
+ * @param {Array<object>|undefined} input.riskLoans Current overdue/defaulted loans for the current exposure snapshot.
  * @returns {{year:number, summary:object, months:Array<object>}}
  */
-const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associateContributions = [], associateReinvestments = [], associatePayments = [], associateCapitalReturns = [], operatingExpenses = [] }) => {
+const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associateContributions = [], associateReinvestments = [], associatePayments = [], associateCapitalReturns = [], operatingExpenses = [], riskLoans }) => {
   const numericYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
   const monthsByKey = MONTHS.reduce((acc, month) => {
     const monthKey = `${numericYear}-${month}`;
@@ -434,7 +435,13 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
   const totalPenaltyCollected = rawMonths.reduce((sum, row) => sum + row.penaltyCollectedRaw, 0);
   const totalCollectedProfit = totalInterestCollected + totalPenaltyCollected;
   const lossesAtRisk = rawMonths.reduce((sum, row) => sum + row.lossesAtRiskRaw, 0);
+  const riskSnapshot = Array.isArray(riskLoans) ? riskLoans : loans;
+  const currentCapitalAtRisk = riskSnapshot
+    .filter((loan) => LOSS_RISK_STATUSES.has(loan?.status))
+    .reduce((sum, loan) => sum + resolveLoanOutstanding(loan), 0);
   const netCashFlow = totalInflows + totalAssociateContributions - totalOutflows - totalAssociatePayments - totalCapitalReturns - totalOperatingExpenses;
+  const operatingResult = totalCollectedProfit - totalOperatingExpenses;
+  const legacyNetProfitIndicator = totalCollectedProfit - totalAssociatePayments - totalOperatingExpenses - lossesAtRisk;
 
   return {
     year: numericYear,
@@ -453,7 +460,10 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
       totalPenaltyCollected: formatMoney(totalPenaltyCollected),
       totalCollectedProfit: formatMoney(totalCollectedProfit),
       lossesAtRisk: formatMoney(lossesAtRisk),
-      netProfitIndicator: formatMoney(totalCollectedProfit - totalAssociatePayments - totalOperatingExpenses - lossesAtRisk),
+      currentCapitalAtRisk: formatMoney(currentCapitalAtRisk),
+      operatingResult: formatMoney(operatingResult),
+      // Preserve the historical API field while exposing the corrected operating result explicitly.
+      netProfitIndicator: formatMoney(legacyNetProfitIndicator),
       paymentCount: rawMonths.reduce((sum, row) => sum + row.paymentCount, 0),
       loanCount: rawMonths.reduce((sum, row) => sum + row.loanCount, 0),
     },
@@ -497,8 +507,8 @@ const buildCashFlowSheets = (report) => {
     { label: 'Interés cobrado', value: Number(report.summary.totalInterestCollected), description: 'Interés efectivamente pagado por clientes.' },
     { label: 'Mora cobrada', value: Number(report.summary.totalPenaltyCollected), description: 'Mora o penalidades efectivamente cobradas.' },
     { label: 'Interés y mora cobrados', value: Number(report.summary.totalCollectedProfit), description: 'Interés cobrado más mora cobrada.' },
-    { label: 'Pérdidas en riesgo', value: Number(report.summary.lossesAtRisk), description: 'Capital pendiente en créditos vencidos o default.' },
-    { label: 'Resultado neto', value: Number(report.summary.netProfitIndicator), description: 'Interés y mora menos salidas financieras, gastos y pérdidas en riesgo.' },
+    { label: 'Capital en riesgo actual', value: Number(report.summary.currentCapitalAtRisk), description: 'Capital pendiente actualmente en créditos vencidos o default; el repositorio no conserva snapshots históricos de cartera.' },
+    { label: 'Resultado operativo de créditos', value: Number(report.summary.operatingResult), description: 'Interés y mora cobrados menos gastos operativos. Los pagos a socios y el capital en riesgo se presentan por separado.' },
   ];
 
   return [
@@ -601,6 +611,7 @@ const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year,
     associateReinvestments: dataset.associateReinvestments || [],
     associateCapitalReturns: dataset.associateCapitalReturns || [],
     operatingExpenses: dataset.operatingExpenses || [],
+    riskLoans: dataset.riskLoans,
   });
   report.months = report.months.filter((month) => isMonthWithinDateRange(month.month, dateRange));
   report.filters = {
@@ -640,6 +651,8 @@ const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor,
         { label: 'Devoluciones de capital', value: formatDisplayMoney(report.summary.totalCapitalReturns) },
         { label: 'Gastos del negocio', value: formatDisplayMoney(report.summary.totalOperatingExpenses) },
         { label: 'Interés y mora cobrados', value: formatDisplayMoney(report.summary.totalCollectedProfit) },
+        { label: 'Capital en riesgo actual', value: formatDisplayMoney(report.summary.currentCapitalAtRisk) },
+        { label: 'Resultado operativo de créditos', value: formatDisplayMoney(report.summary.operatingResult) },
         { label: 'Capital recuperado', value: formatDisplayMoney(report.summary.totalPrincipalRecovered) },
         { label: 'Caja disponible', value: formatDisplayMoney(report.summary.availableCash) },
         { label: 'Cartera por cobrar', value: formatDisplayMoney(report.summary.portfolioReceivable) },

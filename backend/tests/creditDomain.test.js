@@ -169,6 +169,7 @@ test('associateValidation.create accepts a valid associate payload', async () =>
       interestType: 'monthly',
       interestRate: '2.5000',
       interestPaymentDay: 5,
+      investmentTermMonths: 12,
     },
   }));
 });
@@ -194,6 +195,7 @@ test('associateValidation.create rejects removed associate contract fields', asy
       email: 'ana@example.com',
       phone: '+573001112233',
       status: 'active',
+      investmentTermMonths: 12,
       participationPercentage: '-0.0001',
     },
   }), (error) => {
@@ -203,7 +205,7 @@ test('associateValidation.create rejects removed associate contract fields', asy
   });
 });
 
-test('buildPayoffQuote uses the product actual/360 convention for daily accrued interest', () => {
+test('buildPayoffQuote uses actual/360 only after an unpaid installment is past due', () => {
   const quote = buildPayoffQuote({
     loan: {
       status: 'active',
@@ -211,7 +213,7 @@ test('buildPayoffQuote uses the product actual/360 convention for daily accrued 
       interestRate: 12,
     },
     schedule: [
-      { installmentNumber: 1, dueDate: '2026-02-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10 },
+      { installmentNumber: 1, dueDate: '2026-01-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10 },
       { installmentNumber: 2, dueDate: '2026-03-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 8 },
     ],
     snapshot: {
@@ -221,16 +223,16 @@ test('buildPayoffQuote uses the product actual/360 convention for daily accrued 
     asOfDate: '2026-01-15',
   });
 
-  assert.equal(quote.breakdown.overduePrincipal, 0);
-  assert.equal(quote.breakdown.overdueInterest, 0);
-  assert.equal(quote.breakdown.futurePrincipal, 200);
+  assert.equal(quote.breakdown.overduePrincipal, 100);
+  assert.equal(quote.breakdown.overdueInterest, 10);
+  assert.equal(quote.breakdown.futurePrincipal, 100);
   assert.equal(quote.accruedDays, 14);
   assert.equal(quote.accrualMethod, 'actual/360');
-  assert.equal(quote.breakdown.accruedInterest, 0.93);
-  assert.equal(quote.total, 200.93);
+  assert.equal(quote.breakdown.accruedInterest, 0.47);
+  assert.equal(quote.total, 210.47);
 });
 
-test('buildPayoffQuote supports legacy loans without startDate by using createdAt', () => {
+test('buildPayoffQuote does not add daily interest to a current legacy loan', () => {
   const quote = buildPayoffQuote({
     loan: {
       status: 'active',
@@ -248,8 +250,9 @@ test('buildPayoffQuote supports legacy loans without startDate by using createdA
   });
 
   assert.equal(quote.accrualAnchor.date, '2026-01-01');
-  assert.equal(quote.accruedDays, 14);
-  assert.equal(quote.total, 100.47);
+  assert.equal(quote.accruedDays, 0);
+  assert.equal(quote.breakdown.accruedInterest, 0);
+  assert.equal(quote.total, 100);
 });
 
 test('buildPayoffQuote keeps accrued daily interest at zero on a due date boundary', () => {
@@ -318,6 +321,43 @@ test('buildPayoffQuote does not charge future installments when settling the rep
   assert.equal(quote.breakdown.accruedInterest, 0);
   assert.equal(quote.breakdown.overdueInterest, 0);
   assert.equal(quote.total, outstandingPrincipal);
+});
+
+test('buildPayoffQuote does not accrue daily interest for a customer current between installments', () => {
+  const quote = buildPayoffQuote({
+    loan: {
+      status: 'active',
+      startDate: '2026-06-10T00:00:00.000Z',
+      interestRate: 60,
+    },
+    schedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-07-10T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-08-10T00:00:00.000Z',
+        remainingPrincipal: 1000000,
+        remainingInterest: 50000,
+        status: 'pending',
+      },
+    ],
+    snapshot: {
+      outstandingPrincipal: 1000000,
+      outstandingBalance: 1050000,
+    },
+    asOfDate: '2026-07-13',
+  });
+
+  assert.equal(quote.breakdown.overduePrincipal, 0);
+  assert.equal(quote.breakdown.overdueInterest, 0);
+  assert.equal(quote.breakdown.lateFee, 0);
+  assert.equal(quote.breakdown.accruedInterest, 0);
+  assert.equal(quote.total, 1000000);
 });
 
 test('getCanonicalLoanView does not restore future interest after payoff on a due date', () => {

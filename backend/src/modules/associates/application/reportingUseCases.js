@@ -81,6 +81,8 @@ const DETAIL_COLUMNS = [
   { header: 'Socio', key: 'associateName', width: 28 },
   { header: 'Tipo de tasa', key: 'interestType', width: 18 },
   { header: 'Tasa Pactada %', key: 'interestRate', width: 18, numFmt: TNA_FORMAT },
+  { header: 'Plazo pactado (meses)', key: 'investmentTermMonths', width: 22, numFmt: '#,##0' },
+  dateColumn('Vencimiento pactado', 'investmentMaturityDate', 22),
   moneyColumn('Deuda con Socio', 'interestDebt', 20),
   moneyColumn('Interés Pagado', 'totalInterestPaid', 20),
   dateColumn('Próximo Pago', 'nextInterestPaymentDate', 18),
@@ -501,6 +503,10 @@ const createExportAssociatesExcel = ({
       const baseFields = {
         interestType: formatInterestType(associate.interestType),
         interestRate: associate.interestRate || '0.0000',
+        investmentTermMonths: Number.isInteger(Number(associate.investmentTermMonths))
+          ? Number(associate.investmentTermMonths)
+          : '',
+        investmentMaturityDate: toExcelDate(associate.investmentMaturityDate),
         interestDebt: roundMoney(interestDebt),
         totalInterestPaid: roundMoney(totalInterestPaid),
         nextInterestPaymentDate: toExcelDate(nextInterestPayment?.dueDate),

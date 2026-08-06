@@ -1706,7 +1706,7 @@ test('createExecutePayoff allows backoffice payment authority and forwards execu
     loanId: 22,
     asOfDate: '2026-03-15',
     quotedTotal: 104.56,
-    paymentDate: new Date('2026-03-15T18:30:00.000Z'),
+    paymentDate: new Date('2026-03-15T00:00:00.000Z'),
     actor: { id: 7, role: 'employee' },
     idempotencyKey: undefined,
   });

@@ -95,6 +95,7 @@ describe('NewAssociate behavior', () => {
 
     fillContactFields(container);
     fillCreationTerms(container);
+    fireEvent.change(screen.getByLabelText('Plazo de inversión (meses)'), { target: { value: '18' } });
 
     expect(container.querySelector('#new-associate-initial-capital')).toHaveValue('2.000.000');
     expect(screen.getByText('Recibirá COP 20.000 cada mes')).toBeInTheDocument();
@@ -108,6 +109,7 @@ describe('NewAssociate behavior', () => {
       interestRate: '12',
       interestPaymentDay: '13',
       interestPaymentMonth: '8',
+      investmentTermMonths: '18',
       status: 'active',
     }));
     expect(toast.error).not.toHaveBeenCalled();
@@ -200,6 +202,7 @@ describe('NewAssociate behavior', () => {
       'interestPaymentMonth',
       'interestRate',
       'interestType',
+      'investmentTermMonths',
       'name',
       'phone',
       'status',
@@ -221,6 +224,18 @@ describe('NewAssociate behavior', () => {
 
     fireEvent.change(rateInput, { target: { value: '1e2' } });
     expect(rateInput).toHaveValue('2.5');
+  });
+
+  it('requires an investment term in the accepted monthly range', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+    fillContactFields(container);
+    fillCreationTerms(container);
+
+    fireEvent.change(screen.getByLabelText('Plazo de inversión (meses)'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+
+    expect(screen.getByText('Ingresa un plazo entre 1 y 120 meses.')).toBeInTheDocument();
+    expect(runSubmitMock).not.toHaveBeenCalled();
   });
 
   it('keeps status available while editing and derives the next monthly payment date', () => {

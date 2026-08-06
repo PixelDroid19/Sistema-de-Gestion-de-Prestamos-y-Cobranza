@@ -91,6 +91,8 @@ test('export associates use case builds approved operational sheet structure', a
     status: 'active',
     interestType: 'monthly',
     interestRate: '2.5000',
+    investmentTermMonths: 12,
+    investmentMaturityDate: '2027-01-10',
   };
   const useCase = createExportAssociatesExcel({
     associateRepository: {
@@ -147,15 +149,21 @@ test('export associates use case builds approved operational sheet structure', a
   ]);
   assert.equal(result.data.sheets[0].columns.some((column) => column.header === 'Unidad'), false);
   assert.equal(result.data.sheets[4].columns.some((column) => column.header === 'Unidad'), false);
-  assert.deepEqual(result.data.sheets[3].columns.slice(0, 7).map((column) => column.header), [
+  assert.deepEqual(result.data.sheets[3].columns.slice(0, 9).map((column) => column.header), [
     'ID Socio',
     'Socio',
     'Tipo de tasa',
     'Tasa Pactada %',
+    'Plazo pactado (meses)',
+    'Vencimiento pactado',
     'Deuda con Socio',
     'Interés Pagado',
     'Próximo Pago',
   ]);
+  assert.ok(result.data.rows.some((row) => (
+    row.investmentTermMonths === 12
+    && row.investmentMaturityDate?.toISOString().slice(0, 10) === '2027-01-10'
+  )));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Rentabilidad del Aporte'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tasa Histórica del Aporte %'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pagado'));

@@ -10,6 +10,7 @@ const { validateIntegerRange } = require('@/modules/shared/validators');
 const {
   buildDateRangeMessage,
   getCurrentOperationalDateOnly,
+  normalizeDateOnly,
   normalizeOperationalDate,
   normalizeOptionalOperationalDate,
   toDateOnlyOrNull,
@@ -21,6 +22,8 @@ const ALLOWED_INTEREST_TYPES = new Set(['monthly', 'annual']);
 const ALLOWED_ASSOCIATE_CONTRIBUTION_STATUSES = new Set(['completed', 'pending', 'annulled', 'manual_hold']);
 const DEFAULT_INTEREST_PAYMENT_DAY = 1;
 const DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH = 1;
+const MIN_INVESTMENT_TERM_MONTHS = 1;
+const MAX_INVESTMENT_TERM_MONTHS = 120;
 const ASSOCIATE_PAYMENT_ALERT_WINDOW_DAYS = 7;
 const INACTIVE_ASSOCIATE_FINANCIAL_OPERATION_MESSAGE = 'No se pueden registrar movimientos financieros para un socio inactivo.';
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -133,6 +136,25 @@ const ensureAssociateAcceptsFinancialOperations = (associate) => {
   }
 };
 
+const ensureAssociateOperationWithinInvestmentTerm = (associate, operationDate, fieldName) => {
+  const maturityDate = toOperationalDateOrNull(associate?.investmentMaturityDate);
+  if (!maturityDate || !operationDate) {
+    return;
+  }
+
+  const normalizedOperationDate = normalizeDateOnly(operationDate, fieldName);
+  const normalizedMaturityDate = normalizeDateOnly(maturityDate, 'investmentMaturityDate');
+  if (normalizedOperationDate > normalizedMaturityDate) {
+    throw new ValidationError('El plazo de inversión ya venció. Registra una nueva inversión para recibir rentabilidad adicional.');
+  }
+};
+
+const findAssociateForFinancialMutation = ({ associateRepository, associateId, transaction }) => (
+  typeof associateRepository.findByIdForUpdate === 'function'
+    ? associateRepository.findByIdForUpdate(associateId, { transaction })
+    : associateRepository.findById(associateId, { transaction })
+);
+
 const associateInterestSchedulingFieldsChanged = (associate, normalizedPayload, payload) => {
   const schedulingFields = ['interestType', 'interestRate', 'interestPaymentDay', 'interestPaymentMonth'];
   return schedulingFields.some((field) => {
@@ -167,6 +189,21 @@ const normalizePaymentMonth = (value) => {
   return Number(typeof value === 'string' ? value.trim() : value);
 };
 
+const normalizeInvestmentTermMonths = (value, { required = false } = {}) => {
+  if (value === undefined || value === null || value === '') {
+    if (required) {
+      throw new ValidationError('El plazo de inversión debe ser un entero entre 1 y 120 meses');
+    }
+    return null;
+  }
+
+  if (!validateIntegerRange(value, MIN_INVESTMENT_TERM_MONTHS, MAX_INVESTMENT_TERM_MONTHS)) {
+    throw new ValidationError('El plazo de inversión debe ser un entero entre 1 y 120 meses');
+  }
+
+  return Number(typeof value === 'string' ? value.trim() : value);
+};
+
 const normalizeOptionalOperationDate = (value, fieldName) => (
   (() => {
     try {
@@ -189,7 +226,7 @@ const mapValidDatedRows = (rows, getDate, mapRow) => rows
   })
   .filter(Boolean);
 
-const normalizeAssociatePayload = (payload) => {
+const normalizeAssociatePayload = (payload, { requireInvestmentTerm = false } = {}) => {
   const normalizedPayload = { ...payload };
   assertNoRemovedAssociateFields(normalizedPayload);
 
@@ -207,6 +244,17 @@ const normalizeAssociatePayload = (payload) => {
 
   if (hasOwn(payload, 'interestPaymentMonth')) {
     normalizedPayload.interestPaymentMonth = normalizePaymentMonth(payload.interestPaymentMonth);
+  }
+
+  if (hasOwn(payload, 'investmentMaturityDate')) {
+    throw new ValidationError('La fecha de vencimiento se calcula a partir del plazo pactado y no se puede modificar directamente.');
+  }
+
+  if (hasOwn(payload, 'investmentTermMonths') || requireInvestmentTerm) {
+    normalizedPayload.investmentTermMonths = normalizeInvestmentTermMonths(
+      payload.investmentTermMonths,
+      { required: requireInvestmentTerm },
+    );
   }
 
   delete normalizedPayload.initialCapital;
@@ -341,7 +389,13 @@ const normalizeAssociateRecord = (associate) => {
     return serializedAssociate;
   }
 
-  return {
+  const investmentTermMonths = (() => {
+    const value = Number(serializedAssociate.investmentTermMonths);
+    return Number.isInteger(value) && value >= MIN_INVESTMENT_TERM_MONTHS && value <= MAX_INVESTMENT_TERM_MONTHS
+      ? value
+      : null;
+  })();
+  const normalizedAssociate = {
     ...serializedAssociate,
     interestType: normalizeInterestType(serializedAssociate.interestType),
     interestRate: normalizeInterestRate(serializedAssociate.interestRate),
@@ -350,6 +404,16 @@ const normalizeAssociateRecord = (associate) => {
       ? null
       : normalizePaymentMonth(serializedAssociate.interestPaymentMonth),
   };
+
+  if (investmentTermMonths !== null) {
+    normalizedAssociate.investmentTermMonths = investmentTermMonths;
+    normalizedAssociate.investmentMaturityDate = toDateOnlyOrNull(serializedAssociate.investmentMaturityDate);
+  } else {
+    delete normalizedAssociate.investmentTermMonths;
+    delete normalizedAssociate.investmentMaturityDate;
+  }
+
+  return normalizedAssociate;
 };
 
 const addMonthsUtc = (date, months) => new Date(Date.UTC(
@@ -488,8 +552,24 @@ const allocateCentsByWeight = ({ buckets, totalCents, getWeight }) => {
   }));
 };
 
-const buildContributionCapitalState = ({ associate, contributions = [], distributions = [] }) => {
+const isRecordedOnOrBefore = (value, asOfDate) => {
+  if (!asOfDate) {
+    return true;
+  }
+
+  const recordedDate = toOperationalDateOrNull(value);
+  const cutoffDate = toOperationalDateOrNull(asOfDate);
+  return !recordedDate || !cutoffDate || recordedDate.getTime() <= cutoffDate.getTime();
+};
+
+const buildContributionCapitalState = ({
+  associate,
+  contributions = [],
+  distributions = [],
+  asOfDate = null,
+}) => {
   const capitalBuckets = [...filterCapitalBearingContributions(contributions)]
+    .filter((contribution) => isRecordedOnOrBefore(contribution.contributionDate, asOfDate))
     .sort((left, right) => sortRowsByOperationalDateAsc(left, right, (row) => row.contributionDate))
     .map((contribution) => {
       const originalAmountCents = amountToCents(contribution.amount);
@@ -506,6 +586,7 @@ const buildContributionCapitalState = ({ associate, contributions = [], distribu
 
   const capitalReturnDistributions = [...distributions]
     .filter(isCapitalReturnDistribution)
+    .filter((distribution) => isRecordedOnOrBefore(distribution.distributionDate, asOfDate))
     .sort((left, right) => sortRowsByOperationalDateAsc(left, right, (row) => row.distributionDate));
 
   let totalCapitalReturnedCents = 0;
@@ -555,6 +636,7 @@ const buildInterestInstallmentBasis = ({
   contributions = [],
   distributions = [],
   capitalBaseOverride = null,
+  asOfDate = null,
 }) => {
   if (capitalBaseOverride !== null) {
     const capitalBase = roundCurrency(capitalBaseOverride);
@@ -572,7 +654,12 @@ const buildInterestInstallmentBasis = ({
     };
   }
 
-  const capitalState = buildContributionCapitalState({ associate, contributions, distributions });
+  const capitalState = buildContributionCapitalState({
+    associate,
+    contributions,
+    distributions,
+    asOfDate,
+  });
 
   const basis = capitalState.buckets.reduce((result, bucket) => {
     const contributionAmount = roundCurrency(bucket.remainingAmount);
@@ -834,6 +921,173 @@ const ensureNextInterestInstallment = async ({
   }, { transaction });
 };
 
+const getFixedInvestmentTerms = (associate) => {
+  const investmentTermMonths = Number(associate?.investmentTermMonths);
+  const investmentMaturityDate = toOperationalDateOrNull(associate?.investmentMaturityDate);
+
+  if (
+    !Number.isInteger(investmentTermMonths)
+    || investmentTermMonths < MIN_INVESTMENT_TERM_MONTHS
+    || investmentTermMonths > MAX_INVESTMENT_TERM_MONTHS
+    || !investmentMaturityDate
+  ) {
+    return null;
+  }
+
+  return {
+    investmentTermMonths,
+    investmentMaturityDate,
+    firstPaymentDate: addMonthsUtc(investmentMaturityDate, -(investmentTermMonths - 1)),
+  };
+};
+
+const buildFixedInvestmentSchedule = (associate) => {
+  const fixedTerms = getFixedInvestmentTerms(associate);
+  if (!fixedTerms) {
+    return [];
+  }
+
+  return Array.from({ length: fixedTerms.investmentTermMonths }, (_, index) => ({
+    installmentNumber: index + 1,
+    dueDate: addMonthsUtc(fixedTerms.firstPaymentDate, index),
+  }));
+};
+
+const sortInstallmentsBySchedule = (left, right) => {
+  const dueDateComparison = sortRowsByOperationalDateAsc(left, right, (row) => row.dueDate);
+  if (dueDateComparison !== 0) {
+    return dueDateComparison;
+  }
+  return Number(left?.installmentNumber || 0) - Number(right?.installmentNumber || 0);
+};
+
+const ensureFixedInvestmentInterestInstallments = async ({
+  associateRepository,
+  associate,
+  transaction,
+  fromDate = null,
+  capitalBaseOverride = null,
+  existingInstallments = null,
+}) => {
+  const schedule = buildFixedInvestmentSchedule(associate);
+  if (schedule.length === 0 || typeof associateRepository.createInstallment !== 'function') {
+    return Array.isArray(existingInstallments) ? existingInstallments : [];
+  }
+
+  const loadInstallments = () => {
+    if (Array.isArray(existingInstallments)) {
+      return existingInstallments;
+    }
+
+    return typeof associateRepository.findInstallmentsByAssociateId === 'function'
+      ? associateRepository.findInstallmentsByAssociateId(associate.id, { transaction })
+      : [];
+  };
+  const [contributions, distributions, rawInstallments] = await Promise.all([
+    typeof associateRepository.listContributionsByAssociate === 'function'
+      ? associateRepository.listContributionsByAssociate(associate.id, { transaction })
+      : [],
+    typeof associateRepository.listProfitDistributionsByAssociate === 'function'
+      ? associateRepository.listProfitDistributionsByAssociate(associate.id, { transaction })
+      : [],
+    loadInstallments(),
+  ]);
+  const projectionStartDate = fromDate
+    ? normalizeOperationalDate(fromDate, 'interest projection start date')
+    : schedule[0].dueDate;
+  const existingByInstallmentNumber = new Map(rawInstallments.map((installment) => [
+    Number(installment.installmentNumber),
+    installment,
+  ]));
+  const synchronizedInstallments = [];
+
+  for (const scheduledInstallment of schedule) {
+    const existingInstallment = existingByInstallmentNumber.get(scheduledInstallment.installmentNumber) || null;
+    const currentStatus = String(existingInstallment?.status || '').toLowerCase();
+    const isHistoricalInstallment = currentStatus === 'paid' || currentStatus === 'overdue';
+    const shouldReproject = !isHistoricalInstallment
+      && scheduledInstallment.dueDate.getTime() >= projectionStartDate.getTime();
+
+    if (existingInstallment && !shouldReproject) {
+      synchronizedInstallments.push(existingInstallment);
+      continue;
+    }
+
+    const interestBasis = buildInterestInstallmentBasis({
+      associate,
+      contributions,
+      distributions,
+      capitalBaseOverride,
+      asOfDate: scheduledInstallment.dueDate,
+    });
+
+    if (interestBasis.capitalBase <= 0 || interestBasis.amount <= 0) {
+      if (existingInstallment && typeof associateRepository.deleteInstallmentById === 'function') {
+        await associateRepository.deleteInstallmentById(existingInstallment.id, { transaction });
+      }
+      continue;
+    }
+
+    const projectionPayload = buildInterestInstallmentPayload({
+      associate,
+      interestBasis,
+      installmentNumber: scheduledInstallment.installmentNumber,
+      dueDate: scheduledInstallment.dueDate,
+    });
+
+    if (existingInstallment) {
+      if (typeof associateRepository.updateInstallmentProjection === 'function') {
+        const updatedInstallment = await associateRepository.updateInstallmentProjection(
+          existingInstallment.id,
+          projectionPayload,
+          { transaction },
+        );
+        synchronizedInstallments.push(updatedInstallment || { ...serializeInstallmentRecord(existingInstallment), ...projectionPayload });
+      } else {
+        synchronizedInstallments.push({ ...serializeInstallmentRecord(existingInstallment), ...projectionPayload });
+      }
+      continue;
+    }
+
+    const createdInstallment = await associateRepository.createInstallment({
+      associateId: associate.id,
+      ...projectionPayload,
+      status: 'pending',
+    }, { transaction });
+    synchronizedInstallments.push(createdInstallment || {
+      associateId: associate.id,
+      ...projectionPayload,
+      status: 'pending',
+    });
+  }
+
+  const lastScheduledInstallmentNumber = schedule.at(-1).installmentNumber;
+  const immutablePaidInstallments = rawInstallments.filter((installment) => (
+    Number(installment.installmentNumber) > lastScheduledInstallmentNumber
+    && String(installment.status || '').toLowerCase() === 'paid'
+  ));
+  const staleOpenInstallments = rawInstallments.filter((installment) => (
+    Number(installment.installmentNumber) > lastScheduledInstallmentNumber
+    && String(installment.status || '').toLowerCase() !== 'paid'
+  ));
+  if (typeof associateRepository.deleteInstallmentById === 'function') {
+    await Promise.all(staleOpenInstallments.map((installment) => (
+      associateRepository.deleteInstallmentById(installment.id, { transaction })
+    )));
+  }
+
+  return [...synchronizedInstallments, ...immutablePaidInstallments].sort(sortInstallmentsBySchedule);
+};
+
+const ensureInterestInstallments = (args) => (
+  getFixedInvestmentTerms(args.associate)
+    ? ensureFixedInvestmentInterestInstallments({
+      ...args,
+      fromDate: args.fromDate || args.afterDate || null,
+    })
+    : ensureNextInterestInstallment(args)
+);
+
 const replaceInstallmentProjection = (installments, projection) => {
   if (!projection) {
     return installments;
@@ -875,6 +1129,16 @@ const synchronizeOpenInterestInstallments = async ({
 
   if (String(associate?.status || 'active').toLowerCase() !== 'active') {
     return normalizedInstallments;
+  }
+
+  if (getFixedInvestmentTerms(associate)) {
+    return ensureFixedInvestmentInterestInstallments({
+      associateRepository,
+      associate,
+      transaction,
+      fromDate: asOfDate,
+      existingInstallments: normalizedInstallments,
+    });
   }
 
   const projection = await ensureNextInterestInstallment({
@@ -988,8 +1252,19 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination, f
  */
 const createCreateAssociate = ({ associateRepository, auditService, clock = () => new Date() }) => {
   const useCase = async ({ actor, payload }) => {
-    const normalizedPayload = normalizeAssociatePayload(payload);
     const initialCapital = parseCurrencyAmount(payload.initialCapital, 'initialCapital');
+    const normalizedPayload = normalizeAssociatePayload(payload, {
+      requireInvestmentTerm: true,
+    });
+    const operationDate = getCurrentOperationalDateOnly(clock());
+    const firstPaymentDate = buildInterestDueDate({
+      associate: normalizedPayload,
+      fromDate: operationDate,
+    });
+    normalizedPayload.investmentMaturityDate = addMonthsUtc(
+      firstPaymentDate,
+      normalizedPayload.investmentTermMonths - 1,
+    );
 
     await ensureUniqueAssociateContact({
       associateRepository,
@@ -1000,7 +1275,6 @@ const createCreateAssociate = ({ associateRepository, auditService, clock = () =
     const createAssociateWithFinancialTrace = async (transaction) => {
       const associate = await associateRepository.create(normalizedPayload, { transaction });
       if (initialCapital !== null) {
-        const operationDate = getCurrentOperationalDateOnly(clock());
         await associateRepository.createContribution({
           associateId: associate.id,
           amount: initialCapital,
@@ -1010,7 +1284,7 @@ const createCreateAssociate = ({ associateRepository, auditService, clock = () =
           notes: 'Capital inicial registrado al crear el socio',
         }, { transaction });
 
-        await ensureNextInterestInstallment({
+        await ensureInterestInstallments({
           associateRepository,
           associate,
           transaction,
@@ -1061,6 +1335,13 @@ const createUpdateAssociate = ({ associateRepository, auditService }) => {
       throw new NotFoundError('Associate');
     }
 
+    // The agreed term defines the entire payment schedule. Changing it in a
+    // contact edit would silently rewrite a financial contract, so a new
+    // investment must be created instead of mutating this one.
+    if (hasOwn(payload, 'investmentTermMonths')) {
+      throw new ValidationError('El plazo de inversión se pacta al crear el socio y no puede modificarse en un contrato vigente.');
+    }
+
     const normalizedPayload = normalizeAssociatePayload(payload);
 
     await ensureUniqueAssociateContact({
@@ -1080,7 +1361,7 @@ const createUpdateAssociate = ({ associateRepository, auditService }) => {
     );
 
     if (shouldReprojectInterestInstallments) {
-      await ensureNextInterestInstallment({
+      await ensureInterestInstallments({
         associateRepository,
         associate: updatedAssociate,
         fromDate: new Date(),
@@ -1508,31 +1789,42 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar aportes de socios.');
     }
 
-    const associate = await associateRepository.findById(associateId);
-    if (!associate) {
+    const initialAssociate = await associateRepository.findById(associateId);
+    if (!initialAssociate) {
       throw new NotFoundError('Associate');
     }
-    ensureAssociateAcceptsFinancialOperations(associate);
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
       throw new ValidationError('El monto del aporte debe ser mayor a 0');
     }
 
-    const contributionPayload = {
-      associateId: associate.id,
-      amount,
-      contributionDate: normalizeOptionalOperationDate(payload.contributionDate, 'contributionDate'),
-      status: normalizeAssociateContributionStatus(payload.status),
-      ...buildContributionTermsSnapshot(associate),
-      createdByUserId: actor.id,
-      notes: payload.notes ? String(payload.notes).trim() : null,
-    };
+    const contributionDate = normalizeOptionalOperationDate(payload.contributionDate, 'contributionDate');
+    const contributionStatus = normalizeAssociateContributionStatus(payload.status);
+    const notes = payload.notes ? String(payload.notes).trim() : null;
 
     const createContributionWithProjection = async (transaction) => {
+      const associate = transaction
+        ? await findAssociateForFinancialMutation({ associateRepository, associateId, transaction })
+        : initialAssociate;
+      if (!associate) {
+        throw new NotFoundError('Associate');
+      }
+      ensureAssociateAcceptsFinancialOperations(associate);
+      ensureAssociateOperationWithinInvestmentTerm(associate, contributionDate, 'contributionDate');
+
+      const contributionPayload = {
+        associateId: associate.id,
+        amount,
+        contributionDate,
+        status: contributionStatus,
+        ...buildContributionTermsSnapshot(associate),
+        createdByUserId: actor.id,
+        notes,
+      };
       const contribution = await associateRepository.createContribution(contributionPayload, { transaction });
 
-      await ensureNextInterestInstallment({
+      await ensureInterestInstallments({
         associateRepository,
         associate,
         transaction,
@@ -1599,11 +1891,10 @@ const createCreateAssociateCapitalReturn = ({ associateRepository, auditService 
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar devoluciones de capital.');
     }
 
-    const associate = await associateRepository.findById(associateId);
-    if (!associate) {
+    const initialAssociate = await associateRepository.findById(associateId);
+    if (!initialAssociate) {
       throw new NotFoundError('Associate');
     }
-    ensureAssociateAcceptsFinancialOperations(associate);
 
     if (hasOwn(payload || {}, 'distributionDate')) {
       throw new ValidationError('El contrato de socios no acepta distributionDate para devoluciones de capital.');
@@ -1618,6 +1909,11 @@ const createCreateAssociateCapitalReturn = ({ associateRepository, auditService 
     const notes = payload.notes ? String(payload.notes).trim() : null;
 
     return associateRepository.runInTransaction(async (transaction) => {
+      const associate = await findAssociateForFinancialMutation({ associateRepository, associateId, transaction });
+      if (!associate) {
+        throw new NotFoundError('Associate');
+      }
+      ensureAssociateAcceptsFinancialOperations(associate);
       const [contributions, distributions] = await Promise.all([
         associateRepository.listContributionsByAssociate(associate.id, { transaction }),
         associateRepository.listProfitDistributionsByAssociate(associate.id, { transaction }),
@@ -1649,7 +1945,7 @@ const createCreateAssociateCapitalReturn = ({ associateRepository, auditService 
         },
       }, { transaction });
 
-      await ensureNextInterestInstallment({
+      await ensureInterestInstallments({
         associateRepository,
         associate,
         transaction,
@@ -1680,11 +1976,10 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar reinversiones de socios.');
     }
 
-    const associate = await associateRepository.findById(associateId);
-    if (!associate) {
+    const initialAssociate = await associateRepository.findById(associateId);
+    if (!initialAssociate) {
       throw new NotFoundError('Associate');
     }
-    ensureAssociateAcceptsFinancialOperations(associate);
 
     const amount = parsePositiveCurrencyAmount(payload.amount);
     if (amount === null) {
@@ -1694,6 +1989,12 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
     const operationDate = normalizeOptionalOperationDate(payload.reinvestmentDate, 'reinvestmentDate');
 
     return associateRepository.runInTransaction(async (transaction) => {
+      const associate = await findAssociateForFinancialMutation({ associateRepository, associateId, transaction });
+      if (!associate) {
+        throw new NotFoundError('Associate');
+      }
+      ensureAssociateAcceptsFinancialOperations(associate);
+      ensureAssociateOperationWithinInvestmentTerm(associate, operationDate, 'reinvestmentDate');
       const note = payload.notes ? String(payload.notes).trim() : null;
       const contribution = await associateRepository.createContribution({
         associateId: associate.id,
@@ -1719,7 +2020,7 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
         },
       }, { transaction });
 
-      await ensureNextInterestInstallment({
+      await ensureInterestInstallments({
         associateRepository,
         associate,
         transaction,
@@ -1847,7 +2148,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       null,
     );
 
-    await ensureNextInterestInstallment({
+    await ensureInterestInstallments({
       associateRepository,
       associate,
       afterDate: installment.dueDate,
@@ -1855,7 +2156,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
     });
 
     const updatedInstallment = {
-      ...installment.toJSON(),
+      ...serializeInstallmentRecord(installment),
       status: 'paid',
       paidAt: paymentDate,
       paidBy,

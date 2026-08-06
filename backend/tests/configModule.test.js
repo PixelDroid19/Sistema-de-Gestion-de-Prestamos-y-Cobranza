@@ -948,6 +948,53 @@ test('late-fee policies reject modes that are not configurable from the operatio
   );
 });
 
+test('late-fee policy lifecycle never leaves the system without an active policy', async () => {
+  const existingPolicy = {
+    id: 46,
+    key: 'mora-unica',
+    label: 'Mora única',
+    isActive: true,
+    value: {
+      annualEffectiveRate: 12,
+      lateFeeMode: 'SIMPLE',
+      priority: 'medium',
+    },
+  };
+  const repository = {
+    async findByIdAndCategory(id, category) {
+      assert.equal(id, 46);
+      assert.equal(category, 'late_fee_policy');
+      return existingPolicy;
+    },
+    async findByCategoryAndKey() {
+      return null;
+    },
+    async listByCategory() {
+      return [existingPolicy];
+    },
+    async update() {
+      throw new Error('update should not be called when deactivating the last active policy');
+    },
+    async destroy() {
+      throw new Error('destroy should not be called when deleting the last active policy');
+    },
+  };
+
+  const updateLateFeePolicy = createUpdateLateFeePolicy({ configRepository: repository });
+  const deleteLateFeePolicy = createDeleteLateFeePolicy({ configRepository: repository });
+
+  for (const operation of [
+    () => updateLateFeePolicy(46, { isActive: false }),
+    () => deleteLateFeePolicy(46),
+  ]) {
+    await assert.rejects(
+      operation,
+      (error) => error instanceof ConflictError
+        && error.message === 'No se puede desactivar o eliminar la única política de mora activa. Crea una política de reemplazo antes de retirarla.',
+    );
+  }
+});
+
 test('late-fee policy resolution rejects active policies with the same priority instead of guessing', async () => {
   const resolveLateFeePolicy = createResolveLateFeePolicy({
     configRepository: {

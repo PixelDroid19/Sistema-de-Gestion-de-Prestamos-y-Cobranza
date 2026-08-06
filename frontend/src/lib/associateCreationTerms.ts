@@ -14,6 +14,9 @@ type ConfiguredPaymentTerms = {
 
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+export const MIN_INVESTMENT_TERM_MONTHS = 1;
+export const MAX_INVESTMENT_TERM_MONTHS = 120;
+
 const formatDateOnly = (date: Date): string => date.toISOString().slice(0, 10);
 
 const toBogotaDateOnly = (now: Date): Date => {
@@ -35,6 +38,17 @@ const toBogotaDateOnly = (now: Date): Date => {
 const addUtcDays = (date: Date, days: number): Date => {
   const result = new Date(date);
   result.setUTCDate(result.getUTCDate() + days);
+  return result;
+};
+
+const addUtcMonths = (date: Date, months: number): Date => {
+  const result = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+  const lastDayOfTargetMonth = new Date(Date.UTC(
+    result.getUTCFullYear(),
+    result.getUTCMonth() + 1,
+    0,
+  )).getUTCDate();
+  result.setUTCDate(Math.min(date.getUTCDate(), lastDayOfTargetMonth));
   return result;
 };
 
@@ -95,6 +109,40 @@ export const parseFirstPaymentTerms = (value: string): FirstPaymentTerms | null 
   }
 
   return { day: String(day), month: String(month) };
+};
+
+export const parseInvestmentTermMonths = (value: string): number | null => {
+  const normalizedValue = String(value || '').trim();
+  if (!/^\d{1,3}$/.test(normalizedValue)) {
+    return null;
+  }
+
+  const months = Number(normalizedValue);
+  return Number.isInteger(months)
+    && months >= MIN_INVESTMENT_TERM_MONTHS
+    && months <= MAX_INVESTMENT_TERM_MONTHS
+    ? months
+    : null;
+};
+
+export const getInvestmentMaturityDate = (
+  firstPaymentDate: string,
+  investmentTermMonths: number,
+): string | null => {
+  if (!parseFirstPaymentTerms(firstPaymentDate)) {
+    return null;
+  }
+
+  if (
+    !Number.isInteger(investmentTermMonths)
+    || investmentTermMonths < MIN_INVESTMENT_TERM_MONTHS
+    || investmentTermMonths > MAX_INVESTMENT_TERM_MONTHS
+  ) {
+    return null;
+  }
+
+  const [year, month, day] = firstPaymentDate.split('-').map(Number);
+  return formatDateOnly(addUtcMonths(new Date(Date.UTC(year, month - 1, day)), investmentTermMonths - 1));
 };
 
 export const isFirstPaymentDateWithinBounds = (

@@ -1268,13 +1268,17 @@ const createPaymentApplicationService = ({
   /**
    * Apply payoff (total payment to close the loan)
    */
-  const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate = clock(), actor = null, idempotencyKey = null }) => {
+  const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate: _paymentDate = clock(), actor = null, idempotencyKey = null }) => {
+    // The effective date drives interest, mora, closure, and reporting. Persist
+    // that same operational day so a historical/future quote cannot be posted
+    // under a different cash-flow date.
+    const effectiveAsOfDate = normalizeDateOnly(asOfDate || clock(), 'asOfDate');
     const result = await runPaymentOperationWithIdempotency({
       operationType: PAYOFF_PAYMENT_TYPE,
       loanId,
       amount: quotedTotal,
-      paymentDate,
-      asOfDate,
+      paymentDate: effectiveAsOfDate,
+      asOfDate: effectiveAsOfDate,
       quotedTotal,
       actorId: actor?.id || 0,
       idempotencyKey,
@@ -1287,7 +1291,7 @@ const createPaymentApplicationService = ({
 
       const normalizedQuotedTotal = assertPositiveAmount(quotedTotal);
       const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
-      const payoffDate = new Date(`${asOfDate}T00:00:00.000Z`);
+      const payoffDate = effectiveAsOfDate;
 
       assertPayoffAllowed({
         loan,
@@ -1296,13 +1300,13 @@ const createPaymentApplicationService = ({
         asOfDate: payoffDate,
       });
 
-      const recomputedQuote = loanViewService.getPayoffQuote(loan, asOfDate);
+      const recomputedQuote = loanViewService.getPayoffQuote(loan, effectiveAsOfDate);
 
       if (roundCurrency(recomputedQuote.total) !== normalizedQuotedTotal) {
         throw new ValidationError(PAYOFF_QUOTE_STALE_MESSAGE);
       }
 
-      const normalizedPaymentDate = normalizePaymentDate(paymentDate);
+      const normalizedPaymentDate = effectiveAsOfDate;
       const appliedPayoffDate = new Date(`${recomputedQuote.asOfDate}T00:00:00.000Z`);
       const settledSchedule = cloneSchedule(schedule).map((row) => {
         const rowDueDate = new Date(row.dueDate);
@@ -1374,7 +1378,7 @@ const createPaymentApplicationService = ({
         loanId,
         paymentId: payment?.id,
         amount: Number(payment?.amount ?? quotedTotal),
-        paymentDate,
+        paymentDate: effectiveAsOfDate,
         paymentMethod: payment?.paymentMethod || null,
         paymentType: PAYOFF_PAYMENT_TYPE,
         actorId: actor?.id || null,

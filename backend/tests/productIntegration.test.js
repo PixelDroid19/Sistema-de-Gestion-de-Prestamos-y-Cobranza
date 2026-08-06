@@ -30,7 +30,7 @@ const ADMIN_PASSWORD = process.env.PRODUCT_INTEGRATION_ADMIN_PASSWORD || 'Admin1
 const EMPLOYEE_EMAIL = process.env.PRODUCT_INTEGRATION_EMPLOYEE_EMAIL || 'qa.employee.20260427@test.local';
 const EMPLOYEE_PASSWORD = process.env.PRODUCT_INTEGRATION_EMPLOYEE_PASSWORD || 'Admin123!';
 
-const request = ({ method = 'GET', path, body, token, headers = {} }) => new Promise((resolve, reject) => {
+const request = ({ method = 'GET', path, body, token, headers = {}, raw = false }) => new Promise((resolve, reject) => {
   const url = new URL(path, BASE_URL);
   const payload = body === undefined ? null : JSON.stringify(body);
   const client = url.protocol === 'https:' ? https : http;
@@ -51,10 +51,15 @@ const request = ({ method = 'GET', path, body, token, headers = {} }) => new Pro
     const chunks = [];
     res.on('data', (chunk) => chunks.push(chunk));
     res.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf8');
-      let parsed = raw;
+      const rawBuffer = Buffer.concat(chunks);
+      if (raw) {
+        resolve({ status: res.statusCode, body: rawBuffer, headers: res.headers });
+        return;
+      }
+      const rawText = rawBuffer.toString('utf8');
+      let parsed = rawText;
       try {
-        parsed = raw ? JSON.parse(raw) : null;
+        parsed = rawText ? JSON.parse(rawText) : null;
       } catch (_error) {
         // Preserve non-JSON responses in assertion details.
       }
@@ -352,6 +357,63 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
   );
 });
 
+integrationTest('producto: liquida un crédito al día sin interés diario entre cuotas', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de liquidación al día requiere el fixture de originación.');
+
+  let response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-current-payoff-loan` },
+    body: {
+      customerId,
+      amount: 1000000,
+      termMonths: 4,
+      startDate: '2026-06-24',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 201);
+  const currentPayoffLoanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(currentPayoffLoanId);
+  assert.ok(currentPayoffLoanId);
+
+  response = await expectStatus({ path: `/api/loans/${currentPayoffLoanId}`, token: accessToken }, 200);
+  const firstInstallment = response.body?.data?.loan?.emiSchedule?.[0];
+  assert.ok(Number(firstInstallment?.scheduledPayment) > 0);
+
+  await expectStatus({
+    method: 'POST',
+    path: '/api/loans/payments/process',
+    token: accessToken,
+    headers: {
+      'Idempotency-Key': `${fixturePrefix}-current-payoff-first-installment`,
+      'x-forwarded-for': '127.0.0.249',
+    },
+    body: {
+      loanId: currentPayoffLoanId,
+      paymentAmount: Number(firstInstallment.scheduledPayment),
+      paymentDate: '2026-07-24',
+      paymentMethod: 'cash',
+    },
+  }, 200);
+
+  response = await expectStatus({ path: `/api/loans/${currentPayoffLoanId}`, token: accessToken }, 200);
+  const outstandingPrincipal = Number(response.body?.data?.loan?.financialSnapshot?.outstandingPrincipal);
+  assert.ok(outstandingPrincipal > 0);
+
+  response = await expectStatus({
+    path: `/api/loans/${currentPayoffLoanId}/payoff-quote?asOfDate=2026-07-27`,
+    token: accessToken,
+  }, 200);
+  const quote = response.body?.data?.payoffQuote;
+  assert.equal(Number(quote?.breakdown?.overduePrincipal), 0);
+  assert.equal(Number(quote?.breakdown?.overdueInterest), 0);
+  assert.equal(Number(quote?.breakdown?.lateFee), 0);
+  assert.equal(Number(quote?.breakdown?.accruedInterest), 0);
+  assert.equal(Number(quote?.total), outstandingPrincipal);
+});
+
 integrationTest('producto: calcula mora y liquida el saldo total con cierre y trazabilidad', async () => {
   assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de liquidación requiere el fixture de originación.');
 
@@ -537,6 +599,7 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
       interestPaymentDay: 28,
       interestPaymentMonth: 1,
       initialCapital: 1000000,
+      investmentTermMonths: 1,
     },
   }, 201);
   const associateId = response.body?.data?.associate?.id;
@@ -562,6 +625,15 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
 
   response = await expectStatus({ path: `/api/associates/${associateId}/installments`, token: accessToken }, 200);
   assert.equal(Number(response.body?.data?.installments?.installments?.[0]?.amount), 30000, 'La cuota futura debe reproyectarse con el capital vigente.');
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/associates/${associateId}/manual-profitability-payments`,
+    token: accessToken,
+    body: { amount: 15000, distributionDate: '2026-07-19', notes: 'Pago manual integración' },
+  }, 201);
+  assert.equal(Number(response.body?.data?.distribution?.amount), 15000);
+  assert.equal(response.body?.data?.distribution?.basis?.type, 'manual');
 
   response = await expectStatus({
     method: 'POST',
@@ -611,6 +683,7 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
       interestPaymentDay: 15,
       interestPaymentMonth: 8,
       initialCapital: 1200000,
+      investmentTermMonths: 6,
     },
   }, 201);
   const annualAssociateId = response.body?.data?.associate?.id;
@@ -618,9 +691,21 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
   assert.ok(annualAssociateId);
 
   response = await expectStatus({ path: `/api/associates/${annualAssociateId}/installments`, token: accessToken }, 200);
-  const annualInstallment = response.body?.data?.installments?.installments?.[0];
+  const annualInstallments = response.body?.data?.installments?.installments;
+  const annualInstallment = annualInstallments?.[0];
+  assert.equal(annualInstallments?.length, 6, 'El plazo pactado debe crear un pago mensual por cada mes del contrato.');
   assert.equal(Number(annualInstallment?.amount), 12000, 'La tasa anual debe liquidarse en pagos mensuales equivalentes.');
   assert.match(String(annualInstallment?.dueDate), /^2026-08-15/u);
+  assert.match(String(annualInstallments?.at(-1)?.dueDate), /^2027-01-15/u);
+
+  response = await expectStatus({ path: `/api/associates/${annualAssociateId}/calendar-events`, token: accessToken }, 200);
+  const annualCalendarInstallments = (response.body?.data?.calendar?.events || [])
+    .filter((event) => event.type === 'installment');
+  assert.equal(
+    annualCalendarInstallments.length,
+    6,
+    'Sin filtros, el calendario debe incluir el contrato completo aunque termine en el siguiente año.',
+  );
 
   response = await expectStatus({ path: `/api/associates/${associateId}/export?format=xlsx`, token: accessToken }, 200);
   assert.match(String(response.headers['content-type']), /spreadsheet|octet-stream/u);
@@ -683,6 +768,181 @@ integrationTest('producto: registra un pago, actualiza calendario, liquida cuota
   response = await expectStatus({ path: '/api/reports/credits/excel', token: accessToken }, 200);
   assert.match(String(response.headers['content-type']), /spreadsheet|octet-stream/u);
   assert.ok(String(response.headers['content-disposition']).includes('.xlsx'));
+});
+
+integrationTest('producto: genera vouchers reales para abonos a capital y pagos totales', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de vouchers requiere autenticación y cliente.');
+
+  let response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-voucher-capital-loan` },
+    body: {
+      customerId,
+      amount: 1000000,
+      termMonths: 3,
+      startDate: '2026-06-24',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 201);
+  const capitalLoanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(capitalLoanId);
+  assert.ok(capitalLoanId);
+
+  response = await expectStatus({ path: `/api/loans/${capitalLoanId}`, token: accessToken }, 200);
+  const firstInstallment = response.body?.data?.loan?.emiSchedule?.[0];
+  assert.ok(Number(firstInstallment?.scheduledPayment) > 0);
+  await expectStatus({
+    method: 'POST',
+    path: '/api/loans/payments/process',
+    token: accessToken,
+    headers: {
+      'Idempotency-Key': `${fixturePrefix}-voucher-capital-first`,
+      'x-forwarded-for': '127.0.0.251',
+    },
+    body: {
+      loanId: capitalLoanId,
+      paymentAmount: Number(firstInstallment.scheduledPayment),
+      paymentDate: '2026-07-24',
+      paymentMethod: 'cash',
+    },
+  }, 200);
+
+  response = await expectStatus({
+    method: 'POST',
+    path: '/api/payments/capital',
+    token: accessToken,
+    headers: {
+      'Idempotency-Key': `${fixturePrefix}-voucher-capital`,
+      'x-forwarded-for': '127.0.0.252',
+    },
+    body: {
+      loanId: capitalLoanId,
+      amount: 100000,
+      paymentDate: '2026-07-24',
+      paymentMethod: 'cash',
+      strategy: 'REDUCE_QUOTA',
+      newTermMonths: 3,
+    },
+  }, 201);
+  const capitalPaymentId = response.body?.data?.payment?.id;
+  assert.ok(capitalPaymentId);
+
+  const capitalVoucher = await request({
+    path: `/api/payments/${capitalPaymentId}/voucher/pdf`,
+    token: accessToken,
+    raw: true,
+  });
+  assert.equal(capitalVoucher.status, 200);
+  assert.match(String(capitalVoucher.headers['content-type']), /pdf/u);
+  assert.ok(capitalVoucher.body.length > 500, 'El voucher de abono a capital debe ser un PDF real.');
+
+  response = await expectStatus({
+    method: 'POST',
+    path: '/api/loans',
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-voucher-payoff-loan` },
+    body: {
+      customerId,
+      amount: 500000,
+      termMonths: 2,
+      startDate: '2026-07-24',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 201);
+  const payoffLoanId = response.body?.data?.loan?.id;
+  fixtureLoanIds.push(payoffLoanId);
+  assert.ok(payoffLoanId);
+
+  response = await expectStatus({ path: `/api/loans/${payoffLoanId}/payoff-quote?asOfDate=2026-07-24`, token: accessToken }, 200);
+  const payoffQuote = response.body?.data?.payoffQuote;
+  assert.equal(Number(payoffQuote?.breakdown?.accruedInterest || 0), 0, 'Un crédito al día no debe sumar interés diario al pagar total.');
+
+  response = await expectStatus({
+    method: 'POST',
+    path: `/api/loans/${payoffLoanId}/payoff-executions`,
+    token: accessToken,
+    headers: {
+      'Idempotency-Key': `${fixturePrefix}-voucher-payoff`,
+      'x-forwarded-for': '127.0.0.253',
+    },
+    body: { asOfDate: '2026-07-24', quotedTotal: payoffQuote.total },
+  }, 201);
+  const payoffPaymentId = response.body?.data?.payment?.id;
+  assert.ok(payoffPaymentId);
+
+  const payoffVoucher = await request({
+    path: `/api/payments/${payoffPaymentId}/voucher/pdf`,
+    token: accessToken,
+    raw: true,
+  });
+  assert.equal(payoffVoucher.status, 200);
+  assert.match(String(payoffVoucher.headers['content-type']), /pdf/u);
+  assert.ok(payoffVoucher.body.length > 500, 'El voucher de pago total debe ser un PDF real.');
+});
+
+integrationTest('producto: serializa aportes concurrentes de un socio sin duplicar su calendario', async () => {
+  assert.ok(accessToken && fixturePrefix, 'La prueba de concurrencia requiere autenticación administrativa.');
+
+  const operationalDate = new Date().toISOString().slice(0, 10);
+  let response = await expectStatus({
+    method: 'POST',
+    path: '/api/associates',
+    token: accessToken,
+    body: {
+      name: `Socio concurrente ${fixturePrefix}`,
+      email: `socio-concurrente-${fixturePrefix}@test.local`,
+      phone: `304${String(Date.now()).slice(-7)}`,
+      status: 'active',
+      interestType: 'monthly',
+      interestRate: 2,
+      interestPaymentDay: new Date().getDate(),
+      initialCapital: 1000000,
+      investmentTermMonths: 3,
+    },
+  }, 201);
+  const associateId = response.body?.data?.associate?.id;
+  fixtureAssociateIds.push(associateId);
+  assert.ok(associateId);
+
+  const contributionBody = {
+    amount: 250000,
+    contributionDate: operationalDate,
+    notes: 'Aporte concurrente de integración',
+  };
+  const [firstContribution, secondContribution] = await Promise.all([
+    request({
+      method: 'POST',
+      path: `/api/associates/${associateId}/contributions`,
+      token: accessToken,
+      headers: { 'Idempotency-Key': `${fixturePrefix}-associate-contribution-a` },
+      body: contributionBody,
+    }),
+    request({
+      method: 'POST',
+      path: `/api/associates/${associateId}/contributions`,
+      token: accessToken,
+      headers: { 'Idempotency-Key': `${fixturePrefix}-associate-contribution-b` },
+      body: contributionBody,
+    }),
+  ]);
+
+  assert.equal(firstContribution.status, 201, JSON.stringify(firstContribution.body));
+  assert.equal(secondContribution.status, 201, JSON.stringify(secondContribution.body));
+  assert.notEqual(firstContribution.body?.data?.contribution?.id, secondContribution.body?.data?.contribution?.id);
+
+  response = await expectStatus({ path: `/api/associates/${associateId}/installments`, token: accessToken }, 200);
+  const installments = response.body?.data?.installments?.installments || [];
+  assert.equal(installments.length, 3, 'El calendario de plazo fijo debe conservar exactamente una cuota por mes.');
+  assert.deepEqual(
+    installments.map((installment) => Number(installment.installmentNumber)),
+    [1, 2, 3],
+    'Los números de cuota deben ser únicos y consecutivos después de dos aportes simultáneos.',
+  );
+  assert.ok(installments.every((installment) => Number(installment.amount) === 30000), 'La rentabilidad debe calcularse sobre el capital combinado de 1.500.000.');
 });
 
 integrationTest('producto: expone módulos operativos y respeta permisos por rol', async () => {

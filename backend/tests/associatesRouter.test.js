@@ -355,6 +355,7 @@ test('createAssociatesRouter returns HTTP 400 for retired associate contract fie
       interestType: 'monthly',
       interestRate: 2,
       interestPaymentDay: 5,
+      investmentTermMonths: 12,
       participationPercentage: 10,
       interestStartDate: '2026-01-01',
       interestStartsAt: '2026-01-01',

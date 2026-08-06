@@ -537,6 +537,7 @@ export const creditsEn = {
 'newCredit.action.validate.title.lateFeeConflict': 'Fix the late-fee conflict in Settings before validating.',
 'newCredit.action.validate.title.missing': 'Create a rate policy that covers this amount first.',
 'newCredit.action.register.title.ready': 'Create the real loan with the validated rule.',
+'newCredit.action.register.title.customerMissing': 'Select the customer who will receive the loan before registering it.',
 'newCredit.action.register.title.blocked': 'Validate the loan first and fix any pending fields.',
 'newCredit.aria.actionDock': 'New loan actions',
 'newCredit.header.eyebrow': 'Origination',

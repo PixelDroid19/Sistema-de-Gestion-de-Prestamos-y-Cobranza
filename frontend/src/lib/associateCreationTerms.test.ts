@@ -4,9 +4,11 @@ import {
   calculatePeriodicReturn,
   getDefaultFirstPaymentDate,
   getFirstPaymentDateBounds,
+  getInvestmentMaturityDate,
   getNextConfiguredPaymentDate,
   isFirstPaymentDateWithinBounds,
   parseFirstPaymentTerms,
+  parseInvestmentTermMonths,
 } from './associateCreationTerms';
 
 const OPERATIONAL_NOW = new Date('2026-07-13T17:00:00.000Z');
@@ -70,5 +72,15 @@ describe('associate creation terms', () => {
     expect(calculatePeriodicReturn(2_000_000, 12)).toBe(20_000);
     expect(calculatePeriodicReturn(2_000_000, 2.5, 'monthly')).toBe(50_000);
     expect(calculatePeriodicReturn(Number.NaN, 2.5)).toBe(0);
+  });
+
+  it('accepts a fixed investment term and derives the final scheduled payment date', () => {
+    expect(parseInvestmentTermMonths('12')).toBe(12);
+    expect(parseInvestmentTermMonths('')).toBeNull();
+    expect(parseInvestmentTermMonths('0')).toBeNull();
+    expect(parseInvestmentTermMonths('121')).toBeNull();
+    expect(parseInvestmentTermMonths('12.5')).toBeNull();
+    expect(getInvestmentMaturityDate('2026-08-13', 12)).toBe('2027-07-13');
+    expect(getInvestmentMaturityDate('2026-08-13', 1)).toBe('2026-08-13');
   });
 });

@@ -144,7 +144,7 @@ test('payoff execution uses the same Bogotá day as its default quote', async ()
 
   assert.equal(executionInput.asOfDate, '2026-04-01');
   assert.equal(executionInput.quotedTotal, 1250);
-  assert.equal(executionInput.paymentDate.toISOString(), '2026-04-02T02:30:00.000Z');
+  assert.equal(executionInput.paymentDate.toISOString(), '2026-04-01T00:00:00.000Z');
 });
 
 test('createListPayments only returns all payments to admins', async () => {

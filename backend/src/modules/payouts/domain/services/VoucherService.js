@@ -9,6 +9,13 @@ const PAYMENT_METHOD_LABELS = Object.freeze({
   other: 'Otro',
 });
 
+const PAYMENT_TYPE_LABELS = Object.freeze({
+  installment: 'Pago de cuota',
+  partial: 'Pago parcial',
+  capital: 'Abono a capital',
+  payoff: 'Pago total',
+});
+
 const PAGE = Object.freeze({
   left: 56,
   right: 539,
@@ -33,6 +40,11 @@ const VoucherService = {
   formatPaymentMethod(method) {
     const normalized = String(method || '').trim().toLowerCase();
     return PAYMENT_METHOD_LABELS[normalized] || method || 'Sin método';
+  },
+
+  formatPaymentType(type) {
+    const normalized = String(type || '').trim().toLowerCase();
+    return PAYMENT_TYPE_LABELS[normalized] || 'Pago registrado';
   },
 
   /**
@@ -161,17 +173,18 @@ const VoucherService = {
 
     this.renderSectionTitle(doc, 'DETALLE DEL PAGO', PAGE.left, startY);
     this.renderKeyValue(doc, 'Fecha de pago', this.formatDate(data.paymentDate), PAGE.left, startY + 24);
-    this.renderKeyValue(doc, 'Número de cuota', data.installmentNumber ? `Cuota ${data.installmentNumber}` : 'Sin cuota asociada', PAGE.left, startY + 42);
-    this.renderKeyValue(doc, 'Subtotal', this.formatCurrency(data.totalPaid), PAGE.left, startY + 64);
+    this.renderKeyValue(doc, 'Tipo de pago', this.formatPaymentType(data.paymentType), PAGE.left, startY + 42);
+    this.renderKeyValue(doc, 'Número de cuota', data.installmentNumber ? `Cuota ${data.installmentNumber}` : 'Sin cuota asociada', PAGE.left, startY + 60);
+    this.renderKeyValue(doc, 'Subtotal', this.formatCurrency(data.totalPaid), PAGE.left, startY + 82);
 
     doc
       .strokeColor('#cccccc')
       .lineWidth(0.5)
-      .moveTo(PAGE.left, startY + 86)
-      .lineTo(PAGE.right, startY + 86)
+      .moveTo(PAGE.left, startY + 104)
+      .lineTo(PAGE.right, startY + 104)
       .stroke();
 
-    this.renderKeyValue(doc, 'TOTAL PAGADO', this.formatCurrency(data.totalPaid), PAGE.left, startY + 100, {
+    this.renderKeyValue(doc, 'TOTAL PAGADO', this.formatCurrency(data.totalPaid), PAGE.left, startY + 118, {
       bold: true,
       fontSize: 12,
       color: '#0052cc',
@@ -280,6 +293,7 @@ const VoucherService = {
           creditId: loan?.id,
           originalAmount: loan?.amount,
           previousBalance: payment.remainingBalanceAfterPayment + payment.amount,
+          paymentType: payment.paymentType,
           installmentNumber: payment.installmentNumber,
           capital: payment.principalApplied,
           interest: payment.interestApplied,

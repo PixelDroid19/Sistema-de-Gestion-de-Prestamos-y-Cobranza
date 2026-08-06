@@ -261,7 +261,7 @@ const defaultMonthlyCashFlowData = {
     totalPrincipalRecovered: '37500000.00',
     totalCollectedProfit: '5000000.00',
     lossesAtRisk: '0.00',
-    netProfitIndicator: '0.00',
+    netProfitIndicator: '3000000.00',
     paymentCount: 3,
   },
   months: [

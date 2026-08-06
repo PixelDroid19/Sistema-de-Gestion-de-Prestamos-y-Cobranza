@@ -383,7 +383,7 @@ const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanV
     loanId: loan.id,
     asOfDate: effectiveAsOfDate,
     quotedTotal: effectiveQuotedTotal,
-    paymentDate: clock(),
+    paymentDate: new Date(`${effectiveAsOfDate}T00:00:00.000Z`),
     actor,
     idempotencyKey,
   });

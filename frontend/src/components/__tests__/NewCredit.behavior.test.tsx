@@ -359,6 +359,29 @@ describe('NewCredit behavior', () => {
     expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled();
   });
 
+  it('returns a validated registration attempt without a customer to the customer selector', async () => {
+    render(<NewCredit onBack={vi.fn()} />);
+
+    const customerSelector = screen.getByRole('combobox', { name: 'Cliente' });
+    const registerButton = screen.getByRole('button', { name: 'Registrar crédito' });
+
+    expect(registerButton).toBeEnabled();
+
+    fireEvent.click(registerButton);
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith({
+        title: 'Falta el cliente',
+        description: 'Selecciona un cliente antes de registrar el crédito.',
+      });
+      expect(customerSelector).toHaveFocus();
+    });
+
+    expect(screen.getByText('Selecciona el cliente que recibirá el crédito.')).toBeInTheDocument();
+    expect(screen.getByRole('listbox', { name: 'Cliente' })).toBeInTheDocument();
+    expect(mockCreateLoan).not.toHaveBeenCalled();
+  });
+
   it('shows a loading rate state instead of a false missing-policy warning while config loads', () => {
     const originalLateFeeMode = routeState.calculationInput.lateFeeMode;
     (routeState.calculationInput as any).lateFeeMode = undefined;

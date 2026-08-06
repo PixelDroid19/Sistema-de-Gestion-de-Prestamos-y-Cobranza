@@ -405,7 +405,7 @@ const reportRepository = {
     const startDate = fromDate || new Date(year, 0, 1);
     const endDate = toDate || new Date(year, 11, 31, 23, 59, 59, 999);
 
-    const [loans, payments, paidAssociateInstallments, associateContributions, associateDistributions, operatingExpenses] = await Promise.all([
+    const [loans, riskLoans, payments, paidAssociateInstallments, associateContributions, associateDistributions, operatingExpenses] = await Promise.all([
       Loan.findAll({
         where: {
           [Op.and]: [
@@ -417,6 +417,28 @@ const reportRepository = {
                   [Op.and]: [
                     { startDate: null },
                     { createdAt: { [Op.gte]: startDate, [Op.lte]: endDate } },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        include: reportIncludes,
+        order: [['startDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
+      // The movement dataset is bounded by the selected period, while the current
+      // risk snapshot also includes overdue/defaulted loans originated earlier.
+      Loan.findAll({
+        where: {
+          [Op.and]: [
+            { status: { [Op.in]: ['overdue', 'defaulted'] } },
+            {
+              [Op.or]: [
+                { startDate: { [Op.lte]: endDate } },
+                {
+                  [Op.and]: [
+                    { startDate: null },
+                    { createdAt: { [Op.lte]: endDate } },
                   ],
                 },
               ],
@@ -501,6 +523,7 @@ const reportRepository = {
 
     return {
       loans,
+      riskLoans,
       payments,
       associateContributions,
       associateReinvestments: associateDistributions.filter((distribution) => toPlainRecord(distribution)?.basis?.type === 'reinvestment'),

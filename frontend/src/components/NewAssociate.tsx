@@ -9,9 +9,11 @@ import {
   calculatePeriodicReturn,
   getDefaultFirstPaymentDate,
   getFirstPaymentDateBounds,
+  getInvestmentMaturityDate,
   getNextConfiguredPaymentDate,
   isFirstPaymentDateWithinBounds,
   parseFirstPaymentTerms,
+  parseInvestmentTermMonths,
   type AssociateInterestType,
 } from '../lib/associateCreationTerms';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
@@ -34,6 +36,7 @@ interface AssociateFormData {
   phone: string;
   status: string;
   initialCapital: string;
+  investmentTermMonths: string;
   interestType: AssociateInterestType;
   interestRate: string;
   firstPaymentDate: string;
@@ -49,9 +52,10 @@ type AssociateMutationPayload = {
   interestPaymentDay: string;
   interestPaymentMonth: string;
   initialCapital?: string;
+  investmentTermMonths?: string;
 };
 
-type AssociateFormErrorField = 'name' | 'email' | 'phone' | 'initialCapital' | 'interestRate' | 'firstPaymentDate';
+type AssociateFormErrorField = 'name' | 'email' | 'phone' | 'initialCapital' | 'investmentTermMonths' | 'interestRate' | 'firstPaymentDate';
 type AssociateFormErrors = Partial<Record<AssociateFormErrorField, string>>;
 
 const ASSOCIATE_FORM_FIELD_IDS: Record<AssociateFormErrorField, string> = {
@@ -59,6 +63,7 @@ const ASSOCIATE_FORM_FIELD_IDS: Record<AssociateFormErrorField, string> = {
   email: 'new-associate-email',
   phone: 'new-associate-phone',
   initialCapital: 'new-associate-initial-capital',
+  investmentTermMonths: 'new-associate-investment-term-months',
   interestRate: 'new-associate-interest-rate',
   firstPaymentDate: 'new-associate-first-payment',
 };
@@ -75,6 +80,7 @@ const createEmptyForm = (): AssociateFormData => ({
   phone: '',
   status: 'active',
   initialCapital: '',
+  investmentTermMonths: '12',
   interestType: 'annual',
   interestRate: '',
   firstPaymentDate: getDefaultFirstPaymentDate('annual'),
@@ -103,6 +109,9 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       phone: existingAssociate.phone || '',
       status: existingAssociate.status || 'active',
       initialCapital: '',
+      investmentTermMonths: existingAssociate.investmentTermMonths != null
+        ? String(existingAssociate.investmentTermMonths)
+        : '',
       interestType,
       interestRate: existingAssociate.interestRate != null && existingAssociate.interestRate !== ''
         ? String(Number(existingAssociate.interestRate))
@@ -134,6 +143,10 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
   const capitalAmount = parsePositiveMoneyInput(formData.initialCapital) ?? 0;
   const parsedRate = parsePercentageWithPrecisionInput(formData.interestRate, 4);
   const interestRate = parsedRate ?? 0;
+  const investmentTermMonths = parseInvestmentTermMonths(formData.investmentTermMonths);
+  const investmentMaturityDate = investmentTermMonths === null
+    ? null
+    : getInvestmentMaturityDate(formData.firstPaymentDate, investmentTermMonths);
   const periodicReturn = calculatePeriodicReturn(capitalAmount, interestRate, formData.interestType);
   const hasReturnPreview = capitalAmount > 0 && interestRate > 0;
 
@@ -176,6 +189,10 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
       nextErrors.initialCapital = tTerm('newAssociate.validation.initialCapitalRequired');
     }
 
+    if (!isEditing && investmentTermMonths === null) {
+      nextErrors.investmentTermMonths = tTerm('newAssociate.validation.investmentTermMonths');
+    }
+
     if (parsedRate === null || parsedRate <= 0) {
       nextErrors.interestRate = tTerm('newAssociate.validation.rateRange');
     }
@@ -208,6 +225,7 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
 
     if (!isEditing && initialCapital !== null) {
       payload.initialCapital = String(initialCapital);
+      payload.investmentTermMonths = String(investmentTermMonths);
     }
 
     await run(payload);
@@ -379,6 +397,29 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
               />
             </FormField>
 
+            {!isEditing ? (
+              <FormField
+                label={tTerm('newAssociate.field.investmentTermMonths')}
+                error={fieldErrors.investmentTermMonths}
+              >
+                <AppInput
+                  id="new-associate-investment-term-months"
+                  variant="integer"
+                  minValue={1}
+                  maxValue={120}
+                  maxDigits={3}
+                  value={formData.investmentTermMonths}
+                  onValueChange={(value) => {
+                    setFormData((current) => ({ ...current, investmentTermMonths: value }));
+                    clearFieldError('investmentTermMonths');
+                  }}
+                  placeholder={tTerm('newAssociate.placeholder.investmentTermMonths')}
+                  invalid={Boolean(fieldErrors.investmentTermMonths)}
+                  required
+                />
+              </FormField>
+            ) : null}
+
             <FormField
               label={tTerm('newAssociate.field.firstPaymentDate')}
               error={fieldErrors.firstPaymentDate}
@@ -416,6 +457,18 @@ export default function NewAssociate({ onBack, associateIdOverride, embedded = f
                 }),
               })}
             </p>
+            {investmentMaturityDate ? (
+              <p className="associate-return-preview__date">
+                {tTerm('newAssociate.preview.maturity', {
+                  date: formatDate(investmentMaturityDate, {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    timeZone: 'UTC',
+                  }),
+                })}
+              </p>
+            ) : null}
           </div>
 
           <div className="associate-form-actions__buttons">

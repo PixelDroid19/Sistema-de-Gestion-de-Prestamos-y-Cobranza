@@ -541,6 +541,7 @@ export const creditsEs = {
 'newCredit.action.validate.title.lateFeeConflict': 'Corrige el conflicto de mora en Configuración antes de validar.',
 'newCredit.action.validate.title.missing': 'Primero crea una política de tasa que cubra este monto.',
 'newCredit.action.register.title.ready': 'Crea el crédito real con la regla validada.',
+'newCredit.action.register.title.customerMissing': 'Selecciona el cliente que recibirá el crédito antes de registrarlo.',
 'newCredit.action.register.title.blocked': 'Primero valida el crédito y corrige cualquier campo pendiente.',
 'newCredit.aria.actionDock': 'Acciones del nuevo crédito',
 'newCredit.header.eyebrow': 'Originación',

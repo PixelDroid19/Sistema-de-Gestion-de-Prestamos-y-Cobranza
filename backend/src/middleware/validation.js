@@ -107,7 +107,16 @@ const pushCustomerStatusValidation = ({ errors, status }) => {
   }
 };
 
-const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital }) => {
+const pushAssociateFinancialTermsValidation = ({
+  errors,
+  interestType,
+  interestRate,
+  interestPaymentDay,
+  interestPaymentMonth,
+  initialCapital,
+  investmentTermMonths,
+  requireInvestmentTerm = false,
+}) => {
   if (interestType !== undefined && !['monthly', 'annual'].includes(String(interestType).trim().toLowerCase())) {
     errors.push({ field: 'interestType', message: 'El tipo de interés debe ser mensual o anual' });
   }
@@ -131,6 +140,21 @@ const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestR
     && (!validateAmount(Number(initialCapital)) || !validateCurrencyPrecision(initialCapital))
   ) {
     errors.push({ field: 'initialCapital', message: 'El capital inicial debe ser un número positivo con máximo 2 decimales' });
+  }
+
+  const registersInitialCapital = initialCapital !== undefined
+    && initialCapital !== null
+    && String(initialCapital).trim() !== '';
+  const hasValidInvestmentTerm = investmentTermMonths !== undefined
+    && investmentTermMonths !== null
+    && investmentTermMonths !== ''
+    && validateIntegerRange(investmentTermMonths, 1, 120);
+  if ((requireInvestmentTerm && !hasValidInvestmentTerm) || (
+    !requireInvestmentTerm
+    && (registersInitialCapital || investmentTermMonths !== undefined)
+    && !hasValidInvestmentTerm
+  )) {
+    errors.push({ field: 'investmentTermMonths', message: 'El plazo de inversión debe ser un entero entre 1 y 120 meses' });
   }
 
 };
@@ -517,6 +541,7 @@ const associateValidation = {
       interestPaymentDay,
       interestPaymentMonth,
       initialCapital,
+      investmentTermMonths,
     } = req.body;
     const errors = [];
 
@@ -524,7 +549,16 @@ const associateValidation = {
     pushEmailValidation({ errors, email, required: true });
     pushPhoneValidation({ errors, phone, required: true });
     pushActiveInactiveStatusValidation({ errors, status });
-    pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital });
+    pushAssociateFinancialTermsValidation({
+      errors,
+      interestType,
+      interestRate,
+      interestPaymentDay,
+      interestPaymentMonth,
+      initialCapital,
+      investmentTermMonths,
+      requireInvestmentTerm: true,
+    });
     pushRemovedAssociateFieldValidation({ errors, body: req.body });
 
     if (errors.length > 0) {
@@ -545,6 +579,7 @@ const associateValidation = {
       interestRate,
       interestPaymentDay,
       interestPaymentMonth,
+      investmentTermMonths,
     } = req.body;
     const errors = [];
 
@@ -553,6 +588,9 @@ const associateValidation = {
     pushPhoneValidation({ errors, phone, required: false });
     pushActiveInactiveStatusValidation({ errors, status });
     pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth });
+    if (investmentTermMonths !== undefined) {
+      errors.push({ field: 'investmentTermMonths', message: 'El plazo de inversión se pacta al crear el socio y no puede modificarse en un contrato vigente.' });
+    }
     pushRemovedAssociateFieldValidation({ errors, body: req.body });
 
     if (errors.length > 0) {

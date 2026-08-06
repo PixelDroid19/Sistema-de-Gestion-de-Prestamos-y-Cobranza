@@ -189,7 +189,13 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           initialCapital: {
             type: 'number',
             minimum: 0.01,
-            description: 'Capital inicial aportado. Si se envía, el backend registra el aporte inicial y agenda el primer pago de interés.',
+            description: 'Capital inicial aportado. Si se envía, el backend registra el aporte inicial y agenda todos los pagos mensuales de rentabilidad hasta el vencimiento pactado.',
+          },
+          investmentTermMonths: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 120,
+            description: 'Plazo contractual de la inversión en meses. Es obligatorio al crear el socio, genera el calendario completo de pagos mensuales y no se puede modificar después.',
           },
           interestType: { type: 'string', enum: ['monthly', 'annual'], description: 'Base de la tasa pactada. La rentabilidad se programa y paga mensualmente.' },
           interestRate: { type: 'number', minimum: 0, maximum: 100, description: 'Tasa pactada por periodo: mensual si interestType=monthly, anual si interestType=annual.' },
@@ -553,13 +559,44 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: {
         tags: ['Reports'],
         summary: 'Consultar cierre contable mensual',
-        description: 'Devuelve el cuadre mensual de caja: entradas por cuotas completadas, salidas por préstamos desembolsados, caja disponible acumulada, interés y mora cobrados, y pérdidas en riesgo.',
+        description: 'Devuelve el cuadre mensual de caja: entradas por cuotas completadas, salidas por préstamos desembolsados, caja disponible acumulada, interés y mora cobrados, y capital en riesgo actual.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
           { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
-        responses: { 200: { description: 'Resumen financiero mensual y detalle por mes' } },
+        responses: {
+          200: {
+            description: 'Resumen financiero mensual y detalle por mes',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        year: { type: 'integer' },
+                        summary: {
+                          type: 'object',
+                          properties: {
+                            operatingResult: { type: 'string', description: 'Interés y mora cobrados menos gastos operativos.' },
+                            netProfitIndicator: { type: 'string', description: 'Campo histórico de compatibilidad; conserva el cálculo anterior.' },
+                            currentCapitalAtRisk: { type: 'string', description: 'Capital pendiente actualmente en créditos vencidos o default. No representa un snapshot histórico del corte.' },
+                            lossesAtRisk: { type: 'string', description: 'Capital en riesgo asociado a los desembolsos incluidos en el período.' },
+                          },
+                        },
+                        months: { type: 'array', items: { type: 'object' } },
+                        movements: { type: 'array', items: { type: 'object' } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     },
     '/reports/cash-flow/monthly/excel': {
@@ -579,7 +616,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: {
         tags: ['Reports'],
         summary: 'Exportar cierre contable mensual a PDF',
-        description: 'Genera un PDF ejecutivo con entradas, salidas, caja disponible, interés y mora cobrados, pérdidas en riesgo y resultado neto del año seleccionado.',
+        description: 'Genera un PDF ejecutivo con entradas, salidas, caja disponible, interés y mora cobrados, capital en riesgo y resultado operativo de créditos del año seleccionado.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
           { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },

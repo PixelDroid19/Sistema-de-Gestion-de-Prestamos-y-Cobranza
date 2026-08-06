@@ -80,6 +80,26 @@ const buildAssociateListWhere = (filters = {}) => {
   return { [Op.and]: clauses };
 };
 
+const getInclusiveEndOfDay = (value) => {
+  const endOfDay = new Date(value);
+  endOfDay.setUTCHours(23, 59, 59, 999);
+  return endOfDay;
+};
+
+const buildCalendarDateWhere = (field, startDate, endDate) => {
+  const range = {};
+
+  if (startDate) {
+    range[Op.gte] = startDate;
+  }
+
+  if (endDate) {
+    range[Op.lte] = getInclusiveEndOfDay(endDate);
+  }
+
+  return startDate || endDate ? { [field]: range } : {};
+};
+
 /**
  * Persistence port for associate CRUD and contact-conflict checks.
  */
@@ -190,6 +210,16 @@ const associateRepository = {
   getFinancialDatasetByAssociateIds,
   findById(id, { transaction } = {}) {
     return Associate.findByPk(id, { transaction });
+  },
+  findByIdForUpdate(id, { transaction } = {}) {
+    if (!transaction) {
+      return Associate.findByPk(id);
+    }
+
+    return Associate.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
   },
   create(payload, { transaction } = {}) {
     return Associate.create(payload, { transaction });
@@ -314,14 +344,11 @@ const associateRepository = {
     });
   },
   findCalendarEvents(associateId, startDate, endDate) {
-    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
-    const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), 11, 31);
-
     return Promise.all([
       AssociateContribution.findAll({
         where: {
           associateId,
-          contributionDate: { [Op.between]: [start, end] },
+          ...buildCalendarDateWhere('contributionDate', startDate, endDate),
         },
         include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
         order: [['contributionDate', 'ASC']],
@@ -329,7 +356,7 @@ const associateRepository = {
       ProfitDistribution.findAll({
         where: {
           associateId,
-          distributionDate: { [Op.between]: [start, end] },
+          ...buildCalendarDateWhere('distributionDate', startDate, endDate),
         },
         include: [
           { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] },
@@ -339,7 +366,7 @@ const associateRepository = {
       AssociateInstallment.findAll({
         where: {
           associateId,
-          dueDate: { [Op.between]: [start, end] },
+          ...buildCalendarDateWhere('dueDate', startDate, endDate),
         },
         order: [['dueDate', 'ASC']],
       }),

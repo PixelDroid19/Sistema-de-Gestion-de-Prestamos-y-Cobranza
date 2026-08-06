@@ -42,6 +42,7 @@ const buildDescribedTable = (tableName) => {
     return {
       id: {}, name: {}, email: {}, phone: {}, address: {}, status: {},
       interestType: {}, interestRate: {}, interestPaymentDay: {}, interestPaymentMonth: {},
+      investmentTermMonths: {}, investmentMaturityDate: {},
       notes: {}, createdAt: {}, updatedAt: {},
     };
   }
@@ -254,6 +255,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(associates.columns.includes('interestType'));
   assert.ok(associates.columns.includes('interestRate'));
   assert.ok(associates.columns.includes('interestPaymentDay'));
+  assert.ok(associates.columns.includes('investmentTermMonths'));
+  assert.ok(associates.columns.includes('investmentMaturityDate'));
   assert.ok(contributions.columns.includes('interestTypeSnapshot'));
   assert.ok(contributions.columns.includes('interestRateSnapshot'));
   assert.ok(contributions.columns.includes('status'));

@@ -20,6 +20,12 @@ const Associate = sequelize.define('Associate', {
   interestRate: { type: DataTypes.DECIMAL(7, 4), allowNull: false, defaultValue: 0 },
   interestPaymentDay: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   interestPaymentMonth: { type: DataTypes.INTEGER, allowNull: true },
+  investmentTermMonths: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    validate: { min: 1, max: 120 },
+  },
+  investmentMaturityDate: { type: DataTypes.DATE, allowNull: true },
   notes: { type: DataTypes.TEXT, allowNull: true },
 }, {
   timestamps: true,

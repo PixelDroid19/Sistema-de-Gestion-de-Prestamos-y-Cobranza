@@ -71,6 +71,19 @@ describe('VoucherService', () => {
     });
   });
 
+  describe('formatPaymentType', () => {
+    test('identifies the operation represented by the voucher', () => {
+      assert.equal(VoucherService.formatPaymentType('installment'), 'Pago de cuota');
+      assert.equal(VoucherService.formatPaymentType('capital'), 'Abono a capital');
+      assert.equal(VoucherService.formatPaymentType('payoff'), 'Pago total');
+    });
+
+    test('uses an explicit label for legacy or unknown payment types', () => {
+      assert.equal(VoucherService.formatPaymentType(), 'Pago registrado');
+      assert.equal(VoucherService.formatPaymentType('unknown'), 'Pago registrado');
+    });
+  });
+
   describe('generateVoucherPdf', () => {
     test('generates a PDF buffer from payment, loan, and customer data', async () => {
       const payment = {
@@ -173,6 +186,31 @@ describe('VoucherService', () => {
 
       assert.ok(Buffer.isBuffer(result));
       assert.ok(result.length > 0);
+    });
+
+    test('prints the payment purpose in the voucher payment section', () => {
+      const renderedText = [];
+      const doc = new Proxy({}, {
+        get(_target, property) {
+          if (property === 'text') {
+            return (value) => {
+              renderedText.push(String(value));
+              return doc;
+            };
+          }
+          return () => doc;
+        },
+      });
+
+      VoucherService.renderPayment(doc, {
+        paymentDate: '2026-07-28',
+        paymentType: 'capital',
+        installmentNumber: null,
+        totalPaid: 753592,
+      });
+
+      assert.ok(renderedText.includes('Tipo de pago'));
+      assert.ok(renderedText.includes('Abono a capital'));
     });
   });
 });

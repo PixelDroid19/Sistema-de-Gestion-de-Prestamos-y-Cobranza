@@ -27,6 +27,13 @@ const AssociateInstallment = sequelize.define('AssociateInstallment', {
   paidBy: { type: DataTypes.INTEGER, allowNull: true },
 }, {
   timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['associateId', 'installmentNumber'],
+      name: 'associate_installments_associate_number_unique',
+    },
+  ],
 });
 
 module.exports = AssociateInstallment;

@@ -490,6 +490,16 @@ export default function AssociateDetails() {
       interestType: interestTypeLabel,
     })
     : tTerm('common.notSpecified');
+  const investmentTermMonths = Number(associate?.investmentTermMonths);
+  const investmentMaturityDate = associate?.investmentMaturityDate || null;
+  const investmentContractLabel = Number.isInteger(investmentTermMonths)
+    && investmentTermMonths > 0
+    && investmentMaturityDate
+    ? tTerm('associateDetails.header.contractTerm', {
+      months: formatNumber(investmentTermMonths),
+      date: formatAssociateDate(investmentMaturityDate),
+    })
+    : '';
 
   const associatePaymentAlerts = installmentsData.alerts;
 
@@ -1096,11 +1106,14 @@ export default function AssociateDetails() {
     <PageShell className="associate-module-page associate-details-page mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
       <PageHeader
         title={tTerm('associateDetails.header.title')}
-        subtitle={tTerm('associateDetails.header.subtitle', {
-          name: associateName,
-          debtStatus,
-          interestRate: interestRateLabel,
-        })}
+        subtitle={[
+          tTerm('associateDetails.header.subtitle', {
+            name: associateName,
+            debtStatus,
+            interestRate: interestRateLabel,
+          }),
+          investmentContractLabel,
+        ].filter(Boolean).join(' ')}
         tourId="associate-details-header"
         actions={(
           <ActionButton

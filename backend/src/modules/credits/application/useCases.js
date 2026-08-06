@@ -1419,12 +1419,13 @@ const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, audi
     }
 
     const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+    const effectiveAsOfDate = asOfDate || getCurrentOperationalDateOnly(clock()).toISOString().slice(0, 10);
 
     return paymentApplicationService.applyPayoff({
       loanId: loan.id,
-      asOfDate,
+      asOfDate: effectiveAsOfDate,
       quotedTotal,
-      paymentDate: clock(),
+      paymentDate: new Date(`${effectiveAsOfDate}T00:00:00.000Z`),
       actor,
       idempotencyKey,
     });

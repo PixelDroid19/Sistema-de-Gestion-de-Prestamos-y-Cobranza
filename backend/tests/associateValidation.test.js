@@ -14,6 +14,7 @@ test('associateValidation.create rejects exponent notation for interest payment 
       phone: '+573001112299',
       interestType: 'annual',
       interestRate: '2.0000',
+      investmentTermMonths: 12,
       interestPaymentDay: '1e1',
       interestPaymentMonth: '1e1',
     },
@@ -32,6 +33,28 @@ test('associateValidation.create rejects exponent notation for interest payment 
   ]);
 });
 
+test('associateValidation.create requires a fixed investment term whenever initial capital is registered', async () => {
+  const error = await captureMiddlewareError(associateValidation.create, {
+    user: { id: 1, role: 'admin' },
+    body: {
+      name: 'Socio a plazo',
+      email: 'socio.plazo@example.com',
+      phone: '+573001112298',
+      initialCapital: '2000000',
+      interestType: 'annual',
+      interestRate: '12.0000',
+      interestPaymentDay: 15,
+      interestPaymentMonth: 8,
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [{
+    field: 'investmentTermMonths',
+    message: 'El plazo de inversión debe ser un entero entre 1 y 120 meses',
+  }]);
+});
+
 test('associateValidation.create rejects retired participation and interest-start fields with ValidationError', async () => {
   const error = await captureMiddlewareError(associateValidation.create, {
     user: { id: 1, role: 'admin' },
@@ -41,6 +64,7 @@ test('associateValidation.create rejects retired participation and interest-star
       phone: '+573001112299',
       interestType: 'monthly',
       interestRate: '2.0000',
+      investmentTermMonths: 12,
       interestPaymentDay: 5,
       participationPercentage: '10',
       interestStartDate: '2026-01-01',
@@ -69,4 +93,17 @@ test('associateValidation.update rejects retired associate fields with Validatio
   assert.ok(error instanceof ValidationError);
   assert.equal(error.errors[0].field, 'interestStartDate');
   assert.match(error.errors[0].message, /contrato de socios/i);
+});
+
+test('associateValidation.update prevents changing an agreed investment term', async () => {
+  const error = await captureMiddlewareError(associateValidation.update, {
+    user: { id: 1, role: 'admin' },
+    body: { investmentTermMonths: 24 },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [{
+    field: 'investmentTermMonths',
+    message: 'El plazo de inversión se pacta al crear el socio y no puede modificarse en un contrato vigente.',
+  }]);
 });
