@@ -107,3 +107,16 @@ test('associateValidation.update prevents changing an agreed investment term', a
     message: 'El plazo de inversión se pacta al crear el socio y no puede modificarse en un contrato vigente.',
   }]);
 });
+
+test('associateValidation.configureInvestmentTerm requires a numeric term in the accepted range', async () => {
+  const error = await captureMiddlewareError(associateValidation.configureInvestmentTerm, {
+    user: { id: 1, role: 'admin' },
+    body: { investmentTermMonths: '1e2' },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [{
+    field: 'investmentTermMonths',
+    message: 'El plazo de inversión debe ser un entero entre 1 y 120 meses',
+  }]);
+});

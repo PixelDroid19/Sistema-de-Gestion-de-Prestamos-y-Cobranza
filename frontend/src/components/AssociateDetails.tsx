@@ -14,6 +14,7 @@ import { parseFormattedPositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
 import { getPaymentMethodLabel } from '../constants/paymentTypes';
 import ContributionModal from './ContributionModal';
+import ConfigureAssociateTermModal from './ConfigureAssociateTermModal';
 import InstallmentsModal from './InstallmentsModal';
 import { AssociateDetailToolbar, type AssociateMoneyActionType } from './associateDetails/AssociateDetailToolbar';
 import AssociateModuleNavigation from './associates/AssociateModuleNavigation';
@@ -284,6 +285,7 @@ export default function AssociateDetails() {
     calendar,
     isLoading,
     createContribution,
+    configureInvestmentTerm,
     createManualProfitabilityPayment,
     createCapitalReturn,
     createReinvestment,
@@ -294,6 +296,7 @@ export default function AssociateDetails() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showModal, setShowModal] = useState<AssociateMoneyActionType | null>(null);
   const [contributionModalMode, setContributionModalMode] = useState<'history' | 'create' | null>(null);
+  const [showConfigureTermModal, setShowConfigureTermModal] = useState(false);
   const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
   const [payingInstallmentNumber, setPayingInstallmentNumber] = useState<number | null>(null);
   const [installmentPaymentForm, setInstallmentPaymentForm] = useState({
@@ -492,14 +495,15 @@ export default function AssociateDetails() {
     : tTerm('common.notSpecified');
   const investmentTermMonths = Number(associate?.investmentTermMonths);
   const investmentMaturityDate = associate?.investmentMaturityDate || null;
-  const investmentContractLabel = Number.isInteger(investmentTermMonths)
+  const hasInvestmentContract = Number.isInteger(investmentTermMonths)
     && investmentTermMonths > 0
-    && investmentMaturityDate
+    && Boolean(investmentMaturityDate);
+  const investmentContractLabel = hasInvestmentContract
     ? tTerm('associateDetails.header.contractTerm', {
       months: formatNumber(investmentTermMonths),
       date: formatAssociateDate(investmentMaturityDate),
     })
-    : '';
+    : tTerm('associateDetails.header.contractPending');
 
   const associatePaymentAlerts = installmentsData.alerts;
 
@@ -614,6 +618,16 @@ export default function AssociateDetails() {
       toast.apiErrorSafe(error, { domain: 'associates' });
     } finally {
       setIsExportingFinancialSummary(false);
+    }
+  };
+
+  const handleConfigureInvestmentTerm = async (termMonths: number) => {
+    try {
+      await configureInvestmentTerm.mutateAsync({ investmentTermMonths: termMonths });
+      setShowConfigureTermModal(false);
+      toast.success({ title: tTerm('associateDetails.toast.configureTerm.success') });
+    } catch (error) {
+      toast.apiErrorSafe(error, { domain: 'associates' });
     }
   };
 
@@ -1116,14 +1130,24 @@ export default function AssociateDetails() {
         ].filter(Boolean).join(' ')}
         tourId="associate-details-header"
         actions={(
-          <ActionButton
-            onClick={() => navigate('/associates')}
-            aria-label={tTerm('associateDetails.cta.backToAssociates')}
-            title={tTerm('associateDetails.cta.backToAssociates')}
-            icon={<ArrowLeft size={16} />}
-          >
-            {tTerm('newAssociate.actions.back')}
-          </ActionButton>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {canManageAssociateMovements && !hasInvestmentContract ? (
+              <ActionButton
+                onClick={() => setShowConfigureTermModal(true)}
+                variant="primary"
+              >
+                {tTerm('associateDetails.cta.configureInvestmentTerm')}
+              </ActionButton>
+            ) : null}
+            <ActionButton
+              onClick={() => navigate('/associates')}
+              aria-label={tTerm('associateDetails.cta.backToAssociates')}
+              title={tTerm('associateDetails.cta.backToAssociates')}
+              icon={<ArrowLeft size={16} />}
+            >
+              {tTerm('newAssociate.actions.back')}
+            </ActionButton>
+          </div>
         )}
       />
 
@@ -1317,6 +1341,13 @@ export default function AssociateDetails() {
             </div>
           </form>
         </ModalShell>
+      )}
+
+      {showConfigureTermModal && (
+        <ConfigureAssociateTermModal
+          onSubmit={handleConfigureInvestmentTerm}
+          onClose={() => setShowConfigureTermModal(false)}
+        />
       )}
 
       {contributionModalMode !== null && (

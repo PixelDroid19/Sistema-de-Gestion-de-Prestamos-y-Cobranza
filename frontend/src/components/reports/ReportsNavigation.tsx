@@ -1,5 +1,4 @@
-import { useId, type ReactNode } from 'react';
-import { OperationalSelect } from '../shared/Surfaces';
+import type { ReactNode } from 'react';
 import { tTerm } from '../../i18n/terminology';
 
 export type ReportLeaf = {
@@ -20,7 +19,7 @@ type ReportsNavigationProps = {
   activeTab: string;
   onChange: (leafId: string) => void;
   primaryAriaLabel: string;
-  /** Secondary management tools rendered next to the report tabs (not query reports). */
+  /** Secondary management tools rendered next to the report navigation. */
   tools?: ReactNode;
   'data-tour'?: string;
 };
@@ -33,7 +32,6 @@ export default function ReportsNavigation({
   tools,
   'data-tour': dataTour,
 }: ReportsNavigationProps) {
-  const selectId = useId();
   const activeGroup = groups.find((group) => group.leaves.some((leaf) => leaf.id === activeTab)) || groups[0];
 
   if (!activeGroup) {
@@ -57,20 +55,19 @@ export default function ReportsNavigation({
             </label>
           ))}
         </div>
-        <div className="reports-module-nav__query">
-          <label className="reports-module-nav__select-label" htmlFor={selectId}>
-            {tTerm('reports.selector.label')}
-          </label>
-          <OperationalSelect
-            id={selectId}
-            value={activeTab}
-            onChange={(event) => onChange(event.target.value)}
-            className="reports-module-nav__select"
-          >
-            {activeGroup.leaves.map((leaf) => (
-              <option key={leaf.id} value={leaf.id}>{leaf.label}</option>
-            ))}
-          </OperationalSelect>
+        <div className="reports-module-nav__reports" role="group" aria-label={tTerm('reports.selector.label')}>
+          {activeGroup.leaves.map((leaf) => (
+            <button
+              key={leaf.id}
+              type="button"
+              className="reports-module-nav__report"
+              aria-pressed={leaf.id === activeTab}
+              title={leaf.title}
+              onClick={() => onChange(leaf.id)}
+            >
+              {leaf.label}
+            </button>
+          ))}
         </div>
       </div>
       {tools ? (

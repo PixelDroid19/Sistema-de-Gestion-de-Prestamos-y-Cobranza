@@ -109,8 +109,8 @@ test('buildMonthlyCashFlowReport reconciles monthly inflows, outflows, available
   assert.equal(report.summary.totalPrincipalRecovered, '52000000.00');
   assert.equal(report.summary.totalCollectedProfit, '6000000.00');
   assert.equal(report.summary.lossesAtRisk, '7000000.00');
-  assert.equal(report.summary.netProfitIndicator, '-1000000.00');
   assert.equal(report.summary.operatingResult, '6000000.00');
+  assert.equal(report.summary.netProfitIndicator, '6000000.00');
 
   assert.equal(report.months[0].month, '2026-01');
   assert.equal(report.months[0].inflows, '50000000.00');
@@ -148,8 +148,8 @@ test('buildMonthlyCashFlowReport subtracts paid associate movements from availab
   assert.equal(report.summary.totalOutflows, '40000000.00');
   assert.equal(report.summary.totalAssociatePayments, '4000000.00');
   assert.equal(report.summary.availableCash, '6000000.00');
-  assert.equal(report.summary.netProfitIndicator, '1000000.00');
   assert.equal(report.summary.operatingResult, '5000000.00');
+  assert.equal(report.summary.netProfitIndicator, '5000000.00');
   assert.equal(report.months[0].associatePayments, '3000000.00');
   assert.equal(report.months[0].netCashFlow, '7000000.00');
   assert.equal(report.months[0].availableCash, '7000000.00');
@@ -157,7 +157,7 @@ test('buildMonthlyCashFlowReport subtracts paid associate movements from availab
   assert.equal(report.months[1].availableCash, '6000000.00');
 });
 
-test('buildMonthlyCashFlowReport keeps investor payouts and risk exposure outside credit operating result', () => {
+test('buildMonthlyCashFlowReport keeps investor payouts and risk exposure outside the net operating result', () => {
   const report = buildMonthlyCashFlowReport({
     year: 2026,
     loans: [
@@ -191,8 +191,8 @@ test('buildMonthlyCashFlowReport keeps investor payouts and risk exposure outsid
   assert.equal(report.summary.totalAssociatePayments, '1500000.00');
   assert.equal(report.summary.lossesAtRisk, '250000.00');
   assert.equal(report.summary.currentCapitalAtRisk, '250000.00');
-  assert.equal(report.summary.netProfitIndicator, '-1145100.27');
   assert.equal(report.summary.operatingResult, '604899.73');
+  assert.equal(report.summary.netProfitIndicator, '604899.73');
 });
 
 test('buildMonthlyCashFlowReport uses the current risk snapshot for loans originated before the selected period', () => {
@@ -403,7 +403,7 @@ test('createGetMonthlyCashFlow reads canonical dataset from repository', async (
   assert.equal(response.data.summary.totalAssociatePayments, '3000000.00');
   assert.equal(response.data.summary.totalOperatingExpenses, '2000000.00');
   assert.equal(response.data.summary.operatingResult, '3000000.00');
-  assert.equal(response.data.summary.netProfitIndicator, '0.00');
+  assert.equal(response.data.summary.netProfitIndicator, '3000000.00');
   assert.equal(response.data.summary.availableCash, '5000000.00');
   assert.equal(response.data.months.length, 12);
 });
@@ -485,6 +485,7 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
     .findIndex((value) => value === 'Resultado operativo de créditos');
   assert.ok(operatingResultRowNumber > 0);
   assert.equal(financialSummary.getRow(operatingResultRowNumber).getCell(2).value, 'COP 3.000.000,00');
+  assert.equal(financialSummary.getColumn(1).values.includes('Resultado neto'), false);
   const capitalAtRiskRowNumber = financialSummary
     .getColumn(1)
     .values

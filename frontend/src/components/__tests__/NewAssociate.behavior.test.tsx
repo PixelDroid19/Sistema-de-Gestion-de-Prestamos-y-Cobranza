@@ -70,6 +70,9 @@ describe('NewAssociate behavior', () => {
     fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
       target: { value: rate },
     });
+    fireEvent.change(container.querySelector('#new-associate-investment-term-months') as HTMLInputElement, {
+      target: { value: '12' },
+    });
   };
 
   it('does not prefetch the associates list on the new associate form', () => {
@@ -88,6 +91,7 @@ describe('NewAssociate behavior', () => {
     expect(screen.queryByLabelText('Estado')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Primer pago')).toHaveValue('2026-08-13');
+    expect(screen.getByLabelText('Plazo de inversión (meses)')).toHaveValue('');
   });
 
   it('converts an annual rate into the monthly return before submission', () => {
@@ -151,6 +155,7 @@ describe('NewAssociate behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
     expect(screen.getByText('Ingresa el capital inicial aportado.')).toBeInTheDocument();
+    expect(screen.getByText('Ingresa un plazo entre 1 y 120 meses.')).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
 
     fillCreationTerms(container, '2000000', '0');

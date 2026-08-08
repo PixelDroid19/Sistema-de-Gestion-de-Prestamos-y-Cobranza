@@ -1564,23 +1564,47 @@
     border-radius: 0.25rem;
   }
 
-  .reports-module-nav__query {
+  .reports-module-nav__reports {
+    display: flex;
     min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
   }
 
-  .reports-module-nav__select-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .reports-module-nav__select {
+  .reports-module-nav__report {
+    display: inline-flex;
     min-height: 2.55rem;
-    height: 2.55rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.55rem;
+    background: var(--bg-surface);
+    padding: 0.48rem 0.8rem;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .reports-module-nav__report:hover {
+    border-color: var(--border-strong);
+    background: var(--hover-bg);
+    color: var(--text-primary);
+  }
+
+  .reports-module-nav__report[aria-pressed='true'] {
+    border-color: var(--brand-primary);
+    background: var(--brand-primary);
+    color: var(--bg-surface);
+  }
+
+  .reports-module-nav__report:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    outline-offset: 3px;
   }
 
   .reports-download-actions {
@@ -1596,10 +1620,6 @@
       align-items: stretch;
     }
 
-    .reports-module-nav__query {
-      grid-template-columns: minmax(0, 22rem);
-    }
-
   }
 
   @media (max-width: 639px) {
@@ -1608,7 +1628,7 @@
     }
 
     .reports-module-nav__categories,
-    .reports-module-nav__query {
+    .reports-module-nav__reports {
       width: 100%;
     }
 
@@ -1616,8 +1636,8 @@
       flex: 1 1 9rem;
     }
 
-    .reports-module-nav__query {
-      grid-template-columns: minmax(0, 1fr);
+    .reports-module-nav__report {
+      flex: 1 1 10rem;
     }
   }
 

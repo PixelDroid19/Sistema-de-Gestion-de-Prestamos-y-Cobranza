@@ -35,6 +35,9 @@ const associateValidation = {
   update(req, res, next) {
     next();
   },
+  configureInvestmentTerm(req, res, next) {
+    next();
+  },
 };
 
 test('createAssociatesRouter serves CRUD contract responses', async () => {
@@ -72,6 +75,10 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       async updateAssociate(input) {
         calls.push(['updateAssociate', input]);
         return { id: Number(input.associateId), ...input.payload };
+      },
+      async configureAssociateInvestmentTerm(input) {
+        calls.push(['configureAssociateInvestmentTerm', input]);
+        return { id: Number(input.associateId), investmentTermMonths: input.payload.investmentTermMonths };
       },
       async deleteAssociate(input) {
         calls.push(['deleteAssociate', input]);
@@ -143,6 +150,12 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { status: 'inactive' },
   });
+  const configureTermResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/5/investment-term',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { investmentTermMonths: 12 },
+  });
   const deleteResponse = await requestJson(activeServer, {
     method: 'DELETE',
     path: '/5',
@@ -209,6 +222,12 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     data: { associate: { id: 5, name: 'Ana Associate' } },
   });
   assert.equal(updateResponse.statusCode, 200);
+  assert.equal(configureTermResponse.statusCode, 200);
+  assert.deepEqual(configureTermResponse.body, {
+    success: true,
+    message: 'Plazo de inversión configurado correctamente',
+    data: { associate: { id: 5, investmentTermMonths: 12 } },
+  });
   assert.deepEqual(updateResponse.body, {
     success: true,
     message: 'Socio actualizado correctamente',
@@ -241,13 +260,14 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   }]);
   assert.deepEqual(calls[1], ['createAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, payload }]);
   assert.deepEqual(calls[3], ['updateAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { status: 'inactive' } }]);
-  assert.deepEqual(calls[4], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
-  assert.deepEqual(calls[5], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 } }]);
-  assert.deepEqual(calls[6], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
-  assert.deepEqual(calls[7], ['createAssociateCapitalReturn', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 120 } }]);
-  assert.deepEqual(calls[8], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
-  assert.deepEqual(calls[9], ['getAssociateFinancialSummary', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
-  assert.deepEqual(calls[10], ['exportAssociateFinancialSummary', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, format: 'xlsx' }]);
+  assert.deepEqual(calls[4], ['configureAssociateInvestmentTerm', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { investmentTermMonths: 12 } }]);
+  assert.deepEqual(calls[5], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
+  assert.deepEqual(calls[6], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 } }]);
+  assert.deepEqual(calls[7], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
+  assert.deepEqual(calls[8], ['createAssociateCapitalReturn', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 120 } }]);
+  assert.deepEqual(calls[9], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
+  assert.deepEqual(calls[10], ['getAssociateFinancialSummary', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
+  assert.deepEqual(calls[11], ['exportAssociateFinancialSummary', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, format: 'xlsx' }]);
 });
 
 test('createAssociatesRouter serves investor tracking before id routes', async () => {

@@ -599,6 +599,23 @@ const associateValidation = {
 
     next();
   },
+
+  /** @type {import('express').RequestHandler} */
+  configureInvestmentTerm: (req, res, next) => {
+    const { investmentTermMonths } = req.body;
+    const errors = [];
+
+    if (!validateIntegerRange(investmentTermMonths, 1, 120)) {
+      errors.push({ field: 'investmentTermMonths', message: 'El plazo de inversión debe ser un entero entre 1 y 120 meses' });
+    }
+    pushRemovedAssociateFieldValidation({ errors, body: req.body });
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
 };
 
 const notificationValidation = {

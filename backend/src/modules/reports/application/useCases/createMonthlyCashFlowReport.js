@@ -441,7 +441,6 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
     .reduce((sum, loan) => sum + resolveLoanOutstanding(loan), 0);
   const netCashFlow = totalInflows + totalAssociateContributions - totalOutflows - totalAssociatePayments - totalCapitalReturns - totalOperatingExpenses;
   const operatingResult = totalCollectedProfit - totalOperatingExpenses;
-  const legacyNetProfitIndicator = totalCollectedProfit - totalAssociatePayments - totalOperatingExpenses - lossesAtRisk;
 
   return {
     year: numericYear,
@@ -462,8 +461,10 @@ const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associate
       lossesAtRisk: formatMoney(lossesAtRisk),
       currentCapitalAtRisk: formatMoney(currentCapitalAtRisk),
       operatingResult: formatMoney(operatingResult),
-      // Preserve the historical API field while exposing the corrected operating result explicitly.
-      netProfitIndicator: formatMoney(legacyNetProfitIndicator),
+      // Keep the historical key as a compatibility alias. Investor payouts,
+      // capital returns, and risk exposure belong to cash/balance-sheet views;
+      // they must not reduce the credit operating result a consumer displays as profit.
+      netProfitIndicator: formatMoney(operatingResult),
       paymentCount: rawMonths.reduce((sum, row) => sum + row.paymentCount, 0),
       loanCount: rawMonths.reduce((sum, row) => sum + row.loanCount, 0),
     },

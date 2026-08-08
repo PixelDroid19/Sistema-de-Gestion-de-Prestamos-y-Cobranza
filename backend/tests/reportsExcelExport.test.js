@@ -18,6 +18,7 @@ let activeServer;
 const associateValidation = {
   create(_req, _res, next) { next(); },
   update(_req, _res, next) { next(); },
+  configureInvestmentTerm(_req, _res, next) { next(); },
 };
 
 afterEach(async () => {

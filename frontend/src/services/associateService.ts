@@ -185,6 +185,21 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     },
   });
 
+  const configureInvestmentTerm = useMutation({
+    mutationFn: async (payload: { investmentTermMonths: number }) => {
+      const { data } = await apiClient.post(`/associates/${associateId}/investment-term`, payload);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.detail(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.tracking() });
+    },
+  });
+
   const createManualProfitabilityPayment = useMutation({
     mutationFn: async (distributionData: any) => {
       const { data } = await apiClient.post(`/associates/${associateId}/manual-profitability-payments`, distributionData);
@@ -270,6 +285,7 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
     calendar: calendarPayload?.calendar,
     isLoading: getFinancialDetails.isLoading || getInstallments.isLoading || getCalendar.isLoading,
     createContribution,
+    configureInvestmentTerm,
     createManualProfitabilityPayment,
     createCapitalReturn,
     createReinvestment,

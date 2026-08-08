@@ -156,6 +156,16 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.json({ success: true, data: { associate } });
   }));
 
+  router.post('/:id/investment-term', requirePermission('SOCIOS_UPDATE'), associateValidation.configureInvestmentTerm, asyncHandler(async (req, res) => {
+    const associateId = parseRequiredRouteId(req.params.id, 'associateId');
+    const associate = await useCases.configureAssociateInvestmentTerm({
+      actor: req.user,
+      associateId,
+      payload: req.body,
+    });
+    res.json({ success: true, message: 'Plazo de inversión configurado correctamente', data: { associate } });
+  }));
+
   router.patch('/:id', requirePermission('SOCIOS_UPDATE'), associateValidation.update, asyncHandler(async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
     const associate = await useCases.updateAssociate({ actor: req.user, associateId, payload: req.body });

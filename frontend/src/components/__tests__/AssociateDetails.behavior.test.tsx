@@ -150,6 +150,7 @@ const buildDetailsResponse = () => ({
   },
   isLoading: false,
   createContribution: { mutateAsync: vi.fn() },
+  configureInvestmentTerm: { mutateAsync: vi.fn().mockResolvedValue({}) },
   createDistribution: { mutateAsync: vi.fn() },
   createCapitalReturn: { mutateAsync: vi.fn() },
   createReinvestment: { mutateAsync: vi.fn() },
@@ -729,6 +730,27 @@ describe('AssociateDetails behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Registrar aporte de capital' }));
 
     expect(screen.getByRole('dialog', { name: 'Registrar aporte de capital' })).toBeInTheDocument();
+  });
+
+  it('lets an authorized operator configure the term for a historical associate', async () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    const detailsResponse = buildDetailsResponse();
+    useAssociateDetailsSpy.mockReturnValue(detailsResponse);
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar plazo de inversión' }));
+    fireEvent.change(screen.getByLabelText('Plazo de inversión (meses)', { selector: '#associate-investment-term-months' }), {
+      target: { value: '12' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Generar calendario' }));
+
+    await waitFor(() => {
+      expect(detailsResponse.configureInvestmentTerm.mutateAsync).toHaveBeenCalledWith({ investmentTermMonths: 12 });
+    });
+    expect(screen.queryByRole('dialog', { name: 'Configurar plazo de inversión' })).not.toBeInTheDocument();
   });
 
   it('closes associate money action modals with Escape', () => {

@@ -1378,6 +1378,90 @@ const createUpdateAssociate = ({ associateRepository, auditService }) => {
 };
 
 /**
+ * Complete the fixed-term contract for a historical associate created before
+ * the term became mandatory. The first existing installment anchors the
+ * original payment date so paid history remains unchanged while all remaining
+ * monthly obligations are generated through the newly agreed maturity.
+ * @param {{ associateRepository: object, auditService?: object, clock?: Function }} dependencies
+ * @returns {Function}
+ */
+const createConfigureAssociateInvestmentTerm = ({
+  associateRepository,
+  auditService,
+  clock = () => new Date(),
+}) => {
+  const useCase = async ({ actor, associateId, payload }) => {
+    if (!['admin', 'employee'].includes(actor?.role)) {
+      throw new AuthorizationError('Solo usuarios administrativos autorizados pueden configurar el plazo de inversión.');
+    }
+
+    const investmentTermMonths = normalizeInvestmentTermMonths(payload?.investmentTermMonths, { required: true });
+    const operationDate = getCurrentOperationalDateOnly(clock());
+    const initialAssociate = await associateRepository.findById(associateId);
+    if (!initialAssociate) {
+      throw new NotFoundError('Associate');
+    }
+
+    const configureTerm = async (transaction) => {
+      const associate = transaction
+        ? await findAssociateForFinancialMutation({ associateRepository, associateId, transaction })
+        : initialAssociate;
+      if (!associate) {
+        throw new NotFoundError('Associate');
+      }
+
+      if (getFixedInvestmentTerms(associate)) {
+        throw new ValidationError('El socio ya tiene un plazo de inversión configurado.');
+      }
+
+      const existingInstallments = typeof associateRepository.findInstallmentsByAssociateId === 'function'
+        ? await associateRepository.findInstallmentsByAssociateId(associate.id, { transaction })
+        : [];
+      const firstPaymentDate = existingInstallments
+        .map((installment) => toOperationalDateOrNull(installment?.dueDate))
+        .filter(Boolean)
+        .sort((left, right) => left.getTime() - right.getTime())[0]
+        || buildInterestDueDate({
+          associate,
+          fromDate: operationDate,
+        });
+      const contractDates = {
+        investmentTermMonths,
+        investmentMaturityDate: addMonthsUtc(firstPaymentDate, investmentTermMonths - 1),
+      };
+      const updatedAssociate = normalizeAssociateRecord(
+        await associateRepository.update(associate, contractDates, { transaction }),
+      );
+
+      await ensureFixedInvestmentInterestInstallments({
+        associateRepository,
+        associate: updatedAssociate,
+        transaction,
+        fromDate: operationDate,
+        existingInstallments,
+      });
+
+      return updatedAssociate;
+    };
+
+    return typeof associateRepository.runInTransaction === 'function'
+      ? associateRepository.runInTransaction(configureTerm)
+      : configureTerm();
+  };
+
+  if (auditService) {
+    return withAudit({
+      auditService,
+      action: 'UPDATE',
+      module: 'associates',
+      getEntityId: (p) => p?.associateId,
+      getEntityType: () => 'Associate',
+    })(useCase);
+  }
+  return useCase;
+};
+
+/**
  * Create the use case that deactivates an associate while preserving financial history.
  * @param {{ associateRepository: object, auditService?: object }} dependencies
  * @returns {Function}
@@ -2257,6 +2341,7 @@ module.exports = {
   createCreateAssociate,
   createGetAssociateById,
   createUpdateAssociate,
+  createConfigureAssociateInvestmentTerm,
   createDeleteAssociate,
   createListAssociateFinancialDetails,
   createGetAssociateTracking,

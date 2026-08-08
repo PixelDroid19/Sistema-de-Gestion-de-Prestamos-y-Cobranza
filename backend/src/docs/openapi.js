@@ -223,6 +223,19 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           notes: { type: 'string' },
         },
       },
+      AssociateInvestmentTermInput: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['investmentTermMonths'],
+        properties: {
+          investmentTermMonths: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 120,
+            description: 'Plazo contractual para completar un socio histórico que no tenía plazo. Conserva los pagos ya registrados y genera las obligaciones mensuales restantes.',
+          },
+        },
+      },
       AssociateManualProfitabilityPaymentInput: {
         type: 'object',
         additionalProperties: false,
@@ -428,6 +441,18 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 201: { description: 'Aporte registrado y siguiente interés agendado cuando no hay cuota pendiente' } },
       },
     },
+    '/associates/{associateId}/investment-term': {
+      post: {
+        tags: ['Associates'],
+        summary: 'Completar el plazo de una inversión histórica',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateInvestmentTermInput' } } },
+        },
+        responses: { 200: { description: 'Plazo configurado y calendario completo de pagos generado' } },
+      },
+    },
     '/associates/{associateId}/manual-profitability-payments': {
       post: {
         tags: ['Associates'],
@@ -582,7 +607,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
                           type: 'object',
                           properties: {
                             operatingResult: { type: 'string', description: 'Interés y mora cobrados menos gastos operativos.' },
-                            netProfitIndicator: { type: 'string', description: 'Campo histórico de compatibilidad; conserva el cálculo anterior.' },
+                            netProfitIndicator: { type: 'string', description: 'Alias de compatibilidad del resultado operativo: interés y mora cobrados menos gastos operativos.' },
                             currentCapitalAtRisk: { type: 'string', description: 'Capital pendiente actualmente en créditos vencidos o default. No representa un snapshot histórico del corte.' },
                             lossesAtRisk: { type: 'string', description: 'Capital en riesgo asociado a los desembolsos incluidos en el período.' },
                           },

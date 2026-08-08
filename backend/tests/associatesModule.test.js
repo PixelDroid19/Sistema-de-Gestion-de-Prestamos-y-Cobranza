@@ -8,6 +8,7 @@ const {
   createCreateAssociate,
   createGetAssociateById,
   createUpdateAssociate,
+  createConfigureAssociateInvestmentTerm,
   createDeleteAssociate,
   createListAssociateFinancialDetails,
   createGetAssociateTracking,
@@ -1494,6 +1495,108 @@ test('createGetAssociateInstallments returns installments with totals', async ()
   assert.equal(result.installments.length, 3);
   assert.equal(result.totals.totalPaid, 100);
   assert.equal(result.totals.totalPending, 200);
+});
+
+test('createConfigureAssociateInvestmentTerm expands a historical two-payment schedule to the agreed term', async () => {
+  const associate = {
+    id: 12,
+    name: 'Socio histórico',
+    status: 'active',
+    interestType: 'monthly',
+    interestRate: '2.0000',
+    interestPaymentDay: 28,
+  };
+  const installments = [
+    {
+      id: 1,
+      associateId: 12,
+      installmentNumber: 1,
+      amount: 20000,
+      dueDate: new Date('2026-08-28T00:00:00.000Z'),
+      capitalBase: 1000000,
+      interestRate: '2.0000',
+      interestType: 'monthly',
+      status: 'paid',
+      paidAt: new Date('2026-08-28T00:00:00.000Z'),
+    },
+    {
+      id: 2,
+      associateId: 12,
+      installmentNumber: 2,
+      amount: 20000,
+      dueDate: new Date('2026-09-28T00:00:00.000Z'),
+      capitalBase: 1000000,
+      interestRate: '2.0000',
+      interestType: 'monthly',
+      status: 'pending',
+      paidAt: null,
+    },
+  ];
+  const createdInstallments = [];
+  const projectionUpdates = [];
+  const configureTerm = createConfigureAssociateInvestmentTerm({
+    clock: () => new Date('2026-08-08T12:00:00.000Z'),
+    associateRepository: {
+      async findById() {
+        return associate;
+      },
+      async findByIdForUpdate() {
+        return associate;
+      },
+      async runInTransaction(work) {
+        return work('tx-1');
+      },
+      async findInstallmentsByAssociateId() {
+        return installments;
+      },
+      async update(record, payload) {
+        Object.assign(record, payload);
+        return record;
+      },
+      async listContributionsByAssociate() {
+        return [{
+          id: 10,
+          amount: 1000000,
+          contributionDate: '2026-08-01',
+          status: 'completed',
+          interestTypeSnapshot: 'monthly',
+          interestRateSnapshot: '2.0000',
+        }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async updateInstallmentProjection(installmentId, payload) {
+        projectionUpdates.push({ installmentId, payload });
+        const installment = installments.find((row) => row.id === installmentId);
+        Object.assign(installment, payload);
+        return installment;
+      },
+      async createInstallment(payload) {
+        const installment = { id: 100 + createdInstallments.length, ...payload };
+        createdInstallments.push(installment);
+        installments.push(installment);
+        return installment;
+      },
+    },
+  });
+
+  const result = await configureTerm({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { investmentTermMonths: 12 },
+  });
+
+  assert.equal(result.investmentTermMonths, 12);
+  assert.equal(new Date(result.investmentMaturityDate).toISOString().slice(0, 10), '2027-07-28');
+  assert.equal(projectionUpdates.length, 1);
+  assert.equal(projectionUpdates[0].installmentId, 2);
+  assert.equal(createdInstallments.length, 10);
+  assert.deepEqual(
+    createdInstallments.map((installment) => installment.installmentNumber),
+    [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  );
+  assert.equal(installments.filter((installment) => installment.status === 'paid').length, 1);
 });
 
 test('createGetAssociateInstallments reprojects an annual rate basis as a monthly associate return', async () => {

@@ -247,8 +247,8 @@ const associateRepository = {
 
     return Associate.findOne({ where });
   },
-  update(associate, payload) {
-    return associate.update(payload);
+  update(associate, payload, { transaction } = {}) {
+    return associate.update(payload, { transaction });
   },
   listContributionsByAssociate(associateId, { transaction } = {}) {
     return AssociateContribution.findAll({

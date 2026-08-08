@@ -517,9 +517,7 @@ const openReportView = (name: string) => {
     'Gastos operativos': 'Informe contable',
   };
   fireEvent.click(screen.getByRole('radio', { name: categoryByReport[name] }));
-  const selector = screen.getByRole('combobox', { name: 'Tipo de reporte' });
-  const option = within(selector).getByRole('option', { name }) as HTMLOptionElement;
-  fireEvent.change(selector, { target: { value: option.value } });
+  fireEvent.click(screen.getByRole('button', { name }));
 };
 
 const openReportFilters = () => {
@@ -584,20 +582,19 @@ describe('Reports operational module', () => {
     expect(screen.getByRole('heading', { name: 'Reportes operativos' })).toBeInTheDocument();
     const workspace = screen.getByTestId('reports-workspace');
     const categoryGroup = within(workspace).getByRole('radiogroup', { name: 'Categoría del reporte' });
-    const reportSelector = within(workspace).getByRole('combobox', { name: 'Tipo de reporte' });
+    const reportGroup = within(workspace).getByRole('group', { name: 'Tipo de reporte' });
     const navigationRow = categoryGroup.closest('.reports-module-nav__selection');
 
     expect(navigationRow).not.toBeNull();
-    expect(navigationRow).toContainElement(reportSelector);
+    expect(navigationRow).toContainElement(reportGroup);
     expect(within(workspace).getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
     expect(screen.getByRole('radiogroup', { name: 'Categoría del reporte' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Informe comercial' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Informe estadístico' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Informe contable' })).toBeChecked();
-    expect(reportSelector).toHaveValue('cashflow');
-    expect(within(reportSelector).getAllByRole('option')).toHaveLength(2);
-    expect(within(reportSelector).getByRole('option', { name: 'Cierre contable' })).toBeInTheDocument();
-    expect(within(reportSelector).getByRole('option', { name: 'Gastos operativos' })).toBeInTheDocument();
+    expect(within(reportGroup).getAllByRole('button')).toHaveLength(2);
+    expect(within(reportGroup).getByRole('button', { name: 'Cierre contable' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(reportGroup).getByRole('button', { name: 'Gastos operativos' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
 
     expect(screen.queryByRole('button', { name: 'Dashboard general' })).not.toBeInTheDocument();
@@ -753,7 +750,7 @@ describe('Reports operational module', () => {
 
     openReportView('Gastos operativos');
 
-    expect(screen.getByRole('combobox', { name: 'Tipo de reporte' })).toHaveValue('expenses');
+    expect(screen.getByRole('button', { name: 'Gastos operativos' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Control de gastos operativos' })).toBeInTheDocument();
     expect(screen.getAllByText('Registra los gastos del negocio. Puedes anularlos y quedan en el historial.')).toHaveLength(1);
   });
@@ -1080,9 +1077,9 @@ describe('Reports operational module', () => {
   it('keeps retired repeated reports out while retaining canonical expenses', () => {
     renderReports();
 
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gastos operativos' })).toBeInTheDocument();
     openReportView('Gastos operativos');
-    expect(screen.getByRole('combobox', { name: 'Tipo de reporte' })).toHaveValue('expenses');
+    expect(screen.getByRole('button', { name: 'Gastos operativos' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('shows installment payments as a primary report and exports visible filters', async () => {
@@ -1130,10 +1127,10 @@ describe('Reports operational module', () => {
     renderReports();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Informe contable' }));
-    const reportSelector = screen.getByRole('combobox', { name: 'Tipo de reporte' });
-    expect(within(reportSelector).queryByRole('option', { name: 'Gastos operativos' })).not.toBeInTheDocument();
-    expect(within(reportSelector).getAllByRole('option')).toHaveLength(1);
+    const reportGroup = screen.getByRole('group', { name: 'Tipo de reporte' });
+    expect(within(reportGroup).queryByRole('button', { name: 'Gastos operativos' })).not.toBeInTheDocument();
+    expect(within(reportGroup).getAllByRole('button')).toHaveLength(1);
     fireEvent.click(screen.getByRole('radio', { name: 'Informe comercial' }));
-    expect(within(screen.getByRole('combobox', { name: 'Tipo de reporte' })).getByRole('option', { name: 'Pago de cuotas' })).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Tipo de reporte' })).getByRole('button', { name: 'Pago de cuotas' })).toBeInTheDocument();
   });
 });

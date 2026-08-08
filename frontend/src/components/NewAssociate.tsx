@@ -80,7 +80,7 @@ const createEmptyForm = (): AssociateFormData => ({
   phone: '',
   status: 'active',
   initialCapital: '',
-  investmentTermMonths: '12',
+  investmentTermMonths: '',
   interestType: 'annual',
   interestRate: '',
   firstPaymentDate: getDefaultFirstPaymentDate('annual'),
