@@ -8,6 +8,7 @@ export const commonEs = {
 'sidebar.credits.portfolio': 'Créditos vigentes',
 'sidebar.credits.origination': 'Nuevo crédito',
 'sidebar.credits.reports': 'Reportes',
+'sidebar.credits.expenses': 'Registrar gasto',
 'sidebar.credits.simulator': 'Cálculo de Crédito',
 'sidebar.associates': 'Socios',
 'sidebar.associates.management': 'Gestión de socios',
@@ -29,6 +30,7 @@ export const commonEs = {
 'sidebar.tooltip.credits.portfolio': 'Créditos en curso con saldo o cuotas pendientes',
 'sidebar.tooltip.credits.new': 'Crear y registrar un crédito nuevo',
 'sidebar.tooltip.credits.reports': 'Indicadores de cartera, mora y recaudo',
+'sidebar.tooltip.credits.expenses': 'Registra un gasto que se refleja en caja y reportes',
 'sidebar.tooltip.credits.simulator': 'Calcula cuotas con la regla activa del crédito',
 'sidebar.tooltip.payouts': 'Registra pagos, consulta recibos y seguimiento de cobranza',
 // Login

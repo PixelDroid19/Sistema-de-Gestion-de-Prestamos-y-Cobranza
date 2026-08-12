@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   useReports,
   exportContextualReport,
@@ -52,6 +53,8 @@ const isPrimaryReportTab = (tabId: string): tabId is PrimaryReportTab => (
 );
 
 export default function Reports() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const { user } = useSessionStore();
@@ -66,6 +69,10 @@ export default function Reports() {
   const canViewOperatingExpensesTab = canAccessPermission(PERMISSION.FINANCE_VIEW_ALL);
   const canCreateOperatingExpenses = canAccessPermission(PERMISSION.FINANCE_CREATE);
   const canAnnulOperatingExpenses = canAccessPermission(PERMISSION.FINANCE_ANNUL);
+  const isExpenseRegistrationLink = (
+    canViewOperatingExpensesTab
+    && new URLSearchParams(location.search).get('view') === 'expenses'
+  );
   const {
     overdueLoans,
     isLoading: isOutstandingLoading,
@@ -86,7 +93,14 @@ export default function Reports() {
   const [annullingExpenseId, setAnnullingExpenseId] = useState<number | null>(null);
   const [exportingExpensesFormat, setExportingExpensesFormat] = useState<OperatingExpenseExportFormat | null>(null);
 
-  const [activeTab, setActiveTab] = useState<PrimaryReportTab>('cashflow');
+  const [activeTab, setActiveTab] = useState<PrimaryReportTab>(() => (
+    isExpenseRegistrationLink ? 'expenses' : 'cashflow'
+  ));
+  useEffect(() => {
+    if (isExpenseRegistrationLink) {
+      setActiveTab('expenses');
+    }
+  }, [isExpenseRegistrationLink, setActiveTab]);
   const [payoutFilters, setPayoutFilters] = useState<{
     fromDate?: string;
     toDate?: string;
@@ -198,6 +212,16 @@ export default function Reports() {
   const handleReportsTabChange = (tabId: string) => {
     if (isPrimaryReportTab(tabId)) {
       setActiveTab(tabId);
+
+      if (location.search) {
+        const searchParams = new URLSearchParams(location.search);
+        searchParams.delete('view');
+        const search = searchParams.toString();
+        navigate({
+          pathname: location.pathname,
+          search: search ? `?${search}` : '',
+        }, { replace: true });
+      }
     }
   };
 

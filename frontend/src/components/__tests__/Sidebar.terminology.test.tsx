@@ -157,6 +157,26 @@ describe('Sidebar canonical terminology parity', () => {
     expect(screen.queryByRole('button', { name: 'Reportes' })).not.toBeInTheDocument();
   });
 
+  it('exposes a direct expense-registration entry to users with finance access', () => {
+    const setCurrentView = vi.fn();
+
+    render(
+      <Sidebar
+        currentView="dashboard"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={vi.fn()}
+        isMobileOpen={false}
+        setIsMobileOpen={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Créditos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
+
+    expect(setCurrentView).toHaveBeenLastCalledWith('reports?view=expenses');
+  });
+
   it('keeps account actions visible while only the navigation list scrolls', () => {
     const setCurrentView = vi.fn();
     const setIsCollapsed = vi.fn();

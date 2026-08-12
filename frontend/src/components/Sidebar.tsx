@@ -22,6 +22,7 @@ const getIsDesktopSidebarViewport = () => {
 
 export default function Sidebar({ 
   currentView, 
+  currentReportView,
   setCurrentView,
   isCollapsed,
   setIsCollapsed,
@@ -29,6 +30,7 @@ export default function Sidebar({
   setIsMobileOpen
 }: { 
   currentView: string, 
+  currentReportView?: string,
   setCurrentView: (v: string) => void,
   isCollapsed: boolean,
   setIsCollapsed: (v: boolean) => void,
@@ -69,6 +71,11 @@ export default function Sidebar({
   const canViewCredits = canAccess(PERMISSION.CREDITS_VIEW_ALL);
   const canCreateCredits = canAccess(PERMISSION.CREDITS_CREATE) && canAccess(PERMISSION.CREDITS_VIEW_ALL);
   const canViewReports = canAccess(PERMISSION.REPORTS_VIEW_ALL);
+  const canViewOperatingExpenses = canAccess(PERMISSION.FINANCE_VIEW_ALL);
+  const canCreateOperatingExpenses = canAccess(PERMISSION.FINANCE_CREATE);
+  const canRegisterOperatingExpense = (
+    canViewReports && canViewOperatingExpenses && canCreateOperatingExpenses
+  );
   const canViewAssociates = canAccess(PERMISSION.SOCIOS_VIEW_ALL);
   const canViewPayouts = canAccess(PERMISSION.PAYMENTS_VIEW_ALL);
   const canViewAudit = canAccess(PERMISSION.AUDIT_VIEW_ALL);
@@ -250,7 +257,7 @@ export default function Sidebar({
           )}
 
           {/* Credits menu */}
-          {(canViewCredits || canCreateCredits || canViewReports) && (
+          {(canViewCredits || canCreateCredits || canViewReports || canRegisterOperatingExpense) && (
           <div className="mt-1">
               <SectionNavButton
                 icon={<CreditCard size={20} />}
@@ -281,11 +288,19 @@ export default function Sidebar({
                 )}
                 {canViewReports && (
                     <SubNavItem
-                      active={currentView === 'reports'}
+                      active={currentView === 'reports' && currentReportView !== 'expenses'}
                       onClick={() => setCurrentView('reports')}
                       title={tTerm('sidebar.credits.reports')}
                       tooltip={tTerm('sidebar.tooltip.credits.reports')}
                     />
+                )}
+                {canRegisterOperatingExpense && (
+                  <SubNavItem
+                    active={currentView === 'reports' && currentReportView === 'expenses'}
+                    onClick={() => setCurrentView('reports?view=expenses')}
+                    title={tTerm('sidebar.credits.expenses')}
+                    tooltip={tTerm('sidebar.tooltip.credits.expenses')}
+                  />
                 )}
                 {canViewCredits && (
                   <SubNavItem

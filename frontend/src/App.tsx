@@ -60,6 +60,7 @@ function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentView = location.pathname.substring(1) || 'dashboard';
+  const currentReportView = new URLSearchParams(location.search).get('view') ?? undefined;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
 
@@ -72,6 +73,7 @@ function MainLayout() {
     <div className="flex h-screen w-full overflow-hidden bg-bg-base text-text-primary font-sans">
       <Sidebar
         currentView={currentView}
+        currentReportView={currentReportView}
         setCurrentView={setCurrentView}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}

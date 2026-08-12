@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import Reports from '../Reports';
 
 const mockExportContextualReport = vi.fn().mockResolvedValue(undefined);
@@ -495,15 +496,17 @@ vi.mock('recharts', () => {
   };
 });
 
-const renderReports = () => {
+const renderReports = (initialEntry = '/reports') => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 
   return render(
-    <QueryClientProvider client={queryClient}>
-      <Reports />
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <QueryClientProvider client={queryClient}>
+        <Reports />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 };
 
@@ -753,6 +756,20 @@ describe('Reports operational module', () => {
     expect(screen.getByRole('button', { name: 'Gastos operativos' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Control de gastos operativos' })).toBeInTheDocument();
     expect(screen.getAllByText('Registra los gastos del negocio. Puedes anularlos y quedan en el historial.')).toHaveLength(1);
+  });
+
+  it('opens expense registration directly from the operating-expenses report link', () => {
+    renderReports('/reports?view=expenses');
+
+    expect(screen.getByRole('button', { name: 'Gastos operativos' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('heading', { name: 'Control de gastos operativos' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cierre contable' }));
+    expect(screen.getByRole('heading', { name: 'Cierre contable' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Control de gastos operativos' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gastos operativos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
+    expect(screen.getByRole('heading', { name: 'Registrar gasto operativo' })).toBeInTheDocument();
   });
 
   it('keeps non-zero cashflow table values when rows arrive with total-prefixed fields', () => {
