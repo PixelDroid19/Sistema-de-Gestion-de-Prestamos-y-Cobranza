@@ -409,7 +409,7 @@ const reportRepository = {
       Loan.findAll({
         where: {
           [Op.and]: [
-            { status: { [Op.in]: ['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] } },
+            { status: { [Op.in]: ['pending', 'approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] } },
             {
               [Op.or]: [
                 { startDate: { [Op.gte]: startDate, [Op.lte]: endDate } },

@@ -129,6 +129,25 @@ test('buildMonthlyCashFlowReport reconciles monthly inflows, outflows, available
   assert.equal(report.months[1].lossesAtRisk, '7000000.00');
 });
 
+test('buildMonthlyCashFlowReport includes pending credits as delivered customer capital', () => {
+  const report = buildMonthlyCashFlowReport({
+    year: 2026,
+    loans: [
+      makeLoan({ id: 1, amount: 2000000, status: 'pending', startDate: '2026-07-14T00:00:00.000Z' }),
+      makeLoan({ id: 2, amount: 5000000, status: 'active', startDate: '2026-06-19T00:00:00.000Z' }),
+    ],
+  });
+
+  assert.equal(report.summary.totalOutflows, '7000000.00');
+  assert.equal(report.summary.loanCount, 2);
+  assert.deepEqual(
+    report.movements
+      .filter((movement) => movement.movementType === 'loan_disbursement')
+      .map((movement) => movement.reference),
+    ['Crédito #2', 'Crédito #1'],
+  );
+});
+
 test('buildMonthlyCashFlowReport subtracts paid associate movements from available cash', () => {
   const report = buildMonthlyCashFlowReport({
     year: 2026,

@@ -82,19 +82,6 @@ const extractOverdueBuckets = ({ loan = {}, schedule, asOfDate }) => schedule.re
   lateFee: 0,
 });
 
-const hasUnpaidInstallmentPastDue = ({ schedule, asOfDate }) => schedule.some((row) => {
-  if (row.status === 'annulled') {
-    return false;
-  }
-
-  const dueDate = normalizeUtcDateOnly(row.dueDate, 'Schedule due date');
-  const remainingBalance = roundCurrency(
-    Number(row.remainingPrincipal || 0) + Number(row.remainingInterest || 0),
-  );
-
-  return remainingBalance > 0.01 && dueDate.getTime() < asOfDate.getTime();
-});
-
 const resolveAccrualAnchor = ({ loan, schedule, asOfDate }) => {
   const latestDueRow = [...schedule]
     .filter((row) => (
@@ -136,13 +123,13 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
   const futurePrincipal = roundCurrency(Math.max(0, outstandingPrincipal - overdue.overduePrincipal));
   const accrualAnchor = resolveAccrualAnchor({ loan, schedule, asOfDate: normalizedAsOfDate });
   /*
-   * Scheduled interest is owed with its installment. A customer who is current
-   * settles the remaining capital without a daily accrual between cutoffs.
+   * A payoff settles principal plus interest earned since the last covered
+   * cutoff. Future scheduled interest remains excluded under actual/360.
    */
-  const hasPastDueBalance = hasUnpaidInstallmentPastDue({ schedule, asOfDate: normalizedAsOfDate });
-  const accruedDays = hasPastDueBalance
-    ? countElapsedAccrualDays({ anchorDate: accrualAnchor.date, asOfDate: normalizedAsOfDate })
-    : 0;
+  const accruedDays = countElapsedAccrualDays({
+    anchorDate: accrualAnchor.date,
+    asOfDate: normalizedAsOfDate,
+  });
   const accruedInterest = roundCurrency(
     futurePrincipal
       * (Number(loan.interestRate || 0) / 100)

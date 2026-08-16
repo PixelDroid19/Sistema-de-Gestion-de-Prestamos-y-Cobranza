@@ -10,7 +10,7 @@ const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder'
 const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
 
 const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
-const DISBURSED_STATUSES = new Set(['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted']);
+const DISBURSED_STATUSES = new Set(['pending', 'approved', 'active', 'overdue', 'paid', 'closed', 'defaulted']);
 const LOSS_RISK_STATUSES = new Set(['overdue', 'defaulted']);
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 

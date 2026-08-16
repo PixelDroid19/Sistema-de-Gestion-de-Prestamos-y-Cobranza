@@ -357,7 +357,7 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
   );
 });
 
-integrationTest('producto: liquida un crédito al día sin interés diario entre cuotas', async () => {
+integrationTest('producto: liquida un crédito al día con el interés causado entre cuotas', async () => {
   assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de liquidación al día requiere el fixture de originación.');
 
   let response = await expectStatus({
@@ -410,8 +410,12 @@ integrationTest('producto: liquida un crédito al día sin interés diario entre
   assert.equal(Number(quote?.breakdown?.overduePrincipal), 0);
   assert.equal(Number(quote?.breakdown?.overdueInterest), 0);
   assert.equal(Number(quote?.breakdown?.lateFee), 0);
-  assert.equal(Number(quote?.breakdown?.accruedInterest), 0);
-  assert.equal(Number(quote?.total), outstandingPrincipal);
+  assert.equal(Number(quote?.accruedDays), 3);
+  assert.ok(Number(quote?.breakdown?.accruedInterest) > 0);
+  assert.equal(
+    Number(quote?.total),
+    Math.round((outstandingPrincipal + Number(quote?.breakdown?.accruedInterest)) * 100) / 100,
+  );
 });
 
 integrationTest('producto: calcula mora y liquida el saldo total con cierre y trazabilidad', async () => {
@@ -669,6 +673,17 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
   assert.ok(Array.isArray(response.body?.data?.calendar?.events));
 
   // Annual CDT-style rates are paid as a monthly return: annual rate / 12.
+  const bogotaDateParts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date()).map((part) => [part.type, part.value]));
+  const operationalDate = new Date(Date.UTC(
+    Number(bogotaDateParts.year),
+    Number(bogotaDateParts.month) - 1,
+    Number(bogotaDateParts.day),
+  ));
   response = await expectStatus({
     method: 'POST',
     path: '/api/associates',
@@ -681,7 +696,7 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
       interestType: 'annual',
       interestRate: 12,
       interestPaymentDay: 15,
-      interestPaymentMonth: 8,
+      interestPaymentMonth: operationalDate.getUTCMonth() + 1,
       initialCapital: 1200000,
       investmentTermMonths: 6,
     },
@@ -695,8 +710,19 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
   const annualInstallment = annualInstallments?.[0];
   assert.equal(annualInstallments?.length, 6, 'El plazo pactado debe crear un pago mensual por cada mes del contrato.');
   assert.equal(Number(annualInstallment?.amount), 12000, 'La tasa anual debe liquidarse en pagos mensuales equivalentes.');
-  assert.match(String(annualInstallment?.dueDate), /^2026-08-15/u);
-  assert.match(String(annualInstallments?.at(-1)?.dueDate), /^2027-01-15/u);
+  const firstDueDate = new Date(annualInstallment?.dueDate);
+  const daysUntilFirstPayment = Math.round((firstDueDate.getTime() - operationalDate.getTime()) / (24 * 60 * 60 * 1000));
+  assert.equal(firstDueDate.getUTCDate(), 15, 'La primera cuota debe conservar el día pactado.');
+  assert.ok(daysUntilFirstPayment > 0 && daysUntilFirstPayment <= 31, 'La primera cuota debe ser el próximo día 15 posterior a la creación.');
+  assert.deepEqual(
+    annualInstallments.map((installment) => new Date(installment.dueDate).toISOString().slice(0, 10)),
+    Array.from({ length: 6 }, (_, index) => new Date(Date.UTC(
+      firstDueDate.getUTCFullYear(),
+      firstDueDate.getUTCMonth() + index,
+      15,
+    )).toISOString().slice(0, 10)),
+    'Las seis cuotas deben conservar una cadencia mensual incluso al cruzar de año.',
+  );
 
   response = await expectStatus({ path: `/api/associates/${annualAssociateId}/calendar-events`, token: accessToken }, 200);
   const annualCalendarInstallments = (response.body?.data?.calendar?.events || [])
@@ -859,7 +885,7 @@ integrationTest('producto: genera vouchers reales para abonos a capital y pagos 
 
   response = await expectStatus({ path: `/api/loans/${payoffLoanId}/payoff-quote?asOfDate=2026-07-24`, token: accessToken }, 200);
   const payoffQuote = response.body?.data?.payoffQuote;
-  assert.equal(Number(payoffQuote?.breakdown?.accruedInterest || 0), 0, 'Un crédito al día no debe sumar interés diario al pagar total.');
+  assert.equal(Number(payoffQuote?.breakdown?.accruedInterest || 0), 0, 'Un pago total el día del desembolso no debe causar días de interés.');
 
   response = await expectStatus({
     method: 'POST',

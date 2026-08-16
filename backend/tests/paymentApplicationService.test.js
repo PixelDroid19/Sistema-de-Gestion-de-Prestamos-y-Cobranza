@@ -1709,7 +1709,7 @@ test('createPaymentApplicationService requires an injected loan view service sea
   assert.throws(() => createPaymentApplicationService(), /loanViewService/i);
 });
 
-test('applyPayoff closes the loan, stores payoff metadata, and leaves no future scheduled interest charged', async () => {
+test('applyPayoff closes the loan, stores elapsed interest, and leaves future scheduled interest uncharged', async () => {
   let savedLoan;
   let savedPayment;
   const notifications = [];
@@ -1756,7 +1756,7 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   }).applyPayoff({
     loanId: 10,
     asOfDate: '2026-03-15',
-    quotedTotal: 1000,
+    quotedTotal: 1024.33,
     paymentDate: '2026-03-15T16:00:00.000Z',
     actor: { id: 55, role: 'customer' },
   });
@@ -1765,24 +1765,26 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   assert.equal(result.loan.closureReason, 'payoff');
   assert.equal(result.loan.closedAt.toISOString(), '2026-03-15T00:00:00.000Z');
   assert.equal(result.allocation.remainingBalance, 0);
-  assert.equal(result.allocation.payoff.total, 1000);
+  assert.equal(result.allocation.payoff.total, 1024.33);
   assert.equal(result.allocation.payoff.accrualMethod, 'actual/360');
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 0);
-  assert.equal(savedLoan.financialSnapshot.totalPaidAccruedInterest, 0);
-  assert.equal(savedLoan.financialSnapshot.totalPaidInterest, 0);
-  assert.equal(savedLoan.financialSnapshot.totalPaid, 1000);
-  assert.equal(savedLoan.financialSnapshot.totalPayable, 1000);
+  assert.equal(savedLoan.financialSnapshot.totalPaidAccruedInterest, 24.33);
+  assert.equal(savedLoan.financialSnapshot.totalPaidInterest, 24.33);
+  assert.equal(savedLoan.financialSnapshot.totalPaid, 1024.33);
+  assert.equal(savedLoan.financialSnapshot.totalPayable, 1024.33);
   const reloadedPayoffSnapshot = loanViewService.getCanonicalLoanView(savedLoan).snapshot;
-  assert.equal(reloadedPayoffSnapshot.totalPaidAccruedInterest, 0);
-  assert.equal(reloadedPayoffSnapshot.totalPaid, 1000);
-  assert.equal(reloadedPayoffSnapshot.totalPayable, 1000);
+  assert.equal(reloadedPayoffSnapshot.totalPaidAccruedInterest, 24.33);
+  assert.equal(reloadedPayoffSnapshot.totalPaid, 1024.33);
+  assert.equal(reloadedPayoffSnapshot.totalPayable, 1024.33);
   assert.equal(savedPayment.paymentType, 'payoff');
   assert.equal(savedPayment.paymentDate.toISOString(), '2026-03-15T00:00:00.000Z');
   assert.equal(savedPayment.createdByUserId, 55);
   assert.equal(savedPayment.paymentMetadata.payoff.asOfDate, '2026-03-15');
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overduePrincipal, 0);
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overdueInterest, 0);
-  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.accruedInterest, 0);
+  assert.equal(savedPayment.amount, 1024.33);
+  assert.equal(savedPayment.interestApplied, 24.33);
+  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.accruedInterest, 24.33);
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.futurePrincipal, 1000);
   assert.deepEqual(notifications.map((notification) => notification.userId), [44, 55]);
   assert.equal(notifications[0].payload.loanId, 10);

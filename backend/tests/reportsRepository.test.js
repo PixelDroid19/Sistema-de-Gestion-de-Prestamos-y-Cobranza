@@ -142,6 +142,7 @@ test('reportRepository listCashFlowDataset reads paid associate movements and co
   const riskLoanQuery = capturedLoanQueries.find((query) => query.where[Op.and][0].status[Op.in].includes('overdue'));
   assert.ok(capturedLoanQuery);
   assert.ok(riskLoanQuery);
+  assert.ok(capturedLoanQuery.where[Op.and][0].status[Op.in].includes('pending'));
   const loanDateConditions = capturedLoanQuery.where[Op.and][1][Op.or];
   assert.equal(loanDateConditions[0].startDate[Op.gte], fromDate);
   assert.equal(loanDateConditions[0].startDate[Op.lte], toDate);
