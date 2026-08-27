@@ -9,6 +9,7 @@ import { AppTable, TABLE_EMBEDDED_SHELL_CLASS } from '../shared/tables';
 import { ReportDownloadActions } from './ReportDownloadModal';
 import ReportSummaryGrid from './ReportSummaryGrid';
 import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
+import ReportPeriodSelector from './ReportPeriodSelector';
 
 const PAGE_SIZE = 20;
 
@@ -42,8 +43,6 @@ export default function AssociateMovementsTab() {
   const activeFilterCount = [
     filters.search.trim(),
     filters.status === 'all' ? '' : filters.status,
-    filters.fromDate,
-    filters.toDate,
   ].filter(Boolean).length;
   const activeFilters: ReportActiveFilter[] = [];
   if (filters.search.trim()) {
@@ -60,22 +59,6 @@ export default function AssociateMovementsTab() {
       label: tTerm('reports.associates.filter.status'),
       value: filters.status === 'active' ? tTerm('common.status.active') : tTerm('common.status.inactive'),
       onRemove: () => setFilters((current) => ({ ...current, status: 'all' })),
-    });
-  }
-  if (filters.fromDate) {
-    activeFilters.push({
-      id: 'fromDate',
-      label: tTerm('reports.associates.filter.from'),
-      value: filters.fromDate,
-      onRemove: () => setFilters((current) => ({ ...current, fromDate: '' })),
-    });
-  }
-  if (filters.toDate) {
-    activeFilters.push({
-      id: 'toDate',
-      label: tTerm('reports.associates.filter.to'),
-      value: filters.toDate,
-      onRemove: () => setFilters((current) => ({ ...current, toDate: '' })),
     });
   }
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
@@ -107,7 +90,13 @@ export default function AssociateMovementsTab() {
       <ReportTabPanel
         title={tTerm('reports.associates.title')}
         subtitle={tTerm('reports.associates.description')}
-        filterColumns={4}
+        filterColumns={2}
+        primaryFilters={(
+          <ReportPeriodSelector
+            value={{ fromDate: filters.fromDate, toDate: filters.toDate }}
+            onChange={({ fromDate, toDate }) => setFilters((current) => ({ ...current, fromDate, toDate }))}
+          />
+        )}
         activeFilterCount={activeFilterCount}
         activeFilters={activeFilters}
         onClearAllFilters={() => setFilters({ search: '', status: 'all', fromDate: '', toDate: '' })}
@@ -115,8 +104,6 @@ export default function AssociateMovementsTab() {
           <>
             <FormField label={tTerm('reports.associates.filter.search')}><AppInput value={filters.search} onValueChange={(search) => setFilters((current) => ({ ...current, search }))} placeholder={tTerm('reports.associates.filter.searchPlaceholder')} /></FormField>
             <FormField label={tTerm('reports.associates.filter.status')}><OperationalSelect value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">{tTerm('reports.associates.filter.allStatuses')}</option><option value="active">{tTerm('common.status.active')}</option><option value="inactive">{tTerm('common.status.inactive')}</option></OperationalSelect></FormField>
-            <FormField label={tTerm('reports.associates.filter.from')} error={invalidRange ? tTerm('reports.export.invalidRange') : undefined}><AppInput variant="date" value={filters.fromDate} onValueChange={(fromDate) => setFilters((current) => ({ ...current, fromDate }))} /></FormField>
-            <FormField label={tTerm('reports.associates.filter.to')}><AppInput variant="date" value={filters.toDate} onValueChange={(toDate) => setFilters((current) => ({ ...current, toDate }))} /></FormField>
           </>
         )}
         headerActions={(

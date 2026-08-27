@@ -9,7 +9,6 @@ import type {
   OperatingExpensePayload,
 } from '../../services/reportService';
 import {
-  AppInput,
   FormField,
   OperationalSelect,
   StatusChip,
@@ -20,6 +19,7 @@ import { ReportDownloadActions } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { RowActionsWithOverflow, TableActionsCell, TableActionsHeader } from '../shared/tables';
 import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
+import ReportPeriodSelector from './ReportPeriodSelector';
 
 type OperatingExpensesTabProps = {
   expenseFilters: OperatingExpenseFilters;
@@ -75,18 +75,6 @@ export default function OperatingExpensesTab({
   const [createOpen, setCreateOpen] = useState(false);
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
 
-  const updateExpenseDateFilter = (key: 'fromDate' | 'toDate', value: string) => {
-    if (key === 'fromDate' && value && expenseFilters.toDate && value > expenseFilters.toDate) {
-      return;
-    }
-    if (key === 'toDate' && value && expenseFilters.fromDate && value < expenseFilters.fromDate) {
-      return;
-    }
-
-    onExpensePageChange(1);
-    onExpenseFiltersChange({ ...expenseFilters, [key]: value || undefined });
-  };
-
   const totalPages = Math.max(Number(pagination?.totalPages || 1), 1);
   const totalItems = Number(pagination?.totalItems || expenses.length || 0);
   const activeFilterCount = Object.values(expenseFilters).filter(Boolean).length;
@@ -98,8 +86,6 @@ export default function OperatingExpensesTab({
     if (key === 'employeeId') setEmployeeSearchQuery('');
   };
   const activeFilters: ReportActiveFilter[] = [];
-  if (expenseFilters.fromDate) activeFilters.push({ id: 'fromDate', label: tTerm('reports.expenses.filter.from'), value: expenseFilters.fromDate, onRemove: () => removeExpenseFilter('fromDate') });
-  if (expenseFilters.toDate) activeFilters.push({ id: 'toDate', label: tTerm('reports.expenses.filter.to'), value: expenseFilters.toDate, onRemove: () => removeExpenseFilter('toDate') });
   if (expenseFilters.status) activeFilters.push({ id: 'status', label: tTerm('reports.expenses.filter.status'), value: getExpenseStatusLabel(expenseFilters.status), onRemove: () => removeExpenseFilter('status') });
   if (expenseFilters.employeeId) activeFilters.push({ id: 'employeeId', label: tTerm('reports.expenses.filter.employee'), value: tTerm('reports.filters.selectedValue'), onRemove: () => removeExpenseFilter('employeeId') });
 
@@ -108,8 +94,17 @@ export default function OperatingExpensesTab({
       <ReportTabPanel
         title={tTerm('reports.expenses.title')}
         subtitle={tTerm('reports.expenses.subtitle')}
-        filterColumns={canFilterByEmployee ? 4 : 3}
-        activeFilterCount={activeFilterCount}
+        filterColumns={canFilterByEmployee ? 2 : 1}
+        activeFilterCount={activeFilterCount - Number(Boolean(expenseFilters.fromDate)) - Number(Boolean(expenseFilters.toDate))}
+        primaryFilters={(
+          <ReportPeriodSelector
+            value={{ fromDate: expenseFilters.fromDate || '', toDate: expenseFilters.toDate || '' }}
+            onChange={({ fromDate, toDate }) => {
+              onExpensePageChange(1);
+              onExpenseFiltersChange({ ...expenseFilters, fromDate: fromDate || undefined, toDate: toDate || undefined });
+            }}
+          />
+        )}
         activeFilters={activeFilters}
         onClearAllFilters={() => {
           setEmployeeSearchQuery('');
@@ -118,20 +113,6 @@ export default function OperatingExpensesTab({
         }}
         filters={(
           <>
-            <FormField label={tTerm('reports.expenses.filter.from')}>
-              <AppInput
-                variant="date"
-                value={expenseFilters.fromDate || ''}
-                onValueChange={(v, _d, e) => updateExpenseDateFilter('fromDate', v)}
-              />
-            </FormField>
-            <FormField label={tTerm('reports.expenses.filter.to')}>
-              <AppInput
-                variant="date"
-                value={expenseFilters.toDate || ''}
-                onValueChange={(v, _d, e) => updateExpenseDateFilter('toDate', v)}
-              />
-            </FormField>
             <FormField label={tTerm('reports.expenses.filter.status')}>
               <OperationalSelect
                 value={expenseFilters.status || ''}

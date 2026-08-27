@@ -8,7 +8,6 @@ import { tTerm } from '../../i18n/terminology';
 import { getPaymentMethodLabel, getPaymentTypeLabel } from '../../constants/paymentTypes';
 import { getChipClassName } from '../../constants/uiChips';
 import {
-  AppInput,
   FormField,
   OperationalSelect,
   UserSearchSelect,
@@ -17,6 +16,7 @@ import { TableStatusPill } from '../shared/tables';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import ReportSummaryGrid from './ReportSummaryGrid';
 import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
+import ReportPeriodSelector from './ReportPeriodSelector';
 import ReportValueStack from './ReportValueStack';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
@@ -131,8 +131,6 @@ export default function PayoutsTab({
     if (key === 'employeeId') setEmployeeSearchQuery('');
   };
   const activeFilters: ReportActiveFilter[] = [];
-  if (payoutFilters.fromDate) activeFilters.push({ id: 'fromDate', label: tTerm('reports.payouts.filter.from'), value: payoutFilters.fromDate, onRemove: () => removeFilter('fromDate') });
-  if (payoutFilters.toDate) activeFilters.push({ id: 'toDate', label: tTerm('reports.payouts.filter.to'), value: payoutFilters.toDate, onRemove: () => removeFilter('toDate') });
   if (payoutFilters.paymentType) activeFilters.push({ id: 'paymentType', label: tTerm('reports.payouts.filter.paymentType'), value: getPaymentTypeLabel(payoutFilters.paymentType), onRemove: () => removeFilter('paymentType') });
   if (payoutFilters.status) activeFilters.push({
     id: 'status',
@@ -166,8 +164,14 @@ export default function PayoutsTab({
       <ReportTabPanel
         title={tTerm('reports.tab.payouts')}
         subtitle={tTerm('reports.tab.payouts.title')}
-        filterColumns={canFilterByEmployee ? 5 : 4}
-        activeFilterCount={activeFilterCount}
+        filterColumns={canFilterByEmployee ? 3 : 2}
+        activeFilterCount={activeFilterCount - Number(Boolean(payoutFilters.fromDate)) - Number(Boolean(payoutFilters.toDate))}
+        primaryFilters={(
+          <ReportPeriodSelector
+            value={{ fromDate: payoutFilters.fromDate || '', toDate: payoutFilters.toDate || '' }}
+            onChange={({ fromDate, toDate }) => updateFilters({ fromDate, toDate })}
+          />
+        )}
         activeFilters={activeFilters}
         onClearAllFilters={() => {
           setEmployeeSearchQuery('');
@@ -177,20 +181,6 @@ export default function PayoutsTab({
         headerActions={exportActions}
         filters={(
           <>
-            <FormField label={tTerm('reports.payouts.filter.from')}>
-              <AppInput
-                variant="date"
-                value={payoutFilters.fromDate || ''}
-                onValueChange={(v) => updateFilters({ fromDate: v })}
-              />
-            </FormField>
-            <FormField label={tTerm('reports.payouts.filter.to')}>
-              <AppInput
-                variant="date"
-                value={payoutFilters.toDate || ''}
-                onValueChange={(v) => updateFilters({ toDate: v })}
-              />
-            </FormField>
             <FormField label={tTerm('reports.payouts.filter.paymentType')}>
               <OperationalSelect
                 value={payoutFilters.paymentType || ''}

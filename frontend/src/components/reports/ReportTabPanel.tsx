@@ -10,6 +10,7 @@ type ReportTabPanelProps = {
   title?: string;
   subtitle?: string;
   headerActions?: ReactNode;
+  primaryFilters?: ReactNode;
   filters?: ReactNode;
   secondaryFilters?: ReactNode;
   filterColumns?: FilterColumns;
@@ -42,6 +43,7 @@ export function ReportTabPanel({
   title,
   subtitle,
   headerActions,
+  primaryFilters,
   filters,
   secondaryFilters,
   filterColumns = 3,
@@ -93,6 +95,7 @@ export function ReportTabPanel({
           ) : null}
         </div>
       ) : null}
+      {primaryFilters ? <div className="report-tab-panel__primary-filters">{primaryFilters}</div> : null}
       {(hasFilters || activeFilters.length > 0) ? (
         <div className="report-tab-panel__filter-tools" data-active-filter-count={activeFilterCount}>
           <ReportFiltersPanel

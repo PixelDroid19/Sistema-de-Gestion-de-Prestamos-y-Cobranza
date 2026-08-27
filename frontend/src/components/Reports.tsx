@@ -121,6 +121,13 @@ export default function Reports() {
   const [isOutstandingExporting, setIsOutstandingExporting] = useState<'xlsx' | 'pdf' | null>(null);
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
   const [cashFlowRange, setCashFlowRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
+  const handleCashFlowRangeChange = (range: { fromDate: string; toDate: string }) => {
+    setCashFlowRange(range);
+    const selectedYear = Number((range.fromDate || range.toDate).slice(0, 4));
+    if (Number.isInteger(selectedYear) && selectedYear >= 2000 && selectedYear <= 2100) {
+      setCashFlowYear(selectedYear);
+    }
+  };
   const [creditHistoryFilters, setCreditHistoryFilters] = useState<{
     startDate: string;
     endDate: string;
@@ -373,7 +380,7 @@ export default function Reports() {
           cashFlowYear={cashFlowYear}
           onCashFlowYearChange={setCashFlowYear}
           cashFlowRange={cashFlowRange}
-          onCashFlowRangeChange={setCashFlowRange}
+          onCashFlowRangeChange={handleCashFlowRangeChange}
           cashFlowData={cashFlowData}
           isCashFlowLoading={isCashFlowLoading}
           isCashFlowExporting={isCashFlowExporting}

@@ -610,12 +610,12 @@ describe('Reports operational module', () => {
     renderReports();
 
     const reports = [
-      { tab: 'Cierre contable', heading: 'Cierre contable', hiddenFilter: 'Año' },
-      { tab: 'Créditos del período', heading: 'Créditos del período', hiddenFilter: 'Desde período' },
-      { tab: 'Pago de cuotas', heading: 'Pago de cuotas', hiddenFilter: 'Desde pagos' },
+      { tab: 'Cierre contable', heading: 'Cierre contable', hiddenFilter: 'Año', period: true },
+      { tab: 'Créditos del período', heading: 'Créditos del período', hiddenFilter: 'Estado del crédito', period: true },
+      { tab: 'Pago de cuotas', heading: 'Pago de cuotas', hiddenFilter: 'Tipo de movimiento', period: true },
       { tab: 'Cartera por cobrar', heading: 'Cartera por cobrar' },
-      { tab: 'Movimientos de socios', heading: 'Estado financiero de socios', hiddenFilter: 'Buscar socio' },
-      { tab: 'Gastos operativos', heading: 'Control de gastos operativos', hiddenFilter: 'Desde gastos' },
+      { tab: 'Movimientos de socios', heading: 'Estado financiero de socios', hiddenFilter: 'Buscar socio', period: true },
+      { tab: 'Gastos operativos', heading: 'Control de gastos operativos', hiddenFilter: 'Estado del gasto', period: true },
     ];
 
     for (const report of reports) {
@@ -625,6 +625,9 @@ describe('Reports operational module', () => {
       expect(screen.queryByRole('button', { name: 'Descargar' })).not.toBeInTheDocument();
       expect(screen.getAllByRole('button', { name: /Excel/ })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'PDF' })).toHaveLength(1);
+      if (report.period) {
+        expect(screen.getByText('Periodo del reporte')).toBeVisible();
+      }
       if (report.hiddenFilter) {
         const filtersToggle = screen.getByRole('button', { name: 'Filtros' });
         const filtersPanelId = filtersToggle.getAttribute('aria-controls');
@@ -913,15 +916,47 @@ describe('Reports operational module', () => {
 
   it('requests the accounting close with the selected date range', async () => {
     renderReports();
-    openReportFilters();
+    fireEvent.click(screen.getByRole('button', { name: 'Rango' }));
 
-    fireEvent.change(screen.getByLabelText('Desde cierre'), { target: { value: '2026-07-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta cierre'), { target: { value: '2026-07-31' } });
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-07-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-07-31' } });
 
     await waitFor(() => {
       expect(mockUseMonthlyCashFlow).toHaveBeenLastCalledWith(2026, {
         fromDate: '2026-07-01',
         toDate: '2026-07-31',
+      });
+    });
+  });
+
+  it('selects a whole month or a single day and exports the same accounting period', async () => {
+    renderReports();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mes' }));
+    fireEvent.change(screen.getByLabelText('Mes del reporte'), { target: { value: '2026-07' } });
+
+    await waitFor(() => {
+      expect(mockUseMonthlyCashFlow).toHaveBeenLastCalledWith(2026, {
+        fromDate: '2026-07-01',
+        toDate: '2026-07-31',
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
+    await waitFor(() => {
+      expect(mockExportMonthlyCashFlowExcel).toHaveBeenLastCalledWith(2026, {
+        fromDate: '2026-07-01',
+        toDate: '2026-07-31',
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Día' }));
+    fireEvent.change(screen.getByLabelText('Día del reporte'), { target: { value: '2026-07-15' } });
+
+    await waitFor(() => {
+      expect(mockUseMonthlyCashFlow).toHaveBeenLastCalledWith(2026, {
+        fromDate: '2026-07-15',
+        toDate: '2026-07-15',
       });
     });
   });
@@ -1055,9 +1090,8 @@ describe('Reports operational module', () => {
     expect(screen.getByText('Créditos y capital prestado en el rango seleccionado.')).toBeInTheDocument();
     expect(screen.queryByText(/pagos recibidos y flujo acumulado/)).not.toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText('Mes del reporte'), { target: { value: '2026-04' } });
     openReportFilters();
-    fireEvent.change(screen.getByLabelText('Desde período'), { target: { value: '2026-04-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta período'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Estado del crédito'), { target: { value: 'active' } });
 
     await waitFor(() => {
@@ -1108,9 +1142,8 @@ describe('Reports operational module', () => {
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('Cliente Historial')).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText('Mes del reporte'), { target: { value: '2026-04' } });
     openReportFilters();
-    fireEvent.change(screen.getByLabelText('Desde pagos'), { target: { value: '2026-04-01' } });
-    fireEvent.change(screen.getByLabelText('Hasta pagos'), { target: { value: '2026-04-30' } });
     fireEvent.change(screen.getByLabelText('Tipo de movimiento'), { target: { value: 'installment' } });
 
     await waitFor(() => {

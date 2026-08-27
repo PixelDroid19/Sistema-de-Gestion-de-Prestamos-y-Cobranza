@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import {
-  AppInput,
   CustomerSearchSelect,
   FormField,
   OperationalSelect,
 } from '../shared/Surfaces';
 import { ReportDataTableSection } from './ReportDataTableSection';
 import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
+import ReportPeriodSelector from './ReportPeriodSelector';
 import { TableStatusPill } from '../shared/tables';
 
 type CreditHistoryMonthlyFilters = {
@@ -126,15 +126,9 @@ export default function CreditHistoryMonthlyTab({
     creditDate: pickValue(credit, ['creditDate', 'createdAt', 'disbursementDate'], ''),
     amount: pickValue(credit, ['amount', 'principal', 'principalAmount']),
   })), [credits]);
-  const activeFilterCount = [filters.startDate, filters.endDate, filters.status, filters.customerId]
+  const activeFilterCount = [filters.status, filters.customerId]
     .filter((value) => value.trim().length > 0).length;
   const activeFilters: ReportActiveFilter[] = [];
-  if (filters.startDate) {
-    activeFilters.push({ id: 'startDate', label: tTerm('reports.creditHistory.fromDate'), value: filters.startDate, onRemove: () => onFiltersChange({ ...filters, startDate: '' }) });
-  }
-  if (filters.endDate) {
-    activeFilters.push({ id: 'endDate', label: tTerm('reports.creditHistory.toDate'), value: filters.endDate, onRemove: () => onFiltersChange({ ...filters, endDate: '' }) });
-  }
   if (filters.status) {
     activeFilters.push({
       id: 'status',
@@ -205,7 +199,13 @@ export default function CreditHistoryMonthlyTab({
       <ReportTabPanel
         title={tTerm('reports.tab.creditHistory')}
         subtitle={tTerm('reports.tab.creditHistory.title')}
-        filterColumns={4}
+        filterColumns={2}
+        primaryFilters={(
+          <ReportPeriodSelector
+            value={{ fromDate: filters.startDate, toDate: filters.endDate }}
+            onChange={({ fromDate, toDate }) => onFiltersChange({ ...filters, startDate: fromDate, endDate: toDate })}
+          />
+        )}
         activeFilterCount={activeFilterCount}
         activeFilters={activeFilters}
         onClearAllFilters={() => {
@@ -215,20 +215,6 @@ export default function CreditHistoryMonthlyTab({
         headerActions={exportActions}
         filters={(
           <>
-            <FormField label={tTerm('reports.creditHistory.fromDate')}>
-              <AppInput
-                variant="date"
-                value={filters.startDate}
-                onValueChange={(v) => updateFilter('startDate', v)}
-              />
-            </FormField>
-            <FormField label={tTerm('reports.creditHistory.toDate')}>
-              <AppInput
-                variant="date"
-                value={filters.endDate}
-                onValueChange={(v) => updateFilter('endDate', v)}
-              />
-            </FormField>
             <FormField label={tTerm('reports.creditHistory.status')}>
               <OperationalSelect
                 value={filters.status}

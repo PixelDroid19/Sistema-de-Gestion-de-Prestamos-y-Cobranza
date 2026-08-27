@@ -7,7 +7,8 @@ import {
 } from '../shared/Surfaces';
 import { ReportDownloadActions } from './ReportDownloadModal';
 import { ReportDataTableSection } from './ReportDataTableSection';
-import { ReportTabPanel, type ReportActiveFilter } from './ReportTabPanel';
+import { ReportTabPanel } from './ReportTabPanel';
+import ReportPeriodSelector from './ReportPeriodSelector';
 import ReportSummaryGrid from './ReportSummaryGrid';
 import ReportValueStack, { ReportMetaPairs } from './ReportValueStack';
 
@@ -145,53 +146,19 @@ export default function CashflowTab({
   const displayedMonthlyRows = activeMonthlyRows;
   const movements = (Array.isArray(cashFlowData?.movements) ? cashFlowData.movements : []) as AccountingMovement[];
   const summary = cashFlowData?.summary || {};
-  const activeFilterCount = Number(Boolean(cashFlowRange.fromDate)) + Number(Boolean(cashFlowRange.toDate));
-  const activeFilters: ReportActiveFilter[] = [];
-  if (cashFlowRange.fromDate) {
-    activeFilters.push({
-      id: 'fromDate',
-      label: tTerm('reports.cashflow.fromDate'),
-      value: cashFlowRange.fromDate,
-      onRemove: () => onCashFlowRangeChange({ ...cashFlowRange, fromDate: '' }),
-    });
-  }
-  if (cashFlowRange.toDate) {
-    activeFilters.push({
-      id: 'toDate',
-      label: tTerm('reports.cashflow.toDate'),
-      value: cashFlowRange.toDate,
-      onRemove: () => onCashFlowRangeChange({ ...cashFlowRange, toDate: '' }),
-    });
-  }
   const handleYearChange = (value: string) => {
     const parsedYear = parseReportYearInput(value);
     if (parsedYear !== null) {
       onCashFlowYearChange(parsedYear);
     }
   };
-  const updateCashFlowRange = (key: 'fromDate' | 'toDate', value: string) => {
-    if (key === 'fromDate' && value && cashFlowRange.toDate && value > cashFlowRange.toDate) {
-      return;
-    }
-    if (key === 'toDate' && value && cashFlowRange.fromDate && value < cashFlowRange.fromDate) {
-      return;
-    }
-
-    onCashFlowRangeChange({
-      ...cashFlowRange,
-      [key]: value,
-    });
-  };
-
   return (
     <div className="report-tab-layout">
       <ReportTabPanel
         title={tTerm('reports.tab.cashflow')}
         subtitle={tTerm('reports.tab.cashflow.title')}
-        filterColumns={3}
-        activeFilterCount={activeFilterCount}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => onCashFlowRangeChange({ fromDate: '', toDate: '' })}
+        filterColumns={1}
+        primaryFilters={<ReportPeriodSelector value={cashFlowRange} onChange={onCashFlowRangeChange} />}
         filters={(
           <>
             <FormField label={tTerm('reports.cashflow.year')}>
@@ -199,20 +166,6 @@ export default function CashflowTab({
                 variant="integer"
                 value={String(cashFlowYear)}
                 onValueChange={(v) => handleYearChange(v)}
-              />
-            </FormField>
-            <FormField label={tTerm('reports.cashflow.fromDate')}>
-              <AppInput
-                variant="date"
-                value={cashFlowRange.fromDate}
-                onValueChange={(v) => updateCashFlowRange('fromDate', v)}
-              />
-            </FormField>
-            <FormField label={tTerm('reports.cashflow.toDate')}>
-              <AppInput
-                variant="date"
-                value={cashFlowRange.toDate}
-                onValueChange={(v) => updateCashFlowRange('toDate', v)}
               />
             </FormField>
           </>

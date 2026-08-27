@@ -1986,6 +1986,101 @@
     gap: 0.6rem;
   }
 
+  .report-tab-panel__primary-filters {
+    min-width: 0;
+  }
+
+  .report-period-selector {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 22rem);
+    align-items: end;
+    justify-content: start;
+    gap: 0.55rem 0.9rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0.75rem 0;
+    border: 0;
+    border-block: 1px solid var(--border-subtle);
+  }
+
+  .report-period-selector__legend {
+    grid-column: 1 / -1;
+    padding: 0;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  .report-period-selector__modes {
+    display: inline-flex;
+    align-items: stretch;
+    min-height: 2.55rem;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.6rem;
+    background: var(--bg-elevated);
+  }
+
+  .report-period-selector__mode {
+    min-width: 4.6rem;
+    border: 0;
+    border-inline-start: 1px solid var(--border-subtle);
+    background: transparent;
+    padding: 0.55rem 0.75rem;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 650;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .report-period-selector__mode:first-child {
+    border-inline-start: 0;
+  }
+
+  .report-period-selector__mode:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+  }
+
+  .report-period-selector__mode[aria-pressed='true'] {
+    background: var(--text-primary);
+    color: var(--bg-base);
+  }
+
+  .report-period-selector__mode:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 2px solid var(--brand-primary);
+    outline-offset: -2px;
+  }
+
+  .report-period-selector__fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+    min-width: 0;
+  }
+
+  .report-period-selector__fields--range {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 760px) {
+    .report-period-selector {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .report-period-selector__modes {
+      width: 100%;
+    }
+
+    .report-period-selector__mode {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
   .report-active-filters {
     display: flex;
     min-width: 0;
