@@ -357,6 +357,22 @@ integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deu
   );
 });
 
+integrationTest('producto: concilia el cierre entre años con sus movimientos persistidos', async () => {
+  const response = await expectStatus({
+    path: '/api/reports/cash-flow/monthly?year=2025&fromDate=2025-12-01&toDate=2026-07-31',
+    token: accessToken,
+  }, 200);
+  const report = response.body.data;
+  assert.equal(report.months[0].month, '2025-12');
+  assert.equal(report.months.at(-1).month, '2026-07');
+  const received = report.movements
+    .filter((movement) => movement.movementType === 'customer_payment')
+    .reduce((total, movement) => total + Number(movement.inflow), 0);
+  assert.ok(received > 0, 'El periodo debe contener los pagos reales de las pruebas anteriores.');
+  assert.ok(Math.abs(Number(report.summary.totalInflows) - received) < 0.01,
+    'El resumen debe incluir todos los pagos del detalle, incluso los del siguiente año.');
+});
+
 integrationTest('producto: liquida un crédito al día con el interés causado entre cuotas', async () => {
   assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de liquidación al día requiere el fixture de originación.');
 

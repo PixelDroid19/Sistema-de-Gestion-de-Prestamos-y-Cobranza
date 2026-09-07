@@ -9,7 +9,6 @@ const { toDateOnlyOrNull } = require('@/modules/shared/dateUtils');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { MONEY_FORMAT } = require('@/modules/reports/application/excelExportFormats');
 
-const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
 const DISBURSED_STATUSES = new Set(['pending', 'approved', 'active', 'overdue', 'paid', 'closed', 'defaulted']);
 const LOSS_RISK_STATUSES = new Set(['overdue', 'defaulted']);
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -337,6 +336,8 @@ const formatMonth = (row, availableCash) => ({
  *
  * @param {object} input
  * @param {number} input.year Calendar year to report.
+ * @param {Date|null} input.fromDate Explicit start of the reporting period.
+ * @param {Date|null} input.toDate Explicit end of the reporting period.
  * @param {Array<object>} input.loans Canonical loan rows.
  * @param {Array<object>} input.payments Canonical payment rows.
  * @param {Array<object>} input.associateContributions Canonical capital contribution rows.
@@ -347,13 +348,18 @@ const formatMonth = (row, availableCash) => ({
  * @param {Array<object>|undefined} input.riskLoans Current overdue/defaulted loans for the current exposure snapshot.
  * @returns {{year:number, summary:object, months:Array<object>}}
  */
-const buildMonthlyCashFlowReport = ({ year, loans = [], payments = [], associateContributions = [], associateReinvestments = [], associatePayments = [], associateCapitalReturns = [], operatingExpenses = [], riskLoans }) => {
+const buildMonthlyCashFlowReport = ({ year, fromDate = null, toDate = null, loans = [], payments = [], associateContributions = [], associateReinvestments = [], associatePayments = [], associateCapitalReturns = [], operatingExpenses = [], riskLoans }) => {
   const numericYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
-  const monthsByKey = MONTHS.reduce((acc, month) => {
-    const monthKey = `${numericYear}-${month}`;
-    acc[monthKey] = createEmptyMonth(monthKey);
-    return acc;
-  }, {});
+  const periodStart = fromDate || new Date(Date.UTC(numericYear, 0, 1));
+  const periodEnd = toDate || new Date(Date.UTC(numericYear, 11, 31));
+  const cursor = new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth(), 1));
+  const monthsByKey = {};
+  // The explicit range can span years; every queried movement must have a bucket.
+  while (cursor <= periodEnd) {
+    const monthKey = monthKeyFromDate(cursor);
+    monthsByKey[monthKey] = createEmptyMonth(monthKey);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
 
   payments
     .filter((payment) => payment?.status === 'completed')
@@ -605,6 +611,8 @@ const createGetMonthlyCashFlow = ({ reportRepository }) => async ({ actor, year,
   });
   const report = buildMonthlyCashFlowReport({
     year: resolvedYear,
+    fromDate: dateRange.fromDate,
+    toDate: dateRange.toDate,
     loans: dataset.loans || [],
     payments: dataset.payments || [],
     associatePayments: dataset.associatePayments || [],

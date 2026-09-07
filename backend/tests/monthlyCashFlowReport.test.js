@@ -456,6 +456,27 @@ test('createGetMonthlyCashFlow forwards normalized date range filters to reposit
   assert.equal(response.data.months[0].availableCash, '4500000.00');
 });
 
+test('cash flow reconciles movements and totals across calendar years', async () => {
+  const dependencies = {
+    reportRepository: {
+      async listCashFlowDataset() {
+        return {
+          payments: [
+            makePayment({ id: 1, amount: 100, paymentDate: '2025-12-20' }),
+            makePayment({ id: 2, amount: 200, paymentDate: '2026-01-20' }),
+          ],
+        };
+      },
+    },
+  };
+  const input = { actor: { role: 'admin' }, year: 2025, filters: { fromDate: '2025-12-01', toDate: '2026-01-31' } };
+  const { data } = await createGetMonthlyCashFlow(dependencies)(input);
+  assert.deepEqual(data.months.map((row) => row.month), ['2025-12', '2026-01']);
+  assert.equal(data.summary.totalInflows, '300.00');
+  assert.equal(data.months.at(-1).availableCash, '300.00');
+  assert.equal(data.movements.reduce((sum, row) => sum + Number(row.inflow), 0), 300);
+});
+
 test('monthly cash flow Excel and PDF exports include operational fields', async () => {
   const dependencies = {
     reportRepository: {
