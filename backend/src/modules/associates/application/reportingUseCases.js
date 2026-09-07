@@ -18,7 +18,7 @@ const {
 } = require('@/modules/reports/application/reportInternals');
 const {
   MONEY_FORMAT,
-  PERCENT_FORMAT,
+  DATE_FORMAT,
   TNA_FORMAT,
   indicatorRow,
   roundMoney,
@@ -76,16 +76,7 @@ const SUMMARY_COLUMNS = [
   { header: 'Descripción', key: 'description', width: 42 },
 ];
 
-const DETAIL_COLUMNS = [
-  { header: 'ID Socio', key: 'associateId', width: 12 },
-  { header: 'Socio', key: 'associateName', width: 28 },
-  { header: 'Tipo de tasa', key: 'interestType', width: 18 },
-  { header: 'Tasa Pactada %', key: 'interestRate', width: 18, numFmt: TNA_FORMAT },
-  { header: 'Plazo pactado (meses)', key: 'investmentTermMonths', width: 22, numFmt: '#,##0' },
-  dateColumn('Vencimiento pactado', 'investmentMaturityDate', 22),
-  moneyColumn('Deuda con Socio', 'interestDebt', 20),
-  moneyColumn('Interés Pagado', 'totalInterestPaid', 20),
-  dateColumn('Próximo Pago', 'nextInterestPaymentDate', 18),
+const ASSOCIATE_MOVEMENT_COLUMNS = [
   { header: 'Sección', key: 'section', width: 16 },
   { header: 'ID Movimiento', key: 'entryId', width: 16 },
   { header: 'Referencia', key: 'reference', width: 24 },
@@ -98,17 +89,21 @@ const DETAIL_COLUMNS = [
   { header: 'Notas', key: 'notes', width: 34 },
 ];
 
-const STATUS_COLUMNS = [
-  { header: 'Estado', key: 'status', width: 18 },
-  { header: 'Cantidad', key: 'count', width: 14, numFmt: '#,##0' },
-  moneyColumn('Monto Total', 'amount'),
-  { header: 'Porcentaje', key: 'percentage', width: 14, numFmt: PERCENT_FORMAT },
-];
-
-const SECTION_COLUMNS = [
-  { header: 'Sección', key: 'section', width: 18 },
-  { header: 'Cantidad', key: 'count', width: 14 },
-  moneyColumn('Monto Total', 'amount'),
+const ASSOCIATE_OVERVIEW_COLUMNS = [
+  { header: 'ID Socio', key: 'associateId', width: 12 },
+  { header: 'Socio', key: 'associateName', width: 28 },
+  { header: 'Estado', key: 'status', width: 14 },
+  { header: 'Tipo de tasa', key: 'interestType', width: 18 },
+  { header: 'Tasa Pactada %', key: 'interestRate', width: 18, numFmt: TNA_FORMAT },
+  { header: 'Plazo pactado (meses)', key: 'investmentTermMonths', width: 22, numFmt: '#,##0' },
+  dateColumn('Vencimiento pactado', 'investmentMaturityDate', 22),
+  moneyColumn('Aportes registrados', 'totalContributed', 22),
+  moneyColumn('Pagos manuales', 'totalDistributed', 20),
+  moneyColumn('Reinversiones', 'totalReinvested', 18),
+  moneyColumn('Capital devuelto', 'totalCapitalReturned', 20),
+  moneyColumn('Interés pagado', 'totalInterestPaid', 18),
+  moneyColumn('Interés pendiente', 'interestDebt', 20),
+  dateColumn('Próximo Pago', 'nextInterestPaymentDate', 18),
 ];
 
 const ASSOCIATE_FINANCIAL_SUMMARY_COLUMNS = [
@@ -321,8 +316,17 @@ const resolveInterestInstallmentExportStatus = (installment, asOfDate = getCurre
 
 const isUnpaidInterestInstallment = (installment) => ['pending', 'overdue'].includes(String(installment?.status || '').toLowerCase());
 
-const buildAssociateSheets = (rows) => {
-  const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
+const buildAssociateSheetName = ({ associateId, associateName }) => {
+  const safeName = String(associateName || 'Sin nombre')
+    .replace(/[\\/?*[\]:]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^'+|'+$/g, '')
+    .trim() || 'Sin nombre';
+  return `Socio ${associateId} - ${safeName}`.slice(0, 31);
+};
+
+const summarizeAssociateRows = (rows) => {
+  const summaryRow = rows.find((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.summary) || rows[0] || {};
   const contributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.contribution);
   const distributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution);
   const reinvestmentRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.reinvestment);
@@ -332,106 +336,94 @@ const buildAssociateSheets = (rows) => {
   const totalDistributed = distributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalReinvested = reinvestmentRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalCapitalReturned = capitalReturnRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
-  const totalInterestPaid = interestRows.filter((row) => row.status === 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
-  const totalInterestDebt = interestRows.filter((row) => row.status !== 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
-  const movementRows = rows.filter((row) => row.section !== ASSOCIATE_EXPORT_SECTIONS.summary);
-  const byStatus = Array.from(movementRows.reduce((map, row) => {
-    const status = row.status || 'Sin estado';
-    const current = map.get(status) || { status, count: 0, amount: 0 };
-    current.count += 1;
-    current.amount += parseMoney(row.amount);
-    map.set(status, current);
+  const totalInterestPaid = interestRows
+    .filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.interestPaid && row.status === 'Pagado')
+    .reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalInterestDebt = interestRows
+    .filter((row) => row.status !== 'Pagado')
+    .reduce((sum, row) => sum + parseMoney(row.amount), 0);
+
+  return {
+    summaryRow,
+    movementRows: rows.filter((row) => row.section !== ASSOCIATE_EXPORT_SECTIONS.summary),
+    totalContributed: roundMoney(totalContributed),
+    totalDistributed: roundMoney(totalDistributed),
+    totalReinvested: roundMoney(totalReinvested),
+    totalCapitalReturned: roundMoney(totalCapitalReturned),
+    totalInterestPaid: roundMoney(totalInterestPaid),
+    totalInterestDebt: roundMoney(totalInterestDebt),
+  };
+};
+
+const buildAssociateSheets = (rows) => {
+  const rowsByAssociate = Array.from(rows.reduce((map, row) => {
+    const associateId = Number(row.associateId);
+    if (!map.has(associateId)) {
+      map.set(associateId, []);
+    }
+    map.get(associateId).push(row);
     return map;
-  }, new Map()).values()).map((row) => ({
-    ...row,
-    amount: roundMoney(row.amount),
-    percentage: movementRows.length > 0 ? row.count / movementRows.length : 0,
-  }));
-  const bySection = Array.from(movementRows.reduce((map, row) => {
-    const section = row.section || 'Sin sección';
-    const current = map.get(section) || { section, count: 0, amount: 0 };
-    current.count += 1;
-    current.amount += parseMoney(row.amount);
-    map.set(section, current);
-    return map;
-  }, new Map()).values()).map((row) => ({
-    ...row,
-    amount: roundMoney(row.amount),
+  }, new Map()).values());
+
+  const associateSummaries = rowsByAssociate.map((associateRows) => summarizeAssociateRows(associateRows));
+  const overviewRows = associateSummaries.map((summary) => ({
+    associateId: summary.summaryRow.associateId,
+    associateName: summary.summaryRow.associateName,
+    status: summary.summaryRow.status,
+    interestType: summary.summaryRow.interestType,
+    interestRate: summary.summaryRow.interestRate,
+    investmentTermMonths: summary.summaryRow.investmentTermMonths,
+    investmentMaturityDate: summary.summaryRow.investmentMaturityDate,
+    nextInterestPaymentDate: summary.summaryRow.nextInterestPaymentDate,
+    totalContributed: summary.totalContributed,
+    totalDistributed: summary.totalDistributed,
+    totalReinvested: summary.totalReinvested,
+    totalCapitalReturned: summary.totalCapitalReturned,
+    totalInterestPaid: summary.totalInterestPaid,
+    interestDebt: summary.totalInterestDebt,
   }));
 
   return [
     {
-      name: 'Resumen General',
-      title: 'REPORTE GENERAL DE SOCIOS',
+      name: 'Resumen de socios',
+      title: 'RESUMEN INDIVIDUAL DE SOCIOS',
       tabColor: STYLE_COLORS.blue,
       headerFill: STYLE_COLORS.green,
-      columns: SUMMARY_COLUMNS,
-      rows: [
-        { ...indicatorRow('Total de Socios', associateIds.size, '#,##0'), description: 'Número total de socios incluidos en el reporte' },
-        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), description: 'Suma de aportes registrados' },
-        { ...indicatorRow('Pagos manuales de rentabilidad', roundMoney(totalDistributed), MONEY_FORMAT), description: 'Pagos de rentabilidad registrados fuera del cronograma' },
-        { ...indicatorRow('Reinversiones', roundMoney(totalReinvested), MONEY_FORMAT), description: 'Rentabilidad reinvertida como nuevo capital' },
-        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), description: 'Capital reintegrado al socio' },
-        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), description: 'Intereses pagados a socios' },
-        { ...indicatorRow('Deuda con Socios', roundMoney(totalInterestDebt), MONEY_FORMAT), description: 'Intereses programados pendientes de pago' },
-      ],
-      autoFilter: false,
+      columns: ASSOCIATE_OVERVIEW_COLUMNS,
+      rows: overviewRows,
     },
-    {
-      name: 'Movimientos por Estado',
-      title: 'MOVIMIENTOS DE SOCIOS POR ESTADO',
-      tabColor: STYLE_COLORS.yellow,
-      headerFill: STYLE_COLORS.headerBlue,
-      columns: STATUS_COLUMNS,
-      rows: byStatus,
-    },
-    {
-      name: 'Movimientos por Tipo',
-      title: 'MOVIMIENTOS POR SECCIÓN',
-      tabColor: STYLE_COLORS.green,
-      headerFill: STYLE_COLORS.headerBlue,
-      columns: SECTION_COLUMNS,
-      rows: bySection,
-    },
-    {
-      name: 'Detalle de Socios',
-      title: 'DETALLE COMPLETO DE SOCIOS',
-      tabColor: STYLE_COLORS.red,
-      headerFill: STYLE_COLORS.headerBlue,
-      columns: DETAIL_COLUMNS,
-      rows,
-    },
-    {
-      name: 'Control financiero',
-      title: 'CONTROL FINANCIERO DE SOCIOS',
-      tabColor: STYLE_COLORS.purple,
-      headerFill: STYLE_COLORS.headerBlue,
-      columns: SUMMARY_COLUMNS,
-      rows: [
-        { ...indicatorRow('Aportes Totales', roundMoney(totalContributed), MONEY_FORMAT), description: 'Capital aportado por socios' },
-        { ...indicatorRow('Pagos manuales de rentabilidad', roundMoney(totalDistributed), MONEY_FORMAT), description: 'Rentabilidad reconocida fuera del cronograma' },
-        { ...indicatorRow('Reinversiones', roundMoney(totalReinvested), MONEY_FORMAT), description: 'Rentabilidad reinvertida como nuevo capital' },
-        { ...indicatorRow('Capital Devuelto', roundMoney(totalCapitalReturned), MONEY_FORMAT), description: 'Capital reintegrado a socios' },
-        { ...indicatorRow('Interés Pagado', roundMoney(totalInterestPaid), MONEY_FORMAT), description: 'Pagos de intereses ejecutados' },
-        { ...indicatorRow('Interés Pendiente', roundMoney(totalInterestDebt), MONEY_FORMAT), description: 'Estado de deuda con socios' },
-      ],
-      autoFilter: false,
-    },
-    {
-      name: 'Resumen de movimientos',
-      title: 'RESUMEN DE MOVIMIENTOS DE SOCIOS',
+    ...associateSummaries.map((summary) => ({
+      name: buildAssociateSheetName(summary.summaryRow),
+      title: `ESTADO FINANCIERO - ${summary.summaryRow.associateName}`,
       tabColor: STYLE_COLORS.teal,
       headerFill: STYLE_COLORS.headerBlue,
-      columns: SECTION_COLUMNS,
-      rows: [
-        { section: 'Aportes', count: contributionRows.length, amount: roundMoney(totalContributed) },
-        { section: 'Pagos manuales de rentabilidad', count: distributionRows.length, amount: roundMoney(totalDistributed) },
-        { section: 'Reinversiones', count: reinvestmentRows.length, amount: roundMoney(totalReinvested) },
-        { section: 'Devoluciones de capital', count: capitalReturnRows.length, amount: roundMoney(totalCapitalReturned) },
-        { section: 'Intereses pagados', count: interestRows.filter((row) => row.status === 'Pagado').length, amount: roundMoney(totalInterestPaid) },
-        { section: 'Intereses pendientes', count: interestRows.filter((row) => row.status !== 'Pagado').length, amount: roundMoney(totalInterestDebt) },
+      sections: [
+        {
+          title: 'RESUMEN DEL SOCIO',
+          columns: SUMMARY_COLUMNS,
+          rows: [
+            { ...indicatorRow('Socio', summary.summaryRow.associateName), description: `ID ${summary.summaryRow.associateId}` },
+            { ...indicatorRow('Estado', summary.summaryRow.status), description: 'Estado actual del socio' },
+            { ...indicatorRow('Tasa pactada', summary.summaryRow.interestRate, TNA_FORMAT), description: summary.summaryRow.interestType },
+            { ...indicatorRow('Plazo pactado (meses)', summary.summaryRow.investmentTermMonths, '#,##0'), description: 'Duración acordada de la inversión' },
+            { ...indicatorRow('Vencimiento pactado', summary.summaryRow.investmentMaturityDate, DATE_FORMAT), description: 'Fecha de finalización acordada' },
+            { ...indicatorRow('Aportes registrados', summary.totalContributed, MONEY_FORMAT), description: 'Aportes externos incluidos en el reporte' },
+            { ...indicatorRow('Pagos manuales de rentabilidad', summary.totalDistributed, MONEY_FORMAT), description: 'Rentabilidad pagada fuera del cronograma' },
+            { ...indicatorRow('Reinversiones', summary.totalReinvested, MONEY_FORMAT), description: 'Rentabilidad reinvertida como capital' },
+            { ...indicatorRow('Capital devuelto', summary.totalCapitalReturned, MONEY_FORMAT), description: 'Capital reintegrado al socio' },
+            { ...indicatorRow('Interés pagado', summary.totalInterestPaid, MONEY_FORMAT), description: 'Cuotas de interés pagadas' },
+            { ...indicatorRow('Interés pendiente', summary.totalInterestDebt, MONEY_FORMAT), description: 'Cuotas de interés pendientes o vencidas' },
+          ],
+          autoFilter: false,
+        },
+        {
+          title: 'REGISTROS DEL SOCIO',
+          columns: ASSOCIATE_MOVEMENT_COLUMNS,
+          rows: summary.movementRows,
+          autoFilter: false,
+        },
       ],
-    },
+    })),
   ];
 };
 

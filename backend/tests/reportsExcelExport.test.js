@@ -141,32 +141,26 @@ test('export associates use case builds approved operational sheet structure', a
   const result = await useCase({ actor: { role: 'admin' } });
   assert.equal(result.success, true);
   assert.deepEqual(result.data.sheets.map((sheet) => sheet.name), [
-    'Resumen General',
-    'Movimientos por Estado',
-    'Movimientos por Tipo',
-    'Detalle de Socios',
-    'Control financiero',
-    'Resumen de movimientos',
+    'Resumen de socios',
+    'Socio 4 - Socio Excel QA',
   ]);
   assert.equal(result.data.sheets[0].columns.some((column) => column.header === 'Unidad'), false);
-  assert.equal(result.data.sheets[4].columns.some((column) => column.header === 'Unidad'), false);
-  assert.deepEqual(result.data.sheets[3].columns.slice(0, 9).map((column) => column.header), [
-    'ID Socio',
-    'Socio',
-    'Tipo de tasa',
-    'Tasa Pactada %',
-    'Plazo pactado (meses)',
-    'Vencimiento pactado',
-    'Deuda con Socio',
-    'Interés Pagado',
-    'Próximo Pago',
+  const detailSection = result.data.sheets[1].sections.find((section) => section.title === 'REGISTROS DEL SOCIO');
+  assert.ok(detailSection);
+  assert.deepEqual(detailSection.columns.slice(0, 6).map((column) => column.header), [
+    'Sección',
+    'ID Movimiento',
+    'Referencia',
+    'Monto',
+    'Fecha',
+    'Estado',
   ]);
   assert.ok(result.data.rows.some((row) => (
     row.investmentTermMonths === 12
     && row.investmentMaturityDate?.toISOString().slice(0, 10) === '2027-01-10'
   )));
-  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Rentabilidad del Aporte'));
-  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tasa Histórica del Aporte %'));
+  assert.ok(detailSection.columns.some((column) => column.header === 'Rentabilidad del Aporte'));
+  assert.ok(detailSection.columns.some((column) => column.header === 'Tasa Histórica del Aporte %'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pagado'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente' && row.status === 'Vencido'));
@@ -189,6 +183,73 @@ test('export associates use case builds approved operational sheet structure', a
   );
   assert.equal(result.data.rows[0].date, '');
   assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments|N\/A/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
+});
+
+test('export associates keeps each associate financial detail in an independent workbook sheet', async () => {
+  const associates = [
+    {
+      id: 11,
+      name: 'Ana Inversionista',
+      status: 'active',
+      interestType: 'monthly',
+      interestRate: '2.0000',
+      investmentTermMonths: 6,
+      investmentMaturityDate: '2026-07-10',
+    },
+    {
+      id: 22,
+      name: 'Bruno Capital',
+      status: 'active',
+      interestType: 'monthly',
+      interestRate: '3.0000',
+      investmentTermMonths: 12,
+      investmentMaturityDate: '2027-01-10',
+    },
+  ];
+  const contributionsByAssociate = new Map([
+    [11, [{ id: 101, amount: 1000000, contributionDate: '2026-01-10', status: 'completed' }]],
+    [22, [{ id: 202, amount: 2500000, contributionDate: '2026-01-10', status: 'completed' }]],
+  ]);
+  const installmentsByAssociate = new Map([
+    [11, [{ id: 301, installmentNumber: 1, amount: 20000, dueDate: '2026-02-10', status: 'pending' }]],
+    [22, [{ id: 302, installmentNumber: 1, amount: 75000, dueDate: '2026-02-10', status: 'pending' }]],
+  ]);
+  const useCase = createExportAssociatesExcel({
+    clock: () => new Date('2026-01-15T12:00:00-05:00'),
+    associateRepository: {
+      async list() { return associates; },
+      async findById(id) { return associates.find((associate) => associate.id === Number(id)); },
+      async listContributionsByAssociate(id) { return contributionsByAssociate.get(Number(id)) || []; },
+      async listProfitDistributionsByAssociate() { return []; },
+      async findInstallmentsByAssociateId(id) { return installmentsByAssociate.get(Number(id)) || []; },
+    },
+  });
+
+  const result = await useCase({ actor: { role: 'admin' } });
+  const sheetNames = result.data.sheets.map((sheet) => sheet.name);
+  assert.deepEqual(sheetNames, [
+    'Resumen de socios',
+    'Socio 11 - Ana Inversionista',
+    'Socio 22 - Bruno Capital',
+  ]);
+
+  const anaSheet = result.data.sheets[1];
+  const brunoSheet = result.data.sheets[2];
+  assert.equal(anaSheet.sections[0].rows.find((row) => row.indicator === 'Aportes registrados').value, 1000000);
+  assert.equal(anaSheet.sections[0].rows.find((row) => row.indicator === 'Interés pendiente').value, 20000);
+  assert.equal(brunoSheet.sections[0].rows.find((row) => row.indicator === 'Aportes registrados').value, 2500000);
+  assert.equal(brunoSheet.sections[0].rows.find((row) => row.indicator === 'Interés pendiente').value, 75000);
+  assert.equal(anaSheet.sections[1].rows.every((row) => row.associateId === 11), true);
+  assert.equal(brunoSheet.sections[1].rows.every((row) => row.associateId === 22), true);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildWorkbookBuffer(result.data.sheets));
+  const anaValues = JSON.stringify(workbook.getWorksheet('Socio 11 - Ana Inversionista').getSheetValues());
+  const brunoValues = JSON.stringify(workbook.getWorksheet('Socio 22 - Bruno Capital').getSheetValues());
+  assert.match(anaValues, /Ana Inversionista/);
+  assert.doesNotMatch(anaValues, /Bruno Capital|2\.500\.000/);
+  assert.match(brunoValues, /Bruno Capital/);
+  assert.doesNotMatch(brunoValues, /Ana Inversionista|1\.000\.000/);
 });
 
 test('associate movements report exposes the same filtered movement dataset used by exports', async () => {

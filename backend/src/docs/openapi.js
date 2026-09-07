@@ -535,7 +535,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: {
         tags: ['Associates'],
         summary: 'Exportar socios a Excel o PDF operativo',
-        description: 'Genera el reporte administrativo de socios desde su propio módulo, sin mezclarlo con reportes de créditos.',
+        description: 'Genera el reporte administrativo de socios desde su propio módulo. El Excel presenta una fila por socio en el resumen y una hoja independiente por socio con sus propios valores y registros.',
         parameters: [
           { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' } },
           { name: 'associateId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra el reporte por socio inversionista.' },

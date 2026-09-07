@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const https = require('node:https');
+const ExcelJS = require('exceljs');
 const { Op } = require('sequelize');
 const verifyPolicySnapshots = require('./helpers/policySnapshotScenario');
 const verifyLateFeeActivation = require('./helpers/lateFeeActivationScenario');
@@ -803,6 +804,25 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
 
   response = await expectStatus({ path: `/api/associates/${associateId}/export?format=xlsx`, token: accessToken }, 200);
   assert.match(String(response.headers['content-type']), /spreadsheet|octet-stream/u);
+  response = await expectStatus({
+    path: `/api/associates/export?format=xlsx&search=${encodeURIComponent(fixturePrefix)}`,
+    token: accessToken,
+    raw: true,
+  }, 200);
+  const associateWorkbook = new ExcelJS.Workbook();
+  await associateWorkbook.xlsx.load(response.body);
+  assert.equal(associateWorkbook.worksheets[0].name, 'Resumen de socios');
+  assert.equal(associateWorkbook.worksheets.length, 3, 'El resumen y los dos socios del escenario deben ocupar hojas independientes.');
+  const detailSheets = associateWorkbook.worksheets.slice(1);
+  assert.equal(detailSheets.every((sheet) => /^Socio \d+ - /u.test(sheet.name)), true);
+  detailSheets.forEach((sheet) => {
+    const values = JSON.stringify(sheet.getSheetValues());
+    const otherSheet = detailSheets.find((candidate) => candidate !== sheet);
+    const ownName = String(sheet.getCell('B4').value);
+    const otherName = String(otherSheet.getCell('B4').value);
+    assert.match(values, new RegExp(ownName));
+    assert.doesNotMatch(values, new RegExp(otherName), 'La hoja de un socio no debe incluir los valores del otro.');
+  });
   response = await expectStatus({ path: '/api/associates/export?format=pdf', token: accessToken }, 200);
   assert.match(String(response.headers['content-type']), /pdf/u);
 });
