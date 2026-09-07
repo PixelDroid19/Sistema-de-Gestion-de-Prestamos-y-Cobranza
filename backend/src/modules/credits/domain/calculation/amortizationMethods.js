@@ -22,18 +22,20 @@ const addMonths = (date, months) => {
   return new Date(Date.UTC(year, month, Math.min(day, lastDayOfTargetMonth)));
 };
 
-const resolveFirstPaymentDate = (startDate) => {
+const resolveScheduleStartDate = (startDate) => {
   if (startDate === undefined || startDate === null || startDate === '') {
-    return addMonths(new Date(), 1);
+    return new Date();
   }
 
   const parsedDate = parseUtcDateOnly(startDate) || new Date(startDate);
   if (Number.isNaN(parsedDate.getTime())) {
-    return addMonths(new Date(), 1);
+    return new Date();
   }
 
-  return addMonths(parsedDate, 1);
+  return parsedDate;
 };
+
+const resolveFirstPaymentDate = (startDate) => addMonths(resolveScheduleStartDate(startDate), 1);
 
 // "Interés equivalente" en el simulador del cliente (celda D7 = TNA / nº de pagos por año).
 // Es una tasa NOMINAL dividida, no una conversión efectiva compuesta. Mantener TNA/12.
@@ -70,7 +72,7 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate 
   const interestTotal = roundCurrency(Math.max(0, Number(totalInterest) || 0));
   const term = Number(termMonths);
   const schedule = [];
-  const firstPaymentDate = resolveFirstPaymentDate(startDate);
+  const scheduleStartDate = resolveScheduleStartDate(startDate);
   const basePrincipal = term > 0 ? roundCurrency(principal / term) : 0;
   const baseInterest = term > 0 ? roundCurrency(interestTotal / term) : 0;
   let balance = principal;
@@ -90,7 +92,7 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate 
 
     schedule.push({
       installmentNumber: month,
-      dueDate: addMonths(firstPaymentDate, month - 1).toISOString(),
+      dueDate: addMonths(scheduleStartDate, month).toISOString(),
       openingBalance,
       scheduledPayment,
       principalComponent,
@@ -124,7 +126,8 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
   const buildFixedInstallmentSchedule = (resolvedInstallmentAmount) => {
     const schedule = [];
-    const firstPaymentDate = resolveFirstPaymentDate(startDate);
+    // Always anchor on origination, not February's already-clamped first due date.
+    const scheduleStartDate = resolveScheduleStartDate(startDate);
     let balance = roundCurrency(amount);
 
     for (let month = 1; month <= term; month += 1) {
@@ -140,7 +143,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
       schedule.push({
         installmentNumber: month,
-        dueDate: addMonths(firstPaymentDate, month - 1).toISOString(),
+        dueDate: addMonths(scheduleStartDate, month).toISOString(),
         openingBalance,
         scheduledPayment,
         principalComponent,

@@ -1,7 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { apiClient } from '../api/client';
 import { queryKeys, type AssociateCalendarFilters, type AssociateMovementFilters, type AssociateTrackingFilters } from './queryKeys';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
+import { createIdempotencyKey } from './idempotency';
+
+type AssociateContributionPayload = {
+  amount: number;
+  contributionDate?: string;
+  status?: string;
+  notes?: string;
+};
 
 export type AssociateInstallmentPaymentPayload = {
   installmentNumber: number;
@@ -139,6 +148,7 @@ const normalizeCalendarFilters = (filters?: AssociateCalendarFilters): Associate
 });
 
 export const useAssociateDetails = (associateId: number, calendarFilters?: AssociateCalendarFilters) => {
+  const pendingContributionKeys = useRef(new Map<string, string>());
   const queryClient = useQueryClient();
   const normalizedCalendarFilters = normalizeCalendarFilters(calendarFilters);
 
@@ -172,8 +182,21 @@ export const useAssociateDetails = (associateId: number, calendarFilters?: Assoc
   });
 
   const createContribution = useMutation({
-    mutationFn: async (contributionData: any) => {
-      const { data } = await apiClient.post(`/associates/${associateId}/contributions`, contributionData);
+    mutationFn: async (contributionData: AssociateContributionPayload) => {
+      const fingerprint = JSON.stringify([
+        associateId, contributionData.amount, contributionData.contributionDate ?? null,
+        contributionData.status ?? 'completed', contributionData.notes?.trim() || null,
+      ]);
+      const key = pendingContributionKeys.current.get(fingerprint) ?? createIdempotencyKey('associate-contribution');
+      pendingContributionKeys.current.set(fingerprint, key);
+      // A failed response does not prove the server rolled back the contribution.
+      // Keep its key until success, including manual retries of the same draft.
+      const { data } = await apiClient.post(`/associates/${associateId}/contributions`, contributionData, {
+        headers: { 'Idempotency-Key': key },
+      });
+      if (pendingContributionKeys.current.get(fingerprint) === key) {
+        pendingContributionKeys.current.delete(fingerprint);
+      }
       return data;
     },
     onSuccess: () => {

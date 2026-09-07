@@ -4,6 +4,7 @@ const {
   AssociateContribution,
   AssociateInstallment,
   ProfitDistribution,
+  IdempotencyKey,
   User,
 } = require('@/models');
 const { paginateModel } = require('@/modules/shared/pagination');
@@ -313,6 +314,12 @@ const associateRepository = {
   runInTransaction(work) {
     return Associate.sequelize.transaction(work);
   },
+  findContributionReceipt(where, { transaction }) {
+    return IdempotencyKey.findOne({ where, transaction });
+  },
+  createContributionReceipt(payload, { transaction }) {
+    return IdempotencyKey.create(payload, { transaction });
+  },
   findInstallmentsByAssociateId(associateId, { transaction } = {}) {
     return AssociateInstallment.findAll({
       where: { associateId },
@@ -321,16 +328,19 @@ const associateRepository = {
       transaction,
     });
   },
-  updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy, paymentMethod = null, notes = null) {
-    return AssociateInstallment.update(
+  async updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy, paymentMethod = null, notes = null) {
+    const [updatedCount] = await AssociateInstallment.update(
       { status, paidAt, paidBy, paymentMethod, notes },
       {
         where: {
           associateId,
           installmentNumber,
+          // Payment is terminal: stale payment/overdue requests cannot rewrite it.
+          status: { [Op.ne]: 'paid' },
         },
       },
     );
+    return updatedCount;
   },
   updateInstallmentProjection(installmentId, payload, { transaction } = {}) {
     return AssociateInstallment.findByPk(installmentId, { transaction }).then((installment) => (

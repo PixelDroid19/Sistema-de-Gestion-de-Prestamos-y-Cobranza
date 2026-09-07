@@ -5,6 +5,7 @@ const {
   AuthorizationError,
 } = require('@/utils/errorHandler');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
+const { prepareContributionReceipt } = require('./contributionIdempotency');
 const { parsePositiveCurrencyAmount, roundCurrency, formatCurrency } = require('@/modules/shared/money');
 const { validateIntegerRange } = require('@/modules/shared/validators');
 const {
@@ -469,7 +470,9 @@ const calculateInterestInstallmentAmount = ({ capitalBase, interestRate, interes
     ? periodicRate / 12
     : periodicRate;
 
-  return roundCurrency(Number(capitalBase || 0) * monthlyRate);
+  // Preserve fractional cents across contributions; round the scheduled total,
+  // otherwise splitting the same capital changes the interest owed to the socio.
+  return Number(capitalBase || 0) * monthlyRate;
 };
 
 const getContributionInterestRate = ({ contribution, associate }) => normalizeInterestRate(
@@ -577,6 +580,7 @@ const buildContributionCapitalState = ({
         id: Number(contribution.id || 0),
         contributionId: contribution.id,
         contributionDate: contribution.contributionDate,
+        createdAt: contribution.createdAt,
         interestRate: getContributionInterestRate({ contribution, associate }),
         interestType: normalizeInterestType(contribution.interestTypeSnapshot ?? associate.interestType),
         originalAmountCents,
@@ -593,7 +597,24 @@ const buildContributionCapitalState = ({
 
   capitalReturnDistributions.forEach((distribution) => {
     const requestedReturnCents = amountToCents(distribution.amount);
-    const totalRemainingCents = capitalBuckets.reduce((sum, bucket) => sum + bucket.remainingAmountCents, 0);
+    const returnDate = toDateOnlyOrNull(distribution.distributionDate);
+    const eligibleBuckets = capitalBuckets.filter((bucket) => {
+      const contributionDate = toDateOnlyOrNull(bucket.contributionDate);
+      if (returnDate && contributionDate) {
+        if (contributionDate !== returnDate) {
+          return contributionDate < returnDate;
+        }
+        // Same-day reinvestments recorded after a return must not absorb it.
+        const contributionRecordedAt = new Date(bucket.createdAt).getTime();
+        const returnRecordedAt = new Date(distribution.createdAt).getTime();
+        if (Number.isFinite(contributionRecordedAt) && Number.isFinite(returnRecordedAt)) {
+          return contributionRecordedAt <= returnRecordedAt;
+        }
+      }
+      // Undated historical records cannot establish a more precise ordering.
+      return true;
+    });
+    const totalRemainingCents = eligibleBuckets.reduce((sum, bucket) => sum + bucket.remainingAmountCents, 0);
     const appliedReturnCents = Math.min(requestedReturnCents, totalRemainingCents);
 
     if (appliedReturnCents <= 0 || totalRemainingCents <= 0) {
@@ -601,7 +622,7 @@ const buildContributionCapitalState = ({
     }
 
     const allocations = allocateCentsByWeight({
-      buckets: capitalBuckets,
+      buckets: eligibleBuckets,
       totalCents: appliedReturnCents,
       getWeight: (bucket) => bucket.remainingAmountCents,
     });
@@ -649,7 +670,7 @@ const buildInterestInstallmentBasis = ({
 
     return {
       capitalBase,
-      amount,
+      amount: roundCurrency(amount),
       effectiveInterestRate: interestRate,
     };
   }
@@ -1867,7 +1888,7 @@ const createGetAssociateTracking = ({ associateRepository, clock = () => new Dat
 };
 
 const createCreateAssociateContribution = ({ associateRepository, auditService }) => {
-  const useCase = async ({ actor, associateId, payload }) => {
+  const useCase = async ({ actor, associateId, payload, idempotencyKey }) => {
     assertNoRemovedAssociateFields(payload);
     if (!['admin', 'employee'].includes(actor.role)) {
       throw new AuthorizationError('Solo usuarios administrativos autorizados pueden registrar aportes de socios.');
@@ -1894,6 +1915,17 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       if (!associate) {
         throw new NotFoundError('Associate');
       }
+      const receipt = await prepareContributionReceipt({
+        repository: associateRepository, transaction, associateId, actorId: actor.id, key: idempotencyKey,
+        payload: {
+          amount,
+          // An omitted date means "record now" only on the first execution.
+          contributionDate: payload.contributionDate ? contributionDate : null,
+          contributionStatus,
+          notes,
+        },
+      });
+      if (receipt?.existing) return receipt.existing.responsePayload;
       ensureAssociateAcceptsFinancialOperations(associate);
       ensureAssociateOperationWithinInvestmentTerm(associate, contributionDate, 'contributionDate');
 
@@ -1915,6 +1947,12 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
         fromDate: contribution.contributionDate || contributionPayload.contributionDate || new Date(),
       });
 
+      if (receipt) {
+        const { existing: _existing, ...record } = receipt;
+        await associateRepository.createContributionReceipt({
+          ...record, status: 'completed', responsePayload: contribution.toJSON(),
+        }, { transaction });
+      }
       return contribution;
     };
 
@@ -2222,7 +2260,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
 
     const paidBy = actor.id;
 
-    await associateRepository.updateInstallmentStatus(
+    const updatedCount = await associateRepository.updateInstallmentStatus(
       associateId,
       installmentNumber,
       'paid',
@@ -2231,6 +2269,9 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       paymentMethod,
       null,
     );
+    if (updatedCount !== 1) {
+      throw new ValidationError('La cuota del socio ya fue pagada');
+    }
 
     await ensureInterestInstallments({
       associateRepository,

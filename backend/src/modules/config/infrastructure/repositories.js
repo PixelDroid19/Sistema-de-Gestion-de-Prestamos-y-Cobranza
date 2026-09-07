@@ -22,6 +22,20 @@ const configRepository = {
     return ConfigEntry.sequelize.transaction(work);
   },
 
+  async lockCategory(category, options = {}) {
+    if (!options.transaction) {
+      throw new Error('Config category locks require an active transaction.');
+    }
+
+    await ConfigEntry.sequelize.query(
+      'SELECT pg_advisory_xact_lock(hashtext(:lockKey))',
+      {
+        replacements: { lockKey: `config:${category}` },
+        transaction: options.transaction,
+      },
+    );
+  },
+
   async listByCategory(category, options = {}) {
     const entries = await ConfigEntry.findAll({
       where: { category },

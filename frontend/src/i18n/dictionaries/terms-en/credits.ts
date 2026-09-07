@@ -493,7 +493,7 @@ export const creditsEn = {
 'simulator.help.amount': 'Principal to disburse before interest and surcharges.',
 'simulator.help.rate': 'Annual percentage used to build the equivalent monthly installment.',
 'simulator.help.term': 'Total number of monthly installments in the schedule.',
-'simulator.help.startDate': 'Exact disbursement or origination date of the loan. The first installment is scheduled one month later and the remaining schedule is built month by month from that due date.',
+'simulator.help.startDate': 'Disbursement date. Installments fall on the same day each month; months without that day use their last day.',
 'simulator.help.lateFee': 'Defines the late fee math. The active Settings policy contributes the rate and the value is saved with the loan.',
 'simulator.action.resetParameters': 'Reset parameters',
 'simulator.section.parameters': 'Parameters',

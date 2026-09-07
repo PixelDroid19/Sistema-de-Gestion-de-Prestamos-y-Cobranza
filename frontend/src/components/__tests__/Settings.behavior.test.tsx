@@ -760,6 +760,58 @@ describe('Settings operational configuration', () => {
     expect(mockCreateRatePolicy).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])('preserves an inactive credit rate when editing (active replacement: %s)', async (hasReplacement) => {
+    mockConfigState.ratePolicies[0].isActive = false;
+    if (hasReplacement) {
+      mockConfigState.ratePolicies.push({ ...baseConfigState.ratePolicies[0], id: 99, label: 'Regla sustituta activa' });
+    }
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Edita la regla para créditos nuevos/i })[0]);
+    fireEvent.change(getTextboxByAriaLabel('TNA 30/360'), { target: { value: '38' } });
+    fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
+    await waitFor(() => expect(mockUpdateRatePolicy).toHaveBeenCalledWith(expect.objectContaining({
+      id: '11', annualEffectiveRate: 38, isActive: false,
+    })));
+  });
+
+  it('wires credit-rate activation, deactivation, and deletion to the selected policy', async () => {
+    mockConfigState.ratePolicies[1].isActive = false;
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('tab', { name: /Tasas de crédito/i }));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Desactivar' })[0]);
+    await waitFor(() => expect(mockUpdateRatePolicy).toHaveBeenCalledWith({ id: 11, isActive: false }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activar' }));
+    await waitFor(() => expect(mockUpdateRatePolicy).toHaveBeenCalledWith({ id: 12, isActive: true }));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Más acciones' })[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Eliminar' }));
+    await waitFor(() => {
+      expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({ title: 'Eliminar política de tasa' }));
+      expect(mockDeleteRatePolicy).toHaveBeenCalledWith(11);
+    });
+  });
+
+  it('wires late-fee activation state and deletion to the selected policy', async () => {
+    mockConfigState.lateFeePolicies.push({
+      ...baseConfigState.lateFeePolicies[0], id: 22, label: 'Mora archivada', isActive: false,
+    });
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('tab', { name: /Políticas de mora/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activar' }));
+    await waitFor(() => expect(mockUpdateLateFeePolicy).toHaveBeenCalledWith({ id: 22, isActive: true }));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Más acciones' })[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Eliminar' }));
+    await waitFor(() => {
+      expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({ title: 'Eliminar política de mora' }));
+      expect(mockDeleteLateFeePolicy).toHaveBeenCalledWith(21);
+    });
+  });
+
   it('executes destructive payment-method actions through confirmation', async () => {
     render(<Settings />);
     fireEvent.click(screen.getByRole('tab', { name: /Métodos de pago/i }));

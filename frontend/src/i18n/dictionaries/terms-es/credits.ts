@@ -496,7 +496,7 @@ export const creditsEs = {
 'simulator.help.amount': 'Capital a desembolsar antes de intereses y recargos.',
 'simulator.help.rate': 'Porcentaje anual usado para construir la cuota mensual equivalente.',
 'simulator.help.term': 'Número total de cuotas mensuales del cronograma.',
-'simulator.help.startDate': 'Fecha exacta de desembolso u originación del crédito. La primera cuota se calcula un mes después y las siguientes se programan mes a mes desde ese vencimiento.',
+'simulator.help.startDate': 'Fecha de desembolso. Las cuotas vencen cada mes en el mismo día; si el mes no tiene ese día, se usa su último día.',
 'simulator.help.lateFee': 'Define el método matemático de la mora. La política activa de Configuración aporta la tasa y el valor queda guardado con el crédito.',
 'simulator.action.resetParameters': 'Restablecer parámetros',
 'simulator.section.parameters': 'Parámetros',

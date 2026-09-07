@@ -300,6 +300,12 @@ const runConfigMutation = async (configRepository, work) => {
   return work({});
 };
 
+const lockConfigCategory = async (configRepository, category, options) => {
+  if (typeof configRepository.lockCategory === 'function') {
+    await configRepository.lockCategory(category, options);
+  }
+};
+
 const buildRatePolicy = (entry) => ({
   id: entry.id,
   key: entry.key,
@@ -329,6 +335,14 @@ const buildLateFeePolicy = (entry) => ({
   updatedAt: entry.updatedAt,
 });
 
+const normalizePolicyActiveState = (value, existing) => {
+  if (value === undefined) return existing?.isActive !== false;
+  if (typeof value !== 'boolean') {
+    throw new ValidationError('El estado activo debe ser verdadero o falso.');
+  }
+  return value;
+};
+
 const normalizeRatePolicyPayload = (payload = {}, existing = null) => {
   const label = payload.label !== undefined ? requireText(payload.label, 'label') : existing?.label;
   const key = payload.key !== undefined ? normalizeKey(payload.key) : existing?.key || normalizeKey(label);
@@ -342,7 +356,7 @@ const normalizeRatePolicyPayload = (payload = {}, existing = null) => {
   return {
     key,
     label,
-    isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : existing?.isActive !== false,
+    isActive: normalizePolicyActiveState(payload.isActive, existing),
     value: {
       minAmount,
       maxAmount,
@@ -372,7 +386,7 @@ const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
   return {
     key,
     label,
-    isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : existing?.isActive !== false,
+    isActive: normalizePolicyActiveState(payload.isActive, existing),
     value: {
       annualEffectiveRate: payload.annualEffectiveRate !== undefined
         ? assertPercent(payload.annualEffectiveRate, 'lateFeeAnnualEffectiveRate')
@@ -611,6 +625,7 @@ const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) =>
   if (!normalized.key) throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
 
   return runConfigMutation(configRepository, async (options) => {
+    await lockConfigCategory(configRepository, RATE_POLICY_CATEGORY, options);
     const replaceableSeededCatchAllPolicies = await getReplaceableSeededCatchAllRatePolicies({
       configRepository,
       normalized,
@@ -653,6 +668,7 @@ const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) =>
 
 const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payload = {}) => {
   return runConfigMutation(configRepository, async (options) => {
+    await lockConfigCategory(configRepository, RATE_POLICY_CATEGORY, options);
     const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY, options);
     if (!existing) throw new NotFoundError('Rate policy');
 
@@ -676,18 +692,21 @@ const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payloa
   });
 };
 
-const createDeleteRatePolicy = ({ configRepository }) => async (policyId) => {
-  const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY);
-  if (!existing) throw new NotFoundError('Rate policy');
-  const usedLoans = typeof configRepository.countLoansUsingRatePolicy === 'function'
-    ? await configRepository.countLoansUsingRatePolicy(existing.id)
-    : 0;
-  if (usedLoans > 0) {
-    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyUsedByLoans);
-  }
-  await configRepository.destroy(existing.id);
-  return { id: Number(policyId) };
-};
+const createDeleteRatePolicy = ({ configRepository }) => async (policyId) => (
+  runConfigMutation(configRepository, async (options) => {
+    await lockConfigCategory(configRepository, RATE_POLICY_CATEGORY, options);
+    const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY, options);
+    if (!existing) throw new NotFoundError('Rate policy');
+    const usedLoans = typeof configRepository.countLoansUsingRatePolicy === 'function'
+      ? await configRepository.countLoansUsingRatePolicy(existing.id, options)
+      : 0;
+    if (usedLoans > 0) {
+      throw new ConflictError(CONFIG_CONFLICT_MESSAGES.ratePolicyUsedByLoans);
+    }
+    await configRepository.destroy(existing.id, options);
+    return { id: Number(policyId) };
+  })
+);
 
 const createResolveRatePolicy = ({ configRepository }) => async ({ amount } = {}) => {
   const numericAmount = toOptionalNumber(amount, 'amount');
@@ -707,11 +726,20 @@ const createListLateFeePolicies = ({ configRepository }) => async () => {
   return entries.map(buildLateFeePolicy);
 };
 
+const deactivateOtherLateFeePolicies = async ({ configRepository, currentId = null, options }) => {
+  const activeEntries = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY, options))
+    .filter((entry) => entry.isActive !== false && Number(entry.id) !== Number(currentId));
+  for (const entry of activeEntries) {
+    await configRepository.update(entry.id, { isActive: false, value: entry.value }, options);
+  }
+};
+
 const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {}) => {
   const normalized = normalizeLateFeePolicyPayload(payload);
   if (!normalized.key) throw new ValidationError(`${getConfigFieldLabel('key')} es obligatorio.`);
 
   return runConfigMutation(configRepository, async (options) => {
+    await lockConfigCategory(configRepository, LATE_FEE_POLICY_CATEGORY, options);
     const existing = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key, options);
     if (existing) throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyKeyExists);
     await assertUniqueLabel({
@@ -723,15 +751,7 @@ const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {})
     });
 
     if (normalized.isActive !== false) {
-      const activeEntries = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY, options))
-        .filter((entry) => entry.isActive !== false);
-
-      for (const activeEntry of activeEntries) {
-        await configRepository.update(activeEntry.id, {
-          isActive: false,
-          value: activeEntry.value,
-        }, options);
-      }
+      await deactivateOtherLateFeePolicies({ configRepository, options });
     }
 
     const entry = await configRepository.create({
@@ -745,6 +765,7 @@ const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {})
 
 const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, payload = {}) => {
   return runConfigMutation(configRepository, async (options) => {
+    await lockConfigCategory(configRepository, LATE_FEE_POLICY_CATEGORY, options);
     const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY, options);
     if (!existing) throw new NotFoundError('Late fee policy');
 
@@ -761,7 +782,12 @@ const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, pay
       entityName: 'Late fee policy',
       options,
     });
-    await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, currentId: existing.id, options });
+    if (normalized.isActive && existing.isActive === false) {
+      // Activating a saved replacement has the same atomic semantics as creating one.
+      await deactivateOtherLateFeePolicies({ configRepository, currentId: existing.id, options });
+    } else {
+      await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, currentId: existing.id, options });
+    }
 
     if (normalized.isActive === false && existing.isActive !== false) {
       const activePolicies = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY, options))
@@ -776,25 +802,28 @@ const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, pay
   });
 };
 
-const createDeleteLateFeePolicy = ({ configRepository }) => async (policyId) => {
-  const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY);
-  if (!existing) throw new NotFoundError('Late fee policy');
-  const usedLoans = typeof configRepository.countLoansUsingLateFeePolicy === 'function'
-    ? await configRepository.countLoansUsingLateFeePolicy(existing.id)
-    : 0;
-  if (usedLoans > 0) {
-    throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyUsedByLoans);
-  }
-  if (existing.isActive !== false) {
-    const activePolicies = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY))
-      .filter((policy) => policy.isActive !== false);
-    if (activePolicies.length <= 1) {
-      throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyLastActive);
+const createDeleteLateFeePolicy = ({ configRepository }) => async (policyId) => (
+  runConfigMutation(configRepository, async (options) => {
+    await lockConfigCategory(configRepository, LATE_FEE_POLICY_CATEGORY, options);
+    const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY, options);
+    if (!existing) throw new NotFoundError('Late fee policy');
+    const usedLoans = typeof configRepository.countLoansUsingLateFeePolicy === 'function'
+      ? await configRepository.countLoansUsingLateFeePolicy(existing.id, options)
+      : 0;
+    if (usedLoans > 0) {
+      throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyUsedByLoans);
     }
-  }
-  await configRepository.destroy(existing.id);
-  return { id: Number(policyId) };
-};
+    if (existing.isActive !== false) {
+      const activePolicies = (await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY, options))
+        .filter((policy) => policy.isActive !== false);
+      if (activePolicies.length <= 1) {
+        throw new ConflictError(CONFIG_CONFLICT_MESSAGES.lateFeePolicyLastActive);
+      }
+    }
+    await configRepository.destroy(existing.id, options);
+    return { id: Number(policyId) };
+  })
+);
 
 const createResolveLateFeePolicy = ({ configRepository }) => async () => {
   const policies = (await configRepository.listActiveByCategory(LATE_FEE_POLICY_CATEGORY)).map(buildLateFeePolicy);

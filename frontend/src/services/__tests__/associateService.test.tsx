@@ -30,6 +30,21 @@ const wrapper = ({ children }: { children: ReactNode }) => {
 };
 
 describe('associateService', () => {
+  it('retains a contribution operation key after network failure and renews it after success', async () => {
+    const { result } = renderHook(() => useAssociateDetails(12), { wrapper });
+    const contribution = { amount: 250000, contributionDate: '2026-09-07', notes: 'Aporte' };
+    mockPost.mockRejectedValueOnce(new Error('Network interrupted'));
+    await expect(result.current.createContribution.mutateAsync(contribution)).rejects.toThrow('Network interrupted');
+    const firstKey = mockPost.mock.calls[0]?.[2]?.headers?.['Idempotency-Key'];
+    expect(firstKey).toEqual(expect.any(String));
+    expect(firstKey).toMatch(/^associate-contribution:/);
+
+    await result.current.createContribution.mutateAsync({ ...contribution });
+    expect(mockPost.mock.calls[1]?.[2]?.headers?.['Idempotency-Key']).toBe(firstKey);
+    await result.current.createContribution.mutateAsync({ ...contribution });
+    expect(mockPost.mock.calls[2]?.[2]?.headers?.['Idempotency-Key']).not.toBe(firstKey);
+  });
+
   beforeEach(() => {
     mockGet.mockReset();
     mockPost.mockReset();

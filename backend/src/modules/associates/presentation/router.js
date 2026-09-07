@@ -186,7 +186,9 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
 
   router.post('/:id/contributions', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
-    const contribution = await useCases.createAssociateContribution({ actor: req.user, associateId, payload: req.body });
+    const contribution = await useCases.createAssociateContribution({
+      actor: req.user, associateId, payload: req.body, idempotencyKey: req.headers['idempotency-key'],
+    });
     res.status(201).json({ success: true, message: 'Aporte del socio registrado correctamente', data: { contribution } });
   }));
 

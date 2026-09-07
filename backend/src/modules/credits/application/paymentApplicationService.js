@@ -20,6 +20,7 @@ const {
 } = require('./paymentEligibility');
 const { normalizeOperationalDate, normalizeDateOnly } = require('@/modules/shared/dateUtils');
 const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
+const { resolveCapitalScheduleDates } = require('@/modules/credits/domain/calculation/capitalScheduleDates');
 
 const INSTALLMENT_PAYMENT_TYPE = 'installment';
 const PAYOFF_PAYMENT_TYPE = 'payoff';
@@ -596,6 +597,7 @@ const rebuildPendingScheduleAfterCapitalPayment = ({
     })
     : newTermMonths;
 
+  const dueDates = resolveCapitalScheduleDates({ schedule, pendingRows, termMonths: rebuiltTerm });
   const rebuiltRows = buildAmortizationSchedule({
     amount: principalAfterReduction,
     interestRate: loan.interestRate,
@@ -605,6 +607,7 @@ const rebuildPendingScheduleAfterCapitalPayment = ({
     ...(capitalStrategy.applied === 'reduce_term' ? { installmentAmount: currentInstallmentAmount } : {}),
   }).map((row, index) => ({
     ...row,
+    dueDate: dueDates[index],
     installmentNumber: firstInstallmentNumber + index,
     status: 'pending',
     paidPrincipal: 0,

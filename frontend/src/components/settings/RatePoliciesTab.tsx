@@ -135,7 +135,12 @@ export default function RatePoliciesTab({
 
     try {
       if (editingRatePolicyId) {
-        await updateRatePolicy.mutateAsync({ id: editingRatePolicyId, ...buildRatePayload(newRatePolicy) });
+        const existingPolicy = ratePolicies.find((policy) => String(policy.id) === editingRatePolicyId);
+        await updateRatePolicy.mutateAsync({
+          id: editingRatePolicyId,
+          ...buildRatePayload(newRatePolicy),
+          isActive: existingPolicy?.isActive !== false,
+        });
         toast.success({ description: tTerm('settings.rate.toast.updated') });
       } else {
         await createRatePolicy.mutateAsync(buildRatePayload(newRatePolicy));

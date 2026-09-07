@@ -356,7 +356,8 @@ export const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: an
     return tTerm('settings.validation.rate.duplicateLabel');
   }
 
-  const overlap = ratePolicies.some((policy) => (
+  const existingPolicy = ratePolicies.find((policy) => String(policy?.id) === String(currentId ?? ''));
+  const overlap = existingPolicy?.isActive !== false && ratePolicies.some((policy) => (
     String(policy?.id) !== String(currentId ?? '')
     && policy?.isActive !== false
     && !canReplaceSeededCatchAllRatePolicy(draftRange, policy, currentId)

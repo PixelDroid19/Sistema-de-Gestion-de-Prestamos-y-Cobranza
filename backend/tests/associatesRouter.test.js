@@ -164,7 +164,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   const contributionResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/5/contributions',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'test-contribution-1' },
     body: { amount: 500 },
   });
   const distributionResponse = await requestJson(activeServer, {
@@ -262,7 +262,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.deepEqual(calls[3], ['updateAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { status: 'inactive' } }]);
   assert.deepEqual(calls[4], ['configureAssociateInvestmentTerm', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { investmentTermMonths: 12 } }]);
   assert.deepEqual(calls[5], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
-  assert.deepEqual(calls[6], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 } }]);
+  assert.deepEqual(calls[6], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 }, idempotencyKey: 'test-contribution-1' }]);
   assert.deepEqual(calls[7], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
   assert.deepEqual(calls[8], ['createAssociateCapitalReturn', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 120 } }]);
   assert.deepEqual(calls[9], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);

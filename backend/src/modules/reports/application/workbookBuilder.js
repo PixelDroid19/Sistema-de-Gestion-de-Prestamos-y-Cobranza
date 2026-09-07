@@ -270,7 +270,9 @@ const addRowsTable = ({
 
   resolvedColumns.forEach((column, index) => {
     const worksheetColumn = worksheet.getColumn(index + 1);
-    worksheetColumn.width = column.width || Math.max(12, Math.min(32, String(column.header || column.key).length + 4));
+    const requiredWidth = column.width || Math.max(12, Math.min(32, String(column.header || column.key).length + 4));
+    // Column widths belong to the sheet, not an individual stacked table.
+    worksheetColumn.width = Math.max(worksheetColumn.width || 0, requiredWidth);
   });
 
   const headerRow = worksheet.getRow(startRow);
@@ -300,7 +302,9 @@ const addRowsTable = ({
     };
   }
 
-  worksheet.views = [{ state: 'frozen', ySplit: startRow }];
+  if (!worksheet.views?.some((view) => view.state === 'frozen')) {
+    worksheet.views = [{ state: 'frozen', ySplit: startRow }];
+  }
   return currentRow;
 };
 
@@ -353,7 +357,7 @@ const buildWorkbookBuffer = async (sheets = []) => {
             worksheet,
             title: section.title,
             startRow: currentRow,
-            columnCount: (section.columns || []).length || 1,
+            columnCount,
             fillColor: section.titleFill || section.tabColor || headerFill || STYLE_COLORS.blue,
             fontSize: 12,
           });

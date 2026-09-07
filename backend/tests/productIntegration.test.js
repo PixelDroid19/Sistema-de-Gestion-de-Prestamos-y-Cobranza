@@ -3,6 +3,12 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const https = require('node:https');
 const { Op } = require('sequelize');
+const verifyPolicySnapshots = require('./helpers/policySnapshotScenario');
+const verifyLateFeeActivation = require('./helpers/lateFeeActivationScenario');
+const verifyRatePolicyLifecycle = require('./helpers/ratePolicyLifecycleScenario');
+const verifyCapitalCalendar = require('./helpers/capitalCalendarScenario');
+const verifyAssociateCapitalReturns = require('./helpers/associateCapitalReturnScenario');
+const verifyConfigPermissions = require('./helpers/configPermissionsScenario');
 
 const {
   sequelize,
@@ -25,6 +31,8 @@ const BASE_URL = String(process.env.PRODUCT_INTEGRATION_BASE_URL || 'http://127.
 const ORIGIN = String(process.env.PRODUCT_INTEGRATION_ORIGIN || 'http://127.0.0.1:3000').trim();
 const DB_HOST = String(process.env.DB_HOST || 'localhost').trim();
 const TEST_CLIENT_IP = process.env.PRODUCT_INTEGRATION_CLIENT_IP || `127.0.0.${2 + (process.pid % 240)}`;
+let scenarioClientIp = TEST_CLIENT_IP;
+let scenarioNumber = 0;
 const ADMIN_EMAIL = process.env.PRODUCT_INTEGRATION_ADMIN_EMAIL || 'qa.admin.20260427@test.local';
 const ADMIN_PASSWORD = process.env.PRODUCT_INTEGRATION_ADMIN_PASSWORD || 'Admin123!';
 const EMPLOYEE_EMAIL = process.env.PRODUCT_INTEGRATION_EMPLOYEE_EMAIL || 'qa.employee.20260427@test.local';
@@ -39,7 +47,7 @@ const request = ({ method = 'GET', path, body, token, headers = {}, raw = false 
     headers: {
       accept: 'application/json',
       origin: ORIGIN,
-      'x-forwarded-for': TEST_CLIENT_IP,
+      'x-forwarded-for': scenarioClientIp,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(payload ? {
         'content-type': 'application/json',
@@ -79,7 +87,13 @@ const expectStatus = async (options, expectedStatus) => {
 };
 
 const integrationTest = (name, handler) => {
-  test(name, { skip: !RUN_INTEGRATION, concurrency: false }, handler);
+  const clientNumber = ++scenarioNumber;
+  test(name, { skip: !RUN_INTEGRATION, concurrency: false }, async (context) => {
+    // Independent user journeys must not share one synthetic client's mutation quota.
+    // Keep limits enabled, including repeated requests within each journey.
+    scenarioClientIp = process.env.PRODUCT_INTEGRATION_CLIENT_IP || `127.0.${clientNumber}.${2 + (process.pid % 240)}`;
+    await handler(context);
+  });
 };
 
 let accessToken;
@@ -693,6 +707,14 @@ integrationTest('producto: gestiona el ciclo financiero completo de un socio y s
   }, 200);
   assert.equal(response.body?.data?.installment?.installment?.status, 'paid');
 
+  const paidBeforeRetry = await AssociateInstallment.findAll({ where: { associateId }, raw: true });
+  await expectStatus({
+    method: 'POST', path: `/api/associates/${associateId}/installments/1/pay`, token: accessToken,
+    body: { paymentDate: '2026-07-19', paymentMethod: 'cash' },
+  }, 400);
+  assert.deepEqual(await AssociateInstallment.findAll({ where: { associateId }, raw: true }), paidBeforeRetry,
+    'Un pago repetido no debe sobrescribir fecha, método, importe ni calendario del socio.');
+
   response = await expectStatus({
     method: 'POST',
     path: `/api/associates/${associateId}/capital-returns`,
@@ -1034,6 +1056,28 @@ integrationTest('producto: serializa aportes concurrentes de un socio sin duplic
   assert.equal(secondContribution.status, 201, JSON.stringify(secondContribution.body));
   assert.notEqual(firstContribution.body?.data?.contribution?.id, secondContribution.body?.data?.contribution?.id);
 
+  const replay = await expectStatus({
+    method: 'POST',
+    path: `/api/associates/${associateId}/contributions`,
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-associate-contribution-a` },
+    body: contributionBody,
+  }, 201);
+  assert.equal(replay.body?.data?.contribution?.id, firstContribution.body?.data?.contribution?.id,
+    'Reintentar el mismo aporte debe devolver el movimiento original, no sumar capital otra vez.');
+
+  await expectStatus({
+    method: 'POST',
+    path: `/api/associates/${associateId}/contributions`,
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-associate-contribution-a` },
+    body: { ...contributionBody, amount: 500000 },
+  }, 409);
+
+  const summary = await expectStatus({ path: `/api/associates/${associateId}/financial-summary`, token: accessToken }, 200);
+  assert.equal(Number(summary.body?.data?.report?.summary?.currentCapital ?? summary.body?.data?.report?.currentCapital), 1500000,
+    'Los reintentos y la reutilización inválida de una clave no deben alterar el capital.');
+
   response = await expectStatus({ path: `/api/associates/${associateId}/installments`, token: accessToken }, 200);
   const installments = response.body?.data?.installments?.installments || [];
   assert.equal(installments.length, 3, 'El calendario de plazo fijo debe conservar exactamente una cuota por mes.');
@@ -1043,6 +1087,50 @@ integrationTest('producto: serializa aportes concurrentes de un socio sin duplic
     'Los números de cuota deben ser únicos y consecutivos después de dos aportes simultáneos.',
   );
   assert.ok(installments.every((installment) => Number(installment.amount) === 30000), 'La rentabilidad debe calcularse sobre el capital combinado de 1.500.000.');
+
+  const undatedRequest = {
+    method: 'POST', path: `/api/associates/${associateId}/contributions`, token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-associate-undated` },
+    body: { amount: 100000 },
+  };
+  const [undated, concurrentReplay] = await Promise.all([
+    expectStatus(undatedRequest, 201), expectStatus(undatedRequest, 201),
+  ]);
+  assert.equal(concurrentReplay.body.data.contribution.id, undated.body.data.contribution.id,
+    'Dos envíos simultáneos de la misma operación deben registrar un solo aporte.');
+  const undatedReplay = await expectStatus(undatedRequest, 201);
+  assert.equal(undatedReplay.body.data.contribution.id, undated.body.data.contribution.id,
+    'La fecha automática de registro no debe invalidar un reintento del mismo aporte.');
+
+  const paymentLock = await sequelize.transaction();
+  await AssociateInstallment.findOne({
+    where: { associateId, installmentNumber: 1 }, transaction: paymentLock, lock: paymentLock.LOCK.UPDATE,
+  });
+  const competingPayments = ['cash', 'transfer'].map((paymentMethod) => request({
+    method: 'POST', path: `/api/associates/${associateId}/installments/1/pay`, token: accessToken,
+    body: { paymentDate: operationalDate, paymentMethod },
+  }));
+  try {
+    const deadline = Date.now() + 3000;
+    let waiting = 0;
+    while (waiting < 2 && Date.now() < deadline) {
+      const [rows] = await sequelize.query(`SELECT count(*)::int AS waiting FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'
+        AND query LIKE 'UPDATE %' AND query LIKE '%${AssociateInstallment.getTableName()}%'`);
+      waiting = rows[0].waiting;
+      if (waiting < 2) await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  } finally {
+    await paymentLock.rollback();
+  }
+  const paymentResults = await Promise.all(competingPayments);
+  assert.deepEqual(paymentResults.map((result) => result.status).sort(), [200, 400],
+    'Solo un operador debe poder confirmar el pago de la misma cuota del socio.');
+  const acceptedPayment = paymentResults.find((result) => result.status === 200).body.data.installment.installment;
+  const storedPayment = await AssociateInstallment.findOne({ where: { associateId, installmentNumber: 1 }, raw: true });
+  assert.equal(storedPayment.paymentMethod, acceptedPayment.paymentMethod,
+    'La solicitud rechazada no debe sobrescribir el método del pago confirmado.');
+  await verifyAssociateCapitalReturns({ associateId, token: accessToken, operationDate: operationalDate, request, expectStatus });
 });
 
 integrationTest('producto: expone módulos operativos y respeta permisos por rol', async () => {
@@ -1115,6 +1203,7 @@ integrationTest('producto: expone módulos operativos y respeta permisos por rol
     assert.equal(Number(created.body.data.loan.interestRate), Number(preview.body.data.calculation.inputs.interestRate));
     await expectStatus({ path: `/api/loans/${employeeLoanId}`, token: employeeToken }, 200);
     await expectStatus({ path: '/api/config/rate-policies', token: employeeToken }, 403);
+    await verifyConfigPermissions({ expectStatus, request, adminToken, employeeToken, fixturePrefix });
     await expectStatus({
       method: 'POST', path: '/api/permissions/grant', token: employeeToken,
       body: { targetUserId: employeeId, permission: 'CREDITS_APPROVE' },
@@ -1141,6 +1230,19 @@ integrationTest('producto: mantiene configuración, gastos, notificaciones y rep
   const ratePolicy = response.body?.data?.policies?.find((policy) => policy.key === 'standard-credit');
   assert.ok(ratePolicy?.id);
   assert.equal(Number(ratePolicy.annualEffectiveRate), 60);
+
+  for (const category of ['rate-policies', 'late-fee-policies']) {
+    const before = await expectStatus({ path: `/api/config/${category}`, token: accessToken }, 200);
+    const activePolicy = before.body.data.policies.find((policy) => policy.isActive === true);
+    for (const isActive of ['false', 'true', 0, 1, null, [], {}]) {
+      await expectStatus({
+        method: 'PUT', path: `/api/config/${category}/${activePolicy.id}`,
+        token: accessToken, body: { isActive },
+      }, 400);
+    }
+    const after = await expectStatus({ path: `/api/config/${category}`, token: accessToken }, 200);
+    assert.deepEqual(after.body.data.policies, before.body.data.policies, 'Los estados inválidos no deben modificar las reglas persistidas.');
+  }
 
   response = await expectStatus({
     method: 'PUT',
@@ -1220,6 +1322,26 @@ integrationTest('producto: mantiene configuración, gastos, notificaciones y rep
 
   response = await expectStatus({ path: '/api/config/payment-methods/active', token: accessToken }, 200);
   assert.ok(response.body?.data?.paymentMethods?.some((method) => method.key === 'cash'));
+});
+
+integrationTest('producto: cambiar tasas afecta créditos nuevos sin reescribir los existentes', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'Requiere el fixture local autenticado.');
+  await verifyPolicySnapshots({ expectStatus, token: accessToken, customerId, fixturePrefix, fixtureLoanIds, Loan });
+});
+
+integrationTest('producto: alterna políticas de mora guardadas sin dejar el sistema sin regla activa', async () => {
+  assert.ok(accessToken && fixturePrefix, 'Requiere el fixture local autenticado.');
+  await verifyLateFeeActivation({ expectStatus, request, token: accessToken, fixturePrefix });
+});
+
+integrationTest('producto: valida límites inclusivos, decimales, duplicados y cobertura de tasas', async () => {
+  assert.ok(accessToken && fixturePrefix, 'Requiere el fixture local autenticado.');
+  await verifyRatePolicyLifecycle({ expectStatus, request, token: accessToken, fixturePrefix });
+});
+
+integrationTest('producto: abonar capital conserva fechas de corte y extensión después de febrero', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'Requiere el fixture local autenticado.');
+  await verifyCapitalCalendar({ expectStatus, token: accessToken, customerId, fixturePrefix, fixtureLoanIds, Loan });
 });
 
 test.after(async () => {

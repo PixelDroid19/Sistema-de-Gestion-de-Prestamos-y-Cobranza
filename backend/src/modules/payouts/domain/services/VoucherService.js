@@ -292,7 +292,10 @@ const VoucherService = {
           customerPhone: customer?.phone || 'Sin teléfono registrado',
           creditId: loan?.id,
           originalAmount: loan?.amount,
-          previousBalance: payment.remainingBalanceAfterPayment + payment.amount,
+          // Capital reprojection also changes future interest, so the payment
+          // cannot reconstruct the contractual balance recorded before it.
+          previousBalance: payment.paymentMetadata?.before?.outstandingBalance
+            ?? (payment.remainingBalanceAfterPayment + payment.amount),
           paymentType: payment.paymentType,
           installmentNumber: payment.installmentNumber,
           capital: payment.principalApplied,

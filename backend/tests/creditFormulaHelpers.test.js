@@ -9,6 +9,18 @@ const {
 } = require('@/modules/credits/application/creditFormulaHelpers');
 const { SUPPORTED_CALCULATION_METHODS } = require('@/modules/credits/domain/calculation');
 
+for (const calculationMethod of ['FRENCH', 'SIMPLE', 'COMPOUND']) {
+  test(`${calculationMethod} preserves the original due day after a short February`, () => {
+    const schedule = buildAmortizationSchedule({
+      amount: 1000000, interestRate: 36, termMonths: 3,
+      startDate: '2024-01-31', calculationMethod,
+    });
+    assert.deepEqual(schedule.map((row) => row.dueDate.slice(0, 10)), ['2024-02-29', '2024-03-31', '2024-04-30']);
+    assert.equal(roundCurrency(schedule.reduce((sum, row) => sum + row.principalComponent, 0)), 1000000);
+    assert.equal(schedule.at(-1).remainingBalance, 0);
+  });
+}
+
 test('calculation domain exposes backend-supported calculation methods', () => {
   assert.deepEqual(SUPPORTED_CALCULATION_METHODS.map((method) => method.key), ['FRENCH', 'SIMPLE', 'COMPOUND']);
   assert.equal(SUPPORTED_CALCULATION_METHODS[0].label, 'Sistema francés');

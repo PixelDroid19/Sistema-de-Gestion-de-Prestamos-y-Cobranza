@@ -85,6 +85,33 @@ describe('VoucherService', () => {
   });
 
   describe('generateVoucherPdf', () => {
+    test('preserves the recorded balance before capital reprojection', async () => {
+      let rendered;
+      const service = {
+        ...VoucherService,
+        renderVoucher(doc, data) {
+          rendered = data;
+          return VoucherService.renderVoucher(doc, data);
+        },
+      };
+      const pdf = await service.generateVoucherPdf({
+        id: 420,
+        paymentDate: '2026-02-28',
+        paymentType: 'capital',
+        amount: 200000,
+        principalApplied: 200000,
+        interestApplied: 0,
+        penaltyApplied: 0,
+        remainingBalanceAfterPayment: 544611.60,
+        paymentMetadata: { before: { outstandingBalance: 734417.13 } },
+      }, { id: 368, amount: 1000000 }, { name: 'Cliente de prueba' });
+
+      assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
+      assert.equal(rendered.previousBalance, 734417.13);
+      assert.equal(rendered.remainingBalance, 544611.60);
+      assert.equal(rendered.totalPaid, 200000);
+    });
+
     test('generates a PDF buffer from payment, loan, and customer data', async () => {
       const payment = {
         id: 123,
