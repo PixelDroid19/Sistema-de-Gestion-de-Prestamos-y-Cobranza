@@ -1771,10 +1771,10 @@ const filterLoansByFilters = ({ loans = [], filters = {} }) => {
 
 /**
  * Create the use case that returns aggregated loan statistics.
- * @param {{ loanRepository: object }} dependencies
+ * @param {{ loanRepository: object, loanViewService: object }} dependencies
  * @returns {Function}
  */
-const createGetLoanStatistics = ({ loanRepository }) => async () => {
+const createGetLoanStatistics = ({ loanRepository, loanViewService }) => async () => {
   const loans = await loanRepository.list();
 
   // Overdue is derived live from the schedule (same logic as the calendar) and combined
@@ -1794,7 +1794,11 @@ const createGetLoanStatistics = ({ loanRepository }) => async () => {
   const overdueCredits = overdueLoans.length;
 
   const totalLoanAmount = loans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
-  const totalCollected = loans.reduce((sum, l) => sum + Number(l.totalPaid || 0), 0);
+  // Historical payoff aggregates may omit prior capital adjustments. Reuse the
+  // detail's canonical read model without rewriting payment history on reads.
+  const totalCollected = loans.reduce((sum, loan) => (
+    sum + Number(loanViewService.getCanonicalLoanView(loan).snapshot.totalPaid)
+  ), 0);
   const totalPending = loans.reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);
   const totalOverdue = overdueLoans
     .reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);

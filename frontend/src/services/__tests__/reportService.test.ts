@@ -1,6 +1,35 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { apiClient } from '../../api/client';
 
-import { normalizePaymentSchedulePayload } from '../reportService';
+import { exportMonthlyCashFlowExcel, exportMonthlyCashFlowPdf, normalizePaymentSchedulePayload } from '../reportService';
+
+afterEach(() => vi.restoreAllMocks());
+
+describe('cash flow downloads', () => {
+  it('keeps the selected period in the filenames saved by the browser', async () => {
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ data: new Blob(['report']), status: 200, headers: new Headers() });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-report');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const filenames: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      filenames.push(this.download);
+    });
+    for (const [filters, period] of [
+      [{ fromDate: '2025-12-01', toDate: '2026-01-31' }, '2025-12-01-al-2026-01-31'],
+      [{ fromDate: '2026-07-15', toDate: '2026-07-15' }, '2026-07-15'],
+      [{ fromDate: '2026-07-01' }, 'desde-2026-07-01'],
+      [{ toDate: '2026-07-31' }, 'hasta-2026-07-31'],
+      [{}, '2026'],
+    ] as const) {
+      await exportMonthlyCashFlowExcel(2026, filters);
+      await exportMonthlyCashFlowPdf(2026, filters);
+      expect(filenames.slice(-2)).toEqual([
+        `cierre-contable-mensual-${period}.xlsx`,
+        `cierre-contable-mensual-${period}.pdf`,
+      ]);
+    }
+  });
+});
 
 describe('reportService payment schedule normalization', () => {
   it('normalizes the local mock payment schedule payload used by report QA', () => {

@@ -824,13 +824,20 @@ export const downloadCreditReport = async (loanId: number): Promise<void> => {
   });
 };
 
+const cashFlowExportPeriod = (year: number | undefined, { fromDate, toDate }: MonthlyCashFlowFilters): string => {
+  if (fromDate && toDate) return fromDate === toDate ? fromDate : `${fromDate}-al-${toDate}`;
+  if (fromDate) return `desde-${fromDate}`;
+  if (toDate) return `hasta-${toDate}`;
+  return String(year || new Date().getFullYear());
+};
+
 export const exportMonthlyCashFlowExcel = async (
   year?: number,
   filters: MonthlyCashFlowFilters = {},
 ): Promise<void> => {
   await downloadBlobWithParams({
     url: '/reports/cash-flow/monthly/excel',
-    fileName: `cierre-contable-mensual-${year || new Date().getFullYear()}.xlsx`,
+    fileName: `cierre-contable-mensual-${cashFlowExportPeriod(year, filters)}.xlsx`,
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     params: { year, ...filters },
   });
@@ -842,7 +849,7 @@ export const exportMonthlyCashFlowPdf = async (
 ): Promise<void> => {
   await downloadBlobWithParams({
     url: '/reports/cash-flow/monthly/pdf',
-    fileName: `cierre-contable-mensual-${year || new Date().getFullYear()}.pdf`,
+    fileName: `cierre-contable-mensual-${cashFlowExportPeriod(year, filters)}.pdf`,
     mimeType: 'application/pdf',
     params: { year, ...filters },
   });

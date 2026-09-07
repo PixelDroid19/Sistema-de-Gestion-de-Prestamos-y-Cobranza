@@ -487,20 +487,21 @@ const buildMonthlyCashFlowReport = ({ year, fromDate = null, toDate = null, loan
   };
 };
 
-/**
- * Builds a daily cash-flow report from the same canonical movement records as
- * the monthly report. Daily rows are grouped by UTC operational date.
- *
- * @param {object} input
- * @param {Date} input.fromDate Inclusive start date.
- * @param {Date} input.toDate Inclusive end date.
- * @param {Array<object>} input.loans Canonical loan rows.
- * @param {Array<object>} input.payments Canonical payment rows.
- * @param {Array<object>} input.associatePayments Canonical paid associate cash outflow rows.
- * @param {Array<object>} input.operatingExpenses Canonical completed operating expense rows.
- * @returns {{summary:object, days:Array<object>}}
- */
+// Use normalized filters so downloaded and printed reports retain their scope.
+const describeCashFlowPeriod = (report) => {
+  const { fromDate, toDate } = report.filters || {};
+  if (fromDate && toDate) {
+    return fromDate === toDate
+      ? { label: fromDate, fileSuffix: fromDate }
+      : { label: `${fromDate} al ${toDate}`, fileSuffix: `${fromDate}-al-${toDate}` };
+  }
+  if (fromDate) return { label: `desde ${fromDate}`, fileSuffix: `desde-${fromDate}` };
+  if (toDate) return { label: `hasta ${toDate}`, fileSuffix: `hasta-${toDate}` };
+  return { label: String(report.year), fileSuffix: String(report.year) };
+};
+
 const buildCashFlowSheets = (report) => {
+  const period = describeCashFlowPeriod(report);
   const summaryRows = [
     { label: 'Entradas por cuotas', value: Number(report.summary.totalInflows), description: 'Dinero real recibido por pagos completados.' },
     { label: 'Aportes de socios', value: Number(report.summary.totalAssociateContributions), description: 'Capital nuevo recibido de socios; excluye reinversiones contables.' },
@@ -521,7 +522,7 @@ const buildCashFlowSheets = (report) => {
   return [
     {
       name: 'Resumen Financiero',
-      title: `CIERRE CONTABLE MENSUAL ${report.year}`,
+      title: `CIERRE CONTABLE MENSUAL ${period.label}`,
       tabColor: STYLE_COLORS.blue,
       headerFill: STYLE_COLORS.green,
       columns: SUMMARY_COLUMNS,
@@ -529,7 +530,7 @@ const buildCashFlowSheets = (report) => {
     },
     {
       name: 'Créditos y Pagos',
-      title: `CRÉDITOS Y PAGOS DEL PERÍODO ${report.year}`,
+      title: `CRÉDITOS Y PAGOS DEL PERÍODO ${period.label}`,
       tabColor: STYLE_COLORS.teal,
       headerFill: STYLE_COLORS.headerBlue,
       columns: CASH_FLOW_COLUMNS,
@@ -553,7 +554,7 @@ const buildCashFlowSheets = (report) => {
     },
     {
       name: 'Movimientos Detallados',
-      title: `MOVIMIENTOS CONTABLES DETALLADOS ${report.year}`,
+      title: `MOVIMIENTOS CONTABLES DETALLADOS ${period.label}`,
       tabColor: STYLE_COLORS.green,
       headerFill: STYLE_COLORS.headerBlue,
       columns: MOVEMENT_COLUMNS,
@@ -635,7 +636,7 @@ const createExportMonthlyCashFlowExcel = ({ reportRepository }) => async ({ acto
   const response = await createGetMonthlyCashFlow({ reportRepository })({ actor, year, filters });
   const report = response.data;
   return {
-    fileName: `cierre-contable-mensual-${report.year}.xlsx`,
+    fileName: `cierre-contable-mensual-${describeCashFlowPeriod(report).fileSuffix}.xlsx`,
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     sheets: buildCashFlowSheets(report),
   };
@@ -644,13 +645,14 @@ const createExportMonthlyCashFlowExcel = ({ reportRepository }) => async ({ acto
 const createExportMonthlyCashFlowPdf = ({ reportRepository }) => async ({ actor, year, filters }) => {
   const response = await createGetMonthlyCashFlow({ reportRepository })({ actor, year, filters });
   const report = response.data;
+  const period = describeCashFlowPeriod(report);
 
   return {
-    fileName: `cierre-contable-mensual-${report.year}.pdf`,
+    fileName: `cierre-contable-mensual-${period.fileSuffix}.pdf`,
     contentType: 'application/pdf',
     buffer: await buildReportPdf({
       layout: 'landscape',
-      title: `Cierre contable ${report.year}`,
+      title: `Cierre contable ${period.label}`,
       subtitle: 'Cuadre mensual de recaudo, aportes, préstamos, pagos, devoluciones, gastos y caja disponible.',
       summary: [
         { label: 'Entradas por cuotas', value: formatDisplayMoney(report.summary.totalInflows) },

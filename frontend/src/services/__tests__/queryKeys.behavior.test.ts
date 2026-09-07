@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { queryKeys } from '../queryKeys';
+import { QueryClient } from '@tanstack/react-query';
+
+describe('report cache invalidation', () => {
+  it('invalidates cached financial reports after an operating expense changes', async () => {
+    const client = new QueryClient();
+    const reports = [
+      queryKeys.reports.monthlyCashFlow(2026),
+      queryKeys.reports.monthlyCashFlow(2026, { fromDate: '2026-09-07', toDate: '2026-09-07' }),
+      queryKeys.reports.dashboard,
+      queryKeys.reports.payouts({}, 1, 20),
+    ];
+    try {
+      for (const key of reports) client.setQueryData(key, { total: 50000 });
+      client.setQueryData(queryKeys.customers.list(), []);
+      await client.invalidateQueries({ queryKey: queryKeys.reports.all });
+      for (const key of reports) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(queryKeys.customers.list())?.isInvalidated).toBe(false);
+    } finally {
+      client.clear();
+    }
+  });
+});
 
 describe('queryKeys customers', () => {
   it('keeps customer list keys under the customers root for partial invalidation', () => {

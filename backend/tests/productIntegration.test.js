@@ -162,6 +162,21 @@ integrationTest('producto: origina un crédito y expone el mismo calendario por 
   assert.equal(calculation?.method, 'FRENCH');
   assert.equal(calculation?.schedule?.length, 3);
 
+  // Origination uses the active policies, not the manual calculator rate above.
+  const policyPreview = await expectStatus({
+    method: 'POST',
+    path: '/api/loans/calculations',
+    token: accessToken,
+    body: {
+      amount: 1000000,
+      termMonths: 3,
+      startDate: '2026-07-17',
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
+    },
+  }, 200);
+  const validatedSchedule = policyPreview.body.data.calculation.schedule;
+
   response = await expectStatus({
     method: 'POST',
     path: '/api/loans',
@@ -181,6 +196,21 @@ integrationTest('producto: origina un crédito y expone el mismo calendario por 
   assert.ok(loanId, 'La originación real debe devolver data.loan.id.');
   assert.equal(response.body.data.loan.emiSchedule.length, 3);
   assert.equal(response.body.data.loan.status, 'pending');
+  const financialRows = (schedule) => schedule.map((row) => ({
+    installmentNumber: row.installmentNumber,
+    dueDate: new Date(row.dueDate).toISOString().slice(0, 10),
+    scheduledPayment: Number(row.scheduledPayment),
+    principalComponent: Number(row.principalComponent),
+    interestComponent: Number(row.interestComponent),
+    remainingBalance: Number(row.remainingBalance),
+  }));
+  assert.deepEqual(financialRows(response.body.data.loan.emiSchedule), financialRows(validatedSchedule),
+    'Registrar el crédito no debe cambiar el calendario que se validó con las tasas activas.');
+  const persistedLoan = await Loan.findByPk(loanId);
+  assert.deepEqual(financialRows(persistedLoan.emiSchedule), financialRows(validatedSchedule),
+    'El calendario persistido debe conservar fechas, cuotas, capital e interés de la validación.');
+  const principalTotal = persistedLoan.emiSchedule.reduce((total, row) => total + Number(row.principalComponent), 0);
+  assert.ok(Math.abs(principalTotal - 1000000) < 0.01, 'Las cuotas deben amortizar exactamente el capital prestado.');
 
   response = await expectStatus({
     method: 'PATCH',
@@ -806,6 +836,10 @@ integrationTest('producto: registra un pago, actualiza calendario, liquida cuota
   response = await expectStatus({ path: `/api/reports/credit-history/loan/${loanId}`, token: accessToken }, 200);
   assert.equal(response.body?.data?.history?.loan?.id, loanId);
   assert.equal(response.body?.data?.history?.payments?.length, 1);
+  const recordedPayment = response.body.data.history.payments[0];
+  assert.equal(recordedPayment.createdBy?.email, ADMIN_EMAIL, 'El historial debe identificar al operador que registró la cuota.');
+  const persistedPayment = await Payment.findByPk(paymentId);
+  assert.equal(persistedPayment.createdByUserId, recordedPayment.createdBy.id, 'El operador debe quedar persistido, no inferirse en la presentación.');
 
   response = await expectStatus({ path: '/api/reports/credits/excel', token: accessToken }, 200);
   assert.match(String(response.headers['content-type']), /spreadsheet|octet-stream/u);
@@ -814,6 +848,7 @@ integrationTest('producto: registra un pago, actualiza calendario, liquida cuota
 
 integrationTest('producto: genera vouchers reales para abonos a capital y pagos totales', async () => {
   assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de vouchers requiere autenticación y cliente.');
+  const statisticsBefore = await expectStatus({ path: '/api/loans/statistics', token: accessToken }, 200);
 
   let response = await expectStatus({
     method: 'POST',
@@ -880,6 +915,29 @@ integrationTest('producto: genera vouchers reales para abonos a capital y pagos 
   assert.equal(capitalVoucher.status, 200);
   assert.match(String(capitalVoucher.headers['content-type']), /pdf/u);
   assert.ok(capitalVoucher.body.length > 500, 'El voucher de abono a capital debe ser un PDF real.');
+
+  const capitalPayoffQuote = await expectStatus({ path: `/api/loans/${capitalLoanId}/payoff-quote?asOfDate=2026-07-24`, token: accessToken }, 200);
+  await expectStatus({
+    method: 'POST',
+    path: `/api/loans/${capitalLoanId}/payoff-executions`,
+    token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-capital-then-payoff` },
+    body: { asOfDate: '2026-07-24', quotedTotal: capitalPayoffQuote.body.data.payoffQuote.total },
+  }, 201);
+  const closedCapitalLoan = await Loan.findByPk(capitalLoanId);
+  const collectedCapitalLoan = await Payment.sum('amount', { where: { loanId: capitalLoanId, status: 'completed' } });
+  assert.equal(Number(closedCapitalLoan.totalPaid), Number(collectedCapitalLoan), 'El total persistido debe incluir la cuota, el abono y la liquidación.');
+  assert.equal(Number(closedCapitalLoan.financialSnapshot.totalPaidPrincipal), 1000000, 'La liquidación no debe perder el capital abonado antes de reconstruir el cronograma.');
+
+  // Reproduce the historical aggregate saved before capital adjustments were
+  // preserved at payoff; the payment ledger and settled schedule remain intact.
+  await closedCapitalLoan.update({ totalPaid: Number(collectedCapitalLoan) - 100000 });
+  const historicalStatistics = await expectStatus({ path: '/api/loans/statistics', token: accessToken }, 200);
+  assert.equal(
+    historicalStatistics.body.data.statistics.amounts.totalCollected,
+    Math.round((statisticsBefore.body.data.statistics.amounts.totalCollected + Number(collectedCapitalLoan)) * 100) / 100,
+    'Las estadísticas deben reconstruir los cobros históricos con la misma vista canónica del detalle.',
+  );
 
   response = await expectStatus({
     method: 'POST',
@@ -1025,6 +1083,55 @@ integrationTest('producto: expone módulos operativos y respeta permisos por rol
   ]) {
     await expectStatus({ path, token: employeeToken }, 403);
   }
+
+  const employeeId = response.body.data.user.id;
+  const permissions = ['CREDITS_CREATE', 'CREDITS_VIEW_ALL', 'CLIENTS_VIEW_ALL'];
+  const originalAccess = await expectStatus({ path: '/api/permissions/me', token: employeeToken }, 200);
+  const originalPermissions = new Set(originalAccess.body.data.permissions.map((permission) => permission.name));
+  const grantedPermissions = [];
+  try {
+    for (const permission of permissions) {
+      if (originalPermissions.has(permission)) continue;
+      await expectStatus({
+        method: 'POST', path: '/api/permissions/grant', token: adminToken,
+        body: { targetUserId: employeeId, permission },
+      }, 201);
+      grantedPermissions.push(permission);
+    }
+    await expectStatus({ path: '/api/customers?page=1&pageSize=5', token: employeeToken }, 200);
+    const creditInput = {
+      customerId, amount: 1000000, termMonths: 3, startDate: '2026-07-17',
+      rateSource: 'policy', lateFeeSource: 'policy',
+    };
+    const preview = await expectStatus({
+      method: 'POST', path: '/api/loans/calculations', token: employeeToken, body: creditInput,
+    }, 200);
+    const created = await expectStatus({
+      method: 'POST', path: '/api/loans', token: employeeToken, body: creditInput,
+      headers: { 'Idempotency-Key': `${fixturePrefix}-employee-loan` },
+    }, 201);
+    const employeeLoanId = created.body.data.loan.id;
+    fixtureLoanIds.push(employeeLoanId);
+    assert.equal(Number(created.body.data.loan.interestRate), Number(preview.body.data.calculation.inputs.interestRate));
+    await expectStatus({ path: `/api/loans/${employeeLoanId}`, token: employeeToken }, 200);
+    await expectStatus({ path: '/api/config/rate-policies', token: employeeToken }, 403);
+    await expectStatus({
+      method: 'POST', path: '/api/permissions/grant', token: employeeToken,
+      body: { targetUserId: employeeId, permission: 'CREDITS_APPROVE' },
+    }, 403);
+  } finally {
+    for (const permission of grantedPermissions) {
+      await expectStatus({
+        method: 'POST', path: '/api/permissions/revoke', token: adminToken,
+        body: { targetUserId: employeeId, permission },
+      }, 200);
+    }
+  }
+  // Revocation must affect the existing token, not only a subsequent login.
+  await expectStatus({ path: '/api/loans?page=1&pageSize=5', token: employeeToken }, 403);
+  const restoredAccess = await expectStatus({ path: '/api/permissions/me', token: employeeToken }, 200);
+  assert.deepEqual(new Set(restoredAccess.body.data.permissions.map((permission) => permission.name)), originalPermissions,
+    'La prueba debe restaurar exactamente los permisos previos del empleado.');
 });
 
 integrationTest('producto: mantiene configuración, gastos, notificaciones y reportes administrativos coherentes', async () => {

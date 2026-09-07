@@ -85,7 +85,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     updateLoanAlertStatus: createUpdateLoanAlertStatus({ alertRepository, loanAccessPolicy }),
     updatePromiseToPayStatus: createUpdatePromiseToPayStatus({ promiseRepository, loanAccessPolicy, notificationPort, auditService }),
     downloadPromiseToPay: createDownloadPromiseToPay({ promiseRepository, loanAccessPolicy }),
-    getLoanStatistics: createGetLoanStatistics({ loanRepository }),
+    getLoanStatistics: createGetLoanStatistics({ loanRepository, loanViewService }),
     getDuePayments: createGetDuePayments({ loanRepository, alertRepository, loanViewService }),
     searchLoans: createSearchLoans({ loanRepository, loanAccessPolicy }),
     updateLateFeeRate: createUpdateLateFeeRate({ loanRepository, loanAccessPolicy, auditService }),

@@ -1328,7 +1328,11 @@ const createPaymentApplicationService = ({
           status: 'paid',
         };
       });
-      const payoffSnapshot = buildSnapshot(settledSchedule);
+      const payoffSnapshot = preserveCapitalAdjustmentsInSnapshot({
+        snapshot: buildSnapshot(settledSchedule),
+        previousSnapshot: loan.financialSnapshot,
+        originalPrincipal: loan.amount,
+      });
 
       persistLoanSnapshot({
         loan,
@@ -1901,6 +1905,7 @@ const createPaymentApplicationService = ({
           amount: Number(paymentAmount),
           paymentDate,
           paymentMethod,
+          actorId,
           transaction: tx,
           paymentMetadata: buildProcessPaymentMetadata({
             idempotencyKey,

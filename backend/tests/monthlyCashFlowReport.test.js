@@ -477,6 +477,33 @@ test('cash flow reconciles movements and totals across calendar years', async ()
   assert.equal(data.movements.reduce((sum, row) => sum + Number(row.inflow), 0), 300);
 });
 
+test('cash flow exports identify the selected dates in every sheet, PDF and filename', async () => {
+  const dependencies = { reportRepository: { async listCashFlowDataset() { return {}; } } };
+  const cases = [
+    { filters: { fromDate: '2025-12-01', toDate: '2026-01-31' }, dates: ['2025-12-01', '2026-01-31'] },
+    { filters: { fromDate: '2026-07-15', toDate: '2026-07-15' }, dates: ['2026-07-15'] },
+    { filters: { fromDate: '2026-07-01', toDate: '2026-07-31' }, dates: ['2026-07-01', '2026-07-31'] },
+    { filters: { fromDate: '2026-07-01' }, dates: ['2026-07-01'] },
+    { filters: { toDate: '2026-07-31' }, dates: ['2026-07-31'] },
+  ];
+  for (const { filters, dates } of cases) {
+    const input = { actor: { role: 'admin' }, year: 2026, filters };
+    const excel = await createExportMonthlyCashFlowExcel(dependencies)(input);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await buildWorkbookBuffer(excel.sheets));
+    const pdf = await createExportMonthlyCashFlowPdf(dependencies)(input);
+    const pdfText = extractPdfText(pdf.buffer);
+    for (const date of dates) {
+      assert.ok(excel.fileName.includes(date), 'Excel filename must identify the selected date');
+      assert.ok(pdf.fileName.includes(date), 'PDF filename must identify the selected date');
+      assert.ok(pdfText.includes(date), 'PDF must retain the period when printed');
+      for (const sheet of workbook.worksheets) {
+        assert.ok(String(sheet.getCell('A1').value).includes(date), `${sheet.name} must identify its period`);
+      }
+    }
+  }
+});
+
 test('monthly cash flow Excel and PDF exports include operational fields', async () => {
   const dependencies = {
     reportRepository: {
