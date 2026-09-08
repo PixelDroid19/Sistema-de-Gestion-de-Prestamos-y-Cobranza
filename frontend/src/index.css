@@ -1483,6 +1483,8 @@
   }
 
   .reports-workspace {
+    container-type: inline-size;
+    container-name: reports;
     display: flex;
     min-width: 0;
     flex-direction: column;
@@ -1509,6 +1511,28 @@
     align-items: center;
     justify-content: start;
     gap: 0.75rem 1rem;
+  }
+
+  .reports-module-nav__compact {
+    display: none;
+  }
+
+  @container reports (max-width: 46rem) {
+    .reports-module-nav__selection { display: none; }
+    .reports-module-nav__compact { display: grid; gap: 0.4rem; font-size: 0.8rem; font-weight: 600; }
+    .reports-module-nav__compact select {
+      width: 100%; min-width: 0; min-height: 2.75rem;
+      padding: 0.5rem 0.75rem; border: 1px solid var(--border-strong);
+      border-radius: 0.55rem; background: var(--bg-surface); color: var(--text-primary); font: inherit;
+    }
+    .reports-module-nav__compact select:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+    .report-tab-panel .report-tab-panel__header { flex-direction: column; align-items: stretch; }
+    .report-tab-panel .report-tab-panel__toolbar { justify-content: flex-start; flex-shrink: 1; }
+    .report-tab-panel .report-tab-panel__header-actions,
+    .report-tab-panel__header-actions .report-tab-actions { display: contents; }
+    .report-tab-panel .report-period-selector { grid-template-columns: minmax(0, 1fr); border-block: 0; padding: 0.4rem 0; }
+    .report-period-selector__modes { width: 100%; }
+    .report-period-selector__mode { flex: 1; min-width: 0; }
   }
 
   .reports-module-nav__categories {
@@ -1893,6 +1917,13 @@
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+    flex-wrap: wrap;
+  }
+
+  .report-tab-panel__header-copy { flex: 1 1 16rem; }
+
+  @container reports (max-width: 46rem) {
+    .report-tab-panel__header-copy { flex-basis: auto; }
   }
 
   .report-tab-panel__toolbar {

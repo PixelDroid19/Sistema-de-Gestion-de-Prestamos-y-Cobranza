@@ -747,7 +747,7 @@ describe('Reports operational module', () => {
 
     renderReports();
 
-    expect(screen.getByText('No hay movimientos para el año seleccionado.')).toBeVisible();
+    expect(screen.getByText('No hay movimientos en el período seleccionado.')).toBeVisible();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 

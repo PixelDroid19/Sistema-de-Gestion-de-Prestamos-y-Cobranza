@@ -121,7 +121,7 @@ export const reportsEn = {
 'reports.cashflow.table.principalRecovered': 'Principal recovered',
 'reports.cashflow.table.portfolioReceivable': 'Receivable portfolio',
 'reports.cashflow.table.loading': 'Loading cash flow...',
-'reports.cashflow.table.empty': 'There are no movements for the selected year.',
+'reports.cashflow.table.empty': 'There are no movements in the selected period.',
 'reports.cashflow.movements.title': 'Detail by person and movement',
 'reports.cashflow.movements.subtitle': 'Every inflow and outflow identifies its owner and keeps its operational reference.',
 'reports.cashflow.movements.date': 'Date',

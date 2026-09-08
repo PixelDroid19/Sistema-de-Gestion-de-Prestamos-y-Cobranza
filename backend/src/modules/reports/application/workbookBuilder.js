@@ -24,7 +24,8 @@ const STYLE_COLORS = {
 
 const normalizeSheetName = (name, index) => {
   const fallback = `Hoja ${index + 1}`;
-  return String(name || fallback).slice(0, MAX_SHEET_NAME_LENGTH);
+  return (String(name || fallback).replace(/[\\/?*[\]:]/g, ' ').trim()
+    .slice(0, MAX_SHEET_NAME_LENGTH).replace(/^'+|'+$/g, '') || fallback);
 };
 
 const collectColumnKeys = (rows = []) => {
@@ -142,7 +143,18 @@ const resolveCellNumFmt = ({ value, column = {}, rowFormat = {} }) => {
 const normalizeWorkbookCellValue = ({ value, column = {}, rowFormat = {} }) => {
   const normalizedValue = normalizeCellValueForColumn(value, column, rowFormat);
   const numFmt = resolveCellNumFmt({ value: normalizedValue, column, rowFormat });
+  // Keep amounts and rates numeric so Excel can sum, sort and filter them.
+  if (typeof normalizedValue === 'number') return normalizedValue;
   const displayValue = formatExcelDisplayValue(value, numFmt);
+  if (normalizedValue instanceof Date && isDateExcelFormat(numFmt)) {
+    // Excel stores a wall-clock date without a timezone. Reuse the operational
+    // display convention before writing that date as a sortable numeric serial.
+    const parts = /^(\d{2})\/(\d{2})\/(\d{4})(?: (\d{1,2}):(\d{2}) ([ap])\. m\.)?$/.exec(displayValue.value);
+    if (parts) {
+      const hour = parts[4] ? Number(parts[4]) % 12 + (parts[6] === 'p' ? 12 : 0) : 0;
+      return new Date(Date.UTC(Number(parts[3]), Number(parts[2]) - 1, Number(parts[1]), hour, Number(parts[5] || 0)));
+    }
+  }
 
   return displayValue.shouldDisplay ? displayValue.value : normalizedValue;
 };
@@ -166,14 +178,10 @@ const resolveColumns = ({ rows = [], columns = [] }) => {
 };
 
 const styleHeaderRow = (row, fillColor = STYLE_COLORS.headerBlue) => {
-  row.font = { bold: true, color: { argb: 'FFFFFF' } };
-  row.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: fillColor },
-  };
-  row.alignment = { vertical: 'middle', horizontal: 'center' };
   row.eachCell((cell) => {
+    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     cell.border = {
       top: { style: 'thin', color: { argb: 'D9E2EC' } },
       left: { style: 'thin', color: { argb: 'D9E2EC' } },
@@ -247,7 +255,7 @@ const addWorksheetTitle = ({
     pattern: 'solid',
     fgColor: { argb: fillColor },
   };
-  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
   worksheet.getRow(startRow).height = fontSize >= 16 ? 30 : 25;
   return startRow + 1;
 };
@@ -280,7 +288,8 @@ const addRowsTable = ({
     headerRow.getCell(index + 1).value = column.header || column.key;
   });
   styleHeaderRow(headerRow, headerFill);
-  headerRow.height = 22;
+  headerRow.height = Math.max(24, ...resolvedColumns.map((column, index) =>
+    14 * Math.ceil(String(column.header || column.key).length / Math.max(8, worksheet.getColumn(index + 1).width - 2)) + 10));
 
   let currentRow = startRow + 1;
   rows.forEach((row) => {
@@ -290,8 +299,15 @@ const addRowsTable = ({
       const rowFormat = row.__formats?.[key];
       const cell = worksheetRow.getCell(index + 1);
       cell.value = normalizeWorkbookCellValue({ value: row[key], column, rowFormat });
+      cell.font = { name: 'Arial', size: 10 };
+      cell.alignment = { vertical: 'middle', horizontal: typeof cell.value === 'number' ? 'right' : 'left', wrapText: true };
       applyCellPresentation({ cell, column, row, key });
     });
+    worksheetRow.height = Math.max(22, ...keys.map((key, index) => {
+      const value = row[key];
+      const length = value instanceof Date || typeof value === 'number' ? 16 : String(value ?? '').length;
+      return 13 * Math.ceil(length / Math.max(8, worksheet.getColumn(index + 1).width - 2)) + 8;
+    }));
     currentRow += 1;
   });
 
@@ -303,7 +319,8 @@ const addRowsTable = ({
   }
 
   if (!worksheet.views?.some((view) => view.state === 'frozen')) {
-    worksheet.views = [{ state: 'frozen', ySplit: startRow }];
+    worksheet.views = [{ state: 'frozen', ySplit: startRow, showGridLines: false }];
+    worksheet.pageSetup.printTitlesRow = `${startRow}:${startRow}`;
   }
   return currentRow;
 };
@@ -334,8 +351,16 @@ const buildWorkbookBuffer = async (sheets = []) => {
       headerFill,
       autoFilter = true,
     } = sheetDefinition;
-    const worksheet = workbook.addWorksheet(normalizeSheetName(name, index), {
+    const baseName = normalizeSheetName(name, index);
+    let uniqueName = baseName;
+    let suffixNumber = 2;
+    while (workbook.worksheets.some((sheet) => sheet.name.toLowerCase() === uniqueName.toLowerCase())) {
+      const suffix = ` (${suffixNumber++})`;
+      uniqueName = `${baseName.slice(0, MAX_SHEET_NAME_LENGTH - suffix.length)}${suffix}`;
+    }
+    const worksheet = workbook.addWorksheet(uniqueName, {
       properties: tabColor ? { tabColor: { argb: tabColor } } : undefined,
+      pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
     });
     const columnCount = Math.max(
       columns.length,

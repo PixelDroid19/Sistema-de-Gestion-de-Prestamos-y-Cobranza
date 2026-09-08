@@ -539,26 +539,26 @@ test('monthly cash flow Excel and PDF exports include operational fields', async
   assert.ok(headers.includes('Gastos Operativos'));
   assert.ok(headers.includes('Capital en Riesgo del Período'));
   assert.ok(headers.includes('Caja Disponible'));
-  assert.equal(history.getRow(3).getCell(2).value, 'COP 50.000.000,00');
-  assert.equal(history.getRow(3).getCell(3).value, 'COP 0,00');
-  assert.equal(history.getRow(3).getCell(4).value, 'COP 40.000.000,00');
-  assert.equal(history.getRow(3).getCell(5).value, 'COP 3.000.000,00');
-  assert.equal(history.getRow(3).getCell(6).value, 'COP 0,00');
+  assert.equal(history.getRow(3).getCell(2).value, 50000000);
+  assert.equal(history.getRow(3).getCell(3).value, 0);
+  assert.equal(history.getRow(3).getCell(4).value, 40000000);
+  assert.equal(history.getRow(3).getCell(5).value, 3000000);
+  assert.equal(history.getRow(3).getCell(6).value, 0);
   const financialSummary = workbook.getWorksheet('Resumen Financiero');
-  assert.equal(financialSummary.getRow(3).getCell(2).value, 'COP 50.000.000,00');
+  assert.equal(financialSummary.getRow(3).getCell(2).value, 50000000);
   const operatingResultRowNumber = financialSummary
     .getColumn(1)
     .values
     .findIndex((value) => value === 'Resultado operativo de créditos');
   assert.ok(operatingResultRowNumber > 0);
-  assert.equal(financialSummary.getRow(operatingResultRowNumber).getCell(2).value, 'COP 3.000.000,00');
+  assert.equal(financialSummary.getRow(operatingResultRowNumber).getCell(2).value, 3000000);
   assert.equal(financialSummary.getColumn(1).values.includes('Resultado neto'), false);
   const capitalAtRiskRowNumber = financialSummary
     .getColumn(1)
     .values
     .findIndex((value) => value === 'Capital en riesgo actual');
   assert.ok(capitalAtRiskRowNumber > 0);
-  assert.equal(financialSummary.getRow(capitalAtRiskRowNumber).getCell(2).value, 'COP 765.432,00');
+  assert.equal(financialSummary.getRow(capitalAtRiskRowNumber).getCell(2).value, 765432);
 
   const pdf = await pdfUseCase({ actor: { role: 'admin' }, year: 2026 });
   assert.equal(pdf.contentType, 'application/pdf');

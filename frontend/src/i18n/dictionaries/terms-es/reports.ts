@@ -122,7 +122,7 @@ export const reportsEs = {
 'reports.cashflow.table.principalRecovered': 'Capital recuperado',
 'reports.cashflow.table.portfolioReceivable': 'Cartera por cobrar',
 'reports.cashflow.table.loading': 'Cargando cierre contable...',
-'reports.cashflow.table.empty': 'No hay movimientos para el año seleccionado.',
+'reports.cashflow.table.empty': 'No hay movimientos en el período seleccionado.',
 'reports.cashflow.movements.title': 'Detalle por persona y movimiento',
 'reports.cashflow.movements.subtitle': 'Cada entrada y salida indica a quién corresponde y conserva su referencia operativa.',
 'reports.cashflow.movements.date': 'Fecha',

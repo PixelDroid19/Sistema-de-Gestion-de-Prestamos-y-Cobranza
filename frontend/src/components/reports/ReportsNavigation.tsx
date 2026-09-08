@@ -40,6 +40,16 @@ export default function ReportsNavigation({
 
   return (
     <section className="reports-module-nav" aria-label={primaryAriaLabel} data-tour={dataTour}>
+      <label className="reports-module-nav__compact">
+        <span>{tTerm('reports.selector.label')}</span>
+        <select value={activeTab} onChange={(event) => onChange(event.target.value)}>
+          {groups.map((group) => (
+            <optgroup key={group.id} label={group.label}>
+              {group.leaves.map((leaf) => <option key={leaf.id} value={leaf.id}>{leaf.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </label>
       <div className="reports-module-nav__selection">
         <div className="reports-module-nav__categories" role="radiogroup" aria-label={tTerm('reports.categories.aria')}>
           {groups.map((group) => (

@@ -3,6 +3,28 @@ const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookBuilder');
 
+test('workbooks preserve numeric amounts and assign valid distinct sheet names', async () => {
+  const definition = {
+    columns: [{ key: 'amount', header: 'Capital', width: 20, numFmt: '#,##0.00' }],
+    rows: [{ amount: 1234567.89 }, { amount: -12.34 }, { amount: 0 }],
+  };
+  const buffer = await buildWorkbookBuffer([
+    { ...definition, name: "'Socio/Uno'" },
+    { ...definition, name: "'Socio/Uno'" },
+  ]);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  assert.equal(new Set(workbook.worksheets.map(sheet => sheet.name.toLowerCase())).size, 2);
+  for (const sheet of workbook.worksheets) {
+    assert.doesNotMatch(sheet.name, /[\\/*?:\[\]]/);
+    assert.ok(!sheet.name.startsWith("'") && !sheet.name.endsWith("'"));
+    assert.equal(sheet.getCell('A2').value, 1234567.89);
+    assert.equal(sheet.getCell('A3').value, -12.34);
+    assert.equal(sheet.getCell('A4').value, 0);
+    assert.equal(sheet.pageSetup.orientation, 'landscape');
+  }
+});
+
 test('stacked report sections retain widest columns and freeze only the first header', async () => {
   const buffer = await buildWorkbookBuffer([{ name: 'Crédito', sections: [
     { title: 'Detalle del crédito', columns: [{ key: 'label', width: 24 }, { key: 'value', width: 34 }], rows: [{ label: 'Capital pendiente', value: 482791.44 }] },

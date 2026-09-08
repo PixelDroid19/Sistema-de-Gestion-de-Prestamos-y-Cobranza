@@ -337,13 +337,13 @@ test('createExportAssociateFinancialSummary returns xlsx workbook for associate 
       nextPaymentRow = row;
     }
   });
-  assert.equal(totalContributedRow?.getCell(2).value, 'COP 1.000,00');
-  assert.equal(currentCapitalRow?.getCell(2).value, 'COP 1.000,00');
-  assert.equal(nextPaymentRow?.getCell(2).value, '01/04/2026');
-  assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, 'COP 1.000,00');
-  assert.equal(workbook.getWorksheet('Pagos manuales').getRow(3).getCell(3).value, 'COP 150,00');
-  assert.equal(workbook.getWorksheet('Cronograma').getRow(3).getCell(2).value, 'COP 200,00');
-  assert.equal(workbook.getWorksheet('Cronograma').getRow(4).getCell(2).value, 'COP 250,00');
+  assert.equal(totalContributedRow?.getCell(2).value, 1000);
+  assert.equal(currentCapitalRow?.getCell(2).value, 1000);
+  assert.equal(nextPaymentRow?.getCell(2).value.toISOString(), '2026-04-01T00:00:00.000Z');
+  assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, 1000);
+  assert.equal(workbook.getWorksheet('Pagos manuales').getRow(3).getCell(3).value, 150);
+  assert.equal(workbook.getWorksheet('Cronograma').getRow(3).getCell(2).value, 200);
+  assert.equal(workbook.getWorksheet('Cronograma').getRow(4).getCell(2).value, 250);
   assert.match(serializedWorkbookValues, /Interés Pendiente/);
   assert.match(serializedWorkbookValues, /CRONOGRAMA/);
   assert.equal(contributionReads, 1);

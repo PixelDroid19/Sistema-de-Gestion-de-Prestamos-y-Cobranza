@@ -49,12 +49,13 @@ test('shared workbook builder writes display-ready values for formatted report c
   }]));
 
   const row = workbook.getWorksheet('Formato QA').getRow(2);
-  assert.equal(row.getCell(1).value, '12/06/2026');
-  assert.equal(row.getCell(2).value, '12/06/2026 5:13 p. m.');
-  assert.equal(row.getCell(3).value, 'COP 8.500.000,00');
-  assert.equal(row.getCell(4).value, '65,00%');
-  assert.equal(row.getCell(5).value, '60,00%');
-  assert.equal(row.getCell(6).value, '1,50');
+  assert.equal(row.getCell(1).value.toISOString(), '2026-06-12T00:00:00.000Z');
+  assert.equal(row.getCell(2).value.toISOString(), '2026-06-12T17:13:00.000Z');
+  assert.equal(row.getCell(3).value, 8500000);
+  assert.equal(row.getCell(4).value, 0.65);
+  assert.equal(row.getCell(4).numFmt, '0.00%');
+  assert.equal(row.getCell(5).value, 60);
+  assert.equal(row.getCell(6).value, 1.5);
 });
 
 test('shared workbook builder preserves operational day for date-only UTC-midnight timestamps', async () => {
@@ -72,8 +73,8 @@ test('shared workbook builder preserves operational day for date-only UTC-midnig
   }]));
 
   const row = workbook.getWorksheet('Formato Fecha Operativa').getRow(2);
-  assert.equal(row.getCell(1).value, '01/06/2026');
-  assert.equal(row.getCell(2).value, '31/05/2026 7:00 p. m.');
+  assert.equal(row.getCell(1).value.toISOString(), '2026-06-01T00:00:00.000Z');
+  assert.equal(row.getCell(2).value.toISOString(), '2026-05-31T19:00:00.000Z');
 });
 
 test('report labels preserve recorded values when they are not catalog values', () => {
@@ -897,23 +898,24 @@ test('export credits use case builds approved workbook fields with current snaps
 
   const totalPrestadoRow = findRowByIndicator(summarySheet, 'Total Prestado (Capital)');
   assert.ok(totalPrestadoRow, 'Summary should include formatted capital total');
-  assert.equal(totalPrestadoRow.getCell(3).value, 'COP 5.000.000,00');
+  assert.equal(totalPrestadoRow.getCell(3).value, 5000000);
 
   const tnaRow = findRowByIndicator(summarySheet, 'TNA Promedio');
   assert.ok(tnaRow, 'Summary should include formatted TNA');
-  assert.equal(tnaRow.getCell(3).value, '60,00%');
+  assert.equal(tnaRow.getCell(3).value, 0.6);
+  assert.equal(tnaRow.getCell(3).numFmt, '0.00%');
 
   const generationDateRow = findRowByIndicator(summarySheet, 'Fecha de Generación');
   assert.ok(generationDateRow, 'Summary should include formatted generation date');
-  assert.match(String(generationDateRow.getCell(3).value), /^\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} [ap]\. m\.$/);
+  assert.ok(generationDateRow.getCell(3).value instanceof Date);
 
   const percentPaidRow = findRowByIndicator(summarySheet, '% Total Pagado');
   assert.ok(percentPaidRow, 'Summary should include formatted percent paid');
-  assert.match(String(percentPaidRow.getCell(3).value), /^\d{1,3},\d{2}%$/);
-  assert.doesNotMatch(String(percentPaidRow.getCell(3).value), /^0\./);
+  assert.equal(typeof percentPaidRow.getCell(3).value, 'number');
+  assert.equal(percentPaidRow.getCell(3).numFmt, '0.00%');
 
   const detailLoanDate = detailSheet.getRow(3).getCell(25);
-  assert.equal(detailLoanDate.value, '29/04/2026');
+  assert.equal(detailLoanDate.value.toISOString(), '2026-04-29T00:00:00.000Z');
 
   let creditAmountRow = null;
   let creditRateRow = null;
@@ -926,9 +928,9 @@ test('export credits use case builds approved workbook fields with current snaps
     }
   });
   assert.ok(creditAmountRow, 'Credit-specific sheet should include formatted credit amount');
-  assert.equal(creditAmountRow.getCell(2).value, 'COP 5.000.000,00');
+  assert.equal(creditAmountRow.getCell(2).value, 5000000);
   assert.ok(creditRateRow, 'Credit-specific sheet should include the loan rate');
-  assert.equal(creditRateRow.getCell(2).value, '60,00%');
+  assert.equal(creditRateRow.getCell(2).value, 0.6);
 
   let amortizationHeaderRow = null;
   let paymentHeaderRow = null;
@@ -941,11 +943,11 @@ test('export credits use case builds approved workbook fields with current snaps
     }
   });
   assert.ok(amortizationHeaderRow, 'Credit-specific sheet should include amortization rows');
-  assert.equal(creditSheet.getRow(amortizationHeaderRow.number + 2).getCell(2).value, 'COP 2.600.000,00');
-  assert.equal(creditSheet.getRow(amortizationHeaderRow.number + 2).getCell(3).value, 'COP 250.000,00');
+  assert.equal(creditSheet.getRow(amortizationHeaderRow.number + 2).getCell(2).value, 2600000);
+  assert.equal(creditSheet.getRow(amortizationHeaderRow.number + 2).getCell(3).value, 250000);
   assert.ok(paymentHeaderRow, 'Credit-specific sheet should include payment history rows');
-  assert.equal(creditSheet.getRow(paymentHeaderRow.number + 1).getCell(1).value, '29/05/2026');
-  assert.equal(creditSheet.getRow(paymentHeaderRow.number + 1).getCell(2).value, 'COP 2.600.000,00');
+  assert.equal(creditSheet.getRow(paymentHeaderRow.number + 1).getCell(1).value.toISOString(), '2026-05-29T00:00:00.000Z');
+  assert.equal(creditSheet.getRow(paymentHeaderRow.number + 1).getCell(2).value, 2600000);
 });
 
 test('export credits use case includes every credit for the same customer', async () => {
@@ -1248,9 +1250,9 @@ test('GET /reports/payouts/export returns xlsx file for admin', async () => {
   assert.equal(headers.includes('paymentId'), false);
   assert.equal(headers.includes('paymentMetadata'), false);
   const amountCell = payoutSheet.getRow(3).getCell(6);
-  assert.equal(amountCell.value, 'COP 100,00');
+  assert.equal(amountCell.value, 100);
   assert.match(amountCell.numFmt, /COP/);
-  assert.equal(payoutSheet.getRow(3).getCell(5).value, '14/02/2026');
+  assert.equal(payoutSheet.getRow(3).getCell(5).value.toISOString(), '2026-02-14T00:00:00.000Z');
 });
 
 test('export payouts use case builds workbook sheets with operational headers and typed dates', async () => {
@@ -1609,8 +1611,8 @@ test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files
   assert.ok(headers.includes('Categoría'));
   assert.ok(headers.includes('Monto'));
   assert.equal(headers.includes('expenseId'), false);
-  assert.equal(sheet.getRow(3).getCell(2).value, '10/05/2026');
-  assert.equal(sheet.getRow(3).getCell(5).value, 'COP 850.000,00');
+  assert.equal(sheet.getRow(3).getCell(2).value.toISOString(), '2026-05-10T00:00:00.000Z');
+  assert.equal(sheet.getRow(3).getCell(5).value, 850000);
 
   const pdfResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?format=pdf&fromDate=2026-05-01&toDate=2026-05-31&status=completed&employeeId=7`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
@@ -1705,7 +1707,7 @@ test('GET /associates/export returns xlsx file for admin', async () => {
     'Deuda con Socio',
   ]);
   assert.equal(headers.includes('associateId'), false);
-  assert.equal(workbook.getWorksheet('Detalle de Socios').getRow(3).getCell(4).value, 'COP 1.000,00');
+  assert.equal(workbook.getWorksheet('Detalle de Socios').getRow(3).getCell(4).value, 1000);
 });
 
 test('GET /associates/export returns pdf file for admin', async () => {

@@ -883,7 +883,8 @@ const createExportAssociateFinancialSummary = ({
           { indicator: 'Interés Pendiente', value: Number(report.summary.interestDebt || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           {
             indicator: 'Próximo Pago',
-            value: formatExcelDisplayValue(report.summary.nextInterestPaymentDate, 'dd/mm/yyyy').value || '',
+            value: toExcelDate(report.summary.nextInterestPaymentDate),
+            __formats: { value: { numFmt: DATE_FORMAT } },
           },
           { indicator: 'Rentabilidad pagada', value: Number(report.summary.netProfit || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
           { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0 },

@@ -301,10 +301,10 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   const firstReceivedCell = historySheet.getRow(3).getCell(5);
   const firstCollectedInterestAndPenaltiesCell = historySheet.getRow(3).getCell(12);
   const firstCreditFlowBalanceCell = historySheet.getRow(3).getCell(13);
-  assert.equal(firstCapitalCell.value, 'COP 2.000.000,00');
-  assert.equal(firstReceivedCell.value, 'COP 2.000.000,00');
-  assert.equal(firstCollectedInterestAndPenaltiesCell.value, 'COP 500.000,00');
-  assert.equal(firstCreditFlowBalanceCell.value, '-COP 100.000,00');
+  assert.equal(firstCapitalCell.value, 2000000);
+  assert.equal(firstReceivedCell.value, 2000000);
+  assert.equal(firstCollectedInterestAndPenaltiesCell.value, 500000);
+  assert.equal(firstCreditFlowBalanceCell.value, -100000);
   assert.match(firstCapitalCell.numFmt, /COP/);
   assert.match(firstCollectedInterestAndPenaltiesCell.numFmt, /COP/);
   assert.match(firstCreditFlowBalanceCell.numFmt, /COP/);
@@ -323,7 +323,7 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.ok(summaryIndicators.includes('Flujo acumulado de créditos'));
   assert.ok(!summaryIndicators.includes('Caja disponible'));
   assert.ok(capitalVivoRow, 'Resumen Auditoría should include Capital vivo');
-  assert.equal(capitalVivoRow.getCell(2).value, 'COP 500.000,00');
+  assert.equal(capitalVivoRow.getCell(2).value, 500000);
   assert.match(capitalVivoRow.getCell(2).numFmt, /COP/);
 
   const pdf = await createExportCreditHistoryAuditPdf(dependencies)({ actor: { role: 'admin' }, filters: {} });
