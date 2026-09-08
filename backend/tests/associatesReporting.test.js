@@ -255,6 +255,43 @@ test('createGetAssociateFinancialSummary reports current capital after capital r
   assert.equal(report.summary.currentCapital, '900.00');
 });
 
+test('associate workbook keeps all distribution types together and refreshes amounts on a new export', async () => {
+  const contributions = [{ id: 1, amount: 1000, contributionDate: '2026-01-01' }];
+  const distributions = [
+    { id: 2, amount: 50, basis: { type: 'manual-interest' }, distributionDate: '2026-02-01' },
+    { id: 3, amount: 100, basis: { type: 'capital-return' }, distributionDate: '2026-02-02' },
+    { id: 4, amount: 25, basis: { type: 'reinvestment' }, distributionDate: '2026-02-03' },
+  ];
+  const exportReport = createExportAssociateFinancialSummary({ associateRepository: {
+    async findById() { return { id: 12, name: 'Socio A' }; },
+    async listContributionsByAssociate() { return contributions; },
+    async listProfitDistributionsByAssociate() { return distributions; },
+    async findInstallmentsByAssociateId() { return []; },
+  } });
+  const readExport = async () => {
+    const file = await exportReport({ actor: { role: 'admin' }, associateId: 12 });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    return workbook;
+  };
+  const workbook = await readExport();
+  const movements = workbook.getWorksheet('Movimientos');
+  assert.ok(movements, 'All distribution types must be filterable in one sheet.');
+  assert.deepEqual([3, 4, 5].map(row => movements.getCell(`C${row}`).value), [50, 100, 25]);
+  assert.deepEqual([3, 4, 5].map(row => movements.getCell(`E${row}`).value), [
+    'Pago manual de rentabilidad', 'Devolución de capital', 'Reinversión',
+  ]);
+  assert.equal(workbook.worksheets.length, 4);
+  contributions.push({ id: 5, amount: 500, contributionDate: '2026-03-01' });
+  const refreshed = await readExport();
+  const summary = refreshed.getWorksheet('Resumen General');
+  const values = new Map();
+  summary.eachRow(row => values.set(row.getCell(1).value, row.getCell(2).value));
+  assert.equal(values.get('Aportes Totales'), 1500);
+  assert.equal(values.get('Capital Vigente'), 1400);
+  assert.equal(refreshed.getWorksheet('Aportes').getCell('B4').value, 500);
+});
+
 test('createExportAssociateFinancialSummary returns xlsx workbook for associate datasets', async () => {
   let contributionReads = 0;
   let distributionReads = 0;
@@ -318,7 +355,7 @@ test('createExportAssociateFinancialSummary returns xlsx workbook for associate 
   const serializedWorkbookValues = JSON.stringify(workbook.worksheets.map((sheet) => sheet.getSheetValues()));
   assert.match(serializedWorkbookValues, /Pago manual de rentabilidad/);
   assert.equal(/proportional|Participaci[oó]n|Monto Asignado|Total Proporcional/i.test(serializedWorkbookValues), false);
-  const manualPaymentsSheet = workbook.getWorksheet('Pagos manuales');
+  const manualPaymentsSheet = workbook.getWorksheet('Movimientos');
   assert.equal(manualPaymentsSheet.getRow(3).getCell(5).value, 'Pago manual de rentabilidad');
   const summarySheet = workbook.getWorksheet('Resumen General');
   const summaryHeaders = summarySheet.getRow(2).values;
@@ -341,7 +378,7 @@ test('createExportAssociateFinancialSummary returns xlsx workbook for associate 
   assert.equal(currentCapitalRow?.getCell(2).value, 1000);
   assert.equal(nextPaymentRow?.getCell(2).value.toISOString(), '2026-04-01T00:00:00.000Z');
   assert.equal(workbook.getWorksheet('Aportes').getRow(3).getCell(2).value, 1000);
-  assert.equal(workbook.getWorksheet('Pagos manuales').getRow(3).getCell(3).value, 150);
+  assert.equal(workbook.getWorksheet('Movimientos').getRow(3).getCell(3).value, 150);
   assert.equal(workbook.getWorksheet('Cronograma').getRow(3).getCell(2).value, 200);
   assert.equal(workbook.getWorksheet('Cronograma').getRow(4).getCell(2).value, 250);
   assert.match(serializedWorkbookValues, /Interés Pendiente/);

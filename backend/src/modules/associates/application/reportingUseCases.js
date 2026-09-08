@@ -810,9 +810,6 @@ const createExportAssociateFinancialSummary = ({
       notes: entry.notes || '',
     };
   });
-  const manualProfitabilityRows = distributionRows.filter((row) => row.distributionType === 'Pago manual de rentabilidad');
-  const capitalReturnRows = distributionRows.filter((row) => row.distributionType === 'Devolución de capital');
-  const reinvestmentRows = distributionRows.filter((row) => row.distributionType === 'Reinversión');
   const installmentRows = (installments || []).map((entry) => {
     const operationalStatus = resolveInterestInstallmentExportStatus(entry, asOfDate);
     return {
@@ -903,28 +900,12 @@ const createExportAssociateFinancialSummary = ({
         rows: contributionRows,
       },
       {
-        name: 'Pagos manuales',
-        title: 'PAGOS MANUALES DEL SOCIO',
+        name: 'Movimientos',
+        title: 'MOVIMIENTOS DE CAPITAL Y RENTABILIDAD DEL SOCIO',
         tabColor: STYLE_COLORS.yellow,
         headerFill: STYLE_COLORS.headerBlue,
         columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
-        rows: manualProfitabilityRows,
-      },
-      {
-        name: 'Devoluciones de capital',
-        title: 'DEVOLUCIONES DE CAPITAL DEL SOCIO',
-        tabColor: STYLE_COLORS.blue,
-        headerFill: STYLE_COLORS.headerBlue,
-        columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
-        rows: capitalReturnRows,
-      },
-      {
-        name: 'Reinversiones',
-        title: 'REINVERSIONES DEL SOCIO',
-        tabColor: STYLE_COLORS.purple,
-        headerFill: STYLE_COLORS.headerBlue,
-        columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
-        rows: reinvestmentRows,
+        rows: distributionRows,
       },
       {
         name: 'Cronograma',
