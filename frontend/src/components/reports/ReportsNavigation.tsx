@@ -50,36 +50,6 @@ export default function ReportsNavigation({
           ))}
         </select>
       </label>
-      <div className="reports-module-nav__selection">
-        <div className="reports-module-nav__categories" role="radiogroup" aria-label={tTerm('reports.categories.aria')}>
-          {groups.map((group) => (
-            <label key={group.id} className="reports-module-nav__category">
-              <input
-                type="radio"
-                name="report-category"
-                value={group.id}
-                checked={group.id === activeGroup.id}
-                onChange={() => onChange(group.leaves[0].id)}
-              />
-              <span>{group.label}</span>
-            </label>
-          ))}
-        </div>
-        <div className="reports-module-nav__reports" role="group" aria-label={tTerm('reports.selector.label')}>
-          {activeGroup.leaves.map((leaf) => (
-            <button
-              key={leaf.id}
-              type="button"
-              className="reports-module-nav__report"
-              aria-pressed={leaf.id === activeTab}
-              title={leaf.title}
-              onClick={() => onChange(leaf.id)}
-            >
-              {leaf.label}
-            </button>
-          ))}
-        </div>
-      </div>
       {tools ? (
         <div className="reports-module-nav__tools">
           {tools}

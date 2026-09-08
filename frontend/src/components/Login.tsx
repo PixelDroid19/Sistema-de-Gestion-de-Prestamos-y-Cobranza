@@ -49,10 +49,16 @@ export default function Login() {
     <div className="login-page">
       <aside className="login-aside" aria-label={APP_BRAND.name}>
         <div className="login-aside__content">
+          <span className="login-monogram" aria-hidden="true">CC</span>
           <p className="login-aside__workspace">{getAppBrandWorkspace()}</p>
           <h1 className="login-aside__title">{APP_BRAND.name}</h1>
           <p className="login-aside__tagline">{tTerm('login.tagline')}</p>
         </div>
+        <svg className="login-ledger-art" viewBox="0 0 520 360" fill="none" aria-hidden="true">
+          <path className="login-letter login-letter--first" pathLength="1" d="M265 80a135 135 0 1 0 0 200" stroke="currentColor" strokeWidth="54" />
+          <path className="login-letter login-letter--second" pathLength="1" d="M465 80a135 135 0 1 0 0 200" stroke="#c9e89b" strokeWidth="54" />
+          <path d="M270 40a180 180 0 1 0 0 280M475 40a180 180 0 1 0 0 280" stroke="currentColor" opacity=".25" />
+        </svg>
         <p className="login-aside__footnote">{tTerm('login.footer')}</p>
       </aside>
 

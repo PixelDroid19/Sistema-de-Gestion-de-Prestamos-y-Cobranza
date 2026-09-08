@@ -95,9 +95,9 @@ export function ReportTabPanel({
           ) : null}
         </div>
       ) : null}
-      {primaryFilters ? <div className="report-tab-panel__primary-filters">{primaryFilters}</div> : null}
-      {(hasFilters || activeFilters.length > 0) ? (
-        <div className="report-tab-panel__filter-tools" data-active-filter-count={activeFilterCount}>
+      {(primaryFilters || hasFilters || activeFilters.length > 0) ? (
+        <div className={`report-tab-panel__filter-tools${primaryFilters ? ' report-tab-panel__filter-tools--unified' : ''}`} data-active-filter-count={activeFilterCount} data-expanded={filtersOpen}>
+          {primaryFilters ? <div className="report-tab-panel__primary-filters">{primaryFilters}</div> : null}
           <ReportFiltersPanel
             filterColumns={filterColumns}
             isOpen={filtersOpen}
