@@ -1295,17 +1295,55 @@ test('export payouts use case builds workbook sheets with operational headers an
   assert.equal(result.success, true);
   assert.ok(Array.isArray(result.data.sheets));
   assert.equal(result.data.sheets[0].name, 'Pagos');
+  const payoutDetail = result.data.sheets[0].sections[1];
   assert.deepEqual(
-    result.data.sheets[0].columns.map((column) => column.header).slice(0, 6),
+    payoutDetail.columns.map((column) => column.header).slice(0, 6),
     ['Pago', 'Crédito', 'Referencia cliente', 'Cliente', 'Fecha de Pago', 'Monto'],
   );
-  assert.ok(result.data.sheets[0].columns.map((column) => column.header).includes('Registrado por'));
-  assert.equal(result.data.sheets[0].rows[0].paymentType, 'Cuota');
-  assert.equal(result.data.sheets[0].rows[0].paymentMethod, 'Efectivo');
-  assert.equal(result.data.sheets[0].rows[0].createdBy, 'Operador QA');
-  assert.ok(result.data.sheets[0].rows[0].paymentDate instanceof Date);
-  assert.ok(result.data.sheets[0].rows[0].createdAt instanceof Date);
+  assert.ok(payoutDetail.columns.map((column) => column.header).includes('Registrado por'));
+  assert.equal(payoutDetail.rows[0].paymentType, 'Cuota');
+  assert.equal(payoutDetail.rows[0].paymentMethod, 'Efectivo');
+  assert.equal(payoutDetail.rows[0].createdBy, 'Operador QA');
+  assert.ok(payoutDetail.rows[0].paymentDate instanceof Date);
+  assert.ok(payoutDetail.rows[0].createdAt instanceof Date);
   assert.equal(repositoryQuery.createdByUserId, 7);
+});
+
+test('payments Excel keeps its aggregate and detail together and increments totals for every row', async () => {
+  const makePayment = (id, amount, principal, interest, penalty) => ({
+    id,
+    loanId: 4,
+    paymentDate: '2026-02-14T00:00:00.000Z',
+    createdAt: '2026-02-14T15:30:00.000Z',
+    amount,
+    principalApplied: principal,
+    interestApplied: interest,
+    penaltyApplied: penalty,
+    remainingBalanceAfterPayment: 900,
+    paymentType: 'installment',
+    paymentMethod: 'cash',
+    status: 'completed',
+    Loan: { customerId: 10, Customer: { id: 10, name: 'Ana' } },
+  });
+  const exportFile = await createExportPayoutsExcel({
+    paymentRepository: {
+      async listPayoutsReport() {
+        return { items: [makePayment(1, 100, 70, 20, 10), makePayment(2, 250, 200, 50, 0)] };
+      },
+    },
+  })({ actor: { role: 'admin' } });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildWorkbookBuffer(exportFile.data.sheets));
+  const sheet = workbook.getWorksheet('Pagos');
+  const summary = new Map([3, 4, 5, 6, 7].map(row => [sheet.getCell(`A${row}`).value, sheet.getCell(`B${row}`).value]));
+  assert.equal(workbook.worksheets.length, 1);
+  assert.equal(summary.get('Pagos incluidos'), 2);
+  assert.equal(summary.get('Total recibido'), 350);
+  assert.equal(summary.get('Capital aplicado'), 270);
+  assert.equal(summary.get('Interés aplicado'), 70);
+  assert.equal(summary.get('Mora aplicada'), 10);
+  assert.equal(sheet.getCell('F11').value, 100);
+  assert.equal(sheet.getCell('F12').value, 250);
 });
 
 test('export payouts labels rows without a retained creator as historical records', async () => {
@@ -1333,7 +1371,7 @@ test('export payouts labels rows without a retained creator as historical record
 
   const result = await useCase({ actor: { role: 'admin' } });
 
-  assert.equal(result.data.sheets[0].rows[0].createdBy, 'Registro histórico');
+  assert.equal(result.data.sheets[0].sections[1].rows[0].createdBy, 'Registro histórico');
 });
 
 test('export payouts names missing historical relations instead of exposing N/A', async () => {
@@ -1356,7 +1394,7 @@ test('export payouts names missing historical relations instead of exposing N/A'
   });
 
   const result = await useCase({ actor: { role: 'admin' } });
-  const row = result.data.sheets[0].rows[0];
+  const row = result.data.sheets[0].sections[1].rows[0];
 
   assert.equal(row.customerName, 'Cliente no disponible');
   assert.equal(row.customerEmail, 'Sin correo registrado');
@@ -1464,13 +1502,14 @@ test('export operating expenses report builds operational Excel and PDF artifact
 
   assert.equal(excel.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.equal(excel.sheets[0].name, 'Gastos Operativos');
-  assert.equal(excel.sheets[0].rows[0].expenseId, 12);
-  assert.ok(excel.sheets[0].rows[0].expenseDate instanceof Date);
-  assert.equal(excel.sheets[0].rows[0].amount, 950000);
-  assert.equal(excel.sheets[0].rows[0].paymentMethod, 'Transferencia');
-  assert.equal(excel.sheets[0].rows[0].status, 'Anulado');
-  assert.ok(excel.sheets[0].rows[0].annulledAt instanceof Date);
-  assert.equal(excel.sheets[0].rows.some((row) => row.status === 'annulled'), false);
+  const expenseRows = excel.sheets[0].sections[1].rows;
+  assert.equal(expenseRows[0].expenseId, 12);
+  assert.ok(expenseRows[0].expenseDate instanceof Date);
+  assert.equal(expenseRows[0].amount, 950000);
+  assert.equal(expenseRows[0].paymentMethod, 'Transferencia');
+  assert.equal(expenseRows[0].status, 'Anulado');
+  assert.ok(expenseRows[0].annulledAt instanceof Date);
+  assert.equal(expenseRows.some((row) => row.status === 'annulled'), false);
 
   const pdf = await useCase({
     actor: { role: 'admin' },
@@ -1483,6 +1522,30 @@ test('export operating expenses report builds operational Excel and PDF artifact
   assert.match(expensePdfText, /Gastos del negocio/);
   assert.match(expensePdfText, /COP 950.000,00/);
   assert.match(expensePdfText, /Anulado/);
+});
+
+test('expenses Excel keeps its aggregate and detail together and increments the listed total', async () => {
+  const { createExportOperatingExpensesReport } = require('@/modules/reports/application/useCases');
+  const exportFile = await createExportOperatingExpensesReport({
+    reportRepository: {
+      async listOperatingExpensesForReport() {
+        return [
+          { id: 1, amount: 120000, expenseDate: '2026-05-01', category: 'Servicios', description: 'Internet', status: 'completed' },
+          { id: 2, amount: 80000, expenseDate: '2026-05-02', category: 'Servicios', description: 'Energía', status: 'completed' },
+        ];
+      },
+    },
+  })({ actor: { role: 'admin' }, format: 'xlsx' });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildWorkbookBuffer(exportFile.sheets));
+  const sheet = workbook.getWorksheet('Gastos Operativos');
+  assert.equal(workbook.worksheets.length, 1);
+  assert.equal(sheet.getCell('A3').value, 'Registros incluidos');
+  assert.equal(sheet.getCell('B3').value, 2);
+  assert.equal(sheet.getCell('A4').value, 'Total listado');
+  assert.equal(sheet.getCell('B4').value, 200000);
+  assert.equal(sheet.getCell('E8').value, 120000);
+  assert.equal(sheet.getCell('E9').value, 80000);
 });
 
 test('export operating expenses report rejects inverted date ranges before querying repository', async () => {

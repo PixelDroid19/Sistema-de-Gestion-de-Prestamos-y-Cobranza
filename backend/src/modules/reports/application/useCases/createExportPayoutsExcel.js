@@ -75,7 +75,44 @@ const parseMoneyValue = (value) => {
   return Number.isFinite(normalized) ? normalized : 0;
 };
 
-const sumRowsByMoneyKey = (rows, key) => rows.reduce((sum, row) => sum + parseMoneyValue(row[key]), 0);
+const sumRowsByMoneyKey = (rows, key) => roundMoney(
+  rows.reduce((sum, row) => sum + parseMoneyValue(row[key]), 0),
+);
+
+const buildPayoutWorkbookSheets = (rows) => [{
+  name: 'Pagos',
+  tabColor: STYLE_COLORS.green,
+  sections: [
+    {
+      title: 'RESUMEN DE PAGOS',
+      titleFill: STYLE_COLORS.green,
+      headerFill: STYLE_COLORS.green,
+      columns: [
+        { header: 'Indicador', key: 'indicator', width: 28 },
+        { header: 'Valor', key: 'value', width: 22 },
+      ],
+      rows: [
+        { indicator: 'Pagos incluidos', value: rows.length, __formats: { value: { numFmt: '0' } } },
+        { indicator: 'Total recibido', value: sumRowsByMoneyKey(rows, 'amount'), __formats: { value: { numFmt: MONEY_FORMAT } } },
+        { indicator: 'Capital aplicado', value: sumRowsByMoneyKey(rows, 'principalApplied'), __formats: { value: { numFmt: MONEY_FORMAT } } },
+        { indicator: 'Interés aplicado', value: sumRowsByMoneyKey(rows, 'interestApplied'), __formats: { value: { numFmt: MONEY_FORMAT } } },
+        { indicator: 'Mora aplicada', value: sumRowsByMoneyKey(rows, 'penaltyApplied'), __formats: { value: { numFmt: MONEY_FORMAT } } },
+      ],
+      autoFilter: false,
+    },
+    {
+      title: 'DETALLE DE PAGOS',
+      titleFill: STYLE_COLORS.green,
+      columns: PAYOUT_WORKBOOK_COLUMNS,
+      rows: rows.map((row) => ({
+        ...row,
+        paymentDate: toWorkbookDate(row.paymentDate),
+        createdAt: toWorkbookDate(row.createdAt),
+      })),
+      autoFilter: true,
+    },
+  ],
+}];
 
 const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
   const normalizedFilters = normalizePayoutExportFilters(filters);
@@ -138,18 +175,7 @@ const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filt
     success: true,
     data: {
       rows,
-      sheets: [{
-        name: 'Pagos',
-        title: 'REPORTE DE PAGOS',
-        tabColor: STYLE_COLORS.green,
-        headerFill: STYLE_COLORS.green,
-        columns: PAYOUT_WORKBOOK_COLUMNS,
-        rows: rows.map((row) => ({
-          ...row,
-          paymentDate: toWorkbookDate(row.paymentDate),
-          createdAt: toWorkbookDate(row.createdAt),
-        })),
-      }],
+      sheets: buildPayoutWorkbookSheets(rows),
     },
   };
 };

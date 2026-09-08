@@ -18,7 +18,7 @@ const {
   deriveLoanOverdueSnapshot,
   paginateCollection,
 } = require('./reportInternals');
-const { MONEY_FORMAT } = require('./excelExportFormats');
+const { MONEY_FORMAT, roundMoney } = require('./excelExportFormats');
 const { formatOperationalStatus, formatPaymentType } = require('./reportLabels');
 const {
   getCurrentOperationalDateOnly,
@@ -557,11 +557,37 @@ const createExportOutstandingReport = ({ reportRepository, paymentRepository, lo
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: await buildWorkbookBuffer([{
       name: 'Cartera',
-      title: 'CARTERA POR COBRAR',
       tabColor: STYLE_COLORS.blue,
-      headerFill: STYLE_COLORS.green,
-      columns: OUTSTANDING_EXPORT_COLUMNS,
-      rows,
+      sections: [
+        {
+          title: 'RESUMEN DE CARTERA POR COBRAR',
+          titleFill: STYLE_COLORS.blue,
+          headerFill: STYLE_COLORS.green,
+          columns: [
+            { header: 'Indicador', key: 'indicator', width: 30 },
+            { header: 'Valor', key: 'value', width: 22 },
+          ],
+          rows: [
+            { indicator: 'Créditos con saldo', value: report.summary.totalLoansCount, __formats: { value: { numFmt: '0' } } },
+            { indicator: 'Saldo total pendiente', value: Number(report.summary.totalOutstandingAmount || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+            {
+              indicator: 'Capital pendiente',
+              value: roundMoney(rows.reduce((sum, row) => sum + Number(row.remainingCapital || 0), 0)),
+              __formats: { value: { numFmt: MONEY_FORMAT } },
+            },
+            { indicator: 'Saldo promedio por crédito', value: Number(report.summary.averageOutstandingAmount || 0), __formats: { value: { numFmt: MONEY_FORMAT } } },
+          ],
+          autoFilter: false,
+        },
+        {
+          title: 'DETALLE DE CARTERA POR COBRAR',
+          titleFill: STYLE_COLORS.blue,
+          headerFill: STYLE_COLORS.green,
+          columns: OUTSTANDING_EXPORT_COLUMNS,
+          rows,
+          autoFilter: true,
+        },
+      ],
     }]),
   };
 };

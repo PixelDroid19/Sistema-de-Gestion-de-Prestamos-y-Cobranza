@@ -100,11 +100,35 @@ const buildExpenseRows = (expenses = []) => expenses.map((expense) => ({
 
 const buildOperatingExpenseSheets = (rows) => [{
   name: 'Gastos Operativos',
-  title: 'REPORTE DE GASTOS OPERATIVOS',
   tabColor: STYLE_COLORS.red,
-  headerFill: STYLE_COLORS.headerBlue,
-  columns: EXPENSE_COLUMNS,
-  rows,
+  sections: [
+    {
+      title: 'RESUMEN DE GASTOS OPERATIVOS',
+      titleFill: STYLE_COLORS.red,
+      headerFill: STYLE_COLORS.red,
+      columns: [
+        { header: 'Indicador', key: 'indicator', width: 28 },
+        { header: 'Valor', key: 'value', width: 22 },
+      ],
+      rows: [
+        { indicator: 'Registros incluidos', value: rows.length, __formats: { value: { numFmt: '0' } } },
+        {
+          indicator: 'Total listado',
+          value: roundMoney(rows.reduce((sum, row) => sum + toNumber(row.amount), 0)),
+          __formats: { value: { numFmt: MONEY_FORMAT } },
+        },
+      ],
+      autoFilter: false,
+    },
+    {
+      title: 'DETALLE DE GASTOS OPERATIVOS',
+      titleFill: STYLE_COLORS.red,
+      headerFill: STYLE_COLORS.headerBlue,
+      columns: EXPENSE_COLUMNS,
+      rows,
+      autoFilter: true,
+    },
+  ],
 }];
 
 const buildOperatingExpensePdf = (rows) => {

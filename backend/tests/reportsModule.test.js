@@ -1,6 +1,7 @@
 const test = require('node:test');
 const { extractPdfText } = require('./helpers/pdfText');
 const assert = require('node:assert/strict');
+const ExcelJS = require('exceljs');
 
 const { AuthorizationError } = require('@/utils/errorHandler');
 const {
@@ -524,6 +525,44 @@ test('createExportOutstandingReport returns a XLSX attachment with operator-faci
   assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.match(exportFile.fileName, /^cartera-por-cobrar-\d{4}-\d{2}-\d{2}\.xlsx$/);
   assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
+});
+
+test('outstanding Excel keeps its aggregate and detail together and increments portfolio totals', async () => {
+  const loans = [
+    { id: 11, status: 'active', recoveryStatus: 'pending', Customer: { name: 'Ana' } },
+    { id: 12, status: 'active', recoveryStatus: 'in_progress', Customer: { name: 'Luis' } },
+  ];
+  const exportOutstandingReport = createExportOutstandingReport({
+    reportRepository: { async listOutstandingLoans() { return loans; } },
+    paymentRepository: { async listByLoan() { return []; } },
+    loanViewService: {
+      getSnapshot(loan) {
+        const outstandingBalance = loan.id === 11 ? 700 : 300;
+        return {
+          totalPaid: 0,
+          totalPaidPrincipal: 0,
+          totalPayable: outstandingBalance,
+          totalInterest: 0,
+          outstandingBalance,
+          outstandingPrincipal: loan.id === 11 ? 650 : 250,
+          installmentAmount: 100,
+          nextInstallment: null,
+        };
+      },
+    },
+  });
+  const exportFile = await exportOutstandingReport({ actor: { role: 'admin' }, format: 'xlsx' });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(exportFile.buffer);
+  const sheet = workbook.getWorksheet('Cartera');
+  const summary = new Map([3, 4, 5, 6].map(row => [sheet.getCell(`A${row}`).value, sheet.getCell(`B${row}`).value]));
+  assert.equal(workbook.worksheets.length, 1);
+  assert.equal(summary.get('Créditos con saldo'), 2);
+  assert.equal(summary.get('Saldo total pendiente'), 1000);
+  assert.equal(summary.get('Capital pendiente'), 900);
+  assert.equal(summary.get('Saldo promedio por crédito'), 500);
+  assert.equal(sheet.getCell('E10').value, 700);
+  assert.equal(sheet.getCell('E11').value, 300);
 });
 
 test('createExportOutstandingReport returns a readable PDF summary', async () => {
