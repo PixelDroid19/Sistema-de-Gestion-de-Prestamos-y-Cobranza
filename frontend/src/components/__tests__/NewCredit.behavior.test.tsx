@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import NewCredit from '../NewCredit';
 import { getLocalDateInputValue } from '../../lib/dateInput';
 
+const mockCalculate = vi.fn();
 const mockNavigate = vi.fn();
 const mockCreateLoan = vi.fn();
 const mockSetInput = vi.fn();
@@ -82,6 +83,10 @@ vi.mock('../hooks/useActiveCreditSimulation', () => ({
     lateFeeMode: 'SIMPLE',
   },
   useActiveCreditSimulation: (...args: unknown[]) => mockUseActiveCreditSimulation(...args),
+}));
+
+vi.mock('../../services/creditCalculationService', () => ({
+  creditCalculationService: { calculate: (...args: unknown[]) => mockCalculate(...args) },
 }));
 
 vi.mock('../../lib/toast', () => ({
@@ -198,10 +203,11 @@ describe('NewCredit behavior', () => {
     expect(mockUseActiveCreditSimulation).toHaveBeenCalledWith({
       initialInput: {
         ...routeState.calculationInput,
-        rateSource: 'policy',
+        interestRate: Number.NaN,
+        rateSource: 'manual',
         lateFeeSource: 'policy',
       },
-      autoRun: true,
+      autoRun: false,
     });
     expect(mockUseConfig).toHaveBeenCalledWith({ enabled: true });
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
@@ -209,15 +215,15 @@ describe('NewCredit behavior', () => {
     expect(liveRatePreview).toBeInTheDocument();
     expect(liveRatePreview).toHaveTextContent('Lista para validar');
     expect(liveRatePreview).toHaveTextContent('40,00%');
-    expect(liveRatePreview).toHaveTextContent('3,33%');
-    expect(liveRatePreview).toHaveTextContent('40,00% TNA / 12 = 3,33%');
+    expect(liveRatePreview).toHaveTextContent('3,3333%');
+    expect(liveRatePreview).toHaveTextContent('40,00% TNA / 12 = 3,3333%');
     expect(liveRatePreview).toHaveTextContent('Tasa mayor a 1M');
     expect(container.querySelector('[data-tour="new-credit-rate-summary"]')).not.toBeInTheDocument();
     const financialSummary = container.querySelector('[data-tour="new-credit-calculation-snapshot"]');
     expect(financialSummary).toHaveTextContent('TNA');
     expect(financialSummary).toHaveTextContent('40,00%');
     expect(financialSummary).toHaveTextContent('Tasa mensual');
-    expect(financialSummary).toHaveTextContent('3,33%');
+    expect(financialSummary).toHaveTextContent('3,3333%');
     expect(financialSummary).toHaveTextContent('Cuota mensual');
     expect(financialSummary).toHaveTextContent('16 meses');
     expect(financialSummary).not.toHaveTextContent('Resumen financiero');
@@ -260,7 +266,8 @@ describe('NewCredit behavior', () => {
     expect(mockUseActiveCreditSimulation).toHaveBeenCalledWith({
       initialInput: expect.objectContaining({
         startDate: getLocalDateInputValue(new Date('2026-05-27T15:00:00.000Z')),
-        rateSource: 'policy',
+        rateSource: 'manual',
+        interestRate: Number.NaN,
         lateFeeSource: 'policy',
       }),
       autoRun: false,
@@ -524,7 +531,7 @@ describe('NewCredit behavior', () => {
   });
 
   it('lets permissioned employees validate and register through backend-applied rate policies without reading admin config', async () => {
-    currentUser = { id: 2, role: 'employee', permissions: ['CREDITS_CREATE'] };
+    currentUser = { id: 2, role: 'employee', permissions: ['CREDITS_CREATE', 'CREDITS_VIEW_ALL'] };
     mockConfigState.ratePolicies = [];
 
     render(<NewCredit onBack={vi.fn()} />);
@@ -564,4 +571,72 @@ describe('NewCredit behavior', () => {
     expect(await screen.findByText('Selecciona el cliente que recibirá el crédito.')).toBeInTheDocument();
     expect(screen.queryByText(/customerId must be/i)).not.toBeInTheDocument();
   });
+  it('validates, registers and invalidates agreed rates using the real simulation state', async () => {
+    const { useActiveCreditSimulation } = await vi.importActual<typeof import('../hooks/useActiveCreditSimulation')>('../hooks/useActiveCreditSimulation');
+    const template = mockUseActiveCreditSimulation().result;
+    currentLocationState = null;
+    mockUseActiveCreditSimulation.mockImplementation(useActiveCreditSimulation);
+    mockCalculate.mockImplementation(async (input) => ({ data: { calculation: {
+      ...template, inputs: { ...input }, policySnapshot: {
+        ...template.policySnapshot, rateSource: input.rateSource,
+        appliedInterestRate: input.interestRate,
+      },
+    } } }));
+    mockConfigState.ratePolicies = [];
+    render(<NewCredit onBack={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Tasa del crédito' })).toHaveValue('manual');
+    const rateInput = screen.getByRole('textbox', { name: 'Tasa pactada anual (%)' });
+    expect(rateInput).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
+    expect(await screen.findByText('La tasa debe estar entre 0% y 100%.')).toBeInTheDocument();
+    expect(mockCalculate).not.toHaveBeenCalled();
+    fireEvent.change(rateInput, { target: { value: '27' } });
+    fireEvent.change(rateInput, { target: { value: '27,' } });
+    expect(rateInput).toHaveValue('27.');
+    fireEvent.change(rateInput, { target: { value: '27.5' } });
+    fireEvent.blur(rateInput);
+    fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
+    await waitFor(() => expect(mockCalculate).toHaveBeenCalledWith(expect.objectContaining({ interestRate: 27.5, rateSource: 'manual' })));
+    selectCustomerTen();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled());
+    fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
+    await waitFor(() => expect(mockCreateLoan).toHaveBeenCalledWith(expect.objectContaining({ interestRate: 27.5, rateSource: 'manual', lateFeeSource: 'policy' })));
+    fireEvent.change(rateInput, { target: { value: '0' } });
+    expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
+    await waitFor(() => expect(mockCalculate).toHaveBeenLastCalledWith(expect.objectContaining({ interestRate: 0, rateSource: 'manual' })));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled());
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tasa del crédito' }), { target: { value: 'policy' } });
+    expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeDisabled();
+    expect(screen.queryByRole('textbox', { name: 'Tasa pactada anual (%)' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
+    expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({ title: 'Falta política de tasa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restablecer parámetros' }));
+    expect(screen.getByRole('combobox', { name: 'Tasa del crédito' })).toHaveValue('manual');
+    expect(screen.getByRole('textbox', { name: 'Tasa pactada anual (%)' })).toHaveValue('');
+  });
+
+  it('keeps the individual rate when an active configured rate or loan amount changes', async () => {
+    const { useActiveCreditSimulation } = await vi.importActual<typeof import('../hooks/useActiveCreditSimulation')>('../hooks/useActiveCreditSimulation');
+    currentLocationState = null;
+    mockUseActiveCreditSimulation.mockImplementation(useActiveCreditSimulation);
+    const { rerender } = render(<NewCredit onBack={vi.fn()} />);
+    const source = screen.getByRole('combobox', { name: 'Tasa del crédito' });
+    const rate = screen.getByRole('textbox', { name: 'Tasa pactada anual (%)' });
+    expect(source).toHaveValue('manual');
+    expect(rate).toHaveValue('');
+    expect(mockCalculate).not.toHaveBeenCalled();
+    fireEvent.change(rate, { target: { value: '27.1234' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Monto del crédito' }), { target: { value: '3000000' } });
+    mockConfigState.ratePolicies = [{ ...mockConfigState.ratePolicies[0], annualEffectiveRate: 60 }];
+    rerender(<NewCredit onBack={vi.fn()} />);
+    expect(rate).toHaveValue('27.1234');
+    expect(screen.getByLabelText('Vista previa de la tasa del crédito')).toHaveTextContent('27,1234%');
+    fireEvent.change(source, { target: { value: 'policy' } });
+    expect(screen.getByLabelText('Vista previa de la tasa del crédito')).toHaveTextContent('60,00%');
+    fireEvent.change(source, { target: { value: 'manual' } });
+    expect(screen.getByRole('textbox', { name: 'Tasa pactada anual (%)' })).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeDisabled();
+  });
+
 });

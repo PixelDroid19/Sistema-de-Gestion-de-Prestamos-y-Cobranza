@@ -63,26 +63,34 @@ test('loanValidation.create accepts a canonical loan payload', async () => {
   }));
 });
 
-test('loanValidation.create rejects manual interest rate source for real credit creation', async () => {
-  const error = await captureMiddlewareError(loanValidation.create, {
-    body: {
-      customerId: 1,
-      amount: 12000,
-      interestRate: 12,
-      rateSource: 'manual',
-      lateFeeSource: 'policy',
-      termMonths: 12,
-      lateFeeMode: 'none',
-    },
-  });
+test('loanValidation.create accepts an explicit agreed rate including zero and decimals', async () => {
+  for (const interestRate of [0, 27.5, 27.1234, 100]) {
+    await runMiddleware(loanValidation.create, { body: {
+      customerId: 1, amount: 12000, interestRate, rateSource: 'manual',
+      lateFeeSource: 'policy', termMonths: 12,
+    } });
+  }
+});
 
-  assert.ok(error instanceof ValidationError);
-  assert.deepEqual(error.errors, [
-    {
-      field: 'rateSource',
-      message: 'La creación de créditos debe usar una política de tasa configurada',
-    },
-  ]);
+test('loanValidation.create rejects absent, malformed and out-of-range agreed rates', async () => {
+  for (const interestRate of [undefined, null, '', ' ', false, [], {}, -1, 100.01, 27.12345, 'abc']) {
+    const error = await captureMiddlewareError(loanValidation.create, { body: {
+      customerId: 1, amount: 12000, interestRate, rateSource: 'manual',
+      lateFeeSource: 'policy', termMonths: 12,
+    } });
+    assert.ok(error instanceof ValidationError, `Must reject ${JSON.stringify(interestRate)}`);
+    assert.ok(error.errors.some(({ field }) => field === 'interestRate'));
+  }
+});
+
+test('loanValidation.create requires an explicit known rate source', async () => {
+  for (const rateSource of [undefined, '', 'other']) {
+    const error = await captureMiddlewareError(loanValidation.create, { body: {
+      customerId: 1, amount: 12000, interestRate: 24, rateSource,
+      lateFeeSource: 'policy', termMonths: 12,
+    } });
+    assert.ok(error.errors.some(({ field }) => field === 'rateSource'));
+  }
 });
 
 test('loanValidation.create allows policy-driven rate without a manual interestRate', async () => {
@@ -798,4 +806,13 @@ test('loanValidation.payoffExecute rejects exponent notation quote totals', asyn
       message: 'El total cotizado debe ser un número positivo',
     },
   ]);
+});
+
+test('loanValidation.simulate associates excessive manual rate precision with interestRate', async () => {
+  const error = await captureMiddlewareError(loanValidation.simulate, { body: {
+    amount: 1000000, termMonths: 3, interestRate: 27.12345, rateSource: 'manual',
+  } });
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors.map(({ field }) => field), ['interestRate']);
+  assert.match(error.errors[0].message, /4 decimales/);
 });

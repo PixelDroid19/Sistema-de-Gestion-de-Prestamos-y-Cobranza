@@ -2,6 +2,7 @@ const {
   createResolveRatePolicy,
   createResolveLateFeePolicy,
 } = require('@/modules/config/application/useCases');
+const { validateAgreedInterestRate, AGREED_RATE_VALIDATION_MESSAGE } = require('@/modules/credits/domain/agreedInterestRate');
 const { ValidationError } = require('@/utils/errorHandler');
 
 const MANUAL_SOURCE = 'manual';
@@ -42,7 +43,7 @@ const buildRatePolicySnapshot = ({ policy, source, appliedInterestRate }) => ({
   ratePolicyKey: policy?.key ?? null,
   ratePolicyLabel: policy?.label ?? null,
   ratePolicyRate: policy?.annualEffectiveRate ?? null,
-  rateSource: policy ? source : NONE_SOURCE,
+  rateSource: source === MANUAL_SOURCE ? MANUAL_SOURCE : (policy ? source : NONE_SOURCE),
   appliedInterestRate,
 });
 
@@ -95,8 +96,12 @@ const createCreditPolicyResolver = ({ configRepository } = {}) => {
 
   return {
     async resolve({ input = {} } = {}) {
+      const isManualRate = normalizeSource(input.rateSource) === MANUAL_SOURCE;
+      if (isManualRate && !validateAgreedInterestRate(input.interestRate)) {
+        throw new ValidationError(AGREED_RATE_VALIDATION_MESSAGE);
+      }
       const [ratePolicy, lateFeePolicy] = await Promise.all([
-        resolveRatePolicy({ amount: input.amount }),
+        isManualRate ? null : resolveRatePolicy({ amount: input.amount }),
         resolveLateFeePolicy(),
       ]);
 

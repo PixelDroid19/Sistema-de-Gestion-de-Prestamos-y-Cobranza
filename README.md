@@ -33,8 +33,11 @@ Estos comportamientos son parte del producto y deben preservarse cuando se hagan
 
 - Las tasas se configuran desde `/settings` mediante rangos de monto.
 - Los rangos activos no pueden solaparse ni generar ambigüedad.
-- Puede haber huecos de configuración, pero un crédito que caiga en un hueco debe bloquearse hasta que exista una regla activa que lo cubra.
-- La tasa se asigna automáticamente al crear el crédito según el monto.
+- Puede haber huecos de configuración, pero un crédito con tasa configurada que caiga en un hueco debe bloquearse hasta que exista una regla activa que lo cubra.
+- Al crear el crédito se ingresa una tasa pactada individual, tanto para créditos nuevos como anteriores. El porcentaje nominal anual (0–100%, máximo 4 decimales) empieza vacío y debe indicarse explícitamente.
+- La tasa configurada por monto queda disponible como opción explícita; no se aplica por defecto.
+- La tasa pactada no requiere un rango configurado y se guarda con origen `manual`, sin vincular una política que no se aplicó. La mora sigue usando su política activa.
+- Esta selección no importa pagos ni saldos anteriores: deben registrarse mediante los flujos de pagos existentes.
 - La tasa aplicada queda congelada en el crédito mediante snapshot financiero.
 - No se permite editar manualmente la tasa de un crédito ya creado.
 - La mora es una política independiente; no debe confundirse visual ni técnicamente con la tasa del crédito.

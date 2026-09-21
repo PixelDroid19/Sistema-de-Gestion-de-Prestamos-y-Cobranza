@@ -1,4 +1,5 @@
 const { Loan, Customer, FinancialProduct } = require('@/models');
+const { validateAgreedInterestRate, AGREED_RATE_VALIDATION_MESSAGE } = require('@/modules/credits/domain/agreedInterestRate');
 const { NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const {
   buildFinancialSnapshot,
@@ -27,8 +28,12 @@ const resolveCreditCalculationExecution = async ({ input, calculationService, po
 };
 
 const resolvePolicyContext = async ({ input, policyResolver }) => {
-  if (String(input?.rateSource || '').trim().toLowerCase() !== 'policy') {
-    throw new ValidationError('La creación de créditos debe usar una política de tasa configurada');
+  const rateSource = String(input?.rateSource || '').trim().toLowerCase();
+  if (!['policy', 'manual'].includes(rateSource)) {
+    throw new ValidationError('Selecciona una tasa configurada o pactada para el crédito');
+  }
+  if (rateSource === 'manual' && !validateAgreedInterestRate(input.interestRate)) {
+    throw new ValidationError(AGREED_RATE_VALIDATION_MESSAGE);
   }
 
   if (String(input?.lateFeeSource || '').trim().toLowerCase() !== 'policy') {
@@ -93,11 +98,11 @@ const resolveLoanStartDate = (value) => {
  * The `calculationProfileVersionId` persisted on the loan comes directly from
  * the calculation execution result, guaranteeing it is the exact profile that
  * produced the numbers.
- * Real credit creation requires `rateSource=policy` and `lateFeeSource=policy`.
- * The annual rate and late-fee rule are resolved from configuration and cannot
- * be hand-edited per loan.
+ * The annual rate is either configured or explicitly agreed at origination.
+ * Both sources are frozen in the financial snapshot; existing loans remain immutable.
+ * Late fees still require `lateFeeSource=policy`.
  *
- * @param {{ customerId: number, amount: number, interestRate?: number, rateSource: 'policy', termMonths: number, lateFeeSource: 'policy', lateFeeMode?: string }} input
+ * @param {{ customerId: number, amount: number, interestRate?: number, rateSource: 'policy'|'manual', termMonths: number, lateFeeSource: 'policy', lateFeeMode?: string }} input
  * @returns {Promise<object>}
  */
 const createLoanFromCanonicalDataFactory = ({

@@ -4,6 +4,7 @@ const http = require('node:http');
 const https = require('node:https');
 const ExcelJS = require('exceljs');
 const { Op } = require('sequelize');
+const verifyAgreedRates = require('./helpers/agreedRateScenario');
 const verifyPolicySnapshots = require('./helpers/policySnapshotScenario');
 const verifyLateFeeActivation = require('./helpers/lateFeeActivationScenario');
 const verifyRatePolicyLifecycle = require('./helpers/ratePolicyLifecycleScenario');
@@ -1342,6 +1343,11 @@ integrationTest('producto: mantiene configuración, gastos, notificaciones y rep
 
   response = await expectStatus({ path: '/api/config/payment-methods/active', token: accessToken }, 200);
   assert.ok(response.body?.data?.paymentMethods?.some((method) => method.key === 'cash'));
+});
+
+integrationTest('producto: registra tasas pactadas sin rangos configurados y conserva simulación, persistencia e historial', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix, 'Requiere el fixture local autenticado.');
+  await verifyAgreedRates({ expectStatus, token: accessToken, customerId, fixturePrefix, fixtureLoanIds, Loan });
 });
 
 integrationTest('producto: cambiar tasas afecta créditos nuevos sin reescribir los existentes', async () => {

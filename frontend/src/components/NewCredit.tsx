@@ -30,6 +30,7 @@ import {
   PageShell,
   StatusChip,
   CustomerSearchSelect,
+  OperationalSelect,
 } from './shared/Surfaces';
 import { TableSectionIntro } from './shared/tables';
 import { CreditSimulationScheduleTable } from './shared/CreditSimulationScheduleTable';
@@ -52,7 +53,7 @@ const formatPercent = (value: number, locale: string, fractionDigits = 2) => {
   if (!Number.isFinite(value)) return '-';
   return `${new Intl.NumberFormat(locale, {
     minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
+    maximumFractionDigits: Math.max(4, fractionDigits),
   }).format(value)}%`;
 };
 const getSafeCreditCreationFieldError = (field: unknown): { field: string; message: string } | null => {
@@ -112,10 +113,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     customerId: '',
   });
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  // Preserve intermediate edits such as `27.`; the calculation input stores numbers only.
+  const [agreedRateText, setAgreedRateText] = useState('');
   const initialCalculationInput = useMemo<CreditCalculationInput>(() => ({
     ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
     ...routeState?.calculationInput,
-    rateSource: 'policy',
+    rateSource: 'manual',
+    interestRate: Number.NaN,
     lateFeeSource: 'policy',
     startDate: routeState?.calculationInput?.startDate || getLocalDateInputValue(),
   }), [routeState?.calculationInput]);
@@ -124,14 +128,18 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     input,
     result,
     error: calculationError,
+    fieldErrors,
     isSimulating,
     isResultStale,
     setInput,
     simulate,
   } = useActiveCreditSimulation({
     initialInput: initialCalculationInput,
-    autoRun: Boolean(routeState?.calculationInput),
+    autoRun: false,
   });
+
+  const isManualRate = input.rateSource === 'manual';
+  const isManualRateValid = Number.isFinite(input.interestRate) && input.interestRate >= 0 && input.interestRate <= 100;
 
   const resolvedRatePolicyMatches = useMemo<any[]>(
     () => findRatePolicyMatchesForAmount(ratePolicies, input.amount),
@@ -162,7 +170,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const nextInput: Partial<CreditCalculationInput> = {};
 
-    if (resolvedRatePolicy?.annualEffectiveRate != null) {
+    if (!isManualRate && resolvedRatePolicy?.annualEffectiveRate != null) {
       const nextRate = Number(resolvedRatePolicy.annualEffectiveRate);
       if (nextRate !== input.interestRate) {
         nextInput.interestRate = nextRate;
@@ -186,7 +194,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     if (Object.keys(nextInput).length > 0) {
       setInput(nextInput);
     }
-  }, [resolvedLateFeePolicy, resolvedRatePolicy, setInput, input.interestRate, input.lateFeeMode, input.annualLateFeeRate]);
+  }, [isManualRate, resolvedLateFeePolicy, resolvedRatePolicy, setInput, input.interestRate, input.lateFeeMode, input.annualLateFeeRate]);
 
   const calculationPolicySnapshot = result?.policySnapshot as Record<string, unknown> | null | undefined;
   const calculationRateSource = String(calculationPolicySnapshot?.rateSource || '');
@@ -200,12 +208,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const canValidateWithCurrentPolicy = canReadFinancialConfig
     ? !isRatePolicyResolving
       && !isLateFeePolicyResolving
-      && Boolean(resolvedRatePolicy)
+      && (isManualRate ? isManualRateValid : Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy)
       && Boolean(resolvedLateFeePolicy)
-      && !hasAmbiguousRatePolicy
       && !hasAmbiguousLateFeePolicy
-    : true;
-  const isRatePolicyReady = canReadFinancialConfig ? !isRatePolicyResolving && Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy : hasPolicyBackedCalculation;
+    : !isManualRate || isManualRateValid;
+  const isRatePolicyReady = isManualRate
+    ? isManualRateValid && calculationRateSource === 'manual'
+    : canReadFinancialConfig ? !isRatePolicyResolving && Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy : hasPolicyBackedCalculation;
   const isLateFeePolicyReady = canReadFinancialConfig
     ? !isLateFeePolicyResolving && Boolean(resolvedLateFeePolicy) && !hasAmbiguousLateFeePolicy
     : calculationLateFeeSource === 'policy';
@@ -232,6 +241,22 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ? formatCalculatedMoney(Number(result?.summary.installmentAmount || 0))
     : pendingCalculationValue;
   const liveRatePreview = useMemo(() => {
+    if (isManualRate) {
+      const annualRate = isManualRateValid ? input.interestRate : null;
+      const monthlyRate = annualRate === null ? null : getEquivalentMonthlyRate(annualRate);
+      return {
+        tone: 'neutral' as const,
+        statusLabel: tTerm('newCredit.rate.manual'),
+        description: tTerm('newCredit.rate.manualHelp'),
+        annualRate,
+        monthlyRate,
+        ruleLabel: '',
+        rangeLabel: '',
+        formulaLabel: annualRate !== null && monthlyRate !== null
+          ? `${formatPercent(annualRate, locale)} TNA / 12 = ${formatPercent(monthlyRate, locale)}` : '',
+      };
+    }
+
     if (!canReadFinancialConfig) {
       if (!hasValidatedResult) {
         return {
@@ -313,6 +338,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       formulaLabel: `${formatPercent(annualRate, locale)} TNA / 12 = ${formatPercent(monthlyRate, locale)}`,
     };
   }, [
+    isManualRate,
+    isManualRateValid,
+    input.interestRate,
     ambiguousRatePolicyMatches,
     appliedAnnualRate,
     appliedMonthlyRate,
@@ -387,23 +415,25 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   }, [borrowerErrors.customerId]);
 
   const handleCalculationInputChange = (partialInput: Partial<CreditCalculationInput>) => {
-    if (Object.prototype.hasOwnProperty.call(partialInput, 'interestRate')) {
-      delete partialInput.interestRate;
-      partialInput.rateSource = 'policy';
-    }
     setInput(partialInput);
   };
 
   const resetCalculation = () => {
+    setAgreedRateText('');
     setInput({
       ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
-      rateSource: 'policy' as const,
+      rateSource: 'manual' as const,
+      interestRate: Number.NaN,
       lateFeeSource: 'policy' as const,
       startDate: getLocalDateInputValue(),
     });
   };
 
   const handleValidateCredit = () => {
+    if (isManualRate && !isManualRateValid) {
+      void simulate();
+      return;
+    }
     if (input.startDate && !isValidOperationalDateOnly(input.startDate)) {
       toast.error({ title: tTerm('newCredit.validation.startDate') });
       return;
@@ -514,7 +544,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         startDate: input.startDate,
         lateFeeMode: calculationAppliedLateFeeMode || input.lateFeeMode || 'SIMPLE',
         annualLateFeeRate: Number.isFinite(calculationAppliedLateFeeRate) ? calculationAppliedLateFeeRate : annualLateFeeRate,
-        rateSource: 'policy',
+        rateSource: isManualRate ? 'manual' : 'policy',
         lateFeeSource: resolvedLateFeeSource,
       });
       const createdLoanId = Number(response?.data?.loan?.id);
@@ -568,7 +598,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         disabled={isSimulating || isConfigLoading}
         isLoading={isSimulating}
         aria-label={tTerm('newCredit.action.validate')}
-        title={canValidateWithCurrentPolicy
+        title={isManualRate
+          ? tTerm('newCredit.rate.validateHelp')
+          : canValidateWithCurrentPolicy
           ? tTerm('newCredit.action.validate.title.ready')
           : hasAmbiguousRatePolicy
             ? tTerm('newCredit.action.validate.title.conflict')
@@ -691,6 +723,42 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 />
               </FormField>
 
+              <FormField label={tTerm('newCredit.rate.source')}>
+                <OperationalSelect
+                  aria-label={tTerm('newCredit.rate.source')}
+                  value={isManualRate ? 'manual' : 'policy'}
+                  onChange={(event) => {
+                    setAgreedRateText('');
+                    setInput({
+                      rateSource: event.target.value as 'manual' | 'policy',
+                      interestRate: event.target.value === 'manual'
+                        ? Number.NaN
+                        : Number(resolvedRatePolicy?.annualEffectiveRate ?? DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT.interestRate),
+                    });
+                  }}
+                >
+                  <option value="policy">{tTerm('newCredit.rate.policy')}</option>
+                  <option value="manual">{tTerm('newCredit.rate.manual')}</option>
+                </OperationalSelect>
+              </FormField>
+              {isManualRate && (
+                <FormField label={tTerm('newCredit.rate.annual')} error={fieldErrors?.interestRate}>
+                  <AppInput
+                    aria-label={tTerm('newCredit.rate.annual')}
+                    variant="percent"
+                    value={agreedRateText}
+                    onValueChange={(value, detail) => {
+                      setAgreedRateText(value);
+                      handleCalculationInputChange({ interestRate: sanitizeNumericInputNumber(detail.numericValue) });
+                    }}
+                    maxDecimals={4}
+                    suffix="%"
+                    invalid={Boolean(fieldErrors?.interestRate)}
+                    required
+                  />
+                </FormField>
+              )}
+
               <div className="new-credit-field-grid">
                 <FormField
                   className="new-credit-field-grid__date"
@@ -736,7 +804,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       {tTerm('newCredit.ratePreview.eyebrow')}
                     </p>
                     <h5 className="mt-1 text-sm font-semibold text-text-primary">
-                      {tTerm('newCredit.ratePreview.title')}
+                      {tTerm(isManualRate ? 'newCredit.rate.manual' : 'newCredit.ratePreview.title')}
                     </h5>
                   </div>
                   <StatusChip tone={liveRatePreview.tone} size="sm" icon={<Percent size={13} />}>
@@ -757,7 +825,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       <div>
                         <span className="new-credit-config-label">{tTerm('newCredit.ratePreview.annualLabel')}</span>
                         <span className="new-credit-config-value">{formatPercent(liveRatePreview.annualRate, locale)}</span>
-                        <span className="new-credit-config-helper">{tTerm('newCredit.ratePreview.annualHelper')}</span>
+                        <span className="new-credit-config-helper">{tTerm(isManualRate ? 'newCredit.rate.manual' : 'newCredit.ratePreview.annualHelper')}</span>
                       </div>
                     </div>
 
@@ -783,7 +851,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       </div>
                     </div>
 
-                    <div className="new-credit-config-item new-credit-config-item--amber">
+                    {liveRatePreview.ruleLabel && <div className="new-credit-config-item new-credit-config-item--amber">
                       <div className="new-credit-config-icon" aria-hidden="true">
                         <CheckCircle2 size={15} />
                       </div>
@@ -792,7 +860,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                         <span className="new-credit-config-value">{liveRatePreview.ruleLabel}</span>
                         <span className="new-credit-config-helper">{liveRatePreview.rangeLabel || tTerm('newCredit.ratePreview.ruleHelper')}</span>
                       </div>
-                    </div>
+                    </div>}
                   </div>
                 ) : null}
               </section>

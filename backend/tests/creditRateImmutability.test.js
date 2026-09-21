@@ -67,10 +67,10 @@ test('credits use cases expose no operation that overwrites a persisted loan int
   }
 });
 
-test('loan creation persists policySnapshot and resolved interestRate from policy', () => {
+test('loan creation persists policySnapshot and resolved interestRate at origination', () => {
   const source = readSource(loanCreationPath);
   assert.match(source, /policySnapshot/, 'loanCreation must persist policySnapshot');
   assert.match(source, /calculationProfileVersionId/, 'loanCreation must persist calculationProfileVersionId');
-  // Confirms manual rate source is rejected at the creation boundary.
+  // Both configured and agreed rates are frozen at the creation boundary.
   assert.match(source, /rateSource/, 'loanCreation must enforce rateSource through policy resolver');
 });

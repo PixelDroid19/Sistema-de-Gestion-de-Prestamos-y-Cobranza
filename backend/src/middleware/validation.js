@@ -1,3 +1,4 @@
+const { validateAgreedInterestRate, AGREED_RATE_VALIDATION_MESSAGE } = require('@/modules/credits/domain/agreedInterestRate');
 const { ValidationError } = require('@/utils/errorHandler');
 const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/domain/calculation');
 const { parsePaginationQuery } = require('@/modules/shared/pagination');
@@ -298,7 +299,7 @@ const authValidation = {
 const loanValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { customerId, associateId, amount, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource, lateFeeSource } = req.body;
+    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource, lateFeeSource } = req.body;
     const errors = [];
 
     if (!validateIntegerId(customerId)) {
@@ -313,8 +314,12 @@ const loanValidation = {
       errors.push({ field: 'amount', message: 'El monto debe ser un número positivo' });
     }
 
-    if (!usesPolicySource(rateSource)) {
-      errors.push({ field: 'rateSource', message: 'La creación de créditos debe usar una política de tasa configurada' });
+    const isManualRate = String(rateSource || '').trim().toLowerCase() === 'manual';
+    if (!usesPolicySource(rateSource) && !isManualRate) {
+      errors.push({ field: 'rateSource', message: 'Selecciona una tasa configurada o pactada para el crédito' });
+    }
+    if (isManualRate && !validateAgreedInterestRate(interestRate)) {
+      errors.push({ field: 'interestRate', message: AGREED_RATE_VALIDATION_MESSAGE });
     }
 
     if (!usesPolicySource(lateFeeSource)) {
@@ -351,8 +356,10 @@ const loanValidation = {
       errors.push({ field: 'amount', message: 'El monto debe ser un número positivo' });
     }
 
-    if (!usesPolicySource(rateSource) && !validateInterestRate(interestRate)) {
-      errors.push({ field: 'interestRate', message: 'La tasa de interés debe estar entre 0 y 100' });
+    const isManualRate = String(rateSource || '').trim().toLowerCase() === 'manual';
+    const isValidRate = isManualRate ? validateAgreedInterestRate(interestRate) : validateInterestRate(interestRate);
+    if (!usesPolicySource(rateSource) && !isValidRate) {
+      errors.push({ field: 'interestRate', message: isManualRate ? AGREED_RATE_VALIDATION_MESSAGE : 'La tasa de interés debe estar entre 0 y 100' });
     }
 
     if (!validateTermMonths(termMonths)) {

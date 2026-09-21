@@ -66,7 +66,7 @@ test('credit policy resolver applies active policies when the caller marks field
   assert.equal(result.policySnapshot.lateFeeSource, 'policy');
 });
 
-test('credit policy resolver preserves explicit manual operator values and still traces available policies', async () => {
+test('credit policy resolver preserves explicit manual rates without linking an unapplied rate policy', async () => {
   const resolver = createCreditPolicyResolver({ configRepository: createConfigRepository() });
 
   const result = await resolver.resolve({
@@ -84,7 +84,7 @@ test('credit policy resolver preserves explicit manual operator values and still
   assert.equal(result.calculationInput.interestRate, 42);
   assert.equal(result.calculationInput.lateFeeMode, 'COMPOUND');
   assert.equal(result.calculationInput.annualLateFeeRate, 12);
-  assert.equal(result.policySnapshot.ratePolicyId, 10);
+  assert.equal(result.policySnapshot.ratePolicyId, null);
   assert.equal(result.policySnapshot.lateFeePolicyId, 20);
   assert.equal(result.policySnapshot.rateSource, 'manual');
   assert.equal(result.policySnapshot.lateFeeSource, 'manual');
@@ -202,4 +202,29 @@ test('credit policy resolver rejects ambiguous late-fee policies before calculat
     (error) => error instanceof ConflictError
       && error.message === 'Las políticas de mora activas no pueden compartir la misma prioridad.',
   );
+});
+
+test('manual rates do not depend on a configured range and retain their source', async () => {
+  const repository = createConfigRepository();
+  const resolver = createCreditPolicyResolver({ configRepository: {
+    async listActiveByCategory(category) {
+      assert.notEqual(category, 'rate_policy', 'Manual rates must not resolve unrelated ranges');
+      return repository.listActiveByCategory(category);
+    },
+  } });
+  const result = await resolver.resolve({ input: {
+    amount: 1000000, interestRate: 27.5, rateSource: 'manual', lateFeeSource: 'policy',
+  } });
+  assert.equal(result.calculationInput.interestRate, 27.5);
+  assert.equal(result.policySnapshot.rateSource, 'manual');
+  assert.equal(result.policySnapshot.ratePolicyId, null);
+  assert.equal(result.policySnapshot.appliedInterestRate, 27.5);
+  assert.equal(result.policySnapshot.lateFeeSource, 'policy');
+});
+
+test('manual rate precision is rejected before calculation to match persisted scale', async () => {
+  const resolver = createCreditPolicyResolver({ configRepository: createConfigRepository() });
+  await assert.rejects(() => resolver.resolve({ input: {
+    amount: 1000000, interestRate: 27.12345, rateSource: 'manual', lateFeeSource: 'policy',
+  } }), (error) => error instanceof ValidationError && /4 decimales/.test(error.message));
 });

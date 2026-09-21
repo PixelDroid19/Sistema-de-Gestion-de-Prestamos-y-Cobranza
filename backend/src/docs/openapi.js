@@ -72,7 +72,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
             type: 'number',
             minimum: 0,
             maximum: 100,
-            description: 'Opcional para simulaciones manuales. La creación real de créditos debe usar rateSource=policy y la tasa se resuelve desde /config/rate-policies.',
+            description: 'Tasa nominal anual (0–100, máximo 4 decimales para tasa pactada). Obligatoria con rateSource=manual; con policy se resuelve desde /config/rate-policies.',
           },
           termMonths: { type: 'integer', minimum: 1, maximum: 360 },
           startDate: {
@@ -87,7 +87,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
             description: 'Modos operativos admitidos por la simulación y por las políticas de mora configurables.',
           },
           annualLateFeeRate: { type: 'number', minimum: 0, maximum: 100 },
-          rateSource: { type: 'string', enum: ['policy', 'manual'], description: 'Para POST /loans debe ser policy; no se aceptan tasas manuales en créditos reales.' },
+          rateSource: { type: 'string', enum: ['policy', 'manual'], description: 'policy aplica la configuración por monto; manual conserva la tasa pactada indicada al registrar el crédito.' },
           lateFeeSource: { type: 'string', enum: ['policy', 'manual'], description: 'Para POST /loans debe ser policy; la mora de créditos reales se resuelve desde /config/late-fee-policies.' },
         },
       },
