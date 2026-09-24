@@ -23,7 +23,7 @@ import {
   isValidOperationalDateOnly,
 } from '../i18n/format';
 import { confirmDanger } from '../lib/confirmModal';
-import { parsePercentageRateInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
+import { parsePercentageWithPrecisionInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { getLocalDateInputValue } from '../lib/dateInput';
 import { normalizeVisibleName } from '../lib/displayNames';
 import { resolveOperationalGuard } from '../services/operationalGuards';
@@ -53,6 +53,7 @@ import { PromisesTab } from './creditDetails/PromisesTab';
 import { PayoutsTab } from './creditDetails/PayoutsTab';
 import { HistoryTab } from './creditDetails/HistoryTab';
 import { CreditDetailsModals } from './creditDetails/CreditDetailsModals';
+import { LoanOriginationCorrectionModal } from './creditDetails/LoanOriginationCorrectionModal';
 
 const toMoneyInputValue = (value: unknown) => {
   const numericValue = Number(value);
@@ -79,6 +80,7 @@ export default function CreditDetails() {
   const { locale } = useTranslation();
   const loanId = Number(id);
   const [activeTab, setActiveTab] = useState<CreditDetailsTab>('calendar');
+  const [showOriginationCorrection, setShowOriginationCorrection] = useState(false);
   const { user } = useSessionStore();
   const resolvedPermissions = useResolvedPermissionNames(user);
   const isAdmin = user?.role === 'admin';
@@ -761,7 +763,7 @@ export default function CreditDetails() {
   };
 
   const handleUpdateLateFeeRate = async () => {
-    const rate = parsePercentageRateInput(lateFeeRate);
+    const rate = parsePercentageWithPrecisionInput(lateFeeRate, 4);
     if (rate === null) { toast.error({ title: tTerm('creditDetails.validation.lateFeeRate') }); return; }
     await executeGuardedAction({
       action: 'lateFee.update',
@@ -990,10 +992,16 @@ export default function CreditDetails() {
         lateFeeUpdateGuard={lateFeeUpdateGuard} creditStatusUpdateGuard={creditStatusUpdateGuard}
         onBack={() => navigate('/credits')}
         onOpenLateFeeRate={() => { setLateFeeRate(String(loan.annualLateFeeRate || '')); setShowLateFeeModal(true); }}
+        canCorrectOrigination={isAdmin && ['pending', 'approved', 'active', 'overdue', 'defaulted'].includes(loan.status)}
+        onOpenOriginationCorrection={() => setShowOriginationCorrection(true)}
         onOpenStatus={() => setShowStatusModal(true)}
         onExportCreditExcel={handleExportCreditExcel}
         onOpenSchedule={() => navigate(`/credits/${loanId}/schedule`)}
       />
+
+      {showOriginationCorrection && (
+        <LoanOriginationCorrectionModal loan={loan} onClose={() => setShowOriginationCorrection(false)} />
+      )}
 
       <CreditSummaryMetrics
         loan={loan}

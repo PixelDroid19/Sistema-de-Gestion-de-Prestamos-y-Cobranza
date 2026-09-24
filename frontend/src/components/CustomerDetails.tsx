@@ -369,6 +369,17 @@ export default function CustomerDetails() {
                   <span className="text-text-secondary">{tTerm('customerDetails.field.address')}</span>
                   <span className="font-medium">{customer.address || tTerm('common.notAvailable')}</span>
                 </div>
+                {([
+                  ['housingType', customer.housingType],
+                  ['maritalStatus', customer.maritalStatus],
+                  ['occupation', customer.occupation],
+                  ['dependentsCount', customer.dependentsCount],
+                ] as const).map(([field, value]) => (
+                  <div key={field} className="flex justify-between border-b border-border-subtle pb-2 gap-4">
+                    <span className="text-text-secondary">{tTerm(`customerDetails.field.${field}`)}</span>
+                    <span className="font-medium text-right">{value ?? tTerm('common.notAvailable')}</span>
+                  </div>
+                ))}
               </div>
             </div>
             {customerCreditProfile && (

@@ -267,6 +267,119 @@ integrationTest('producto: origina un crédito y expone el mismo calendario por 
   assert.equal(response.body?.data?.loan?.customerId, customerId);
 });
 
+integrationTest('producto: corrige cliente y crédito con pagos conservados y permite mora 0 sin cambiar otros créditos', async () => {
+  assert.ok(accessToken && customerId && fixturePrefix);
+  const customerUpdate = await expectStatus({
+    method: 'PATCH', path: `/api/customers/${customerId}`, token: accessToken,
+    body: {
+      birthDate: '1993-05-21', housingType: 'Familiar', maritalStatus: 'Soltera',
+      occupation: 'Empleada', dependentsCount: 2, address: 'Cra 2 # 7-61',
+    },
+  }, 200);
+  assert.equal(customerUpdate.body.data.birthDate, '1993-05-21');
+  const correctedCustomer = await expectStatus({
+    method: 'PATCH', path: `/api/customers/${customerId}`, token: accessToken,
+    body: { birthDate: '1993-05-22' },
+  }, 200);
+  assert.equal(correctedCustomer.body.data.birthDate, '1993-05-22');
+  const storedCustomer = await Customer.findByPk(customerId);
+  assert.equal(storedCustomer.housingType, 'Familiar');
+  assert.equal(storedCustomer.maritalStatus, 'Soltera');
+  assert.equal(storedCustomer.occupation, 'Empleada');
+  assert.equal(storedCustomer.dependentsCount, 2);
+  assert.equal(storedCustomer.address, 'Cra 2 # 7-61');
+
+  const preservedLoan = await Loan.findByPk(loanId);
+  const preservedFinancials = { interestRate: preservedLoan.interestRate, schedule: preservedLoan.emiSchedule,
+    snapshot: preservedLoan.financialSnapshot };
+  const created = await expectStatus({
+    method: 'POST', path: '/api/loans', token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-correctable-loan` },
+    body: { customerId, amount: 1000000, termMonths: 3, startDate: '2026-08-15',
+      rateSource: 'manual', interestRate: 30, lateFeeSource: 'policy' },
+  }, 201);
+  const correctedLoanId = created.body.data.loan.id;
+  fixtureLoanIds.push(correctedLoanId);
+  const changed = await expectStatus({
+    method: 'PATCH', path: `/api/loans/${correctedLoanId}/origination`, token: accessToken,
+    body: { amount: 1200000, interestRate: 27.5, termMonths: 4, startDate: '2026-08-16' },
+  }, 200);
+  assert.equal(Number(changed.body.data.loan.interestRate), 27.5);
+  assert.equal(changed.body.data.loan.emiSchedule.length, 4);
+  assert.equal(changed.body.data.loan.emiSchedule[0].dueDate.slice(0, 10), '2026-09-16');
+  const correctedLoan = await Loan.findByPk(correctedLoanId);
+  assert.equal(Number(correctedLoan.amount), 1200000);
+  assert.equal(correctedLoan.policySnapshot.rateSource, 'manual');
+  assert.equal(correctedLoan.financialSnapshot.correctionHistory.length, 1);
+  assert.equal(correctedLoan.financialSnapshot.correctionHistory[0].before.amount, 1000000);
+  assert.equal(Number(correctedLoan.principalOutstanding), 1200000);
+
+  const noMora = await expectStatus({
+    method: 'PATCH', path: `/api/loans/${correctedLoanId}/late-fee-rate`, token: accessToken,
+    body: { lateFeeRate: 0 },
+  }, 200);
+  assert.equal(Number(noMora.body.data.loan.annualLateFeeRate), 0);
+  const withoutMora = await Loan.findByPk(correctedLoanId);
+  assert.equal(withoutMora.lateFeeMode, 'NONE');
+  assert.equal(withoutMora.lateFeePolicyId, null);
+  assert.equal(withoutMora.policySnapshot.lateFeeSource, 'manual');
+  assert.equal(withoutMora.financialSnapshot.policySnapshot.appliedAnnualLateFeeRate, 0);
+
+  await expectStatus({ method: 'PATCH', path: `/api/loans/${correctedLoanId}/status`, token: accessToken,
+    body: { status: 'approved' } }, 200);
+  await expectStatus({ method: 'PATCH', path: `/api/loans/${correctedLoanId}/status`, token: accessToken,
+    body: { status: 'active' } }, 200);
+  await expectStatus({ method: 'POST', path: '/api/loans/payments/process', token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-corrected-payment` },
+    body: { loanId: correctedLoanId, paymentAmount: Number(withoutMora.emiSchedule[0].scheduledPayment),
+      paymentDate: '2026-09-16', paymentMethod: 'cash' } }, 200);
+  const paymentBefore = (await Payment.findAll({ where: { loanId: correctedLoanId }, order: [['id', 'ASC']] }))
+    .map((payment) => payment.toJSON());
+  const beforePaidCorrection = await Loan.findByPk(correctedLoanId);
+  const paidInstallment = beforePaidCorrection.emiSchedule[0];
+  const paidTotal = Number(beforePaidCorrection.totalPaid);
+  const afterPaidCorrectionResponse = await expectStatus({
+    method: 'PATCH', path: `/api/loans/${correctedLoanId}/origination`, token: accessToken,
+    body: { amount: 1300000, interestRate: 25, termMonths: 5, startDate: '2026-08-20' },
+  }, 200);
+  assert.equal(afterPaidCorrectionResponse.body.data.loan.emiSchedule.length, 5);
+  const afterPaidCorrection = await Loan.findByPk(correctedLoanId);
+  const paymentAfter = (await Payment.findAll({ where: { loanId: correctedLoanId }, order: [['id', 'ASC']] }))
+    .map((payment) => payment.toJSON());
+  assert.deepEqual(paymentAfter, paymentBefore);
+  assert.deepEqual(afterPaidCorrection.emiSchedule[0], paidInstallment);
+  assert.equal(afterPaidCorrection.emiSchedule[1].dueDate.slice(0, 10), '2026-10-20');
+  assert.equal(Number(afterPaidCorrection.totalPaid), paidTotal);
+  assert.equal(Number(afterPaidCorrection.financialSnapshot.totalPrincipal), 1300000);
+  assert.equal(afterPaidCorrection.financialSnapshot.correctionHistory[1].mode, 'future_installments');
+  await expectStatus({
+    method: 'POST', path: '/api/loans/payments/process', token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-payment-after-correction` },
+    body: {
+      loanId: correctedLoanId,
+      paymentAmount: Number(afterPaidCorrection.emiSchedule[1].scheduledPayment),
+      paymentDate: '2026-10-20',
+      paymentMethod: 'cash',
+    },
+  }, 200);
+  const afterNextPayment = await Loan.findByPk(correctedLoanId);
+  assert.ok(Number(afterNextPayment.totalPaid) > paidTotal);
+  assert.equal(afterNextPayment.financialSnapshot.correctionHistory.length, 2);
+  assert.equal(afterNextPayment.emiSchedule[0].dueDate, paidInstallment.dueDate);
+
+  const beforeRejectedCorrection = await Loan.findByPk(correctedLoanId);
+  await expectStatus({ method: 'PATCH', path: `/api/loans/${correctedLoanId}/origination`, token: accessToken,
+    body: { amount: 900000, interestRate: 20, termMonths: 1, startDate: '2026-08-20' } }, 400);
+  const afterRejectedCorrection = await Loan.findByPk(correctedLoanId);
+  assert.equal(Number(afterRejectedCorrection.amount), Number(beforeRejectedCorrection.amount));
+  assert.deepEqual(afterRejectedCorrection.emiSchedule, beforeRejectedCorrection.emiSchedule);
+
+  const untouchedLoan = await Loan.findByPk(loanId);
+  assert.equal(untouchedLoan.interestRate, preservedFinancials.interestRate);
+  assert.deepEqual(untouchedLoan.emiSchedule, preservedFinancials.schedule);
+  assert.deepEqual(untouchedLoan.financialSnapshot, preservedFinancials.snapshot);
+});
+
 integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deuda antes de confirmar', async () => {
   assert.ok(accessToken && customerId && fixturePrefix, 'La prueba de capital requiere el fixture de originación.');
 
@@ -544,6 +657,13 @@ integrationTest('producto: una mora pagada no vuelve a cobrarse en la siguiente 
   const lateFeeLoanId = response.body?.data?.loan?.id;
   fixtureLoanIds.push(lateFeeLoanId);
 
+  await expectStatus({
+    method: 'PATCH',
+    path: `/api/loans/${lateFeeLoanId}/late-fee-rate`,
+    token: accessToken,
+    body: { lateFeeRate: 12 },
+  }, 200);
+
   response = await expectStatus({
     path: `/api/loans/${lateFeeLoanId}/installments/1/quote?asOfDate=2026-07-18`,
     token: accessToken,
@@ -598,6 +718,20 @@ integrationTest('producto: una mora pagada no vuelve a cobrarse en la siguiente 
     expectedRemainingLateFee,
     'La liquidación no debe volver a cobrar la mora ya pagada de la cuota 1.',
   );
+  const postedPenalty = await Payment.findOne({ where: { loanId: lateFeeLoanId, status: 'completed' } });
+  await expectStatus({
+    method: 'PATCH', path: `/api/loans/${lateFeeLoanId}/late-fee-rate`, token: accessToken,
+    body: { lateFeeRate: 0 },
+  }, 200);
+  const unchangedPenalty = await Payment.findByPk(postedPenalty.id);
+  assert.equal(Number(unchangedPenalty.penaltyApplied), Number(postedPenalty.penaltyApplied));
+  const zeroFeeQuote = await expectStatus({
+    path: `/api/loans/${lateFeeLoanId}/payoff-quote?asOfDate=2026-07-18`, token: accessToken,
+  }, 200);
+  assert.equal(Number(zeroFeeQuote.body?.data?.payoffQuote?.breakdown?.lateFee), 0);
+  const zeroFeeLoan = await Loan.findByPk(lateFeeLoanId);
+  assert.equal(zeroFeeLoan.lateFeeMode, 'NONE');
+  assert.ok(Number(zeroFeeLoan.financialSnapshot.totalPaidPenalty) > 0);
 });
 
 integrationTest('producto: las cuotas anuladas no reaparecen como deuda en la liquidación', async () => {

@@ -462,6 +462,28 @@ const paymentValidation = {
   }
 };
 
+const pushCustomerProfileValidation = ({ errors, body }) => {
+  const { birthDate, occupation, housingType, maritalStatus, dependentsCount, address } = body;
+  if (birthDate !== undefined && birthDate !== null && birthDate !== '' && !isValidDateOnly(String(birthDate).trim())) {
+    errors.push({ field: 'birthDate', message: 'La fecha de nacimiento debe tener formato AAAA-MM-DD' });
+  }
+  for (const [field, value, label] of [
+    ['occupation', occupation, 'La ocupación no puede estar vacía'],
+    ['housingType', housingType, 'El tipo de vivienda no puede estar vacío'],
+    ['maritalStatus', maritalStatus, 'El estado civil no puede estar vacío'],
+    ['address', address, 'La dirección no puede estar vacía'],
+  ]) {
+    if (value !== undefined && value !== null && (typeof value !== 'string' || !value.trim())) {
+      errors.push({ field, message: label });
+    } else if (typeof value === 'string' && value.length > 255) {
+      errors.push({ field, message: 'El dato no puede superar 255 caracteres' });
+    }
+  }
+  if (dependentsCount !== undefined && dependentsCount !== null && !validateIntegerRange(dependentsCount, 0, Number.MAX_SAFE_INTEGER)) {
+    errors.push({ field: 'dependentsCount', message: 'Las personas a cargo deben ser un número entero mayor o igual a 0' });
+  }
+};
+
 const customerValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
@@ -472,6 +494,7 @@ const customerValidation = {
     pushEmailValidation({ errors, email, required: true });
     pushPhoneValidation({ errors, phone, required: true });
     pushCustomerStatusValidation({ errors, status });
+    pushCustomerProfileValidation({ errors, body: req.body });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));
@@ -487,12 +510,9 @@ const customerValidation = {
       email,
       phone,
       status,
-      birthDate,
       documentNumber,
-      occupation,
       department,
       city,
-      address,
     } = req.body;
     const errors = [];
 
@@ -500,19 +520,10 @@ const customerValidation = {
     pushEmailValidation({ errors, email, required: false });
     pushPhoneValidation({ errors, phone, required: false });
     pushCustomerStatusValidation({ errors, status });
-
-    if (birthDate !== undefined && birthDate !== null && birthDate !== '') {
-      if (!isValidDateOnly(String(birthDate).trim())) {
-        errors.push({ field: 'birthDate', message: 'La fecha de nacimiento debe tener formato AAAA-MM-DD' });
-      }
-    }
+    pushCustomerProfileValidation({ errors, body: req.body });
 
     if (documentNumber !== undefined && documentNumber !== null && String(documentNumber).trim() === '') {
       errors.push({ field: 'documentNumber', message: 'El número de documento no puede estar vacío' });
-    }
-
-    if (occupation !== undefined && occupation !== null && String(occupation).trim() === '') {
-      errors.push({ field: 'occupation', message: 'La ocupación no puede estar vacía' });
     }
 
     if (department !== undefined && department !== null && String(department).trim() === '') {
@@ -521,10 +532,6 @@ const customerValidation = {
 
     if (city !== undefined && city !== null && String(city).trim() === '') {
       errors.push({ field: 'city', message: 'La ciudad no puede estar vacía' });
-    }
-
-    if (address !== undefined && address !== null && String(address).trim() === '') {
-      errors.push({ field: 'address', message: 'La dirección no puede estar vacía' });
     }
 
     if (errors.length > 0) {

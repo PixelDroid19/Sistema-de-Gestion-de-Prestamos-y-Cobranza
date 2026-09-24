@@ -20,6 +20,8 @@ describe('CreditDetailHeader behavior', () => {
         creditStatusUpdateGuard={executableGuard}
         onBack={vi.fn()}
         onOpenLateFeeRate={vi.fn()}
+        canCorrectOrigination
+        onOpenOriginationCorrection={vi.fn()}
         onOpenStatus={vi.fn()}
         onExportCreditExcel={vi.fn()}
         onOpenSchedule={vi.fn()}
@@ -45,6 +47,8 @@ describe('CreditDetailHeader behavior', () => {
         creditStatusUpdateGuard={executableGuard}
         onBack={vi.fn()}
         onOpenLateFeeRate={vi.fn()}
+        canCorrectOrigination
+        onOpenOriginationCorrection={vi.fn()}
         onOpenStatus={vi.fn()}
         onExportCreditExcel={vi.fn()}
         onOpenSchedule={vi.fn()}

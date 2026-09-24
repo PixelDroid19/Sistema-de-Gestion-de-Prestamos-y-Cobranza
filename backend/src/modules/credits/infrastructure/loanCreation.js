@@ -99,7 +99,10 @@ const resolveLoanStartDate = (value) => {
  * the calculation execution result, guaranteeing it is the exact profile that
  * produced the numbers.
  * The annual rate is either configured or explicitly agreed at origination.
- * Both sources are frozen in the financial snapshot; existing loans remain immutable.
+ * Both sources are recorded in the financial snapshot. An administrator can
+ * explicitly correct terms later; that operation records the prior terms,
+ * preserves posted installments, and rebuilds the unpaid schedule using the
+ * same profile version.
  * Late fees still require `lateFeeSource=policy`.
  *
  * @param {{ customerId: number, amount: number, interestRate?: number, rateSource: 'policy'|'manual', termMonths: number, lateFeeSource: 'policy', lateFeeMode?: string }} input

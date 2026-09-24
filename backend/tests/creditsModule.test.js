@@ -68,12 +68,9 @@ test('createUpdateLateFeeRate rejects malformed numeric rates before saving', as
   const savedLoans = [];
   const updateLateFeeRate = createUpdateLateFeeRate({
     loanRepository: {
-      async findById() {
-        return { id: 11, annualLateFeeRate: 0 };
-      },
-      async save(loan) {
-        savedLoans.push(loan);
-        return loan;
+      async updateLateFeeRate(input) {
+        savedLoans.push(input);
+        return { id: 11, annualLateFeeRate: input.rate };
       },
     },
   });
@@ -81,7 +78,7 @@ test('createUpdateLateFeeRate rejects malformed numeric rates before saving', as
   for (const lateFeeRate of ['1abc', '1e2']) {
     await assert.rejects(
       () => updateLateFeeRate({ actor: { id: 1, role: 'admin' }, loanId: 11, lateFeeRate }),
-      (error) => error instanceof ValidationError && error.message === 'La tasa de mora debe ser un número entre 0 y 100.',
+      (error) => error instanceof ValidationError && error.message === 'La tasa de mora debe estar entre 0 y 100, con máximo 4 decimales.',
     );
   }
 

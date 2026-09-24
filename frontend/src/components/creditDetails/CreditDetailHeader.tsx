@@ -27,6 +27,8 @@ type CreditDetailHeaderProps = {
   creditStatusUpdateGuard: CreditActionGuard;
   onBack: () => void;
   onOpenLateFeeRate: () => void;
+  canCorrectOrigination: boolean;
+  onOpenOriginationCorrection: () => void;
   onOpenStatus: () => void;
   onExportCreditExcel: () => void;
   onOpenSchedule: () => void;
@@ -95,6 +97,8 @@ export function CreditDetailHeader({
   creditStatusUpdateGuard,
   onBack,
   onOpenLateFeeRate,
+  canCorrectOrigination,
+  onOpenOriginationCorrection,
   onOpenStatus,
   onExportCreditExcel,
   onOpenSchedule,
@@ -121,6 +125,15 @@ export function CreditDetailHeader({
         icon={<Percent size={16} />}
       >
         {tTerm('creditDetails.header.lateFee')}
+      </HeaderToolbarButton>,
+    );
+  }
+
+  if (canCorrectOrigination) {
+    toolbarLeading.push(
+      <HeaderToolbarButton key="correct-origination" icon={<Edit2 size={16} />}
+        onClick={onOpenOriginationCorrection} title={tTerm('creditDetails.header.correctOrigination')}>
+        {tTerm('creditDetails.header.correctOrigination')}
       </HeaderToolbarButton>,
     );
   }

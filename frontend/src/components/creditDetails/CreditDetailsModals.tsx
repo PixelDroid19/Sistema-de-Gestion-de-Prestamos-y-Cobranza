@@ -504,7 +504,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
               value={props.lateFeeRate}
               onValueChange={props.onLateFeeRateChange}
               placeholder="0.00"
-              maxDecimals={2}
+              maxDecimals={4}
             />
           </FormField>
         </ModalShell>

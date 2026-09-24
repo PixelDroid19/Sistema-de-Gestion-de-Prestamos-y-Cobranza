@@ -28,6 +28,7 @@ const {
   createGetDuePayments,
   createSearchLoans,
   createUpdateLateFeeRate,
+  createCorrectLoanOrigination,
 } = require('./application/useCases');
 const { createAttachmentUpload } = require('./presentation/attachmentUpload');
 const { createCreditsComposition } = require('./composition');
@@ -48,6 +49,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     promiseRepository,
     creditDomainService,
     loanCreationService,
+    loanCorrectionService,
     notificationPort,
     attachmentStorage,
     loanAccessPolicy,
@@ -89,6 +91,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     getDuePayments: createGetDuePayments({ loanRepository, alertRepository, loanViewService }),
     searchLoans: createSearchLoans({ loanRepository, loanAccessPolicy }),
     updateLateFeeRate: createUpdateLateFeeRate({ loanRepository, loanAccessPolicy, auditService }),
+    correctLoanOrigination: createCorrectLoanOrigination({ loanCorrectionService, auditService }),
   };
 
   return createModule({

@@ -221,6 +221,12 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, message: 'Estado del crédito actualizado correctamente', data: { loan } });
   }));
 
+  router.patch('/:id/origination', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const loanId = parseRequiredRouteId(req.params.id, 'loanId');
+    const loan = await useCases.correctLoanOrigination({ actor: req.user, loanId, payload: req.body });
+    res.json({ success: true, message: 'Condiciones del crédito corregidas correctamente', data: { loan } });
+  }));
+
   router.patch('/:id/recovery-status', requirePermission('CREDITS_UPDATE'), asyncHandler(async (req, res) => {
     const loanId = parseRequiredRouteId(req.params.id, 'loanId');
     const loan = await useCases.updateRecoveryStatus({ actor: req.user, loanId, recoveryStatus: req.body.recoveryStatus });

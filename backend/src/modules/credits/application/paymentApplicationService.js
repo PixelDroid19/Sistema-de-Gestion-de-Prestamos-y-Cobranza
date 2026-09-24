@@ -294,6 +294,11 @@ const persistLoanSnapshot = ({
   penaltyApplied = 0,
   accruedInterestApplied = 0,
 }) => {
+  for (const key of ['policySnapshot', 'startDate', 'calculationMethod', 'correctionHistory']) {
+    if (snapshot[key] === undefined && loan.financialSnapshot?.[key] !== undefined) {
+      snapshot[key] = loan.financialSnapshot[key];
+    }
+  }
   Object.assign(snapshot, preserveNonScheduleCollectionsInSnapshot({
     snapshot,
     previousSnapshot: loan.financialSnapshot,

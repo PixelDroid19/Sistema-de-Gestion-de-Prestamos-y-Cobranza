@@ -332,6 +332,24 @@ export const useLoanById = (loanId: number) => {
   });
 };
 
+export type LoanOriginationCorrection = {
+  amount: number;
+  interestRate: number;
+  termMonths: number;
+  startDate: string;
+};
+
+export const useCorrectLoanOrigination = (loanId: number) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (correction: LoanOriginationCorrection) => {
+      const { data } = await apiClient.patch(`/loans/${loanId}/origination`, correction);
+      return data;
+    },
+    onSuccess: () => invalidateAfterPayment(queryClient, { loanId }),
+  });
+};
+
 export interface LoanStatistics {
   counts: {
     totalCredits: number;

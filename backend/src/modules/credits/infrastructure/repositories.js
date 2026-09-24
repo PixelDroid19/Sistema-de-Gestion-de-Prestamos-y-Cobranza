@@ -16,6 +16,7 @@ const { createCreditPolicyResolver } = require('@/modules/credits/application/cr
 const { configRepository } = require('@/modules/config/infrastructure/repositories');
 const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
+const { createLoanCorrectionService } = require('./loanCorrection');
 const { roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
 const { normalizeUtcDateOnly } = require('@/modules/credits/application/loanFinancials');
 const { getCurrentOperationalDateOnly } = require('@/modules/shared/dateUtils');
@@ -25,6 +26,7 @@ const {
 } = require('@/modules/credits/domain/calculation');
 
 const { paginateModel } = require('@/modules/shared/pagination');
+const { ValidationError } = require('@/utils/errorHandler');
 
 const ACTIVE_PROMISE_STATUSES = ['pending', 'broken'];
 const MANUAL_ALERT_RESOLUTION_SOURCES = new Set(['manual_follow_up']);
@@ -379,6 +381,44 @@ const createCreditsInfrastructure = ({
       save(loan) {
         return loan.save();
       },
+      async updateLateFeeRate({ loanId, rate }) {
+        return loanModel.sequelize.transaction(async (transaction) => {
+          const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
+          if (!loan) return null;
+          if (['paid', 'closed', 'cancelled', 'rejected'].includes(loan.status)) {
+            throw new ValidationError('No se puede cambiar la mora de un crédito cerrado o rechazado.');
+          }
+          const collectedPenalty = rate > 0 && await paymentModel.count({
+            where: { loanId, status: { [Op.ne]: 'annulled' }, penaltyApplied: { [Op.gt]: 0 } },
+            transaction,
+          });
+          if (collectedPenalty) {
+            throw new ValidationError('Este crédito ya tiene mora pagada. Revisa esos pagos antes de cambiar la tasa.');
+          }
+
+          const currentMode = String(loan.lateFeeMode || 'NONE').toUpperCase();
+          const lateFeeMode = rate === 0 ? 'NONE' : (currentMode === 'NONE' ? 'SIMPLE' : currentMode);
+          const policySnapshot = {
+            ...(loan.policySnapshot || {}),
+            lateFeeSource: 'manual',
+            lateFeePolicyId: null,
+            lateFeePolicyKey: null,
+            lateFeePolicyLabel: null,
+            lateFeePolicyMode: null,
+            lateFeePolicyRate: null,
+            appliedLateFeeMode: lateFeeMode,
+            appliedAnnualLateFeeRate: rate,
+          };
+          loan.set({
+            annualLateFeeRate: rate,
+            lateFeeMode,
+            lateFeePolicyId: null,
+            policySnapshot,
+            financialSnapshot: { ...(loan.financialSnapshot || {}), policySnapshot },
+          });
+          return loan.save({ transaction });
+        });
+      },
       destroy(loan) {
         return loan.destroy();
       },
@@ -595,6 +635,13 @@ const createCreditsInfrastructure = ({
         return loanCreator(input);
       },
     },
+    loanCorrectionService: createLoanCorrectionService({
+      loanModel,
+      paymentModel,
+      alertModel: loanAlertModel,
+      promiseModel: promiseToPayModel,
+      profileModel: calculationProfileVersionModel,
+    }),
     notificationPort: {
       sendLoanReminder(userId, payload) {
         return notifications.sendNotification(
@@ -648,6 +695,7 @@ const {
   creditDomainService,
   calculationProfileRepository,
   loanCreationService,
+  loanCorrectionService,
   notificationPort,
   attachmentStorage,
 } = createCreditsInfrastructure();
@@ -664,6 +712,7 @@ module.exports = {
   creditDomainService,
   calculationProfileRepository,
   loanCreationService,
+  loanCorrectionService,
   notificationPort,
   attachmentStorage,
 };

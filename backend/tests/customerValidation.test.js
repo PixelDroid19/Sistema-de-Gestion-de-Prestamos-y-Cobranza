@@ -57,11 +57,39 @@ test('customerValidation.update rejects invalid partial customer updates with st
     { field: 'phone', message: 'El teléfono debe ser válido' },
     { field: 'status', message: 'El estado debe ser activo, inactivo o bloqueado' },
     { field: 'birthDate', message: 'La fecha de nacimiento debe tener formato AAAA-MM-DD' },
-    { field: 'documentNumber', message: 'El número de documento no puede estar vacío' },
     { field: 'occupation', message: 'La ocupación no puede estar vacía' },
+    { field: 'address', message: 'La dirección no puede estar vacía' },
+    { field: 'documentNumber', message: 'El número de documento no puede estar vacío' },
     { field: 'department', message: 'El departamento no puede estar vacío' },
     { field: 'city', message: 'La ciudad no puede estar vacía' },
-    { field: 'address', message: 'La dirección no puede estar vacía' },
+  ]);
+});
+
+test('customerValidation accepts separate household data and corrected birth dates on create and update', async () => {
+  const profile = {
+    birthDate: '1993-05-21',
+    housingType: 'Familiar',
+    maritalStatus: 'Soltera',
+    occupation: 'Empleada en el SENA',
+    dependentsCount: 0,
+  };
+  await assert.doesNotReject(() => runMiddleware(customerValidation.create, {
+    body: { name: 'Ana Cliente', email: 'ana@example.com', phone: '+573001112244', ...profile },
+  }));
+  await assert.doesNotReject(() => runMiddleware(customerValidation.update, {
+    body: { ...profile, birthDate: '1993-05-22', dependentsCount: null },
+  }));
+});
+
+test('customerValidation rejects malformed household fields on creation', async () => {
+  const error = await captureMiddlewareError(customerValidation.create, {
+    body: {
+      name: 'Ana Cliente', email: 'ana@example.com', phone: '+573001112244',
+      birthDate: '2026-02-30', housingType: ' ', maritalStatus: '', dependentsCount: -1,
+    },
+  });
+  assert.deepEqual(error.errors.map(({ field }) => field), [
+    'birthDate', 'housingType', 'maritalStatus', 'dependentsCount',
   ]);
 });
 

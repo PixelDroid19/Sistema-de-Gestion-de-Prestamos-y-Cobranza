@@ -8,12 +8,15 @@ const {
   calculateOutstandingLateFee,
 } = require('../domain/calculation/lateFeeCalculator');
 const { paginateArray } = require('@/modules/shared/pagination');
-const { validateInterestRate } = require('@/modules/shared/validators');
+const { validateTermMonths } = require('@/modules/shared/validators');
+const { validateAgreedInterestRate, AGREED_RATE_VALIDATION_MESSAGE } = require('@/modules/credits/domain/agreedInterestRate');
+const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { isAdministrativeLoginRole } = require('@/modules/shared/roles');
 const {
   buildDateRangeMessage,
   getCurrentOperationalDateOnly,
+  isValidDateOnly,
 } = require('@/modules/shared/dateUtils');
 const {
   normalizeAttachmentVisibility,
@@ -48,7 +51,7 @@ const FOLLOW_UP_CREATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizad
 const LOAN_ALERT_UPDATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden actualizar alertas del crédito.';
 const PROMISE_UPDATE_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden actualizar promesas de pago.';
 const PROMISE_DOWNLOAD_DENIED_MESSAGE = 'Solo usuarios administrativos autorizados pueden descargar documentos de promesa de pago.';
-const LATE_FEE_RATE_VALID_MESSAGE = 'La tasa de mora debe ser un número entre 0 y 100.';
+const LATE_FEE_RATE_VALID_MESSAGE = 'La tasa de mora debe estar entre 0 y 100, con máximo 4 decimales.';
 const LOAN_CREATION_IDEMPOTENCY_CONFLICT_MESSAGE = 'Esta creación de crédito ya fue enviada con otros datos. Revisa el resultado antes de intentar nuevamente.';
 const LOAN_CREATION_IDEMPOTENCY_PENDING_MESSAGE = 'La creación del crédito ya se está procesando. Espera el resultado antes de intentar nuevamente.';
 const PROMISE_AMOUNT_POSITIVE_MESSAGE = 'El monto prometido debe ser mayor que 0.';
@@ -1921,33 +1924,51 @@ const createSearchLoans = ({ loanRepository, loanAccessPolicy }) => async ({ act
  * @param {{ loanRepository: object, loanAccessPolicy?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditService }) => {
+const createUpdateLateFeeRate = ({ loanRepository, auditService }) => {
   const useCase = async ({ actor, loanId, lateFeeRate }) => {
     if (actor.role !== 'admin') {
       throw new AuthorizationError(LATE_FEE_RATE_ADMIN_REQUIRED_MESSAGE);
     }
 
-    if (!validateInterestRate(lateFeeRate)) {
+    if (!validateAgreedInterestRate(lateFeeRate)) {
       throw new ValidationError(LATE_FEE_RATE_VALID_MESSAGE);
     }
     const parsedRate = Number(typeof lateFeeRate === 'string' ? lateFeeRate.trim() : lateFeeRate);
 
-    const loan = loanAccessPolicy
-      ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })
-      : await loanRepository.findById(loanId);
-
-    if (!loan) {
-      throw new NotFoundError('Loan');
-    }
-
-    loan.annualLateFeeRate = parsedRate;
-    return loanRepository.save(loan);
+    const loan = await loanRepository.updateLateFeeRate({ loanId, rate: parsedRate });
+    if (!loan) throw new NotFoundError('Loan');
+    return loan;
   };
 
   if (auditService) {
     return withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
   }
   return useCase;
+};
+
+/** Rebuild unpaid obligations for an explicit admin correction, preserving posted installments. */
+const createCorrectLoanOrigination = ({ loanCorrectionService, auditService }) => {
+  const useCase = async ({ actor, loanId, payload }) => {
+    if (actor?.role !== 'admin') {
+      throw new AuthorizationError('Solo un administrador puede corregir las condiciones del crédito.');
+    }
+    const allowedFields = new Set(['amount', 'interestRate', 'termMonths', 'startDate']);
+    if (!payload || Object.keys(payload).some((field) => !allowedFields.has(field))) {
+      throw new ValidationError('La corrección solo permite monto, tasa, plazo y fecha de desembolso.');
+    }
+    const amount = parsePositiveCurrencyAmount(payload?.amount);
+    if (amount === null) throw new ValidationError('El monto debe ser positivo y tener máximo 2 decimales.');
+    if (!validateAgreedInterestRate(payload?.interestRate)) throw new ValidationError(AGREED_RATE_VALIDATION_MESSAGE);
+    if (!validateTermMonths(payload?.termMonths)) throw new ValidationError('El plazo debe estar entre 1 y 360 meses.');
+    if (!isValidDateOnly(payload?.startDate)) throw new ValidationError('La fecha de desembolso debe ser válida.');
+    return loanCorrectionService.correct({
+      loanId, actorId: actor.id, amount, interestRate: Number(payload.interestRate),
+      termMonths: payload.termMonths, startDate: payload.startDate,
+    });
+  };
+  return auditService
+    ? withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase)
+    : useCase;
 };
 
 module.exports = {
@@ -1979,6 +2000,7 @@ module.exports = {
   createGetDuePayments,
   createSearchLoans,
   createUpdateLateFeeRate,
+  createCorrectLoanOrigination,
   filterLoansByFilters,
   isValidAttachmentSignature,
   validateAttachmentFileSignature,

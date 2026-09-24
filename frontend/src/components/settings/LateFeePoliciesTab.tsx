@@ -49,6 +49,10 @@ export default function LateFeePoliciesTab({
   });
   const [isLateFeeModalOpen, setIsLateFeeModalOpen] = useState(false);
   const [editingLateFeePolicy, setEditingLateFeePolicy] = useState<any | null>(null);
+  const zeroLateFeePolicies = lateFeePolicies.filter((policy) => (
+    Number(policy.annualEffectiveRate) === 0 && String(policy.lateFeeMode).toUpperCase() === 'NONE'
+  ));
+  const isZeroLateFeeActive = zeroLateFeePolicies.some((policy) => policy.isActive !== false);
 
   const resetLateFeeDraft = () => {
     setNewLateFeePolicy({ label: '', annualEffectiveRate: '', lateFeeMode: 'SIMPLE', priority: 'medium', description: '' });
@@ -59,6 +63,24 @@ export default function LateFeePoliciesTab({
   const openCreateModal = () => {
     setEditingLateFeePolicy(null);
     setNewLateFeePolicy({ label: '', annualEffectiveRate: '', lateFeeMode: 'SIMPLE', priority: 'medium', description: '' });
+    setIsLateFeeModalOpen(true);
+  };
+
+  const activateNoLateFee = async () => {
+    if (isZeroLateFeeActive) return;
+    const zeroLateFeePolicy = zeroLateFeePolicies[0];
+    if (zeroLateFeePolicy) {
+      try {
+        await updateLateFeePolicy.mutateAsync({ id: zeroLateFeePolicy.id, isActive: true });
+        toast.success({ description: tTerm('settings.lateFee.zeroActive') });
+      } catch (error) {
+        reportClientError('settings.lateFee.update', error);
+        toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+      }
+      return;
+    }
+    setEditingLateFeePolicy(null);
+    setNewLateFeePolicy({ label: tTerm('settings.lateFee.zeroName'), annualEffectiveRate: '0', lateFeeMode: 'NONE', priority: 'medium', description: '' });
     setIsLateFeeModalOpen(true);
   };
 
@@ -181,6 +203,13 @@ export default function LateFeePoliciesTab({
         title={tTerm('settings.lateFee.section.title')}
         subtitle={tTerm('settings.lateFee.section.subtitle')}
         actions={(
+          <><ActionButton
+            type="button"
+            onClick={activateNoLateFee}
+            disabled={isZeroLateFeeActive || updateLateFeePolicy.isPending}
+          >
+            {isZeroLateFeeActive ? tTerm('settings.lateFee.zeroActive') : tTerm('settings.lateFee.zeroAction')}
+          </ActionButton>
           <ActionButton
             type="button"
             variant="primary"
@@ -188,10 +217,11 @@ export default function LateFeePoliciesTab({
             onClick={openCreateModal}
           >
             {tTerm('settings.lateFee.cta.openCreate')}
-          </ActionButton>
+          </ActionButton></>
         )}
       >
         <p className="text-sm leading-6 text-text-secondary">{tTerm('settings.lateFee.note')}</p>
+        <p className="text-sm leading-6 text-text-secondary">{tTerm('settings.lateFee.historyNote')}</p>
       </SectionSurface>
 
       <AppTable variant="operational" shell="off" minWidthClassName="min-w-[760px]" aria-label={tTerm('settings.lateFee.table.aria')}>

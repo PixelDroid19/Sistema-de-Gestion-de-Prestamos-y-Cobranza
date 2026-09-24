@@ -23,6 +23,10 @@ type CustomerFormData = {
   phone: string;
   email: string;
   address: string;
+  housingType: string;
+  maritalStatus: string;
+  occupation: string;
+  dependentsCount: string;
 };
 
 const EMPTY_FORM: CustomerFormData = {
@@ -33,6 +37,10 @@ const EMPTY_FORM: CustomerFormData = {
   phone: '',
   email: '',
   address: '',
+  housingType: '',
+  maritalStatus: '',
+  occupation: '',
+  dependentsCount: '',
 };
 
 const splitName = (fullName: string) => {
@@ -77,6 +85,10 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
       phone: existingCustomer.phone || '',
       email: existingCustomer.email || '',
       address: existingCustomer.address || '',
+      housingType: existingCustomer.housingType || '',
+      maritalStatus: existingCustomer.maritalStatus || '',
+      occupation: existingCustomer.occupation || '',
+      dependentsCount: existingCustomer.dependentsCount == null ? '' : String(existingCustomer.dependentsCount),
     });
   }, [existingCustomer, isEditing]);
 
@@ -90,7 +102,11 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
       name: fullName,
       email: payload.email.trim(),
       phone: payload.phone.trim(),
-      address: payload.address.trim() || undefined,
+      address: payload.address.trim() || null,
+      housingType: payload.housingType.trim() || null,
+      maritalStatus: payload.maritalStatus.trim() || null,
+      occupation: payload.occupation.trim() || null,
+      dependentsCount: payload.dependentsCount.trim() === '' ? null : Number(payload.dependentsCount),
       documentNumber: payload.documentId.trim() || undefined,
       status: payload.status,
     };
@@ -230,6 +246,27 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
                   <option value="inactive">{tTerm('common.status.inactive')}</option>
                   <option value="blacklisted">{tTerm('common.status.blacklisted')}</option>
                 </OperationalSelect>
+              </FormField>
+            </div>
+          </SectionSurface>
+
+          <SectionSurface title={tTerm('newCustomer.section.household')}>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <FormField label={tTerm('newCustomer.field.housingType')}>
+                <AppInput id="new-customer-housing-type" variant="text" value={formData.housingType}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, housingType: value }))} />
+              </FormField>
+              <FormField label={tTerm('newCustomer.field.maritalStatus')}>
+                <AppInput id="new-customer-marital-status" variant="text" value={formData.maritalStatus}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, maritalStatus: value }))} />
+              </FormField>
+              <FormField label={tTerm('newCustomer.field.occupation')}>
+                <AppInput id="new-customer-occupation" variant="text" value={formData.occupation}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, occupation: value }))} />
+              </FormField>
+              <FormField label={tTerm('newCustomer.field.dependentsCount')}>
+                <AppInput id="new-customer-dependents" variant="integer" value={formData.dependentsCount}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, dependentsCount: value }))} />
               </FormField>
             </div>
           </SectionSurface>

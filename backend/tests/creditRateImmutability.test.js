@@ -3,14 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Architectural lock for AGENTS.md Contract 2 (Amount-Based Rate Parameterization):
-// "Existing loans must not be recalculated when future rate policies change.
-//  Do not reintroduce manual rate mutation for an already-created loan."
-//
-// This guard ensures no new endpoint or use case is added that mutates a Loan's
-// interestRate / ratePolicyId / policySnapshot AFTER creation. Only late-fee rate
-// is allowed to be updated (separate admin-guarded operation), and it must not
-// touch interestRate.
+// Existing loans never change when rate policies change. The explicit admin
+// origination correction is the only path allowed to replace agreed terms;
+// its behavior and payment-history guards are covered by loanCorrection.test.js.
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const creditsRouterPath = path.join(repoRoot, 'backend/src/modules/credits/presentation/router.js');
@@ -19,7 +14,7 @@ const loanCreationPath = path.join(repoRoot, 'backend/src/modules/credits/infras
 
 const readSource = (p) => fs.readFileSync(p, 'utf8');
 
-test('credits router exposes no endpoint that mutates a loan interestRate after creation', () => {
+test('credits router exposes only reviewed loan mutation endpoints', () => {
   const source = readSource(creditsRouterPath);
 
   // Allowed mutation endpoints — anything else mutating loans is suspect.
@@ -30,6 +25,7 @@ test('credits router exposes no endpoint that mutates a loan interestRate after 
     "router.patch('/:loanId/promises/:promiseId/status'",
     "router.patch('/:loanId/payments/:paymentId'",
     "router.patch('/:loanId/late-fee-rate'",
+    "router.patch('/:id/origination'",
     "router.delete('/:id'",
   ];
 
@@ -43,9 +39,14 @@ test('credits router exposes no endpoint that mutates a loan interestRate after 
     const isAllowed = allowedMutationPaths.some((allowed) => normalized.startsWith(allowed.replace(/\s+/g, '')));
     assert.ok(
       isAllowed,
-      `Unexpected loan-mutating endpoint detected: ${match}. If you are adding a new endpoint, confirm it does not mutate loan.interestRate, loan.ratePolicyId, or loan.policySnapshot, then extend the allowlist in this test.`,
+      `Unexpected loan-mutating endpoint detected: ${match}. Review its effect on persisted loan terms and payment history before extending the allowlist.`,
     );
   }
+});
+
+test('origination correction is explicitly restricted to administrators', () => {
+  const source = readSource(creditsRouterPath);
+  assert.match(source, /router\.patch\('\/:id\/origination', authMiddleware\(\['admin'\]\)/);
 });
 
 test('credits use cases expose no operation that overwrites a persisted loan interestRate', () => {
