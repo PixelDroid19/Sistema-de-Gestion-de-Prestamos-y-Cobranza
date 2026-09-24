@@ -13,6 +13,40 @@ afterEach(async () => {
   activeServer = null;
 });
 
+test('PUT /api/permissions/user/:userId/direct forwards an admin bulk action and rejects malformed IDs', async () => {
+  const calls = [];
+  const app = express();
+  app.use(express.json());
+  app.use(createPermissionsRouter({
+    authMiddleware: () => (req, _res, next) => { req.user = { id: 3, role: 'admin' }; next(); },
+    useCases: {
+      setAllDirectPermissions: async (payload) => {
+        calls.push(payload);
+        return { userId: payload.targetUserId, action: payload.action, changedCount: 2, directCount: 0 };
+      },
+    },
+  }));
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'PUT',
+    path: '/user/12/direct',
+    body: { action: 'revoke_all' },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body.data, { userId: 12, action: 'revoke_all', changedCount: 2, directCount: 0 });
+  assert.deepEqual(calls, [{ actor: { id: 3, role: 'admin' }, targetUserId: 12, action: 'revoke_all' }]);
+
+  const invalid = await requestJson(activeServer, {
+    method: 'PUT',
+    path: '/user/12abc/direct',
+    body: { action: 'grant_all' },
+  });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(calls.length, 1);
+});
+
 test('GET /api/permissions returns all permissions (requires auth)', async () => {
   const mockUseCases = {
     listPermissions: mock.fn(() => Promise.resolve({

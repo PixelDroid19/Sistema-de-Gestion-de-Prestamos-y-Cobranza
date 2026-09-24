@@ -426,6 +426,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       interestRate: Number.NaN,
       lateFeeSource: 'policy' as const,
       startDate: getLocalDateInputValue(),
+      firstDueDate: undefined,
     });
   };
 
@@ -436,6 +437,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     }
     if (input.startDate && !isValidOperationalDateOnly(input.startDate)) {
       toast.error({ title: tTerm('newCredit.validation.startDate') });
+      return;
+    }
+    if (input.firstDueDate && !isValidOperationalDateOnly(input.firstDueDate)) {
+      toast.error({ title: tTerm('activeCreditSimulation.error.firstDueDate') });
       return;
     }
 
@@ -542,6 +547,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         interestRate: Number(result?.inputs?.interestRate ?? resolvedRatePolicy?.annualEffectiveRate ?? input.interestRate),
         termMonths: Number(input.termMonths),
         startDate: input.startDate,
+        firstDueDate: input.firstDueDate || null,
         lateFeeMode: calculationAppliedLateFeeMode || input.lateFeeMode || 'SIMPLE',
         annualLateFeeRate: Number.isFinite(calculationAppliedLateFeeRate) ? calculationAppliedLateFeeRate : annualLateFeeRate,
         rateSource: isManualRate ? 'manual' : 'policy',
@@ -767,6 +773,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 >
                   <AppInput
                     variant="date"
+                    aria-label={tTerm('simulator.form.firstPaymentDate')}
                     value={input.startDate || ''}
                     onValueChange={(value) => handleCalculationInputChange({ startDate: String(value || '') || undefined })}
                     icon={<CalendarDays size={18} className="new-credit-input-icon--brand" />}
@@ -787,6 +794,16 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   />
                 </FormField>
               </div>
+
+              <FormField label={tTerm('simulator.form.firstDueDate')} tooltip={tTerm('simulator.help.firstDueDate')} error={fieldErrors?.firstDueDate}>
+                <AppInput
+                  variant="date"
+                  aria-label={tTerm('simulator.form.firstDueDate')}
+                  value={input.firstDueDate || ''}
+                  onValueChange={(value) => handleCalculationInputChange({ firstDueDate: String(value || '') || undefined })}
+                  invalid={Boolean(fieldErrors?.firstDueDate)}
+                />
+              </FormField>
 
               {/* Vector Illustration at the bottom */}
               <ParametersIllustration />

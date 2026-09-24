@@ -49,6 +49,7 @@ const buildCalculationExplanation = ({ method, input, profile, policySnapshot, s
       monthlyInterestRate: monthlyRate,
       termMonths: Number(input.termMonths),
       startDate: input.startDate || null,
+      firstDueDate: input.firstDueDate || null,
     },
     lateFee: {
       mode: lateFeeMode,

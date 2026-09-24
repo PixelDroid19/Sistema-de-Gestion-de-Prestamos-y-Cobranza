@@ -20,6 +20,8 @@ const {
   AssociateInstallment,
   Loan,
   Payment,
+  User,
+  UserPermission,
   OperatingExpense,
   DocumentAttachment,
   LoanAlert,
@@ -223,8 +225,27 @@ integrationTest('producto: origina un crédito y expone el mismo calendario por 
   assert.deepEqual(financialRows(response.body.data.loan.emiSchedule), financialRows(validatedSchedule),
     'Registrar el crédito no debe cambiar el calendario que se validó con las tasas activas.');
   const persistedLoan = await Loan.findByPk(loanId);
+  assert.equal(new Date(persistedLoan.startDate).toISOString().slice(0, 10), '2026-07-17');
   assert.deepEqual(financialRows(persistedLoan.emiSchedule), financialRows(validatedSchedule),
     'El calendario persistido debe conservar fechas, cuotas, capital e interés de la validación.');
+  const byDisbursementDate = await expectStatus({
+    path: '/api/loans/search?startDate=2026-07-17&endDate=2026-07-17&pageSize=100',
+    token: accessToken,
+  }, 200);
+  assert.ok(byDisbursementDate.body.data.loans.some((entry) => Number(entry.id) === Number(loanId)),
+    'El filtro Fecha inicio debe buscar la fecha de desembolso, no la fecha de registro.');
+  const nextDay = await expectStatus({
+    path: '/api/loans/search?startDate=2026-07-18&endDate=2026-07-18&pageSize=100',
+    token: accessToken,
+  }, 200);
+  assert.ok(nextDay.body.data.loans.every((entry) => Number(entry.id) !== Number(loanId)),
+    JSON.stringify(nextDay.body.data.loans.filter((entry) => Number(entry.id) === Number(loanId)).map((entry) => ({ id: entry.id, startDate: entry.startDate, createdAt: entry.createdAt }))));
+  const aboveAmount = await expectStatus({
+    path: '/api/loans/search?minAmount=1000001&pageSize=100',
+    token: accessToken,
+  }, 200);
+  assert.ok(aboveAmount.body.data.loans.every((entry) => Number(entry.id) !== Number(loanId)),
+    'El filtro de monto mínimo debe aplicarse en la búsqueda SQL.');
   const principalTotal = persistedLoan.emiSchedule.reduce((total, row) => total + Number(row.principalComponent), 0);
   assert.ok(Math.abs(principalTotal - 1000000) < 0.01, 'Las cuotas deben amortizar exactamente el capital prestado.');
 
@@ -385,6 +406,66 @@ integrationTest('producto: corrige cliente y crédito con pagos conservados y pe
   assert.equal(untouchedLoan.interestRate, preservedFinancials.interestRate);
   assert.deepEqual(untouchedLoan.emiSchedule, preservedFinancials.schedule);
   assert.deepEqual(untouchedLoan.financialSnapshot, preservedFinancials.snapshot);
+});
+
+integrationTest('producto: pacta una primera cuota posterior al mes y desplaza solo cuotas futuras tras pagar', async () => {
+  const terms = {
+    amount: 1000000, interestRate: 30, termMonths: 3,
+    startDate: '2026-07-05', firstDueDate: '2026-08-10',
+    rateSource: 'manual', lateFeeSource: 'policy',
+  };
+  const preview = await expectStatus({
+    method: 'POST', path: '/api/loans/calculations', token: accessToken, body: terms,
+  }, 200);
+  const previewSchedule = preview.body.data.calculation.schedule;
+  assert.deepEqual(previewSchedule.map((row) => row.dueDate.slice(0, 10)),
+    ['2026-08-10', '2026-09-10', '2026-10-10']);
+
+  const created = await expectStatus({
+    method: 'POST', path: '/api/loans', token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-deferred-first-due` },
+    body: { ...terms, customerId },
+  }, 201);
+  const deferredLoanId = created.body.data.loan.id;
+  fixtureLoanIds.push(deferredLoanId);
+  assert.deepEqual(created.body.data.loan.emiSchedule, previewSchedule);
+  let stored = await Loan.findByPk(deferredLoanId);
+  assert.equal(stored.financialSnapshot.firstDueDate, '2026-08-10T00:00:00.000Z');
+  await expectStatus({ method: 'PATCH', path: `/api/loans/${deferredLoanId}/status`, token: accessToken,
+    body: { status: 'approved' } }, 200);
+  await expectStatus({ method: 'PATCH', path: `/api/loans/${deferredLoanId}/status`, token: accessToken,
+    body: { status: 'active' } }, 200);
+
+  await expectStatus({ method: 'POST', path: '/api/loans/payments/process', token: accessToken,
+    headers: { 'Idempotency-Key': `${fixturePrefix}-deferred-first-payment` },
+    body: { loanId: deferredLoanId, paymentAmount: Number(previewSchedule[0].scheduledPayment),
+      paymentDate: '2026-08-10', paymentMethod: 'cash' } }, 200);
+  stored = await Loan.findByPk(deferredLoanId);
+  const paidRow = structuredClone(stored.emiSchedule[0]);
+  const futureAmounts = stored.emiSchedule.slice(1).map((row) => ({
+    scheduledPayment: row.scheduledPayment,
+    principalComponent: row.principalComponent,
+    interestComponent: row.interestComponent,
+  }));
+  const receipts = (await Payment.findAll({ where: { loanId: deferredLoanId } })).map((payment) => payment.toJSON());
+  assert.equal(stored.financialSnapshot.firstDueDate, '2026-08-10T00:00:00.000Z');
+
+  const corrected = await expectStatus({
+    method: 'PATCH', path: `/api/loans/${deferredLoanId}/origination`, token: accessToken,
+    body: { amount: 1000000, interestRate: 30, termMonths: 3,
+      startDate: '2026-07-05', firstDueDate: '2026-08-12' },
+  }, 200);
+  assert.deepEqual(corrected.body.data.loan.emiSchedule.map((row) => row.dueDate.slice(0, 10)),
+    ['2026-08-10', '2026-09-12', '2026-10-12']);
+  stored = await Loan.findByPk(deferredLoanId);
+  assert.deepEqual(stored.emiSchedule[0], paidRow);
+  assert.deepEqual(stored.emiSchedule.slice(1).map((row) => ({
+    scheduledPayment: row.scheduledPayment,
+    principalComponent: row.principalComponent,
+    interestComponent: row.interestComponent,
+  })), futureAmounts);
+  assert.deepEqual((await Payment.findAll({ where: { loanId: deferredLoanId } })).map((payment) => payment.toJSON()), receipts);
+  assert.equal(stored.financialSnapshot.firstDueDate, '2026-08-12T00:00:00.000Z');
 });
 
 integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deuda antes de confirmar', async () => {
@@ -1383,6 +1464,74 @@ integrationTest('producto: expone módulos operativos y respeta permisos por rol
   const restoredAccess = await expectStatus({ path: '/api/permissions/me', token: employeeToken }, 200);
   assert.deepEqual(new Set(restoredAccess.body.data.permissions.map((permission) => permission.name)), originalPermissions,
     'La prueba debe restaurar exactamente los permisos previos del empleado.');
+});
+
+integrationTest('producto: concede y revoca todos los permisos directos de un empleado en una sola operación', async () => {
+  assert.ok(accessToken && fixturePrefix, 'La prueba de permisos requiere el fixture administrativo.');
+  const employee = await User.create({
+    name: 'Empleado de permisos de integración',
+    email: `permissions-${fixturePrefix}@test.local`,
+    password: 'Cuenta de prueba inactiva',
+    role: 'employee',
+    isActive: false,
+  });
+
+  try {
+    const catalogResponse = await expectStatus({ path: '/api/permissions', token: accessToken }, 200);
+    const catalogNames = new Set(catalogResponse.body.data.permissions.map((permission) => permission.name));
+    assert.ok(catalogNames.size > 0);
+
+    const employeeLogin = await expectStatus({
+      method: 'POST', path: '/api/auth/login',
+      body: { email: EMPLOYEE_EMAIL, password: EMPLOYEE_PASSWORD },
+    }, 200);
+    await expectStatus({
+      method: 'PUT', path: `/api/permissions/user/${employee.id}/direct`, token: employeeLogin.body.data.accessToken,
+      body: { action: 'grant_all' },
+    }, 403);
+    assert.equal(await UserPermission.count({ where: { userId: employee.id } }), 0);
+
+    const grant = await expectStatus({
+      method: 'PUT', path: `/api/permissions/user/${employee.id}/direct`, token: accessToken,
+      body: { action: 'grant_all' },
+    }, 200);
+    assert.equal(grant.body.data.changedCount, catalogNames.size);
+    assert.equal(grant.body.data.directCount, catalogNames.size);
+    assert.equal(await UserPermission.count({ where: { userId: employee.id } }), catalogNames.size);
+
+    const granted = await expectStatus({ path: `/api/permissions/user/${employee.id}`, token: accessToken }, 200);
+    assert.deepEqual(new Set(granted.body.data.directPermissions.map((permission) => permission.permissionName)), catalogNames);
+
+    const repeatedGrant = await expectStatus({
+      method: 'PUT', path: `/api/permissions/user/${employee.id}/direct`, token: accessToken,
+      body: { action: 'grant_all' },
+    }, 200);
+    assert.equal(repeatedGrant.body.data.changedCount, 0);
+    assert.equal(await UserPermission.count({ where: { userId: employee.id } }), catalogNames.size);
+
+    const revoke = await expectStatus({
+      method: 'PUT', path: `/api/permissions/user/${employee.id}/direct`, token: accessToken,
+      body: { action: 'revoke_all' },
+    }, 200);
+    assert.equal(revoke.body.data.changedCount, catalogNames.size);
+    assert.equal(revoke.body.data.directCount, 0);
+    assert.equal(await UserPermission.count({ where: { userId: employee.id } }), 0);
+
+    const repeatedRevoke = await expectStatus({
+      method: 'PUT', path: `/api/permissions/user/${employee.id}/direct`, token: accessToken,
+      body: { action: 'revoke_all' },
+    }, 200);
+    assert.equal(repeatedRevoke.body.data.changedCount, 0);
+
+    await expectStatus({
+      method: 'PUT', path: `/api/permissions/user/${employee.id}/direct`, token: accessToken,
+      body: { action: 'invalid' },
+    }, 400);
+    assert.equal(await UserPermission.count({ where: { userId: employee.id } }), 0);
+  } finally {
+    await UserPermission.destroy({ where: { userId: employee.id } });
+    await employee.destroy();
+  }
 });
 
 integrationTest('producto: mantiene configuración, gastos, notificaciones y reportes administrativos coherentes', async () => {

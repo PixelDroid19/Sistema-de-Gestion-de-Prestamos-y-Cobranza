@@ -21,6 +21,7 @@ const {
 const { normalizeOperationalDate, normalizeDateOnly } = require('@/modules/shared/dateUtils');
 const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
 const { resolveCapitalScheduleDates } = require('@/modules/credits/domain/calculation/capitalScheduleDates');
+const { resolveInstallmentStatus } = require('@/modules/credits/domain/calculation');
 
 const INSTALLMENT_PAYMENT_TYPE = 'installment';
 const PAYOFF_PAYMENT_TYPE = 'payoff';
@@ -128,22 +129,7 @@ const recordLateFeePayment = (row, amount) => {
  * @param {object} row
  */
 const updateRowStatus = (row, asOfDate = new Date()) => {
-  const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
-
-  if (row.status === 'annulled') {
-    // Don't change annulled status
-    return;
-  }
-
-  if (outstanding <= 0) {
-    row.status = 'paid';
-  } else if (isInstallmentOverdue(row, asOfDate)) {
-    row.status = 'overdue';
-  } else if ((row.paidTotal || 0) > 0) {
-    row.status = 'partial';
-  } else {
-    row.status = 'pending';
-  }
+  row.status = resolveInstallmentStatus(row, asOfDate);
 };
 
 const buildSnapshot = (schedule) => {
@@ -294,7 +280,7 @@ const persistLoanSnapshot = ({
   penaltyApplied = 0,
   accruedInterestApplied = 0,
 }) => {
-  for (const key of ['policySnapshot', 'startDate', 'calculationMethod', 'correctionHistory']) {
+  for (const key of ['policySnapshot', 'startDate', 'firstDueDate', 'calculationMethod', 'correctionHistory']) {
     if (snapshot[key] === undefined && loan.financialSnapshot?.[key] !== undefined) {
       snapshot[key] = loan.financialSnapshot[key];
     }

@@ -17,6 +17,24 @@ describe('useActiveCreditSimulation', () => {
     mockCalculate.mockReset();
   });
 
+  it('rejects a first due date before the ordinary first month and accepts a later date', async () => {
+    mockCalculate.mockResolvedValue({ data: { calculation: { calculationProfileVersionId: 1 } } } as any);
+    const { result } = renderHook(() => useActiveCreditSimulation({
+      initialInput: {
+        amount: 1000000, interestRate: 30, termMonths: 3,
+        startDate: '2026-01-05', firstDueDate: '2026-02-04',
+      },
+    }));
+
+    await act(async () => { await result.current.simulate(); });
+    expect(result.current.fieldErrors.firstDueDate).toMatch(/al menos un mes/i);
+    expect(mockCalculate).not.toHaveBeenCalled();
+
+    act(() => { result.current.setInput({ firstDueDate: '2026-02-10' }); });
+    await act(async () => { await result.current.simulate(); });
+    expect(mockCalculate).toHaveBeenCalledWith(expect.objectContaining({ firstDueDate: '2026-02-10' }));
+  });
+
   it('keeps the current calculation fresh when syncing backend-applied policy values', async () => {
     mockCalculate.mockResolvedValue({
       data: {

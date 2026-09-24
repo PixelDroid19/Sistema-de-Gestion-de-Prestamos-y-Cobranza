@@ -7,6 +7,7 @@ export interface CreditCalculationInput {
   interestRate: number;
   termMonths: number;
   startDate?: string;
+  firstDueDate?: string | null;
   lateFeeMode?: LateFeeMode;
   annualLateFeeRate?: number;
   rateSource?: 'policy' | 'manual';

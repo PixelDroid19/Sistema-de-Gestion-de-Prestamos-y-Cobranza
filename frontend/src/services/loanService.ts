@@ -337,6 +337,7 @@ export type LoanOriginationCorrection = {
   interestRate: number;
   termMonths: number;
   startDate: string;
+  firstDueDate?: string | null;
 };
 
 export const useCorrectLoanOrigination = (loanId: number) => {

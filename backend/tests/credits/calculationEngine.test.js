@@ -58,6 +58,44 @@ test('calculateCredit rejects malformed start dates instead of falling back sile
   }), /fecha inicial.*AAAA-MM-DD/i);
 });
 
+test('a deferred first installment shifts monthly due dates without changing scheduled amounts', () => {
+  for (const calculationMethod of ['FRENCH', 'SIMPLE', 'COMPOUND']) {
+    const input = { ...baseInput, startDate: '2026-01-05', termMonths: 3, calculationMethod };
+    const standard = calculateCredit({ input, profileVersion: activeProfile });
+    const deferred = calculateCredit({
+      input: { ...input, firstDueDate: '2026-02-10' },
+      profileVersion: activeProfile,
+    });
+
+    assert.deepEqual(deferred.schedule.map((row) => row.dueDate.slice(0, 10)), [
+      '2026-02-10', '2026-03-10', '2026-04-10',
+    ]);
+    assert.deepEqual(deferred.schedule.map((row) => row.scheduledPayment),
+      standard.schedule.map((row) => row.scheduledPayment));
+    assert.equal(deferred.inputs.startDate, '2026-01-05T00:00:00.000Z');
+    assert.equal(deferred.inputs.firstDueDate, '2026-02-10T00:00:00.000Z');
+  }
+});
+
+test('first installment date must be valid and at least one month after disbursement', () => {
+  for (const firstDueDate of ['2026-02-04', '2026-02-31', 'not-a-date']) {
+    assert.throws(() => calculateCredit({
+      input: { ...baseInput, startDate: '2026-01-05', firstDueDate },
+      profileVersion: activeProfile,
+    }), /primera cuota/i);
+  }
+});
+
+test('selecting the ordinary first due date keeps the original month-end anchor', () => {
+  const result = calculateCredit({
+    input: { ...baseInput, startDate: '2026-01-31', firstDueDate: '2026-02-28', termMonths: 3 },
+    profileVersion: activeProfile,
+  });
+  assert.equal(result.inputs.firstDueDate, null);
+  assert.deepEqual(result.schedule.map((row) => row.dueDate.slice(0, 10)),
+    ['2026-02-28', '2026-03-31', '2026-04-30']);
+});
+
 test('calculateCredit rejects missing or inactive calculation profiles with operator messages', () => {
   assert.throws(() => calculateCredit({
     input: baseInput,

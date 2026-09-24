@@ -1,18 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, Lock, Save, Shield, X } from 'lucide-react';
 import {
   useGrantBatchPermissions,
   usePermissions,
   useRevokePermission,
+  useSetAllDirectPermissions,
   useUserPermissions,
 } from '../services/permissionsService';
 import { useUsers } from '../services/userService';
 import { toast } from '../lib/toast';
+import { confirm, confirmDanger } from '../lib/confirmModal';
 import { useTranslation } from '../i18n';
 import { getPermissionDisplayName, getPermissionModuleLabel } from './shared/permissionDisplay';
 import {
   ActionButton,
-  ClickableSurface,
   FormField,
   InsightStrip,
   AppInput,
@@ -67,11 +69,13 @@ export default function EmployeeEditModal({ employee, onClose }: EmployeeEditMod
 
   useEffect(() => {
     const panel = panelRef.current;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!panel || panel.contains(document.activeElement)) {
       return;
     }
 
     panel.focus({ preventScroll: true });
+    return () => previousFocus?.focus({ preventScroll: true });
   }, []);
 
   const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -120,7 +124,7 @@ export default function EmployeeEditModal({ employee, onClose }: EmployeeEditMod
     { id: 'permissions' as Tab, label: t('settings.employees.modal.tabs.permissions') },
   ], [t]);
 
-  return (
+  return createPortal((
     <div
       className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={(event) => {
@@ -172,7 +176,7 @@ export default function EmployeeEditModal({ employee, onClose }: EmployeeEditMod
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
 
 function ProfileTab({ employee }: { employee: Employee }) {
@@ -290,9 +294,10 @@ function PasswordTab({ employee }: { employee: Employee }) {
 
 function PermissionsForUser({ employee }: { employee: Employee }) {
   const { t } = useTranslation();
-  const { permissions: rawPermissions, isLoading: isLoadingPermissions } = usePermissions();
+  const { permissions: rawPermissions, isLoading: isLoadingPermissions, isError: isPermissionsError, refetch: refetchPermissions } = usePermissions();
   const { grantBatchPermissions } = useGrantBatchPermissions();
   const { revokePermission } = useRevokePermission();
+  const { setAllDirectPermissions } = useSetAllDirectPermissions();
   const userId = String(employee.id);
   const userPermsQuery = useUserPermissions(userId);
 
@@ -345,7 +350,30 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
     [groupedPermissions, moduleFilter],
   );
 
-  const isBusy = grantBatchPermissions.isPending || revokePermission.isPending;
+  const isBusy = grantBatchPermissions.isPending || revokePermission.isPending || setAllDirectPermissions.isPending;
+  const canGrantAll = normalizedPermissions.some((permission) => !directSet.has(permission.permission.toLowerCase()));
+
+  const handleSetAll = async (action: 'grant_all' | 'revoke_all') => {
+    const grantAll = action === 'grant_all';
+    const user = employee.name || employee.email || t('settings.employees.table.nameMissing');
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const confirmed = await (grantAll ? confirm : confirmDanger)({
+      title: t(grantAll ? 'settings.employees.modal.permissions.grantAllTitle' : 'settings.employees.modal.permissions.revokeAllTitle'),
+      message: t(grantAll ? 'settings.employees.modal.permissions.grantAllMessage' : 'settings.employees.modal.permissions.revokeAllMessage', { user }),
+      confirmLabel: t(grantAll ? 'settings.employees.modal.permissions.grantAll' : 'settings.employees.modal.permissions.revokeAll'),
+    });
+    returnFocus?.focus({ preventScroll: true });
+    if (!confirmed) return;
+
+    try {
+      await setAllDirectPermissions.mutateAsync({ userId, action });
+      await userPermsQuery.refetch();
+      toast.success({ description: t(grantAll ? 'settings.employees.modal.permissions.allGranted' : 'settings.employees.modal.permissions.allRevoked') });
+    } catch (error) {
+      await userPermsQuery.refetch();
+      toast.apiErrorSafe(error, { domain: 'users', action: grantAll ? 'permission.grant' : 'permission.revoke' });
+    }
+  };
 
   const toggleExpanded = (module: string) => {
     setExpanded((previous) => {
@@ -394,8 +422,19 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
     }
   };
 
-  if (isLoadingPermissions) {
+  if (isLoadingPermissions || userPermsQuery.isLoading) {
     return <p className="text-sm text-text-secondary">{t('common.loading')}</p>;
+  }
+
+  if (isPermissionsError || userPermsQuery.isError) {
+    return (
+      <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
+        <span>{t('settings.employees.modal.permissions.loadError')}</span>
+        <ActionButton type="button" onClick={() => { void Promise.all([refetchPermissions(), userPermsQuery.refetch()]); }}>
+          {t('settings.employees.modal.permissions.retry')}
+        </ActionButton>
+      </div>
+    );
   }
 
   return (
@@ -411,14 +450,26 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
         ]}
       />
 
-      <FormField label={t('settings.employees.modal.permissions.moduleLabel')}>
-        <OperationalSelect value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
-          <option value="all">{t('settings.employees.modal.permissions.moduleAll')}</option>
-          {groupedPermissions.map((group) => (
-            <option key={group.module} value={group.module}>{getPermissionModuleLabel(group.module)}</option>
-          ))}
-        </OperationalSelect>
-      </FormField>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <FormField label={t('settings.employees.modal.permissions.moduleLabel')}>
+          <OperationalSelect value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
+            <option value="all">{t('settings.employees.modal.permissions.moduleAll')}</option>
+            {groupedPermissions.map((group) => (
+              <option key={group.module} value={group.module}>{getPermissionModuleLabel(group.module)}</option>
+            ))}
+          </OperationalSelect>
+        </FormField>
+        {moduleFilter === 'all' && (
+          <div className="flex flex-wrap gap-2">
+            <ActionButton type="button" onClick={() => { void handleSetAll('grant_all'); }} disabled={isBusy || !canGrantAll}>
+              {t('settings.employees.modal.permissions.grantAll')}
+            </ActionButton>
+            <ActionButton type="button" onClick={() => { void handleSetAll('revoke_all'); }} disabled={isBusy || directSet.size === 0}>
+              {t('settings.employees.modal.permissions.revokeAll')}
+            </ActionButton>
+          </div>
+        )}
+      </div>
 
       <div className="space-y-3">
         {visibleGroups.map((group) => {
@@ -426,24 +477,28 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
           const directCount = group.permissions.filter((permission) => directSet.has(permission.permission.toLowerCase())).length;
           const inheritedCount = group.permissions.filter((permission) => roleSet.has(permission.permission.toLowerCase())).length;
           const isOpen = expanded.has(group.module);
+          const detailsId = `employee-permissions-${group.module}`;
           return (
             <SectionSurface key={group.module} className="!p-0" bodyClassName="space-y-0">
-              <ClickableSurface
-                variant="list"
-                onClick={() => toggleExpanded(group.module)}
-                className="flex w-full items-center justify-between gap-3 bg-bg-base px-4 py-3"
-              >
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Shield size={16} />
+              <div className="flex flex-col gap-2 bg-bg-base px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(group.module)}
+                  aria-expanded={isOpen}
+                  aria-controls={detailsId}
+                  className="flex w-full min-w-0 items-center gap-2 rounded text-left text-sm font-medium text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary sm:w-auto sm:flex-1"
+                >
+                  <Shield size={16} className="shrink-0" />
                   <span>{getPermissionModuleLabel(group.module)}</span>
                   <span className="rounded-full bg-bg-surface px-2 py-0.5 text-[11px] text-text-secondary">
                     {t('settings.employees.modal.permissions.summary', { direct: directCount, total, inherited: inheritedCount })}
                   </span>
-                </div>
-                <div className="flex items-center gap-2">
+                  {isOpen ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
+                </button>
+                <div className="flex flex-wrap items-center gap-2">
                   <ActionButton
                     type="button"
-                    onClick={(event) => { event.stopPropagation(); handleToggleModule(group.module, true); }}
+                    onClick={() => { void handleToggleModule(group.module, true); }}
                     disabled={isBusy}
                     className="!min-h-0 !px-2 !py-1 text-xs"
                   >
@@ -451,17 +506,16 @@ function PermissionsForUser({ employee }: { employee: Employee }) {
                   </ActionButton>
                   <ActionButton
                     type="button"
-                    onClick={(event) => { event.stopPropagation(); handleToggleModule(group.module, false); }}
+                    onClick={() => { void handleToggleModule(group.module, false); }}
                     disabled={isBusy || directCount === 0}
                     className="!min-h-0 !px-2 !py-1 text-xs"
                   >
                     {t('settings.employees.modal.permissions.revokeDirect')}
                   </ActionButton>
-                  {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </div>
-              </ClickableSurface>
+              </div>
               {isOpen && (
-                <div className="divide-y divide-border-subtle border-t border-border-subtle">
+                <div id={detailsId} className="divide-y divide-border-subtle border-t border-border-subtle">
                   {group.permissions.map((permission) => {
                     const key = permission.permission.toLowerCase();
                     const isDirect = directSet.has(key);

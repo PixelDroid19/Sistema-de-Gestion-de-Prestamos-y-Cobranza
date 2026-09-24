@@ -336,6 +336,20 @@ describe('Credits behavioral parity scenarios', () => {
     expect(screen.getByLabelText('Seleccionar crédito de Cliente Prueba')).toBeInTheDocument();
   });
 
+  it('shows the disbursement date under Inicio for a backdated credit', () => {
+    mockLoanRows = [{
+      ...defaultLoanRows[0],
+      startDate: '2026-01-21T00:00:00.000Z',
+      createdAt: '2026-09-24T15:00:00.000Z',
+    }];
+
+    renderCredits();
+
+    const row = screen.getByRole('row', { name: /Cliente Prueba/ });
+    expect(within(row).getByText('21/01/2026')).toBeInTheDocument();
+    expect(within(row).queryByText('24/09/2026')).not.toBeInTheDocument();
+  });
+
   it('shows actual late fees instead of overdue loan balances for the portfolio and each credit', () => {
     mockLoanRows = [
       {

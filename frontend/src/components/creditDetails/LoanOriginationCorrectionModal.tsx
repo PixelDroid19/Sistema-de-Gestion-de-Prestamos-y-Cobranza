@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { tTerm } from '../../i18n/terminology';
 import { isValidOperationalDateOnly } from '../../i18n/format';
 import { parsePercentageWithPrecisionInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
+import { getStandardFirstDueDate } from '../../lib/creditDueDates';
 import { toast } from '../../lib/toast';
 import { useCorrectLoanOrigination } from '../../services/loanService';
 import { ActionButton, AppInput, FormField, ModalShell } from '../shared/Surfaces';
@@ -12,6 +13,7 @@ type LoanTerms = {
   interestRate: number | string;
   termMonths: number;
   startDate: string;
+  financialSnapshot?: { firstDueDate?: string | null };
 };
 
 export function LoanOriginationCorrectionModal({ loan, onClose }: { loan: LoanTerms; onClose: () => void }) {
@@ -20,19 +22,24 @@ export function LoanOriginationCorrectionModal({ loan, onClose }: { loan: LoanTe
   const [interestRate, setInterestRate] = useState(String(loan.interestRate));
   const [termMonths, setTermMonths] = useState(String(loan.termMonths));
   const [startDate, setStartDate] = useState(String(loan.startDate || '').slice(0, 10));
+  const [firstDueDate, setFirstDueDate] = useState(String(loan.financialSnapshot?.firstDueDate || '').slice(0, 10));
   const [error, setError] = useState('');
 
   const save = async () => {
     const parsedAmount = parsePositiveMoneyInput(amount);
     const parsedRate = parsePercentageWithPrecisionInput(interestRate, 4);
     const parsedTerm = parsePositiveIntegerInput(termMonths);
-    if (parsedAmount === null || parsedRate === null || parsedTerm === null || parsedTerm > 360 || !isValidOperationalDateOnly(startDate)) {
+    const standardFirstDueDate = getStandardFirstDueDate(startDate);
+    if (parsedAmount === null || parsedRate === null || parsedTerm === null || parsedTerm > 360
+      || !isValidOperationalDateOnly(startDate)
+      || (firstDueDate !== '' && (!isValidOperationalDateOnly(firstDueDate)
+        || (standardFirstDueDate && firstDueDate < standardFirstDueDate)))) {
       setError(tTerm('creditDetails.correction.invalid'));
       return;
     }
     setError('');
     try {
-      await correction.mutateAsync({ amount: parsedAmount, interestRate: parsedRate, termMonths: parsedTerm, startDate });
+      await correction.mutateAsync({ amount: parsedAmount, interestRate: parsedRate, termMonths: parsedTerm, startDate, firstDueDate: firstDueDate || null });
       toast.success({ title: tTerm('creditDetails.correction.saved') });
       onClose();
     } catch (cause) {
@@ -65,7 +72,10 @@ export function LoanOriginationCorrectionModal({ loan, onClose }: { loan: LoanTe
           <AppInput variant="integer" value={termMonths} onValueChange={setTermMonths} />
         </FormField>
         <FormField label={tTerm('creditDetails.correction.date')}>
-          <AppInput variant="date" value={startDate} onValueChange={setStartDate} />
+          <AppInput variant="date" aria-label={tTerm('creditDetails.correction.date')} value={startDate} onValueChange={setStartDate} />
+        </FormField>
+        <FormField label={tTerm('simulator.form.firstDueDate')} tooltip={tTerm('simulator.help.firstDueDate')}>
+          <AppInput variant="date" aria-label={tTerm('simulator.form.firstDueDate')} value={firstDueDate} onValueChange={setFirstDueDate} />
         </FormField>
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}

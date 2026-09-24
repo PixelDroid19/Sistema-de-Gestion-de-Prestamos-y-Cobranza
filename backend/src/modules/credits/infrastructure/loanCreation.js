@@ -1,5 +1,6 @@
 const { Loan, Customer, FinancialProduct } = require('@/models');
 const { validateAgreedInterestRate, AGREED_RATE_VALIDATION_MESSAGE } = require('@/modules/credits/domain/agreedInterestRate');
+const { normalizeFirstDueDate } = require('@/modules/credits/domain/calculation');
 const { NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const {
   buildFinancialSnapshot,
@@ -134,6 +135,7 @@ const createLoanFromCanonicalDataFactory = ({
   const calculation = calculationExecution.result;
   const financialProductId = await resolveFinancialProductId({ input: calculationInput, financialProductModel });
   const startDate = resolveLoanStartDate(calculationInput.startDate);
+  const firstDueDate = normalizeFirstDueDate({ startDate, firstDueDate: calculationInput.firstDueDate });
   const calculationProfileVersionId = calculationExecution.calculationProfileVersionId;
   if (!calculationProfileVersionId) {
     throw new ValidationError(CALCULATION_PROFILE_REQUIRED_MESSAGE);
@@ -145,6 +147,7 @@ const createLoanFromCanonicalDataFactory = ({
     calculationMethod: calculation.method,
     policySnapshot: calculation.policySnapshot || policyContext.policySnapshot || null,
     startDate: startDate.toISOString(),
+    firstDueDate: firstDueDate?.toISOString() || null,
   };
   const policySnapshot = snapshot.policySnapshot || null;
   const calculationMethod = snapshot.calculationMethod;

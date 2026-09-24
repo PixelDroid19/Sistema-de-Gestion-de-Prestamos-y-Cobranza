@@ -129,7 +129,7 @@ const buildLoanSearchWhere = ({ actor, filters = {} }) => {
     amountClause[Op.lte] = maxAmount;
   }
 
-  if (Object.keys(amountClause).length > 0) {
+  if (Reflect.ownKeys(amountClause).length > 0) {
     andClauses.push({ amount: amountClause });
   }
 
@@ -138,25 +138,25 @@ const buildLoanSearchWhere = ({ actor, filters = {} }) => {
   }
 
   if (filters.startDate || filters.endDate) {
-    const createdAtClause = {};
+    const startDateClause = {};
 
     if (filters.startDate) {
       const startDate = new Date(filters.startDate);
       if (!Number.isNaN(startDate.getTime())) {
-        createdAtClause[Op.gte] = startDate;
+        startDateClause[Op.gte] = startDate;
       }
     }
 
     if (filters.endDate) {
       const endDate = new Date(filters.endDate);
       if (!Number.isNaN(endDate.getTime())) {
-        endDate.setHours(23, 59, 59, 999);
-        createdAtClause[Op.lte] = endDate;
+        endDate.setUTCHours(23, 59, 59, 999);
+        startDateClause[Op.lte] = endDate;
       }
     }
 
-    if (Object.keys(createdAtClause).length > 0) {
-      andClauses.push({ createdAt: createdAtClause });
+    if (Reflect.ownKeys(startDateClause).length > 0) {
+      andClauses.push({ startDate: startDateClause });
     }
   }
 

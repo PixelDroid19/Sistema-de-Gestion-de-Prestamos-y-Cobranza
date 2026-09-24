@@ -187,6 +187,7 @@ const getCanonicalLoanView = (loan) => {
       interestRate: loan.interestRate,
       termMonths: loan.termMonths,
       startDate: resolveLoanStartDateValue(loan) || new Date(),
+      firstDueDate: loan.financialSnapshot?.firstDueDate || null,
       calculationMethod: resolveLoanCalculationMethod(loan),
     });
 

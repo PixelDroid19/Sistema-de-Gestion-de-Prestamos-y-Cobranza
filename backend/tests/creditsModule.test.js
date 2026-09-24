@@ -32,10 +32,23 @@ const {
   createDownloadPromiseToPay,
   createGetDuePayments,
   createUpdateLateFeeRate,
+  filterLoansByFilters,
 } = require('@/modules/credits/application/useCases');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 const { createLocalAttachmentStorage } = require('@/modules/credits/infrastructure/attachmentStorage');
 const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
+
+test('credit search date filters use disbursement date and include the full selected day', () => {
+  const loans = [
+    { id: 1, startDate: '2026-07-17T20:00:00.000Z', createdAt: '2026-09-24T00:00:00.000Z', amount: 1000000 },
+    { id: 2, startDate: '2026-07-18T00:00:00.000Z', createdAt: '2026-07-17T00:00:00.000Z', amount: 1000000 },
+  ];
+
+  assert.deepEqual(filterLoansByFilters({
+    loans,
+    filters: { startDate: '2026-07-17', endDate: '2026-07-17' },
+  }).map((loan) => loan.id), [1]);
+});
 const { createCreditsModule } = require('@/modules/credits');
 
 test('createListLoans scopes repository results through the shared access policy', async () => {

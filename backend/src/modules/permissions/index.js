@@ -7,6 +7,7 @@ const {
   createGrantPermission,
   createGrantBatchPermissions,
   createRevokePermission,
+  createSetAllDirectPermissions,
   createCheckPermission,
   createCheckMultiplePermissions,
 } = require('./application/useCases');
@@ -50,6 +51,11 @@ const createPermissionsModule = ({ sharedRuntime } = {}) => {
       userRepository,
     }),
     revokePermission: createRevokePermission({
+      permissionRepository,
+      userPermissionRepository,
+      userRepository,
+    }),
+    setAllDirectPermissions: createSetAllDirectPermissions({
       permissionRepository,
       userPermissionRepository,
       userRepository,

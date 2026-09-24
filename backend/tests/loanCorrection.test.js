@@ -6,9 +6,9 @@ const { DEFAULT_CALCULATION_PROFILE } = require('@/modules/credits/domain/calcul
 const { calculateCredit } = require('@/modules/credits/domain/calculation/creditCalculationEngine');
 const { AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 
-const buildScenario = ({ hasPayment = false, status = 'pending' } = {}) => {
+const buildScenario = ({ hasPayment = false, status = 'pending', startDate = '2026-08-01', calculationMethod = 'FRENCH' } = {}) => {
   const originalSchedule = calculateCredit({
-    input: { amount: 1000000, interestRate: 60, termMonths: 3, startDate: '2026-08-01', lateFeeMode: 'SIMPLE' },
+    input: { amount: 1000000, interestRate: 60, termMonths: 3, startDate, calculationMethod, lateFeeMode: 'SIMPLE' },
     profileVersion: { ...DEFAULT_CALCULATION_PROFILE, id: 8 },
   }).schedule;
   const payments = [];
@@ -22,7 +22,7 @@ const buildScenario = ({ hasPayment = false, status = 'pending' } = {}) => {
     first.status = 'paid';
     payments.push({
       id: 7, status: 'completed', paymentType: 'installment', amount: first.scheduledPayment,
-      paymentDate: '2026-09-01', installmentNumber: 1,
+      paymentDate: first.dueDate.slice(0, 10), installmentNumber: 1,
       principalApplied: first.paidPrincipal, interestApplied: first.paidInterest, penaltyApplied: 0,
     });
   }
@@ -30,8 +30,8 @@ const buildScenario = ({ hasPayment = false, status = 'pending' } = {}) => {
   const calls = [];
   const loan = {
     id: 31, status, amount: 1000000, interestRate: 60, termMonths: 3,
-    startDate: '2026-08-01', totalPaid: hasPayment ? originalSchedule[0].paidTotal : 0, associateId: null, financialBlock: {},
-    calculationMethod: 'FRENCH', calculationProfileVersionId: 8,
+    startDate, totalPaid: hasPayment ? originalSchedule[0].paidTotal : 0, associateId: null, financialBlock: {},
+    calculationMethod, calculationProfileVersionId: 8,
     lateFeeMode: 'SIMPLE', annualLateFeeRate: 12, lateFeePolicyId: 5,
     emiSchedule: originalSchedule,
     financialSnapshot: { totalPaidPenalty: 0, totalPaidAccruedInterest: 0 },
@@ -73,7 +73,7 @@ test('admin correction rebuilds the schedule with the original profile under a r
   assert.equal(loan.calculationProfileVersionId, 8);
   assert.equal(loan.financialSnapshot.policySnapshot.appliedInterestRate, 27.5);
   assert.deepEqual(loan.financialSnapshot.correctionHistory[0].before, {
-    amount: 1000000, interestRate: 60, termMonths: 3, startDate: '2026-08-01', rateSource: 'policy',
+    amount: 1000000, interestRate: 60, termMonths: 3, startDate: '2026-08-01', firstDueDate: null, rateSource: 'policy',
     policySnapshot: { rateSource: 'policy', ratePolicyId: 3, lateFeeSource: 'policy', lateFeePolicyId: 5 },
   });
   assert.equal(loan.financialSnapshot.correctionHistory[0].actorId, 9);
@@ -94,6 +94,62 @@ test('correction keeps posted payment and paid installment intact, and recalcula
   assert.equal(loan.totalPaid, totalPaidBefore);
   assert.equal(loan.financialSnapshot.totalPrincipal, 1200000);
   assert.equal(loan.financialSnapshot.correctionHistory[0].mode, 'future_installments');
+});
+
+test('correction defers unpaid dates while preserving paid installments and receipts', async () => {
+  const { correctionService, loan, originalSchedule, payments } = buildScenario({ hasPayment: true, status: 'active' });
+  const paidRow = structuredClone(originalSchedule[0]);
+  const receipt = structuredClone(payments[0]);
+  await correctionService.correct({
+    loanId: 31, actorId: 9, amount: 1000000, interestRate: 60, termMonths: 3,
+    startDate: '2026-08-01', firstDueDate: '2026-09-08',
+  });
+
+  assert.deepEqual(loan.emiSchedule[0], paidRow);
+  assert.deepEqual(payments[0], receipt);
+  assert.deepEqual(loan.emiSchedule.slice(1).map((row) => row.dueDate.slice(0, 10)), ['2026-10-08', '2026-11-08']);
+  assert.equal(loan.financialSnapshot.firstDueDate, '2026-09-08T00:00:00.000Z');
+});
+
+test('date-only correction preserves every amount, the original rate policy, and recorded payments', async () => {
+  for (const calculationMethod of ['FRENCH', 'SIMPLE', 'COMPOUND']) {
+    const { correctionService, loan, payments } = buildScenario({ hasPayment: true, status: 'active', calculationMethod });
+    loan.ratePolicyId = 3;
+    loan.emiSchedule[1].status = 'overdue';
+    const originalSchedule = structuredClone(loan.emiSchedule);
+    const originalPayments = structuredClone(payments);
+
+    await correctionService.correct({
+      loanId: 31, actorId: 9, amount: 1000000, interestRate: 60, termMonths: 3,
+      startDate: '2026-08-01', firstDueDate: '2026-11-01',
+    });
+
+    assert.deepEqual(payments, originalPayments);
+    assert.deepEqual(loan.emiSchedule[0], originalSchedule[0]);
+    assert.deepEqual(loan.emiSchedule.map((row) => row.dueDate.slice(0, 10)),
+      ['2026-09-01', '2026-12-01', '2027-01-01']);
+    for (let index = 1; index < originalSchedule.length; index += 1) {
+      assert.deepEqual({
+        ...loan.emiSchedule[index],
+        dueDate: originalSchedule[index].dueDate,
+        status: originalSchedule[index].status,
+      }, originalSchedule[index]);
+    }
+    assert.equal(loan.emiSchedule[1].status, 'pending');
+    assert.equal(loan.ratePolicyId, 3);
+    assert.deepEqual(loan.policySnapshot, { rateSource: 'policy', ratePolicyId: 3, lateFeeSource: 'policy', lateFeePolicyId: 5 });
+    assert.equal(loan.financialSnapshot.correctionHistory[0].mode, 'due_dates');
+  }
+});
+
+test('month-end correction keeps future due dates anchored to the original disbursement day', async () => {
+  const { correctionService, loan } = buildScenario({ hasPayment: true, status: 'active', startDate: '2026-01-31' });
+  await correctionService.correct({
+    loanId: 31, actorId: 9, amount: 1200000, interestRate: 27.5,
+    termMonths: 4, startDate: '2026-01-31',
+  });
+  assert.deepEqual(loan.emiSchedule.map((row) => row.dueDate.slice(0, 10)),
+    ['2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31']);
 });
 
 test('correction rejects an amount or term that would invalidate paid installments', async () => {

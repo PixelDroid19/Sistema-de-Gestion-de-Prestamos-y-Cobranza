@@ -299,7 +299,7 @@ const authValidation = {
 const loanValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource, lateFeeSource } = req.body;
+    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode, startDate, firstDueDate, annualLateFeeRate, rateSource, lateFeeSource } = req.body;
     const errors = [];
 
     if (!validateIntegerId(customerId)) {
@@ -333,6 +333,9 @@ const loanValidation = {
     if (!validateOptionalDateInput(startDate)) {
       errors.push({ field: 'startDate', message: 'La fecha de inicio del crédito debe ser válida' });
     }
+    if (!validateOptionalDateInput(firstDueDate)) {
+      errors.push({ field: 'firstDueDate', message: 'La fecha de la primera cuota debe ser válida' });
+    }
 
     if (annualLateFeeRate !== undefined && annualLateFeeRate !== null && annualLateFeeRate !== '' && !validateInterestRate(annualLateFeeRate)) {
       errors.push({ field: 'annualLateFeeRate', message: 'La tasa anual de mora debe estar entre 0 y 100' });
@@ -349,7 +352,7 @@ const loanValidation = {
 
   /** @type {import('express').RequestHandler} */
   simulate: (req, res, next) => {
-    const { amount, interestRate, termMonths, lateFeeMode, startDate, rateSource } = req.body;
+    const { amount, interestRate, termMonths, lateFeeMode, startDate, firstDueDate, rateSource } = req.body;
     const errors = [];
 
     if (!validateAmount(amount)) {
@@ -368,6 +371,9 @@ const loanValidation = {
 
     if (!validateOptionalDateInput(startDate)) {
       errors.push({ field: 'startDate', message: 'La fecha de inicio del crédito debe ser válida' });
+    }
+    if (!validateOptionalDateInput(firstDueDate)) {
+      errors.push({ field: 'firstDueDate', message: 'La fecha de la primera cuota debe ser válida' });
     }
 
     rejectUnsupportedLateFeeMode(lateFeeMode, errors);

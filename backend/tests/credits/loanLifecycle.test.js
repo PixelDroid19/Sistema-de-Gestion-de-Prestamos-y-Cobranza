@@ -511,6 +511,20 @@ test('getCanonicalLoanView rebuilds legacy schedules without leaking through roo
   assert.ok(loanView.snapshot.totalPayable > 5000);
 });
 
+test('getCanonicalLoanView honors a contracted first due date when a stored schedule is unavailable', () => {
+  const loanView = getCanonicalLoanView({
+    amount: 5000,
+    interestRate: 10,
+    termMonths: 3,
+    startDate: '2026-01-05T00:00:00.000Z',
+    emiSchedule: [],
+    financialSnapshot: { firstDueDate: '2026-02-10T00:00:00.000Z' },
+  });
+
+  assert.deepEqual(loanView.schedule.map((row) => row.dueDate.slice(0, 10)),
+    ['2026-02-10', '2026-03-10', '2026-04-10']);
+});
+
 test('getCanonicalLoanView excludes annulled installments from pending counts', () => {
   const schedule = buildAmortizationSchedule({
     amount: 5000,

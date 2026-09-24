@@ -3,6 +3,8 @@ import { tTerm, type TermKey } from '../../i18n/terminology';
 import { creditCalculationService } from '../../services/creditCalculationService';
 import { getSafeErrorText } from '../../services/safeErrorMessages';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
+import { getStandardFirstDueDate } from '../../lib/creditDueDates';
+import { isValidOperationalDateOnly } from '../../i18n/format';
 
 export const DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT: CreditCalculationInput = {
   amount: 2000000,
@@ -20,6 +22,7 @@ const SAFE_FIELD_ERROR_MESSAGE_KEYS: Record<string, TermKey> = {
   annualLateFeeRate: 'activeCreditSimulation.error.annualLateFeeRate',
   lateFeeMode: 'activeCreditSimulation.error.lateFeeMode',
   startDate: 'activeCreditSimulation.error.startDate',
+  firstDueDate: 'activeCreditSimulation.error.firstDueDate',
 };
 
 const getSafeFieldErrorMessage = (field: string) => {
@@ -40,6 +43,14 @@ const validateCalculationInput = (input: CreditCalculationInput): CreditCalculat
 
   if (typeof input.termMonths !== 'number' || !Number.isInteger(input.termMonths) || input.termMonths < 1 || input.termMonths > 360) {
     errors.termMonths = tTerm(SAFE_FIELD_ERROR_MESSAGE_KEYS.termMonths);
+  }
+
+  if (input.firstDueDate) {
+    const standardDueDate = getStandardFirstDueDate(input.startDate);
+    if (!isValidOperationalDateOnly(input.firstDueDate)
+      || (standardDueDate && input.firstDueDate < standardDueDate)) {
+      errors.firstDueDate = tTerm(SAFE_FIELD_ERROR_MESSAGE_KEYS.firstDueDate);
+    }
   }
 
   return errors;
@@ -76,6 +87,7 @@ const areCalculationInputsEqual = (
     && left.termMonths === right.termMonths
     && (left.lateFeeMode || 'SIMPLE') === (right.lateFeeMode || 'SIMPLE')
     && (left.startDate || '') === (right.startDate || '')
+    && (left.firstDueDate || '') === (right.firstDueDate || '')
     && (left.rateSource || 'manual') === (right.rateSource || 'manual')
     && (left.lateFeeSource || 'manual') === (right.lateFeeSource || 'manual')
     && (left.annualLateFeeRate ?? null) === (right.annualLateFeeRate ?? null);

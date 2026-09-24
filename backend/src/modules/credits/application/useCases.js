@@ -1739,6 +1739,7 @@ const filterLoansByFilters = ({ loans = [], filters = {} }) => {
   const maxAmount = filters.maxAmount !== undefined ? Number(filters.maxAmount) : null;
   const startDate = normalizeLoanSearchDate(filters.startDate);
   const endDate = normalizeLoanSearchDate(filters.endDate);
+  if (endDate) endDate.setUTCHours(23, 59, 59, 999);
   const status = filters.status ? String(filters.status).trim().toLowerCase() : '';
 
   return loans.filter((loan) => {
@@ -1755,12 +1756,12 @@ const filterLoansByFilters = ({ loans = [], filters = {} }) => {
       return false;
     }
 
-    const createdAt = normalizeLoanSearchDate(loan?.createdAt);
-    if (startDate && (!createdAt || createdAt < startDate)) {
+    const loanStartDate = normalizeLoanSearchDate(loan?.startDate);
+    if (startDate && (!loanStartDate || loanStartDate < startDate)) {
       return false;
     }
 
-    if (endDate && (!createdAt || createdAt > endDate)) {
+    if (endDate && (!loanStartDate || loanStartDate > endDate)) {
       return false;
     }
 
@@ -1964,7 +1965,7 @@ const createCorrectLoanOrigination = ({ loanCorrectionService, auditService }) =
     if (actor?.role !== 'admin') {
       throw new AuthorizationError('Solo un administrador puede corregir las condiciones del crédito.');
     }
-    const allowedFields = new Set(['amount', 'interestRate', 'termMonths', 'startDate']);
+    const allowedFields = new Set(['amount', 'interestRate', 'termMonths', 'startDate', 'firstDueDate']);
     if (!payload || Object.keys(payload).some((field) => !allowedFields.has(field))) {
       throw new ValidationError('La corrección solo permite monto, tasa, plazo y fecha de desembolso.');
     }
@@ -1973,9 +1974,12 @@ const createCorrectLoanOrigination = ({ loanCorrectionService, auditService }) =
     if (!validateAgreedInterestRate(payload?.interestRate)) throw new ValidationError(AGREED_RATE_VALIDATION_MESSAGE);
     if (!validateTermMonths(payload?.termMonths)) throw new ValidationError('El plazo debe estar entre 1 y 360 meses.');
     if (!isValidDateOnly(payload?.startDate)) throw new ValidationError('La fecha de desembolso debe ser válida.');
+    if (payload.firstDueDate != null && !isValidDateOnly(payload.firstDueDate)) {
+      throw new ValidationError('La fecha de la primera cuota debe ser válida.');
+    }
     return loanCorrectionService.correct({
       loanId, actorId: actor.id, amount, interestRate: Number(payload.interestRate),
-      termMonths: payload.termMonths, startDate: payload.startDate,
+      termMonths: payload.termMonths, startDate: payload.startDate, firstDueDate: payload.firstDueDate,
     });
   };
   return auditService

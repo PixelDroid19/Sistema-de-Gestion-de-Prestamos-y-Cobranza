@@ -50,6 +50,15 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, data: result });
   }));
 
+  router.put('/user/:userId/direct', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await useCases.setAllDirectPermissions({
+      actor: req.user,
+      targetUserId: parseUserId(req.params.userId),
+      action: req.body?.action,
+    });
+    res.json({ success: true, data: result });
+  }));
+
   router.get('/me', authMiddleware(), asyncHandler(async (req, res) => {
     const result = await useCases.getMyPermissions({ actor: req.user });
     res.json({ success: true, data: result });

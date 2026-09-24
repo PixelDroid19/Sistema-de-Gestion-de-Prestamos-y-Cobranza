@@ -305,9 +305,21 @@ export default function CreditSimulationWorkspace({
                   <FormField label={tTerm('simulator.form.firstPaymentDate')} tooltip={fieldHelp.startDate}>
                     <AppInput
                       variant="date"
+                      aria-label={tTerm('simulator.form.firstPaymentDate')}
                       value={input.startDate || ''}
                       onValueChange={(value) => onInputChange({ startDate: String(value || '') || undefined })}
                       disabled={disabled}
+                    />
+                  </FormField>
+
+                  <FormField label={tTerm('simulator.form.firstDueDate')} tooltip={tTerm('simulator.help.firstDueDate')} error={fieldErrors.firstDueDate}>
+                    <AppInput
+                      variant="date"
+                      aria-label={tTerm('simulator.form.firstDueDate')}
+                      value={input.firstDueDate || ''}
+                      onValueChange={(value) => onInputChange({ firstDueDate: String(value || '') || undefined })}
+                      disabled={disabled}
+                      invalid={!!fieldErrors.firstDueDate}
                     />
                   </FormField>
 

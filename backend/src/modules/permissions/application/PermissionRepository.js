@@ -6,9 +6,10 @@ const serializePermission = (permission) => {
 };
 
 const permissionRepository = {
-  async findAll() {
+  async findAll(options = {}) {
     const permissions = await Permission.findAll({
       order: [['module', 'ASC'], ['name', 'ASC']],
+      ...options,
     });
     return permissions.map(serializePermission);
   },

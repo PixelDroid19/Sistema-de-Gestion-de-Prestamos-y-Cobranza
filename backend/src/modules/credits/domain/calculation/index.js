@@ -21,6 +21,9 @@ const {
   cloneSchedule,
   addMonths,
   resolveFirstPaymentDate,
+  normalizeFirstDueDate,
+  installmentDueDate,
+  resolveInstallmentStatus,
   getEquivalentMonthlyRate,
 } = require('./amortizationMethods');
 const {
@@ -56,6 +59,9 @@ module.exports = {
   cloneSchedule,
   addMonths,
   resolveFirstPaymentDate,
+  normalizeFirstDueDate,
+  installmentDueDate,
+  resolveInstallmentStatus,
   getEquivalentMonthlyRate,
   DEFAULT_CALCULATION_SCOPE_KEY,
   DEFAULT_CALCULATION_PROFILE,

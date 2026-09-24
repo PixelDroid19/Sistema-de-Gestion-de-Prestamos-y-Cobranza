@@ -363,6 +363,78 @@ const createRevokePermission = ({ permissionRepository, userPermissionRepository
   };
 };
 
+/**
+ * Replace an employee's direct access with the full current catalog or none.
+ * The catalog and assignments are read in one transaction; role grants remain untouched.
+ */
+const createSetAllDirectPermissions = ({
+  permissionRepository,
+  userPermissionRepository,
+  userRepository,
+  eventBus = domainEventBus,
+}) => async ({ actor, targetUserId, action }) => {
+  ensureAdmin(actor);
+  const userId = normalizeId(targetUserId, 'targetUserId');
+  if (action !== 'grant_all' && action !== 'revoke_all') {
+    throw new ValidationError('La acción sobre todos los permisos no es válida.');
+  }
+
+  const result = await userPermissionRepository.runInTransaction(async (options) => {
+    const user = await userRepository.findById(userId, { ...options, lock: true });
+    if (!user) throw new NotFoundError('User');
+    ensureAssignableUser(user);
+
+    const directAssignments = await userPermissionRepository.findByUser(userId, options);
+    if (action === 'revoke_all') {
+      const changedCount = await userPermissionRepository.revokeAllForUser(userId, options);
+      return {
+        userId,
+        action,
+        changedCount,
+        directCount: 0,
+        changedPermissionNames: directAssignments.map((assignment) => assignment.Permission?.name).filter(Boolean),
+      };
+    }
+
+    const catalog = await permissionRepository.findAll(options);
+    if (catalog.length === 0) {
+      throw new ValidationError('No hay permisos disponibles para asignar.');
+    }
+    const assignedIds = new Set(directAssignments.map((assignment) => Number(assignment.permissionId)));
+    const missing = catalog.filter((permission) => !assignedIds.has(Number(permission.id)));
+    const changedCount = await userPermissionRepository.grantMany({
+      userId,
+      permissionIds: missing.map((permission) => permission.id),
+      grantedBy: actor.id,
+    }, options);
+    if (changedCount !== missing.length) {
+      throw new Error('No se asignaron todos los permisos solicitados.');
+    }
+    return {
+      userId,
+      action,
+      changedCount,
+      directCount: assignedIds.size + changedCount,
+      changedPermissionNames: missing.map((permission) => permission.name),
+    };
+  });
+
+  if (result.changedCount > 0) {
+    eventBus.emit(
+      action === 'grant_all' ? EVENT_TYPES.PERMISSIONS_GRANTED_ALL : EVENT_TYPES.PERMISSIONS_REVOKED_ALL,
+      {
+        userId,
+        changedCount: result.changedCount,
+        permissionNames: result.changedPermissionNames,
+      },
+      { actor },
+    );
+  }
+
+  const { changedPermissionNames: _changedPermissionNames, ...response } = result;
+  return response;
+};
+
 const createCheckPermission = ({ permissionRepository, userPermissionRepository, rolePermissionRepository, userRepository }) => async ({ actor, permissionName, permission }) => {
   if (!actor || !actor.id) {
     throw new ValidationError(OPERATOR_SESSION_REQUIRED_MESSAGE);
@@ -454,6 +526,7 @@ module.exports = {
   createGrantPermission,
   createGrantBatchPermissions,
   createRevokePermission,
+  createSetAllDirectPermissions,
   createCheckPermission,
   createCheckMultiplePermissions,
 };

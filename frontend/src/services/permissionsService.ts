@@ -164,6 +164,7 @@ export const usePermissions = () => {
     ),
     isLoading: getPermissions.isLoading,
     isError: getPermissions.isError,
+    refetch: getPermissions.refetch,
   };
 };
 
@@ -327,6 +328,15 @@ export const useGrantBatchPermissions = () => {
   }, [queryKeys.permissions.list, queryKeys.permissions.myPermissions, queryKeys.permissions.myPermissionsSummary, queryKeys.permissions.userRoot]);
 
   return { grantBatchPermissions };
+};
+
+export const useSetAllDirectPermissions = () => {
+  const setAllDirectPermissions = useInvalidatingMutation(async (payload: { userId: string; action: 'grant_all' | 'revoke_all' }) => {
+    const { data } = await apiClient.put(`/permissions/user/${encodeURIComponent(payload.userId)}/direct`, { action: payload.action });
+    return data;
+  }, [queryKeys.permissions.list, queryKeys.permissions.myPermissions, queryKeys.permissions.myPermissionsSummary, queryKeys.permissions.userRoot]);
+
+  return { setAllDirectPermissions };
 };
 
 export const useRevokePermission = () => {

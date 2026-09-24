@@ -1,6 +1,7 @@
 const { ValidationError } = require('@/utils/errorHandler');
 const {
   buildAmortizationSchedule,
+  normalizeFirstDueDate,
   summarizeSchedule,
 } = require('./amortizationMethods');
 const { assertSupportedCalculationMethod } = require('./calculationMethods');
@@ -38,6 +39,7 @@ const normalizeCreditCalculationInput = (input = {}) => {
   const startDate = rawStartDate
     ? normalizeDateOnly(rawStartDate, 'startDate').toISOString()
     : resolveDefaultStartDate();
+  const firstDueDate = normalizeFirstDueDate({ startDate, firstDueDate: input.firstDueDate });
 
   return {
     ...input,
@@ -45,6 +47,7 @@ const normalizeCreditCalculationInput = (input = {}) => {
     interestRate,
     termMonths,
     startDate,
+    firstDueDate: firstDueDate?.toISOString() || null,
   };
 };
 

@@ -2,6 +2,7 @@ const { NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const { buildFinancialSnapshot, normalizeUtcDateOnly } = require('@/modules/credits/application/loanFinancials');
 const { addMonths, roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
 const { calculateCredit } = require('@/modules/credits/domain/calculation/creditCalculationEngine');
+const { normalizeFirstDueDate, installmentDueDate, resolveInstallmentStatus } = require('@/modules/credits/domain/calculation');
 
 const CORRECTION_UNAVAILABLE = 'Solo se pueden corregir créditos abiertos sin alertas, compromisos ni anulaciones de cuotas.';
 const CORRECTION_TERM_TOO_SHORT = 'El nuevo plazo debe incluir las cuotas que ya tienen pagos y al menos una cuota pendiente.';
@@ -18,7 +19,7 @@ const getPreservedRowCount = (schedule) => schedule.reduce((lastCount, row, inde
     : lastCount
 ), 0);
 
-const buildCorrectedSnapshot = ({ priorSnapshot, schedule, policySnapshot, startDate, nextInstallmentAmount }) => {
+const buildCorrectedSnapshot = ({ priorSnapshot, schedule, policySnapshot, startDate, firstDueDate, nextInstallmentAmount }) => {
   const summary = buildFinancialSnapshot(schedule);
   const capitalAdjustmentsApplied = roundCurrency(priorSnapshot.capitalAdjustmentsApplied || 0);
   const totalPaidPenalty = roundCurrency(priorSnapshot.totalPaidPenalty || 0);
@@ -41,12 +42,13 @@ const buildCorrectedSnapshot = ({ priorSnapshot, schedule, policySnapshot, start
     calculationMethod: policySnapshot.calculationMethod,
     policySnapshot,
     startDate: startDate.toISOString(),
+    firstDueDate: firstDueDate?.toISOString() || null,
   };
 };
 
 /** Correct future obligations under the loan lock while preserving posted receipts. */
 const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, promiseModel, profileModel }) => ({
-  async correct({ loanId, actorId, amount, interestRate, termMonths, startDate }) {
+  async correct({ loanId, actorId, amount, interestRate, termMonths, startDate, firstDueDate }) {
     return loanModel.sequelize.transaction(async (transaction) => {
       const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
       if (!loan) throw new NotFoundError('Loan');
@@ -72,7 +74,17 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, prom
         throw new ValidationError(CORRECTION_DATE_CONFLICT);
       }
       const priorPolicy = loan.policySnapshot || {};
-      const policySnapshot = {
+      const priorSnapshot = loan.financialSnapshot || {};
+      const selectedFirstDueDate = normalizeFirstDueDate({
+        startDate: selectedDate,
+        firstDueDate: firstDueDate === undefined ? priorSnapshot.firstDueDate : firstDueDate,
+      });
+      const previousSchedule = Array.isArray(loan.emiSchedule) ? loan.emiSchedule : [];
+      const dateOnlyCorrection = previousSchedule.length === termMonths
+        && Number(loan.amount) === amount
+        && Number(loan.interestRate) === interestRate
+        && loan.termMonths === termMonths;
+      const policySnapshot = dateOnlyCorrection ? priorPolicy : {
         ...priorPolicy,
         rateSource: 'manual',
         ratePolicyId: null,
@@ -81,7 +93,6 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, prom
         ratePolicyRate: null,
         appliedInterestRate: interestRate,
       };
-      const previousSchedule = Array.isArray(loan.emiSchedule) ? loan.emiSchedule : [];
       if (payments.some((payment) => payment.status === 'completed') && previousSchedule.length === 0) {
         throw new ValidationError('El crédito tiene pagos pero no conserva un calendario para conciliarlos.');
       }
@@ -104,37 +115,61 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, prom
         throw new ValidationError(CORRECTION_AMOUNT_TOO_LOW);
       }
 
-      // The archived profile still defines the formula version originally used.
-      const frozenProfile = { ...profile.toJSON(), status: 'active' };
-      const calculation = calculateCredit({
-        input: {
-          amount: preservedCount > 0 ? correctedFuturePrincipal : amount,
-          interestRate,
-          termMonths: remainingTerm,
-          startDate: addMonths(selectedDate, preservedCount),
-          calculationMethod: loan.calculationMethod,
-          lateFeeMode: loan.lateFeeMode,
-          annualLateFeeRate: Number(loan.annualLateFeeRate || 0),
-        },
-        profileVersion: frozenProfile,
-        policySnapshot,
-      });
-      const futureRows = calculation.schedule.map((row, index) => ({
-        ...row,
-        installmentNumber: preservedCount + index + 1,
-      }));
+      let futureRows;
+      let calculationMethod = loan.calculationMethod;
+      let appliedPolicySnapshot = policySnapshot;
+      if (dateOnlyCorrection) {
+        const asOfDate = new Date();
+        futureRows = previousSchedule.slice(preservedCount).map((row, index) => {
+          const shiftedRow = {
+            ...row,
+            dueDate: installmentDueDate({
+              startDate: selectedDate,
+              firstDueDate: selectedFirstDueDate,
+              installmentNumber: preservedCount + index + 1,
+            }).toISOString(),
+          };
+          shiftedRow.status = resolveInstallmentStatus(shiftedRow, asOfDate);
+          return shiftedRow;
+        });
+      } else {
+        // The archived profile still defines the formula version originally used.
+        const frozenProfile = { ...profile.toJSON(), status: 'active' };
+        const calculation = calculateCredit({
+          input: {
+            amount: preservedCount > 0 ? correctedFuturePrincipal : amount,
+            interestRate,
+            termMonths: remainingTerm,
+            startDate: addMonths(selectedDate, preservedCount),
+            firstDueDate: selectedFirstDueDate
+              ? addMonths(selectedFirstDueDate, preservedCount)
+              : addMonths(selectedDate, preservedCount + 1),
+            calculationMethod: loan.calculationMethod,
+            lateFeeMode: loan.lateFeeMode,
+            annualLateFeeRate: Number(loan.annualLateFeeRate || 0),
+          },
+          profileVersion: frozenProfile,
+          policySnapshot,
+        });
+        futureRows = calculation.schedule.map((row, index) => ({
+          ...row,
+          installmentNumber: preservedCount + index + 1,
+        }));
+        calculationMethod = calculation.method;
+        appliedPolicySnapshot = calculation.policySnapshot;
+      }
       if (preservedRows.length > 0 && futureRows.length > 0
         && normalizeUtcDateOnly(futureRows[0].dueDate, 'Schedule due date')
           <= normalizeUtcDateOnly(preservedRows.at(-1).dueDate, 'Schedule due date')) {
         throw new ValidationError(CORRECTION_DATE_CONFLICT);
       }
       const schedule = [...preservedRows, ...futureRows];
-      const priorSnapshot = loan.financialSnapshot || {};
       const financialSnapshot = buildCorrectedSnapshot({
         priorSnapshot,
         schedule,
-        policySnapshot: calculation.policySnapshot,
+        policySnapshot: appliedPolicySnapshot,
         startDate: selectedDate,
+        firstDueDate: selectedFirstDueDate,
         nextInstallmentAmount: futureRows[0]?.scheduledPayment || 0,
       });
       if (Math.abs(financialSnapshot.totalPrincipal - amount) > 0.02) {
@@ -144,17 +179,24 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, prom
         ...(Array.isArray(priorSnapshot.correctionHistory) ? priorSnapshot.correctionHistory : []),
         {
           at: new Date().toISOString(), actorId,
-          mode: preservedCount > 0 ? 'future_installments' : 'full_schedule',
+          mode: dateOnlyCorrection ? 'due_dates' : (preservedCount > 0 ? 'future_installments' : 'full_schedule'),
           preservedInstallments: preservedCount,
           before: {
             amount: Number(loan.amount),
             interestRate: Number(loan.interestRate),
             termMonths: loan.termMonths,
             startDate: normalizeUtcDateOnly(loan.startDate, 'Loan start date').toISOString().slice(0, 10),
+            firstDueDate: priorSnapshot.firstDueDate
+              ? normalizeUtcDateOnly(priorSnapshot.firstDueDate, 'firstDueDate').toISOString().slice(0, 10)
+              : null,
             rateSource: priorPolicy.rateSource || null,
             policySnapshot: priorPolicy,
           },
-          after: { amount, interestRate, termMonths, startDate, rateSource: 'manual' },
+          after: {
+            amount, interestRate, termMonths, startDate,
+            firstDueDate: selectedFirstDueDate?.toISOString().slice(0, 10) || null,
+            rateSource: dateOnlyCorrection ? (priorPolicy.rateSource || null) : 'manual',
+          },
         },
       ];
 
@@ -163,9 +205,9 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, prom
         interestRate,
         termMonths,
         startDate: selectedDate,
-        calculationMethod: calculation.method,
-        ratePolicyId: null,
-        policySnapshot: calculation.policySnapshot,
+        calculationMethod,
+        ratePolicyId: dateOnlyCorrection ? loan.ratePolicyId : null,
+        policySnapshot: appliedPolicySnapshot,
         emiSchedule: schedule,
         installmentAmount: financialSnapshot.installmentAmount,
         totalPayable: financialSnapshot.totalPayable,

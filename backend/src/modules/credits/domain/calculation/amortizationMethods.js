@@ -4,6 +4,7 @@ const {
   normalizeCalculationMethod,
 } = require('./calculationMethods');
 const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
+const { ValidationError } = require('@/utils/errorHandler');
 
 const parseUtcDateOnly = (value) => {
   try {
@@ -37,6 +38,33 @@ const resolveScheduleStartDate = (startDate) => {
 
 const resolveFirstPaymentDate = (startDate) => addMonths(resolveScheduleStartDate(startDate), 1);
 
+const normalizeFirstDueDate = ({ startDate, firstDueDate }) => {
+  if (firstDueDate === undefined || firstDueDate === null || firstDueDate === '') return null;
+  const selected = normalizeDateOnly(firstDueDate, 'firstDueDate');
+  const standardDate = resolveFirstPaymentDate(startDate);
+  if (selected < standardDate) {
+    throw new ValidationError('La primera cuota debe vencer al menos un mes después del desembolso.');
+  }
+  return selected.getTime() === standardDate.getTime() ? null : selected;
+};
+
+const installmentDueDate = ({ startDate, firstDueDate, installmentNumber }) => (
+  firstDueDate
+    ? addMonths(firstDueDate, installmentNumber - 1)
+    : addMonths(startDate, installmentNumber)
+);
+
+const resolveInstallmentStatus = (row, asOfDate = new Date()) => {
+  if (row.status === 'annulled') return 'annulled';
+  const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+  if (outstanding <= 0) return 'paid';
+  if (row.status !== 'paid'
+    && normalizeDateOnly(asOfDate, 'asOfDate') > normalizeDateOnly(row.dueDate, 'dueDate')) {
+    return 'overdue';
+  }
+  return Number(row.paidTotal || 0) > 0 ? 'partial' : 'pending';
+};
+
 // "Interés equivalente" en el simulador del cliente (celda D7 = TNA / nº de pagos por año).
 // Es una tasa NOMINAL dividida, no una conversión efectiva compuesta. Mantener TNA/12.
 const getEquivalentMonthlyRate = (annualNominalRate) => {
@@ -67,12 +95,13 @@ const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
   return roundCurrency(installment);
 };
 
-const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate }) => {
+const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate, firstDueDate }) => {
   const principal = roundCurrency(amount);
   const interestTotal = roundCurrency(Math.max(0, Number(totalInterest) || 0));
   const term = Number(termMonths);
   const schedule = [];
   const scheduleStartDate = resolveScheduleStartDate(startDate);
+  const selectedFirstDueDate = normalizeFirstDueDate({ startDate: scheduleStartDate, firstDueDate });
   const basePrincipal = term > 0 ? roundCurrency(principal / term) : 0;
   const baseInterest = term > 0 ? roundCurrency(interestTotal / term) : 0;
   let balance = principal;
@@ -92,7 +121,7 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate 
 
     schedule.push({
       installmentNumber: month,
-      dueDate: addMonths(scheduleStartDate, month).toISOString(),
+      dueDate: installmentDueDate({ startDate: scheduleStartDate, firstDueDate: selectedFirstDueDate, installmentNumber: month }).toISOString(),
       openingBalance,
       scheduledPayment,
       principalComponent,
@@ -111,7 +140,7 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate 
   return schedule;
 };
 
-const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, lateFeeMode: _lateFeeMode, installmentAmount, calculationMethod }) => {
+const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, firstDueDate, lateFeeMode: _lateFeeMode, installmentAmount, calculationMethod }) => {
   const method = assertSupportedCalculationMethod(calculationMethod);
   const principal = Number(amount);
   const term = Number(termMonths);
@@ -128,6 +157,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
     const schedule = [];
     // Always anchor on origination, not February's already-clamped first due date.
     const scheduleStartDate = resolveScheduleStartDate(startDate);
+    const selectedFirstDueDate = normalizeFirstDueDate({ startDate: scheduleStartDate, firstDueDate });
     let balance = roundCurrency(amount);
 
     for (let month = 1; month <= term; month += 1) {
@@ -143,7 +173,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
       schedule.push({
         installmentNumber: month,
-        dueDate: addMonths(scheduleStartDate, month).toISOString(),
+        dueDate: installmentDueDate({ startDate: scheduleStartDate, firstDueDate: selectedFirstDueDate, installmentNumber: month }).toISOString(),
         openingBalance,
         scheduledPayment,
         principalComponent,
@@ -168,12 +198,12 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
   if (method === 'SIMPLE') {
     const totalInterest = roundCurrency(principal * annualRate * (term / 12));
-    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate });
+    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate, firstDueDate });
   }
 
   if (method === 'COMPOUND') {
     const totalInterest = roundCurrency(principal * (Math.pow(1 + monthlyRate, term) - 1));
-    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate });
+    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate, firstDueDate });
   }
 
   return buildFixedInstallmentSchedule(calculateInstallmentAmount({ amount, interestRate, termMonths }));
@@ -231,6 +261,9 @@ const cloneSchedule = (schedule = []) => JSON.parse(JSON.stringify(schedule));
 module.exports = {
   addMonths,
   resolveFirstPaymentDate,
+  normalizeFirstDueDate,
+  installmentDueDate,
+  resolveInstallmentStatus,
   getEquivalentMonthlyRate,
   calculateInstallmentAmount,
   buildAmortizationSchedule,

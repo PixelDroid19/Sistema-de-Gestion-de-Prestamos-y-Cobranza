@@ -77,8 +77,8 @@ const userRepository = {
     };
   },
 
-  findById(userId) {
-    return User.findByPk(userId);
+  findById(userId, options = {}) {
+    return User.findByPk(userId, options);
   },
 
   findByEmail(email) {

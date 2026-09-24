@@ -15,10 +15,15 @@ const serializeUserPermission = (up) => {
 };
 
 const userPermissionRepository = {
-  async findByUser(userId) {
+  runInTransaction(work) {
+    return UserPermission.sequelize.transaction((transaction) => work({ transaction }));
+  },
+
+  async findByUser(userId, options = {}) {
     const userPermissions = await UserPermission.findAll({
       where: { userId },
       include: [{ model: Permission }],
+      ...options,
     });
     return userPermissions.map(serializeUserPermission);
   },
@@ -45,9 +50,19 @@ const userPermissionRepository = {
     return deleted > 0;
   },
 
-  async revokeAllForUser(userId) {
+  async grantMany({ userId, permissionIds, grantedBy }, options = {}) {
+    if (permissionIds.length === 0) return 0;
+    const created = await UserPermission.bulkCreate(
+      permissionIds.map((permissionId) => ({ userId, permissionId, grantedBy })),
+      options,
+    );
+    return created.length;
+  },
+
+  async revokeAllForUser(userId, options = {}) {
     const deleted = await UserPermission.destroy({
       where: { userId },
+      ...options,
     });
     return deleted;
   },

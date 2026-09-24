@@ -13,6 +13,7 @@ const DATE_FIELD_LABELS = {
   dueDate: 'La fecha de vencimiento',
   endDate: 'La fecha final',
   expenseDate: 'La fecha del gasto',
+  firstDueDate: 'La fecha de la primera cuota',
   fromDate: 'La fecha inicial',
   'Loan start date': 'La fecha inicial',
   paymentDate: 'La fecha de pago',

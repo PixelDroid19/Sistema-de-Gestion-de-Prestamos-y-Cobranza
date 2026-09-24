@@ -74,6 +74,8 @@ const USER_REACTIVATED          = 'user.reactivated';
 const USER_UNLOCKED             = 'user.unlocked';
 const PERMISSION_GRANTED        = 'user.permission.granted';
 const PERMISSION_REVOKED        = 'user.permission.revoked';
+const PERMISSIONS_GRANTED_ALL   = 'user.permissions.granted';
+const PERMISSIONS_REVOKED_ALL   = 'user.permissions.revoked';
 
 // ---------------------------------------------------------------------------
 // NOTIFICATIONS
@@ -158,6 +160,8 @@ const EVENT_TYPES = Object.freeze({
   USER_UNLOCKED,
   PERMISSION_GRANTED,
   PERMISSION_REVOKED,
+  PERMISSIONS_GRANTED_ALL,
+  PERMISSIONS_REVOKED_ALL,
 
   // Notifications
   NOTIFICATION_SENT,

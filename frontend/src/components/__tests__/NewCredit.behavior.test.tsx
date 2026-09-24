@@ -247,6 +247,7 @@ describe('NewCredit behavior', () => {
         interestRate: 40,
         termMonths: 16,
         startDate: '2026-05-01',
+        firstDueDate: null,
         lateFeeMode: 'SIMPLE',
         annualLateFeeRate: 24,
         rateSource: 'policy',
@@ -611,9 +612,11 @@ describe('NewCredit behavior', () => {
     expect(screen.queryByRole('textbox', { name: 'Tasa pactada anual (%)' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
     expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({ title: 'Falta política de tasa' }));
+    fireEvent.change(screen.getByLabelText('Primera cuota (opcional)', { selector: 'input' }), { target: { value: '2027-01-10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Restablecer parámetros' }));
     expect(screen.getByRole('combobox', { name: 'Tasa del crédito' })).toHaveValue('manual');
     expect(screen.getByRole('textbox', { name: 'Tasa pactada anual (%)' })).toHaveValue('');
+    expect(screen.getByLabelText('Primera cuota (opcional)', { selector: 'input' })).toHaveValue('');
   });
 
   it('keeps the individual rate when an active configured rate or loan amount changes', async () => {

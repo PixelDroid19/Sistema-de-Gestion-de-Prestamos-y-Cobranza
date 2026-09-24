@@ -8,6 +8,7 @@ const {
   createGetUserPermissions,
   createGrantBatchPermissions,
   createGrantPermission,
+  createSetAllDirectPermissions,
 } = require('@/modules/permissions/application/useCases');
 
 const createPermissionRepositories = ({ user }) => ({
@@ -193,4 +194,79 @@ test('batch permission checks reject malformed lists without implementation fiel
       return true;
     },
   );
+});
+
+test('set-all grants only missing direct permissions and preserves existing assignments', async () => {
+  const user = { id: 12, role: 'employee' };
+  const catalog = [
+    { id: 1, name: 'CREDITS_VIEW_ALL' },
+    { id: 2, name: 'CLIENTS_VIEW_ALL' },
+  ];
+  const assignments = [{ permissionId: 1, Permission: catalog[0] }];
+  const grants = [];
+  const events = [];
+  const useCase = createSetAllDirectPermissions({
+    userRepository: { findById: async () => user },
+    permissionRepository: { findAll: async () => catalog },
+    userPermissionRepository: {
+      runInTransaction: (work) => work({ transaction: { id: 'permission-tx' } }),
+      findByUser: async () => assignments,
+      grantMany: async (payload, options) => {
+        grants.push({ payload, options });
+        return payload.permissionIds.length;
+      },
+    },
+    eventBus: { emit: (...args) => events.push(args) },
+  });
+
+  const result = await useCase({ actor: { id: 3, role: 'admin' }, targetUserId: 12, action: 'grant_all' });
+
+  assert.deepEqual(result, { userId: 12, action: 'grant_all', changedCount: 1, directCount: 2 });
+  assert.deepEqual(grants[0].payload.permissionIds, [2]);
+  assert.equal(grants[0].options.transaction.id, 'permission-tx');
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0][1].permissionNames, ['CLIENTS_VIEW_ALL']);
+});
+
+test('set-all revokes direct permissions without mutating inherited permissions', async () => {
+  const events = [];
+  const assignments = [{ permissionId: 1, Permission: { name: 'CREDITS_VIEW_ALL' } }];
+  const useCase = createSetAllDirectPermissions({
+    userRepository: { findById: async () => ({ id: 12, role: 'employee' }) },
+    permissionRepository: { findAll: async () => { throw new Error('revoke must not read or change the catalog'); } },
+    userPermissionRepository: {
+      runInTransaction: (work) => work({ transaction: { id: 'permission-tx' } }),
+      findByUser: async () => assignments,
+      revokeAllForUser: async (_userId, options) => {
+        assert.equal(options.transaction.id, 'permission-tx');
+        return assignments.length;
+      },
+    },
+    eventBus: { emit: (...args) => events.push(args) },
+  });
+
+  const result = await useCase({ actor: { id: 3, role: 'admin' }, targetUserId: 12, action: 'revoke_all' });
+
+  assert.deepEqual(result, { userId: 12, action: 'revoke_all', changedCount: 1, directCount: 0 });
+  assert.deepEqual(events[0][1].permissionNames, ['CREDITS_VIEW_ALL']);
+});
+
+test('set-all rejects invalid action and non-employee targets before changing assignments', async () => {
+  let writes = 0;
+  const useCase = createSetAllDirectPermissions({
+    userRepository: { findById: async () => ({ id: 12, role: 'admin' }) },
+    permissionRepository: { findAll: async () => [{ id: 1, name: 'CREDITS_VIEW_ALL' }] },
+    userPermissionRepository: {
+      runInTransaction: (work) => work({ transaction: {} }),
+      findByUser: async () => [],
+      grantMany: async () => { writes += 1; return 1; },
+      revokeAllForUser: async () => { writes += 1; return 0; },
+    },
+    eventBus: { emit: () => {} },
+  });
+
+  await assert.rejects(() => useCase({ actor: { id: 3, role: 'admin' }, targetUserId: 12, action: 'invalid' }), /acción sobre todos los permisos no es válida/);
+  await assert.rejects(() => useCase({ actor: { id: 3, role: 'admin' }, targetUserId: 12, action: 'grant_all' }), /solo pueden asignarse a cuentas de empleados/);
+  await assert.rejects(() => useCase({ actor: { id: 12, role: 'employee' }, targetUserId: 12, action: 'revoke_all' }), /Solo un administrador/);
+  assert.equal(writes, 0);
 });

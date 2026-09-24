@@ -451,8 +451,8 @@ export default function CreditsListView({
                 const isDelinquent = isCreditDelinquent(credit);
                 const lateFeeOutstanding = Number(credit.lateFeeOutstanding) || 0;
 
-                const creationDate = credit.createdAt
-                  ? formatLocaleDate(credit.createdAt, { day: '2-digit', month: '2-digit', year: 'numeric' })
+                const loanStartDate = credit.startDate
+                  ? formatLocaleDate(credit.startDate, { day: '2-digit', month: '2-digit', year: 'numeric' })
                   : '-';
 
                 return (
@@ -507,7 +507,7 @@ export default function CreditsListView({
                         )}`}
                       />
                     </td>
-                    <td className="hidden whitespace-nowrap px-3 py-4 text-xs text-text-secondary 2xl:table-cell">{creationDate}</td>
+                    <td className="hidden whitespace-nowrap px-3 py-4 text-xs text-text-secondary 2xl:table-cell">{loanStartDate}</td>
                     <TableActionsCell className="px-3 py-4">
                       {(() => {
                         const viewGuard = resolveOperationalGuard('credit.view', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
