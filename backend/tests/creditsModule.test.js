@@ -187,6 +187,33 @@ test('createSearchLoans scopes visible rows before applying search filters', asy
   assert.deepEqual(result.items.map((loan) => loan.id), [41]);
 });
 
+test('credit search preserves the same overdue and late-fee snapshot as the unfiltered list', async () => {
+  const loan = {
+    id: 81, customerId: 7, status: 'pending', recoveryStatus: 'pending',
+    lateFeeMode: 'NONE', annualLateFeeRate: 0,
+    emiSchedule: [{
+      dueDate: '2020-01-01', status: 'pending', remainingPrincipal: 100, remainingInterest: 10,
+    }],
+    Customer: { name: 'Fredy Hoyos' },
+  };
+  const pagination = { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 };
+  const loanRepository = {
+    async listPage() { return { items: [loan], pagination }; },
+    async searchPage() { return { items: [loan], pagination }; },
+    async attachCustomerSummaries(loans) {
+      return loans.map((item) => ({ ...item, customerSummary: { totalLoans: 1 } }));
+    },
+  };
+  const actor = { id: 1, role: 'admin' };
+  const list = await createListLoans({ loanRepository })({ actor, pagination });
+  const searched = await createSearchLoans({ loanRepository })({ actor, filters: { search: 'Fredy' }, pagination });
+
+  assert.equal(list.items[0].isOverdue, true);
+  assert.equal(list.items[0].lateFeeOutstanding, 0);
+  assert.deepEqual(searched.items[0], list.items[0]);
+  assert.equal(loan.isOverdue, undefined);
+});
+
 test('createSearchLoans rejects customer records before repository lookup', async () => {
   const searchLoans = createSearchLoans({
     loanRepository: {

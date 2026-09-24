@@ -324,6 +324,13 @@ integrationTest('producto: corrige cliente y crédito con pagos conservados y pe
   assert.equal(withoutMora.lateFeePolicyId, null);
   assert.equal(withoutMora.policySnapshot.lateFeeSource, 'manual');
   assert.equal(withoutMora.financialSnapshot.policySnapshot.appliedAnnualLateFeeRate, 0);
+  const searchedWithoutMora = await expectStatus({
+    path: `/api/loans/search?search=${correctedLoanId}`, token: accessToken,
+  }, 200);
+  const searchedLoan = searchedWithoutMora.body.data.loans.find((item) => item.id === correctedLoanId);
+  assert.equal(searchedLoan.isOverdue, true);
+  assert.equal(searchedLoan.lateFeeOutstanding, 0);
+  assert.ok(searchedLoan.overdueAmount > 0);
 
   await expectStatus({ method: 'PATCH', path: `/api/loans/${correctedLoanId}/status`, token: accessToken,
     body: { status: 'approved' } }, 200);

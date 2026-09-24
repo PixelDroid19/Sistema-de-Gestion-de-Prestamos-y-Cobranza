@@ -1906,11 +1906,13 @@ const createSearchLoans = ({ loanRepository, loanAccessPolicy }) => async ({ act
   ensureCreditBackofficeActor(actor, CREDIT_SEARCH_DENIED_MESSAGE);
 
   if (pagination && typeof loanRepository.searchPage === 'function') {
-    return loanRepository.searchPage({ actor, filters, ...pagination });
+    const result = await loanRepository.searchPage({ actor, filters, ...pagination });
+    return enrichLoansWithCustomerSummaries({ loanRepository, result });
   }
 
   if (!pagination && typeof loanRepository.search === 'function') {
-    return loanRepository.search({ actor, filters });
+    const result = await loanRepository.search({ actor, filters });
+    return enrichLoansWithCustomerSummaries({ loanRepository, result });
   }
 
   const loans = await loanRepository.list();
@@ -1920,10 +1922,13 @@ const createSearchLoans = ({ loanRepository, loanAccessPolicy }) => async ({ act
   const filteredLoans = filterLoansByFilters({ loans: visibleLoans, filters });
 
   if (pagination) {
-    return paginateArray({ items: filteredLoans, pagination });
+    return enrichLoansWithCustomerSummaries({
+      loanRepository,
+      result: paginateArray({ items: filteredLoans, pagination }),
+    });
   }
 
-  return filteredLoans;
+  return enrichLoansWithCustomerSummaries({ loanRepository, result: filteredLoans });
 };
 
 /**
