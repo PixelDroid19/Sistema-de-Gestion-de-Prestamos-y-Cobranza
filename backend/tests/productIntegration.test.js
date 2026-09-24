@@ -449,6 +449,23 @@ integrationTest('producto: pacta una primera cuota posterior al mes y desplaza s
   }));
   const receipts = (await Payment.findAll({ where: { loanId: deferredLoanId } })).map((payment) => payment.toJSON());
   assert.equal(stored.financialSnapshot.firstDueDate, '2026-08-10T00:00:00.000Z');
+  const overdueAlert = await LoanAlert.create({
+    loanId: deferredLoanId, installmentNumber: 2, alertType: 'overdue_installment',
+    dueDate: new Date(stored.emiSchedule[1].dueDate),
+    scheduledAmount: stored.emiSchedule[1].scheduledPayment,
+    outstandingAmount: stored.emiSchedule[1].remainingPrincipal + stored.emiSchedule[1].remainingInterest,
+    status: 'active',
+  });
+  const manualReminder = await LoanAlert.create({
+    loanId: deferredLoanId, installmentNumber: 2, alertType: 'payment_reminder',
+    dueDate: new Date(stored.emiSchedule[1].dueDate),
+    scheduledAmount: 25000, outstandingAmount: 25000, status: 'active',
+  });
+  const createdPromise = await expectStatus({
+    method: 'POST', path: `/api/loans/${deferredLoanId}/promises`, token: accessToken,
+    body: { promisedDate: '2026-10-01', amount: 50000 },
+  }, 201);
+  const promiseBefore = (await PromiseToPay.findByPk(createdPromise.body.data.promise.id)).toJSON();
 
   const corrected = await expectStatus({
     method: 'PATCH', path: `/api/loans/${deferredLoanId}/origination`, token: accessToken,
@@ -466,6 +483,27 @@ integrationTest('producto: pacta una primera cuota posterior al mes y desplaza s
   })), futureAmounts);
   assert.deepEqual((await Payment.findAll({ where: { loanId: deferredLoanId } })).map((payment) => payment.toJSON()), receipts);
   assert.equal(stored.financialSnapshot.firstDueDate, '2026-08-12T00:00:00.000Z');
+  const updatedOverdueAlert = await LoanAlert.findByPk(overdueAlert.id);
+  const unchangedReminder = await LoanAlert.findByPk(manualReminder.id);
+  assert.equal(updatedOverdueAlert.dueDate.toISOString().slice(0, 10), '2026-09-12');
+  assert.equal(Number(updatedOverdueAlert.scheduledAmount), Number(stored.emiSchedule[1].scheduledPayment));
+  assert.equal(unchangedReminder.status, 'active');
+  assert.equal(unchangedReminder.dueDate.toISOString().slice(0, 10), '2026-09-10');
+  assert.deepEqual((await PromiseToPay.findByPk(createdPromise.body.data.promise.id)).toJSON(), promiseBefore);
+
+  const futureAnchorDate = new Date();
+  futureAnchorDate.setUTCDate(futureAnchorDate.getUTCDate() + 2);
+  await expectStatus({
+    method: 'PATCH', path: `/api/loans/${deferredLoanId}/origination`, token: accessToken,
+    body: { amount: 1000000, interestRate: 30, termMonths: 3,
+      startDate: '2026-07-05', firstDueDate: futureAnchorDate.toISOString().slice(0, 10) },
+  }, 200);
+  const rescheduledAlert = await LoanAlert.findByPk(overdueAlert.id);
+  assert.equal(rescheduledAlert.status, 'resolved');
+  assert.equal(rescheduledAlert.resolutionSource, 'schedule_corrected');
+  assert.equal((await LoanAlert.findByPk(manualReminder.id)).status, 'active');
+  assert.deepEqual((await PromiseToPay.findByPk(createdPromise.body.data.promise.id)).toJSON(), promiseBefore);
+  assert.deepEqual((await Payment.findAll({ where: { loanId: deferredLoanId } })).map((payment) => payment.toJSON()), receipts);
 });
 
 integrationTest('producto: proyecta y aplica abonos a capital sin alterar la deuda antes de confirmar', async () => {

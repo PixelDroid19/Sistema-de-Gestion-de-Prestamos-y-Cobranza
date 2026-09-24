@@ -292,6 +292,70 @@ const createCreditsInfrastructure = ({
     financialProductModel: require('@/models').FinancialProduct,
   });
 
+  const syncOverdueInstallmentAlerts = async ({ loan, schedule, transaction, resolutionSource = 'payment_satisfied' }) => {
+    const operationalDate = getCurrentOperationalDateOnly(clock());
+    const overdueRows = schedule.filter((row) => {
+      if (['annulled', 'paid'].includes(String(row.status || '').toLowerCase())) return false;
+      const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+      return outstanding > 0 && normalizeUtcDateOnly(row.dueDate, 'Schedule due date') < operationalDate;
+    });
+    const options = transaction ? { transaction } : {};
+    const existingAlerts = await loanAlertModel.findAll({
+      where: { loanId: loan.id },
+      ...options,
+      ...(transaction ? { lock: true } : {}),
+    });
+    const syncedAlerts = existingAlerts.filter((alert) => alert.alertType === 'overdue_installment');
+    const existingByInstallment = new Map(syncedAlerts.map((alert) => [Number(alert.installmentNumber), alert]));
+    const activeInstallments = new Set();
+
+    for (const row of overdueRows) {
+      const installmentNumber = Number(row.installmentNumber);
+      activeInstallments.add(installmentNumber);
+      const outstandingAmount = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+      const existingAlert = existingByInstallment.get(installmentNumber);
+
+      if (existingAlert) {
+        const keepManuallyResolved = existingAlert.status === 'resolved'
+          && MANUAL_ALERT_RESOLUTION_SOURCES.has(String(existingAlert.resolutionSource || '').trim());
+        await existingAlert.update({
+          status: keepManuallyResolved ? 'resolved' : 'active',
+          scheduledAmount: roundCurrency(row.scheduledPayment || 0),
+          outstandingAmount,
+          dueDate: new Date(row.dueDate),
+          resolvedAt: keepManuallyResolved ? existingAlert.resolvedAt : null,
+          resolutionSource: keepManuallyResolved ? existingAlert.resolutionSource : null,
+        }, options);
+        continue;
+      }
+
+      await loanAlertModel.create({
+        loanId: loan.id,
+        installmentNumber,
+        alertType: 'overdue_installment',
+        dueDate: new Date(row.dueDate),
+        scheduledAmount: roundCurrency(row.scheduledPayment || 0),
+        outstandingAmount,
+        status: 'active',
+      }, options);
+    }
+
+    await Promise.all(syncedAlerts
+      .filter((alert) => alert.status === 'active' && !activeInstallments.has(Number(alert.installmentNumber)))
+      .map((alert) => alert.update({
+        status: 'resolved',
+        outstandingAmount: 0,
+        resolvedAt: clock(),
+        resolutionSource,
+      }, options)));
+
+    return loanAlertModel.findAll({
+      where: { loanId: loan.id },
+      order: [['installmentNumber', 'ASC'], ['createdAt', 'DESC']],
+      ...options,
+    });
+  };
+
   return {
     loanRepository: {
       list() {
@@ -477,65 +541,7 @@ const createCreditsInfrastructure = ({
       save(alert) {
         return alert.save();
       },
-      async syncOverdueInstallmentAlerts({ loan, schedule }) {
-        const operationalDate = getCurrentOperationalDateOnly(clock());
-        const overdueRows = schedule.filter((row) => {
-          if (['annulled', 'paid'].includes(String(row.status || '').toLowerCase())) {
-            return false;
-          }
-          const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
-          const dueDate = normalizeUtcDateOnly(row.dueDate, 'Schedule due date');
-          return outstanding > 0 && dueDate < operationalDate;
-        });
-
-        const existingAlerts = await loanAlertModel.findAll({ where: { loanId: loan.id } });
-        const syncedAlerts = existingAlerts.filter((alert) => alert.alertType === 'overdue_installment');
-        const existingByInstallment = new Map(syncedAlerts.map((alert) => [Number(alert.installmentNumber), alert]));
-        const activeInstallments = new Set();
-
-        for (const row of overdueRows) {
-          const installmentNumber = Number(row.installmentNumber);
-          activeInstallments.add(installmentNumber);
-          const outstandingAmount = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
-          const existingAlert = existingByInstallment.get(installmentNumber);
-
-          if (existingAlert) {
-            const keepManuallyResolved = existingAlert.status === 'resolved'
-              && MANUAL_ALERT_RESOLUTION_SOURCES.has(String(existingAlert.resolutionSource || '').trim());
-
-            await existingAlert.update({
-              status: keepManuallyResolved ? 'resolved' : 'active',
-              scheduledAmount: roundCurrency(row.scheduledPayment || 0),
-              outstandingAmount,
-              dueDate: new Date(row.dueDate),
-              resolvedAt: keepManuallyResolved ? existingAlert.resolvedAt : null,
-              resolutionSource: keepManuallyResolved ? existingAlert.resolutionSource : null,
-            });
-            continue;
-          }
-
-          await loanAlertModel.create({
-            loanId: loan.id,
-            installmentNumber,
-            alertType: 'overdue_installment',
-            dueDate: new Date(row.dueDate),
-            scheduledAmount: roundCurrency(row.scheduledPayment || 0),
-            outstandingAmount,
-            status: 'active',
-          });
-        }
-
-        await Promise.all(syncedAlerts
-          .filter((alert) => alert.status === 'active' && !activeInstallments.has(Number(alert.installmentNumber)))
-          .map((alert) => alert.update({
-            status: 'resolved',
-            outstandingAmount: 0,
-            resolvedAt: clock(),
-            resolutionSource: 'payment_satisfied',
-          })));
-
-        return this.listByLoan(loan.id);
-      },
+      syncOverdueInstallmentAlerts,
     },
     promiseRepository: {
       listByLoan(loanId) {
@@ -638,9 +644,8 @@ const createCreditsInfrastructure = ({
     loanCorrectionService: createLoanCorrectionService({
       loanModel,
       paymentModel,
-      alertModel: loanAlertModel,
-      promiseModel: promiseToPayModel,
       profileModel: calculationProfileVersionModel,
+      syncOverdueInstallmentAlerts,
     }),
     notificationPort: {
       sendLoanReminder(userId, payload) {

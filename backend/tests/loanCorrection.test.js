@@ -45,9 +45,10 @@ const buildScenario = ({ hasPayment = false, status = 'pending', startDate = '20
       findByPk: async (id, options) => { calls.push(['find', id, options]); return loan; },
     },
     paymentModel: { findAll: async () => payments },
-    alertModel: { count: async () => 0 },
-    promiseModel: { count: async () => 0 },
     profileModel: { findByPk: async () => ({ toJSON: () => ({ ...DEFAULT_CALCULATION_PROFILE, id: 8, status: 'inactive' }) }) },
+    syncOverdueInstallmentAlerts: async ({ loan: correctedLoan, schedule, transaction: tx, resolutionSource }) => {
+      calls.push(['sync alerts', correctedLoan.id, schedule.length, tx, resolutionSource]);
+    },
   });
   return { correctionService, loan, originalSchedule, payments, calls, transaction };
 };
@@ -77,7 +78,8 @@ test('admin correction rebuilds the schedule with the original profile under a r
     policySnapshot: { rateSource: 'policy', ratePolicyId: 3, lateFeeSource: 'policy', lateFeePolicyId: 5 },
   });
   assert.equal(loan.financialSnapshot.correctionHistory[0].actorId, 9);
-  assert.deepEqual(calls.at(-1), ['save', { transaction }]);
+  assert.deepEqual(calls.at(-2), ['save', { transaction }]);
+  assert.deepEqual(calls.at(-1), ['sync alerts', 31, 4, transaction, 'schedule_corrected']);
 });
 
 test('correction keeps posted payment and paid installment intact, and recalculates only remaining installments', async () => {
@@ -179,7 +181,7 @@ test('correction rejects completed payments missing from the preserved schedule'
   assert.equal(calls.some(([action]) => action === 'save'), false);
 });
 
-test('correction rejects alerts and cancelled installments before changing balances', async () => {
+test('correction rejects cancelled installments before changing balances', async () => {
   const { correctionService, loan, payments, calls } = buildScenario({ hasPayment: true, status: 'active' });
   payments.push({ id: 8, status: 'annulled', paymentType: 'installment' });
   await assert.rejects(() => correctionService.correct({ loanId: 31, actorId: 9, ...correction }),

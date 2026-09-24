@@ -4,7 +4,7 @@ const { addMonths, roundCurrency } = require('@/modules/credits/application/cred
 const { calculateCredit } = require('@/modules/credits/domain/calculation/creditCalculationEngine');
 const { normalizeFirstDueDate, installmentDueDate, resolveInstallmentStatus } = require('@/modules/credits/domain/calculation');
 
-const CORRECTION_UNAVAILABLE = 'Solo se pueden corregir créditos abiertos sin alertas, compromisos ni anulaciones de cuotas.';
+const CORRECTION_UNAVAILABLE = 'Solo se pueden corregir créditos abiertos no asociados, sin abonos a capital, anulaciones de cuotas ni pago total.';
 const CORRECTION_TERM_TOO_SHORT = 'El nuevo plazo debe incluir las cuotas que ya tienen pagos y al menos una cuota pendiente.';
 const CORRECTION_AMOUNT_TOO_LOW = 'El nuevo monto no puede ser menor que el capital ya abonado y el comprometido en cuotas parcialmente pagadas.';
 const CORRECTION_DATE_CONFLICT = 'La nueva fecha de desembolso debe ser anterior o igual a los pagos registrados y mantener las cuotas pendientes después de las ya cobradas.';
@@ -47,19 +47,15 @@ const buildCorrectedSnapshot = ({ priorSnapshot, schedule, policySnapshot, start
 };
 
 /** Correct future obligations under the loan lock while preserving posted receipts. */
-const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, promiseModel, profileModel }) => ({
+const createLoanCorrectionService = ({ loanModel, paymentModel, profileModel, syncOverdueInstallmentAlerts }) => ({
   async correct({ loanId, actorId, amount, interestRate, termMonths, startDate, firstDueDate }) {
     return loanModel.sequelize.transaction(async (transaction) => {
       const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
       if (!loan) throw new NotFoundError('Loan');
 
-      const [payments, alerts, promises] = await Promise.all([
-        paymentModel.findAll({ where: { loanId }, transaction }),
-        alertModel.count({ where: { loanId }, transaction }),
-        promiseModel.count({ where: { loanId }, transaction }),
-      ]);
+      const payments = await paymentModel.findAll({ where: { loanId }, transaction });
       if (!['pending', 'approved', 'active', 'overdue', 'defaulted'].includes(loan.status)
-        || alerts || promises || loan.associateId != null
+        || loan.associateId != null
         || Object.keys(loan.financialBlock || {}).length > 0
         || payments.some((payment) => payment.status === 'annulled' || payment.paymentType === 'payoff')) {
         throw new ValidationError(CORRECTION_UNAVAILABLE);
@@ -217,6 +213,12 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, alertModel, prom
         financialSnapshot,
       });
       await loan.save({ transaction });
+      await syncOverdueInstallmentAlerts({
+        loan,
+        schedule,
+        transaction,
+        resolutionSource: 'schedule_corrected',
+      });
       return loan;
     });
   },
