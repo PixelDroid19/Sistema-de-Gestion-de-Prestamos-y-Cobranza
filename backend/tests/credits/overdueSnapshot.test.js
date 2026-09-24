@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { deriveLoanOverdueSnapshot } = require('@/modules/credits/application/useCases');
+const { deriveLoanOverdueSnapshot, createGetLoanStatistics } = require('@/modules/credits/application/useCases');
 
 const ASOF = new Date('2026-06-15T00:00:00Z');
 
@@ -58,4 +58,32 @@ test('deriveLoanOverdueSnapshot returns a clean snapshot when there is no schedu
     overdueAmount: 0,
     lateFeeOutstanding: 0,
   });
+});
+
+test('portfolio statistics separate overdue balances from unpaid late fees', async () => {
+  const baseLoan = {
+    status: 'pending', recoveryStatus: 'pending', amount: 1000,
+    principalOutstanding: 900, interestOutstanding: 100, termMonths: 2,
+    emiSchedule: [{
+      installmentNumber: 1, dueDate: '2020-01-01', status: 'pending',
+      remainingPrincipal: 100, remainingInterest: 10,
+    }],
+  };
+  const noFeeLoan = { ...baseLoan, id: 1, lateFeeMode: 'NONE', annualLateFeeRate: 0 };
+  const chargedLoan = { ...baseLoan, id: 2, lateFeeMode: 'SIMPLE', annualLateFeeRate: 12 };
+  const recoveredLoan = { ...chargedLoan, id: 3, recoveryStatus: 'recovered' };
+  const getStatistics = createGetLoanStatistics({
+    loanRepository: { list: async () => [noFeeLoan, chargedLoan, recoveredLoan] },
+    loanViewService: { getCanonicalLoanView: () => ({ snapshot: { totalPaid: 0 } }) },
+  });
+
+  const statistics = await getStatistics();
+
+  assert.equal(statistics.amounts.totalOverdue, 2000);
+  assert.equal(
+    statistics.amounts.totalLateFeeOutstanding,
+    deriveLoanOverdueSnapshot(chargedLoan).lateFeeOutstanding,
+  );
+  assert.ok(statistics.amounts.totalLateFeeOutstanding > 0);
+  assert.ok(statistics.amounts.totalLateFeeOutstanding < statistics.amounts.totalOverdue);
 });

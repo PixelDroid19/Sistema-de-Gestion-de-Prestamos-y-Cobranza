@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import Credits from '../Credits';
 
 const mockDeleteLoan = vi.fn().mockResolvedValue(undefined);
@@ -18,12 +18,29 @@ const mockUseLoanStatistics = vi.fn((_options?: unknown) => ({
           totalLoanAmount: 1000000,
           totalCollected: 250000,
           totalOverdue: 10000,
+          totalLateFeeOutstanding: 0,
         },
         counts: { activeCredits: 1, totalCredits: 1 },
       },
     },
   },
 }));
+const defaultLoanRows = [
+  {
+    id: 77,
+    amount: 500000,
+    interestRate: 12,
+    installmentAmount: 55000,
+    principalOutstanding: 300000,
+    interestOutstanding: 40000,
+    lateFeeOutstanding: 0,
+    status: 'active',
+    recoveryStatus: 'pending',
+    createdAt: '2026-01-10T10:00:00.000Z',
+    Customer: { name: 'Cliente Prueba' },
+  },
+];
+let mockLoanRows: any[] = defaultLoanRows;
 
 type SessionUser = {
   id: number;
@@ -84,21 +101,8 @@ vi.mock('../../services/loanService', () => ({
   useLoans: () => ({
     data: {
       data: {
-        loans: [
-          {
-            id: 77,
-            amount: 500000,
-            interestRate: 12,
-            installmentAmount: 55000,
-            principalOutstanding: 300000,
-            interestOutstanding: 40000,
-            status: 'active',
-            recoveryStatus: 'pending',
-            createdAt: '2026-01-10T10:00:00.000Z',
-            Customer: { name: 'Cliente Prueba' },
-          },
-        ],
-        pagination: { totalItems: 1, totalPages: 1 },
+        loans: mockLoanRows,
+        pagination: { totalItems: mockLoanRows.length, totalPages: 1 },
       },
     },
     isLoading: false,
@@ -129,6 +133,7 @@ const renderCredits = () => {
 describe('Credits behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockLoanRows = defaultLoanRows;
     currentUser = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] };
     vi.stubGlobal('confirm', vi.fn(() => true));
     mockConfirmDanger.mockResolvedValue(true);
@@ -141,6 +146,7 @@ describe('Credits behavioral parity scenarios', () => {
               totalLoanAmount: 1000000,
               totalCollected: 250000,
               totalOverdue: 10000,
+              totalLateFeeOutstanding: 0,
             },
             counts: { activeCredits: 1, totalCredits: 1 },
           },
@@ -328,6 +334,55 @@ describe('Credits behavioral parity scenarios', () => {
     expect(screen.queryByText('Crédito #77')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Seleccionar crédito 77')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Seleccionar crédito de Cliente Prueba')).toBeInTheDocument();
+  });
+
+  it('shows actual late fees instead of overdue loan balances for the portfolio and each credit', () => {
+    mockLoanRows = [
+      {
+        ...defaultLoanRows[0], id: 81, amount: 1822000,
+        principalOutstanding: 1822000, interestOutstanding: 508207,
+        lateFeeOutstanding: 0, isOverdue: true, daysOverdue: 200,
+        Customer: { name: 'FREDY HOYOS' },
+      },
+      {
+        ...defaultLoanRows[0], id: 82, amount: 2000000,
+        principalOutstanding: 2000000, interestOutstanding: 711884,
+        lateFeeOutstanding: 14734, isOverdue: true, daysOverdue: 150,
+        Customer: { name: 'Helana Tulande' },
+      },
+    ];
+    mockUseLoanStatistics.mockImplementation(() => ({
+      data: { data: { statistics: {
+        amounts: { totalLoanAmount: 3822000, totalCollected: 0, totalOverdue: 5042091, totalLateFeeOutstanding: 14734 },
+        counts: { activeCredits: 0, totalCredits: 2 },
+      } } },
+    }));
+
+    renderCredits();
+
+    const portfolio = screen.getByLabelText('Totales generales del portafolio');
+    expect(within(portfolio).getByText('COP 14.734')).toBeInTheDocument();
+    expect(within(portfolio).queryByText('COP 5.042.091')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Cargo por mora' })).toBeInTheDocument();
+    const fredy = screen.getByRole('row', { name: /FREDY HOYOS/ });
+    const helana = screen.getByRole('row', { name: /Helana Tulande/ });
+    expect(within(fredy).getByRole('cell', { name: 'COP 0' })).toBeInTheDocument();
+    expect(within(fredy).getByText('Cuotas vencidas')).toBeInTheDocument();
+    expect(within(helana).getByRole('cell', { name: 'COP 14.734' })).toBeInTheDocument();
+  });
+
+  it('sums real late fees from visible credits when portfolio statistics are unavailable', () => {
+    currentUser = { id: 2, name: 'Empleado', email: 'employee@test.com', role: 'employee', permissions: ['CREDITS_VIEW_ALL'] };
+    mockLoanRows = [
+      { ...defaultLoanRows[0], id: 81, lateFeeOutstanding: 0, overdueAmount: 2330207 },
+      { ...defaultLoanRows[0], id: 82, lateFeeOutstanding: 14734, overdueAmount: 2711884 },
+    ];
+
+    renderCredits();
+
+    const portfolio = screen.getByLabelText('Resumen de los créditos visibles');
+    expect(within(portfolio).getByText('COP 14.734')).toBeInTheDocument();
+    expect(within(portfolio).queryByText('COP 5.042.091')).not.toBeInTheDocument();
   });
 
   it('turns the calendar tab into an operational agenda with actions for the next payable installment', async () => {

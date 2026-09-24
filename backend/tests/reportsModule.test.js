@@ -561,6 +561,7 @@ test('outstanding Excel keeps its aggregate and detail together and increments p
   assert.equal(summary.get('Saldo total pendiente'), 1000);
   assert.equal(summary.get('Capital pendiente'), 900);
   assert.equal(summary.get('Saldo promedio por crédito'), 500);
+  assert.equal(sheet.getCell('D9').value, 'Saldo vencido');
   assert.equal(sheet.getCell('E10').value, 700);
   assert.equal(sheet.getCell('E11').value, 300);
 });

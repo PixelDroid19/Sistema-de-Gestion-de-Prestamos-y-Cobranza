@@ -22,7 +22,6 @@ export function CreditSummaryMetrics({
     paymentSnapshot?.lateFeeDue
     ?? paymentSnapshot?.totalLateFeeAmount
     ?? loan?.lateFeeOutstanding
-    ?? loan?.totalOverdue
     ?? 0,
   );
   const outstandingInstallments = paymentSnapshot?.outstandingInstallments ?? '-';

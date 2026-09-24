@@ -362,6 +362,7 @@ export interface LoanStatistics {
     totalCollected: number;
     totalPending: number;
     totalOverdue: number;
+    totalLateFeeOutstanding: number;
   };
   averages: {
     averageLoanAmount: number;

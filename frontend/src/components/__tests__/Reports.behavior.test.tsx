@@ -991,14 +991,14 @@ describe('Reports operational module', () => {
     renderReports();
     openReportView('Cartera por cobrar');
 
-    expect(screen.getByText('Créditos en mora')).toBeInTheDocument();
+    expect(screen.getByText('Créditos vencidos')).toBeInTheDocument();
     expect(screen.getByText('Mayor atraso')).toBeInTheDocument();
-    expect(screen.getByText('Saldo vencido')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Saldo vencido' })).toBeInTheDocument();
     expect(screen.getByText('COP 350.000')).toBeInTheDocument();
     expect(screen.getAllByText('Capital pendiente').length).toBeGreaterThan(0);
     expect(screen.getByText('COP 4.000.000')).toBeInTheDocument();
     const reportPanel = screen.getAllByRole('heading', { name: 'Cartera por cobrar' }).at(-1)?.closest('.report-tab-panel');
-    expect(reportPanel).not.toHaveTextContent('Créditos en mora');
+    expect(reportPanel).not.toHaveTextContent('Créditos vencidos');
   });
 
   it('exports the receivable portfolio to Excel and PDF', async () => {
@@ -1056,7 +1056,7 @@ describe('Reports operational module', () => {
     openReportView('Cartera por cobrar');
 
     expect(screen.getByText('Créditos con saldo')).toBeInTheDocument();
-    expect(screen.queryByText('Créditos en mora')).not.toBeInTheDocument();
+    expect(screen.queryByText('Créditos vencidos')).not.toBeInTheDocument();
     expect(screen.getAllByText('Saldo por cobrar').length).toBeGreaterThan(0);
     expect(screen.getAllByText('COP 1.680.982').length).toBeGreaterThan(0);
     expect(screen.getByRole('columnheader', { name: 'Estado del atraso' })).toBeInTheDocument();

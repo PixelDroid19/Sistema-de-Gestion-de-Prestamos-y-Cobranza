@@ -90,7 +90,7 @@ describe('PaymentSchedule behavior', () => {
 
     render(<PaymentSchedule />);
 
-    expect(screen.getByText('En mora')).toBeInTheDocument();
+    expect(screen.getByText('Vencida')).toBeInTheDocument();
     expect(screen.queryByText(/^defaulted$/i)).not.toBeInTheDocument();
   });
 

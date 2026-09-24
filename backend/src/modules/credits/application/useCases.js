@@ -1784,16 +1784,20 @@ const createGetLoanStatistics = ({ loanRepository, loanViewService }) => async (
   // with the persisted collection state, so the statistics widget agrees with the per-loan
   // list/calendar instead of relying solely on the manually-updated status columns.
   const asOfDate = getCurrentOperationalDateOnly();
-  const isLoanOverdue = (loan) => (
+  const overdueSnapshots = loans.map((loan) => ({
+    loan,
+    snapshot: deriveLoanOverdueSnapshot(loan, asOfDate),
+  }));
+  const isLoanOverdue = ({ loan, snapshot }) => (
     loan.status === 'defaulted'
     || loan.recoveryStatus === 'overdue'
-    || (loan.recoveryStatus !== 'recovered' && deriveLoanOverdueSnapshot(loan, asOfDate).isOverdue)
+    || (loan.recoveryStatus !== 'recovered' && snapshot.isOverdue)
   );
 
   const totalCredits = loans.length;
   const activeCredits = loans.filter((l) => ['approved', 'active'].includes(l.status)).length;
   const paidCredits = loans.filter((l) => l.status === 'closed').length;
-  const overdueLoans = loans.filter(isLoanOverdue);
+  const overdueLoans = overdueSnapshots.filter(isLoanOverdue);
   const overdueCredits = overdueLoans.length;
 
   const totalLoanAmount = loans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
@@ -1804,7 +1808,9 @@ const createGetLoanStatistics = ({ loanRepository, loanViewService }) => async (
   ), 0);
   const totalPending = loans.reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);
   const totalOverdue = overdueLoans
-    .reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);
+    .reduce((sum, { loan }) => sum + Number(loan.principalOutstanding || 0) + Number(loan.interestOutstanding || 0), 0);
+  const totalLateFeeOutstanding = overdueLoans
+    .reduce((sum, { snapshot }) => sum + snapshot.lateFeeOutstanding, 0);
 
   const averageLoanAmount = totalCredits > 0 ? totalLoanAmount / totalCredits : 0;
   const averageTerm = totalCredits > 0
@@ -1824,6 +1830,7 @@ const createGetLoanStatistics = ({ loanRepository, loanViewService }) => async (
       totalCollected: roundCurrency(totalCollected),
       totalPending: roundCurrency(totalPending),
       totalOverdue: roundCurrency(totalOverdue),
+      totalLateFeeOutstanding: roundCurrency(totalLateFeeOutstanding),
     },
     averages: {
       averageLoanAmount: roundCurrency(averageLoanAmount),

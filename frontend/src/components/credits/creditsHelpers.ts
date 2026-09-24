@@ -6,7 +6,7 @@ import { normalizeVisibleName } from '../../lib/displayNames';
 export type VisiblePortfolioStatistics = {
   totalAmount: number;
   totalCollected: number;
-  totalOverdue: number;
+  totalLateFeeOutstanding: number;
   totalCredits: number;
   activeCredits: number;
 };
@@ -87,13 +87,13 @@ export const getStatusColumnHelp = () => tTerm('credits.help.statusColumn');
 export const getRecoveryColumnHelp = () => tTerm('credits.help.recoveryColumn');
 
 /**
- * Single source of truth for "is this credit in mora?".
+ * Single source of truth for whether the loan has overdue installments.
  *
  * Combines the persisted collection state (`recoveryStatus === 'overdue'`,
  * `status === 'defaulted'`) with the backend's live overdue snapshot derived from the
  * amortization schedule (`isOverdue` / `daysOverdue`). The live snapshot is what the
- * calendar already used, so reading it here keeps the list and calendar consistent: a
- * loan with a past-due installment now shows "En mora" in both places.
+ * calendar already used, so the list and calendar agree on overdue installments.
+ * This status does not imply that the loan charges a late fee.
  */
 export const isCreditDelinquent = (credit: any): boolean => {
   const normalizedRecoveryStatus = String(credit?.recoveryStatus || '').toLowerCase();

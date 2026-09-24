@@ -59,7 +59,7 @@ type FilterState = {
 type DisplayedStatistics = {
   totalAmount: number;
   totalCollected: number;
-  totalOverdue: number;
+  totalLateFeeOutstanding: number;
   activeCredits: number;
   totalCredits: number;
   helper: string;
@@ -170,11 +170,11 @@ export default function CreditsListView({
             },
             {
               id: 'mora-pendiente',
-              label: tTerm('credits.stats.portfolio.totalOverdue.label'),
-              value: formatCurrency(displayedStatistics.totalOverdue),
-              helper: tTerm('credits.stats.portfolio.totalOverdue.helper'),
+              label: tTerm('credits.stats.portfolio.lateFeeOutstanding.label'),
+              value: formatCurrency(displayedStatistics.totalLateFeeOutstanding),
+              helper: tTerm('credits.stats.portfolio.lateFeeOutstanding.helper'),
               icon: <AlertTriangle size={18} />,
-              accent: displayedStatistics.totalOverdue > 0 ? 'amber' : 'slate',
+              accent: displayedStatistics.totalLateFeeOutstanding > 0 ? 'amber' : 'slate',
             },
             {
               id: 'creditos-activos',
@@ -431,7 +431,7 @@ export default function CreditsListView({
               <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">{tTerm('credits.table.rate')}</th>
               <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.installment')}</th>
               <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.balance')}</th>
-              <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">{tTerm('credits.table.delinquency')}</th>
+              <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">{tTerm('credits.table.lateFeeOutstanding')}</th>
               <th className="px-3 py-3 font-semibold">
                 <HelpLabel label={tTerm('credits.filter.status')} text={getStatusColumnHelp()} />
               </th>
@@ -449,10 +449,7 @@ export default function CreditsListView({
                 const outstandingAmount = principalOutstanding + interestOutstanding;
 
                 const isDelinquent = isCreditDelinquent(credit);
-                const totalAmount = Number(credit.amount) || 0;
-                const delinquencyPercentage = totalAmount > 0 && isDelinquent
-                  ? (outstandingAmount / totalAmount) * 100
-                  : 0;
+                const lateFeeOutstanding = Number(credit.lateFeeOutstanding) || 0;
 
                 const creationDate = credit.createdAt
                   ? formatLocaleDate(credit.createdAt, { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -491,20 +488,8 @@ export default function CreditsListView({
                         <span className="text-text-secondary">-</span>
                       )}
                     </td>
-                    <td className="hidden whitespace-nowrap px-3 py-4 text-right 2xl:table-cell">
-                      {delinquencyPercentage > 0 ? (
-                        <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${
-                          delinquencyPercentage > 50
-                            ? 'border border-red-200 bg-red-100 text-red-900 dark:border-red-500/30 dark:bg-red-500/20 dark:text-red-200'
-                            : delinquencyPercentage > 25
-                              ? 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200'
-                              : 'border border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/20 dark:text-yellow-200'
-                        }`}>
-                          {formatPercent(delinquencyPercentage, { minimumFractionDigits: delinquencyPercentage > 0 ? 1 : 0, maximumFractionDigits: 1 })}
-                        </span>
-                      ) : (
-                        <span className="text-text-secondary">{formatPercent(0)}</span>
-                      )}
+                    <td className={`hidden whitespace-nowrap px-3 py-4 text-right 2xl:table-cell ${lateFeeOutstanding > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : 'text-text-secondary'}`}>
+                      {formatCurrency(lateFeeOutstanding)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4">
                       <ExplainedChip

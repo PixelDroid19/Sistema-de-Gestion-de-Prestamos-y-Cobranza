@@ -491,7 +491,7 @@ const OUTSTANDING_EXPORT_COLUMNS = [
   { header: 'ID Crédito', key: 'creditId', width: 12 },
   { header: 'Cliente', key: 'customer', width: 28 },
   { header: 'Días de Atraso', key: 'daysOverdue', width: 14 },
-  { header: 'Monto en Mora', key: 'overdueAmount', width: 18, numFmt: MONEY_FORMAT },
+  { header: 'Saldo vencido', key: 'overdueAmount', width: 18, numFmt: MONEY_FORMAT },
   { header: 'Saldo Pendiente', key: 'outstanding', width: 18, numFmt: MONEY_FORMAT },
   { header: 'Capital Restante', key: 'remainingCapital', width: 18, numFmt: MONEY_FORMAT },
   { header: 'Estado', key: 'status', width: 18 },

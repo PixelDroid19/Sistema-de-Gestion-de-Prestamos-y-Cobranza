@@ -339,18 +339,18 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       const amount = Number(credit?.amount ?? credit?.loanAmount ?? credit?.principal ?? 0);
       const principalOutstanding = Number(credit?.principalOutstanding ?? credit?.outstandingPrincipal ?? credit?.balance ?? 0);
       const totalOutstanding = Number(credit?.outstandingBalance ?? credit?.remainingBalance ?? principalOutstanding ?? 0);
-      const overdue = Number(credit?.overdueAmount ?? credit?.lateFeeOutstanding ?? 0);
+      const lateFeeOutstanding = Number(credit?.lateFeeOutstanding ?? 0);
       const status = String(credit?.status || '').toLowerCase();
 
       totals.totalAmount += Number.isFinite(amount) ? amount : 0;
       totals.totalCollected += Math.max(0, (Number.isFinite(amount) ? amount : 0) - (Number.isFinite(totalOutstanding) ? totalOutstanding : 0));
-      totals.totalOverdue += Number.isFinite(overdue) ? overdue : 0;
+      totals.totalLateFeeOutstanding += Number.isFinite(lateFeeOutstanding) ? lateFeeOutstanding : 0;
       totals.totalCredits += 1;
       if (['active', 'approved', 'pending', 'overdue'].includes(status)) {
         totals.activeCredits += 1;
       }
       return totals;
-    }, { totalAmount: 0, totalCollected: 0, totalOverdue: 0, totalCredits: 0, activeCredits: 0 });
+    }, { totalAmount: 0, totalCollected: 0, totalLateFeeOutstanding: 0, totalCredits: 0, activeCredits: 0 });
   }, [creditsList]);
 
   const statistics = statisticsData?.data?.statistics ?? null;
@@ -360,7 +360,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     ? {
       totalAmount: Number(statisticsAmounts.totalLoanAmount ?? statistics.totalDisbursed ?? 0),
       totalCollected: Number(statisticsAmounts.totalCollected ?? statistics.totalRecovered ?? 0),
-      totalOverdue: Number(statisticsAmounts.totalOverdue ?? statistics.overdueAmount ?? 0),
+      totalLateFeeOutstanding: Number(statisticsAmounts.totalLateFeeOutstanding ?? 0),
       activeCredits: Number(statisticsCounts.activeCredits ?? statistics.totalActiveLoans ?? 0),
       totalCredits: Number(statisticsCounts.totalCredits ?? statistics.totalLoans ?? 0),
       helper: tTerm('credits.stats.portfolio.globalHelper'),
