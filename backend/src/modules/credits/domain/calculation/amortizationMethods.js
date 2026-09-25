@@ -5,6 +5,7 @@ const {
 } = require('./calculationMethods');
 const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
 const { ValidationError } = require('@/utils/errorHandler');
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const parseUtcDateOnly = (value) => {
   try {
@@ -46,6 +47,18 @@ const normalizeFirstDueDate = ({ startDate, firstDueDate }) => {
     throw new ValidationError('La primera cuota debe vencer al menos un mes después del desembolso.');
   }
   return selected.getTime() === standardDate.getTime() ? null : selected;
+};
+
+// TNA 30/360 accrues days beyond the first monthly due date at TNA / 360.
+const calculateExtraFirstPeriodInterest = ({ amount, interestRate, startDate, firstDueDate }) => {
+  const selectedFirstDueDate = normalizeFirstDueDate({ startDate, firstDueDate });
+  if (!selectedFirstDueDate) return 0;
+
+  const standardFirstDueDate = resolveFirstPaymentDate(startDate);
+  const extraDays = Math.max(0, Math.round(
+    (selectedFirstDueDate.getTime() - standardFirstDueDate.getTime()) / MILLISECONDS_PER_DAY,
+  ));
+  return roundCurrency(Number(amount) * (Number(interestRate) / 100) * extraDays / 360);
 };
 
 const installmentDueDate = ({ startDate, firstDueDate, installmentNumber }) => (
@@ -95,13 +108,20 @@ const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
   return roundCurrency(installment);
 };
 
-const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate, firstDueDate }) => {
+const buildLevelTotalSchedule = ({
+  amount, interestRate, totalInterest, termMonths, startDate, firstDueDate, includeExtraFirstPeriodInterest,
+}) => {
   const principal = roundCurrency(amount);
   const interestTotal = roundCurrency(Math.max(0, Number(totalInterest) || 0));
   const term = Number(termMonths);
   const schedule = [];
   const scheduleStartDate = resolveScheduleStartDate(startDate);
   const selectedFirstDueDate = normalizeFirstDueDate({ startDate: scheduleStartDate, firstDueDate });
+  const extraFirstPeriodInterest = includeExtraFirstPeriodInterest
+    ? calculateExtraFirstPeriodInterest({
+      amount, interestRate, startDate: scheduleStartDate, firstDueDate: selectedFirstDueDate,
+    })
+    : 0;
   const basePrincipal = term > 0 ? roundCurrency(principal / term) : 0;
   const baseInterest = term > 0 ? roundCurrency(interestTotal / term) : 0;
   let balance = principal;
@@ -112,11 +132,12 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate,
     const principalComponent = month === term
       ? roundCurrency(openingBalance)
       : roundCurrency(Math.min(openingBalance, basePrincipal));
-    const interestComponent = month === term
+    const baseInterestComponent = month === term
       ? roundCurrency(Math.max(0, interestTotal - allocatedInterest))
       : baseInterest;
+    const interestComponent = roundCurrency(baseInterestComponent + (month === 1 ? extraFirstPeriodInterest : 0));
     const scheduledPayment = roundCurrency(principalComponent + interestComponent);
-    allocatedInterest = roundCurrency(allocatedInterest + interestComponent);
+    allocatedInterest = roundCurrency(allocatedInterest + baseInterestComponent);
     balance = roundCurrency(Math.max(0, openingBalance - principalComponent));
 
     schedule.push({
@@ -134,13 +155,24 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate,
       remainingInterest: interestComponent,
       remainingBalance: balance,
       status: 'pending',
+      ...(month === 1 && extraFirstPeriodInterest > 0 ? { extraFirstPeriodInterest } : {}),
     });
   }
 
   return schedule;
 };
 
-const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, firstDueDate, lateFeeMode: _lateFeeMode, installmentAmount, calculationMethod }) => {
+const buildAmortizationSchedule = ({
+  amount,
+  interestRate,
+  termMonths,
+  startDate,
+  firstDueDate,
+  lateFeeMode: _lateFeeMode,
+  installmentAmount,
+  calculationMethod,
+  includeExtraFirstPeriodInterest = true,
+}) => {
   const method = assertSupportedCalculationMethod(calculationMethod);
   const principal = Number(amount);
   const term = Number(termMonths);
@@ -158,16 +190,22 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
     // Always anchor on origination, not February's already-clamped first due date.
     const scheduleStartDate = resolveScheduleStartDate(startDate);
     const selectedFirstDueDate = normalizeFirstDueDate({ startDate: scheduleStartDate, firstDueDate });
+    const extraFirstPeriodInterest = includeExtraFirstPeriodInterest
+      ? calculateExtraFirstPeriodInterest({
+        amount, interestRate, startDate: scheduleStartDate, firstDueDate: selectedFirstDueDate,
+      })
+      : 0;
     let balance = roundCurrency(amount);
 
     for (let month = 1; month <= term; month += 1) {
       const openingBalance = balance;
-      const interestComponent = monthlyRate === 0
+      const baseInterestComponent = monthlyRate === 0
         ? 0
         : roundCurrency(openingBalance * monthlyRate);
+      const interestComponent = roundCurrency(baseInterestComponent + (month === 1 ? extraFirstPeriodInterest : 0));
       const principalComponent = month === term
         ? roundCurrency(openingBalance)
-        : roundCurrency(Math.max(0, Math.min(openingBalance, resolvedInstallmentAmount - interestComponent)));
+        : roundCurrency(Math.max(0, Math.min(openingBalance, resolvedInstallmentAmount - baseInterestComponent)));
       const scheduledPayment = roundCurrency(principalComponent + interestComponent);
       balance = roundCurrency(Math.max(0, openingBalance - principalComponent));
 
@@ -186,6 +224,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
         remainingInterest: interestComponent,
         remainingBalance: balance,
         status: 'pending',
+        ...(month === 1 && extraFirstPeriodInterest > 0 ? { extraFirstPeriodInterest } : {}),
       });
     }
 
@@ -198,12 +237,16 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
   if (method === 'SIMPLE') {
     const totalInterest = roundCurrency(principal * annualRate * (term / 12));
-    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate, firstDueDate });
+    return buildLevelTotalSchedule({
+      amount, interestRate, totalInterest, termMonths, startDate, firstDueDate, includeExtraFirstPeriodInterest,
+    });
   }
 
   if (method === 'COMPOUND') {
     const totalInterest = roundCurrency(principal * (Math.pow(1 + monthlyRate, term) - 1));
-    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate, firstDueDate });
+    return buildLevelTotalSchedule({
+      amount, interestRate, totalInterest, termMonths, startDate, firstDueDate, includeExtraFirstPeriodInterest,
+    });
   }
 
   return buildFixedInstallmentSchedule(calculateInstallmentAmount({ amount, interestRate, termMonths }));
@@ -235,7 +278,9 @@ const summarizeSchedule = (schedule = []) => {
   const nextInstallment = activeSchedule.find((row) => (row.remainingPrincipal || 0) + (row.remainingInterest || 0) > 0) || null;
 
   return {
-    installmentAmount: roundCurrency(activeSchedule[0]?.scheduledPayment || 0),
+    installmentAmount: roundCurrency(
+      Number(activeSchedule[0]?.scheduledPayment || 0) - Number(activeSchedule[0]?.extraFirstPeriodInterest || 0),
+    ),
     totalPrincipal: roundCurrency(totals.totalPrincipal),
     totalInterest: roundCurrency(totals.totalInterest),
     totalPayable: roundCurrency(totals.totalPayable),

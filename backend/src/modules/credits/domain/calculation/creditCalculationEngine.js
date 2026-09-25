@@ -61,7 +61,7 @@ const resolveLateFeeMode = ({ profile, input }) => {
   return assertSupportedLateFeeMode(requestedMode);
 };
 
-const calculateCredit = ({ input, profileVersion, policySnapshot = null }) => {
+const calculateCredit = ({ input, profileVersion, policySnapshot = null, includeExtraFirstPeriodInterest = true }) => {
   const profile = assertActiveProfile(profileVersion);
   const normalizedInput = normalizeCreditCalculationInput(input);
   const method = resolveCalculationMethod({ profile, input: normalizedInput });
@@ -75,6 +75,7 @@ const calculateCredit = ({ input, profileVersion, policySnapshot = null }) => {
     lateFeeMode,
     installmentAmount,
     calculationMethod: method,
+    includeExtraFirstPeriodInterest,
   });
   const summary = summarizeSchedule(schedule);
   const immutablePolicySnapshot = buildPolicySnapshot({

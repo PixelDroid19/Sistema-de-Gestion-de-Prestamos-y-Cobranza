@@ -420,6 +420,11 @@ integrationTest('producto: pacta una primera cuota posterior al mes y desplaza s
   const previewSchedule = preview.body.data.calculation.schedule;
   assert.deepEqual(previewSchedule.map((row) => row.dueDate.slice(0, 10)),
     ['2026-08-10', '2026-09-10', '2026-10-10']);
+  assert.equal(previewSchedule[0].extraFirstPeriodInterest, 4166.67);
+  assert.equal(Number(previewSchedule[0].scheduledPayment.toFixed(2)),
+    Number((previewSchedule[1].scheduledPayment + 4166.67).toFixed(2)));
+  assert.equal(previewSchedule[0].interestComponent, 29166.67);
+  assert.equal(preview.body.data.calculation.summary.installmentAmount, previewSchedule[1].scheduledPayment);
 
   const created = await expectStatus({
     method: 'POST', path: '/api/loans', token: accessToken,
@@ -431,6 +436,7 @@ integrationTest('producto: pacta una primera cuota posterior al mes y desplaza s
   assert.deepEqual(created.body.data.loan.emiSchedule, previewSchedule);
   let stored = await Loan.findByPk(deferredLoanId);
   assert.equal(stored.financialSnapshot.firstDueDate, '2026-08-10T00:00:00.000Z');
+  assert.equal(stored.financialSnapshot.installmentAmount, previewSchedule[1].scheduledPayment);
   await expectStatus({ method: 'PATCH', path: `/api/loans/${deferredLoanId}/status`, token: accessToken,
     body: { status: 'approved' } }, 200);
   await expectStatus({ method: 'PATCH', path: `/api/loans/${deferredLoanId}/status`, token: accessToken,

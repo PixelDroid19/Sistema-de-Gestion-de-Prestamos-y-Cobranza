@@ -144,6 +144,54 @@ test('date-only correction preserves every amount, the original rate policy, and
   }
 });
 
+test('date-only correction recalculates extra first-period interest when no installment has been paid', async () => {
+  const { correctionService, loan, originalSchedule } = buildScenario();
+  await correctionService.correct({
+    loanId: 31, actorId: 9, amount: 1000000, interestRate: 60, termMonths: 3,
+    startDate: '2026-08-01', firstDueDate: '2026-09-08',
+  });
+
+  assert.equal(loan.emiSchedule[0].dueDate.slice(0, 10), '2026-09-08');
+  assert.equal(loan.emiSchedule[0].interestComponent, originalSchedule[0].interestComponent + 11666.67);
+  assert.equal(loan.emiSchedule[0].principalComponent, originalSchedule[0].principalComponent);
+  assert.equal(loan.emiSchedule[0].scheduledPayment, originalSchedule[0].scheduledPayment + 11666.67);
+  assert.deepEqual(loan.emiSchedule.slice(1).map((row) => row.scheduledPayment),
+    originalSchedule.slice(1).map((row) => row.scheduledPayment));
+  assert.deepEqual(loan.emiSchedule.slice(1).map((row) => row.dueDate.slice(0, 10)),
+    ['2026-10-08', '2026-11-08']);
+});
+
+test('correction does not charge first-period extra interest again after a payment', async () => {
+  const { correctionService, loan, payments } = buildScenario({ hasPayment: true, status: 'active' });
+  const deferredSchedule = calculateCredit({
+    input: { amount: 1000000, interestRate: 60, termMonths: 3, startDate: '2026-08-01',
+      firstDueDate: '2026-09-08', calculationMethod: 'FRENCH' },
+    profileVersion: { ...DEFAULT_CALCULATION_PROFILE, id: 8 },
+  }).schedule;
+  const paidRow = deferredSchedule[0];
+  paidRow.paidPrincipal = paidRow.principalComponent;
+  paidRow.paidInterest = paidRow.interestComponent;
+  paidRow.paidTotal = paidRow.scheduledPayment;
+  paidRow.remainingPrincipal = 0;
+  paidRow.remainingInterest = 0;
+  paidRow.status = 'paid';
+  const preservedPaidRow = structuredClone(paidRow);
+  loan.emiSchedule = deferredSchedule;
+  payments[0].amount = paidRow.scheduledPayment;
+  payments[0].principalApplied = paidRow.paidPrincipal;
+  payments[0].interestApplied = paidRow.paidInterest;
+
+  await correctionService.correct({
+    loanId: 31, actorId: 9, amount: 1100000, interestRate: 60, termMonths: 3,
+    startDate: '2026-08-01', firstDueDate: '2026-09-08',
+  });
+
+  assert.deepEqual(loan.emiSchedule[0], preservedPaidRow);
+  assert.deepEqual(loan.emiSchedule.slice(1).map((row) => row.dueDate.slice(0, 10)),
+    ['2026-10-08', '2026-11-08']);
+  assert.equal(loan.emiSchedule[1].extraFirstPeriodInterest, undefined);
+});
+
 test('month-end correction keeps future due dates anchored to the original disbursement day', async () => {
   const { correctionService, loan } = buildScenario({ hasPayment: true, status: 'active', startDate: '2026-01-31' });
   await correctionService.correct({

@@ -4,8 +4,8 @@ This folder is the single backend source of truth for credit formulas.
 
 ## Runtime Flow
 
-1. The API receives `amount`, `interestRate`, `termMonths`, disbursement `startDate`, optional `firstDueDate`, and late-fee inputs. Without `firstDueDate`, the original one-month schedule remains unchanged. With it, monthly due dates are anchored to the selected first installment; amounts still use the same monthly interest formula.
-   Corrections retain paid schedule rows, receipts, and payment promises; `firstDueDate` is the anchor used only to rebuild the unpaid tail. Overdue-installment alerts are reconciled in the same transaction, while manual reminders remain intact. The anchor is stored in the loan's financial snapshot, so existing rows require no schema migration.
+1. The API receives `amount`, `interestRate`, `termMonths`, disbursement `startDate`, optional `firstDueDate`, and late-fee inputs. Without `firstDueDate`, the original one-month schedule remains unchanged. With it, monthly due dates are anchored to the selected first installment. If that date is later than the standard one-month due date, the first installment includes simple interest for the extra calendar days at TNA / 360; later installments keep their regular amount.
+   Corrections retain paid schedule rows, receipts, and payment promises. A date-only correction rebuilds the first installment's extra interest only while no payment has been recorded; once payment history exists, amounts remain intact and only pending dates move. Overdue-installment alerts are reconciled in the same transaction, while manual reminders remain intact. The anchor is stored in the loan's financial snapshot, so existing rows require no schema migration.
 2. The application resolves active rate and late-fee policies.
 3. The calculation service loads the active `CalculationProfileVersion`.
 4. `creditCalculationEngine.calculateCredit()` builds the schedule, summary, policy snapshot, and explanation.

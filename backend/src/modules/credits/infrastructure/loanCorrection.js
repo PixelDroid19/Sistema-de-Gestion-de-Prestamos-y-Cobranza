@@ -19,7 +19,7 @@ const getPreservedRowCount = (schedule) => schedule.reduce((lastCount, row, inde
     : lastCount
 ), 0);
 
-const buildCorrectedSnapshot = ({ priorSnapshot, schedule, policySnapshot, startDate, firstDueDate, nextInstallmentAmount }) => {
+const buildCorrectedSnapshot = ({ priorSnapshot, schedule, policySnapshot, startDate, firstDueDate }) => {
   const summary = buildFinancialSnapshot(schedule);
   const capitalAdjustmentsApplied = roundCurrency(priorSnapshot.capitalAdjustmentsApplied || 0);
   const totalPaidPenalty = roundCurrency(priorSnapshot.totalPaidPenalty || 0);
@@ -30,7 +30,6 @@ const buildCorrectedSnapshot = ({ priorSnapshot, schedule, policySnapshot, start
   return {
     ...priorSnapshot,
     ...summary,
-    installmentAmount: nextInstallmentAmount,
     capitalAdjustmentsApplied,
     totalPrincipal: roundCurrency(summary.totalPrincipal + capitalAdjustmentsApplied),
     totalPaidPrincipal,
@@ -114,7 +113,7 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, profileModel, sy
       let futureRows;
       let calculationMethod = loan.calculationMethod;
       let appliedPolicySnapshot = policySnapshot;
-      if (dateOnlyCorrection) {
+      if (dateOnlyCorrection && preservedCount > 0) {
         const asOfDate = new Date();
         futureRows = previousSchedule.slice(preservedCount).map((row, index) => {
           const shiftedRow = {
@@ -146,6 +145,8 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, profileModel, sy
           },
           profileVersion: frozenProfile,
           policySnapshot,
+          // The deferred days belong only to the original first installment.
+          includeExtraFirstPeriodInterest: preservedCount === 0,
         });
         futureRows = calculation.schedule.map((row, index) => ({
           ...row,
@@ -166,7 +167,6 @@ const createLoanCorrectionService = ({ loanModel, paymentModel, profileModel, sy
         policySnapshot: appliedPolicySnapshot,
         startDate: selectedDate,
         firstDueDate: selectedFirstDueDate,
-        nextInstallmentAmount: futureRows[0]?.scheduledPayment || 0,
       });
       if (Math.abs(financialSnapshot.totalPrincipal - amount) > 0.02) {
         throw new ValidationError('El capital registrado y el calendario de pagos no concilian; no se aplicó la corrección.');

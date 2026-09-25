@@ -58,7 +58,7 @@ test('calculateCredit rejects malformed start dates instead of falling back sile
   }), /fecha inicial.*AAAA-MM-DD/i);
 });
 
-test('a deferred first installment shifts monthly due dates without changing scheduled amounts', () => {
+test('a deferred first installment adds daily interest only for days after the first month', () => {
   for (const calculationMethod of ['FRENCH', 'SIMPLE', 'COMPOUND']) {
     const input = { ...baseInput, startDate: '2026-01-05', termMonths: 3, calculationMethod };
     const standard = calculateCredit({ input, profileVersion: activeProfile });
@@ -70,11 +70,44 @@ test('a deferred first installment shifts monthly due dates without changing sch
     assert.deepEqual(deferred.schedule.map((row) => row.dueDate.slice(0, 10)), [
       '2026-02-10', '2026-03-10', '2026-04-10',
     ]);
-    assert.deepEqual(deferred.schedule.map((row) => row.scheduledPayment),
-      standard.schedule.map((row) => row.scheduledPayment));
+    const additionalInterest = 2;
+    assert.equal(deferred.schedule[0].interestComponent,
+      standard.schedule[0].interestComponent + additionalInterest);
+    assert.equal(deferred.schedule[0].principalComponent, standard.schedule[0].principalComponent);
+    assert.equal(deferred.schedule[0].scheduledPayment,
+      standard.schedule[0].scheduledPayment + additionalInterest);
+    assert.deepEqual(deferred.schedule.slice(1).map((row) => row.scheduledPayment),
+      standard.schedule.slice(1).map((row) => row.scheduledPayment));
+    assert.equal(deferred.summary.totalInterest, standard.summary.totalInterest + additionalInterest);
+    assert.equal(deferred.summary.totalPayable, standard.summary.totalPayable + additionalInterest);
+    assert.equal(deferred.summary.installmentAmount, standard.schedule[1].scheduledPayment);
     assert.equal(deferred.inputs.startDate, '2026-01-05T00:00:00.000Z');
     assert.equal(deferred.inputs.firstDueDate, '2026-02-10T00:00:00.000Z');
   }
+});
+
+test('a seven-day deferral adds the prorated interest to the pictured credit first installment', () => {
+  const result = calculateCredit({
+    input: { amount: 5815000, interestRate: 60.17, termMonths: 24,
+      startDate: '2026-09-23', firstDueDate: '2026-10-30' },
+    profileVersion: activeProfile,
+  });
+
+  assert.equal(result.schedule[0].extraFirstPeriodInterest, 68033.88);
+  assert.equal(result.schedule[0].scheduledPayment, 490033.10);
+  assert.equal(result.schedule[1].scheduledPayment, 421999.22);
+  assert.equal(result.summary.installmentAmount, 421999.22);
+});
+
+test('a zero-rate credit does not add interest when its first installment is deferred', () => {
+  const result = calculateCredit({
+    input: { ...baseInput, amount: 1000, interestRate: 0, termMonths: 3,
+      startDate: '2026-01-05', firstDueDate: '2026-02-10' },
+    profileVersion: activeProfile,
+  });
+
+  assert.deepEqual(result.schedule.map((row) => row.scheduledPayment), [333.33, 333.33, 333.34]);
+  assert.equal(result.summary.totalInterest, 0);
 });
 
 test('first installment date must be valid and at least one month after disbursement', () => {

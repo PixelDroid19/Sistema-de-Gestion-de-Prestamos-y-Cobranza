@@ -49,6 +49,7 @@ export interface AmortizationRow {
   remainingInterest: number;
   remainingBalance: number;
   status: InstallmentStatus;
+  extraFirstPeriodInterest?: number;
 }
 
 export interface CreditCalculationResult {
